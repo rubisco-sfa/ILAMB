@@ -1,4 +1,5 @@
 import numpy as np
+import ilamblib as il
 
 class Confrontation():
     """
@@ -44,9 +45,9 @@ class Confrontation():
                                          final_time  =self.t.max())
         return t,var
 
-    def computeNRMSE(self,M,t=[],var=[]):
+    def computeNormalizedRootMeanSquaredError(self,M,t=[],var=[]):
         """
-
+        
 
         """
         # if data wasn't passed in, grab it now
@@ -56,5 +57,22 @@ class Confrontation():
                                              self.lon,
                                              initial_time=self.t.min(),
                                              final_time  =self.t.max())
+        begin = np.argmin(np.abs(self.t-t[0]))
+        end   = begin+t.size
+        return il.ComputeNormalizedRootMeanSquaredError(self.var[begin:end],var)
+
+    def computeNormalizedBias(self,M,t=[],var=[]):
+        """
         
-        
+
+        """
+        # if data wasn't passed in, grab it now
+        if not (np.asarray(t).size or np.asarray(var).size):
+            t,var = M.extractPointTimeSeries(self.variable,
+                                             self.lat,
+                                             self.lon,
+                                             initial_time=self.t.min(),
+                                             final_time  =self.t.max())
+        begin = np.argmin(np.abs(self.t-t[0]))
+        end   = begin+t.size
+        return il.ComputeNormalizedBias(self.var[begin:end],var)

@@ -17,10 +17,9 @@ ax.plot(C.t/365.+1850,C.var,'-g',label='observational data')
 ax.plot(t/365.+1850,co2,'-k',alpha=0.5,label='intersection of model and obs')
 ax.legend(loc=2)
 
-
-print C.computeNRMSE(M,t=t,var=co2)
-print C.computeNRMSE(M)
-
+print "NRMSE:",C.computeNormalizedRootMeanSquaredError(M)             # 238 ms per loop
+print "NRMSE:",C.computeNormalizedRootMeanSquaredError(M,t=t,var=co2) # 720 us per loop
+print "Nbias:",C.computeNormalizedBias(M,t=t,var=co2)
 
 plt.show()
 
