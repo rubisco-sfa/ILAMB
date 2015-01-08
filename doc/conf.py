@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# TestPkg documentation build configuration file, created by
+# ILAMB documentation build configuration file, created by
 # sphinx-quickstart on Sat Oct 25 15:45:20 2014.
 #
 # This file is execfile()d with the current directory set to its
@@ -199,7 +199,7 @@ html_static_path = ['_static']
 #html_search_scorer = 'scorer.js'
 
 # Output file base name for HTML help builder.
-htmlhelp_basename = 'TestPkgdoc'
+htmlhelp_basename = 'ILAMBdoc'
 
 # -- Options for LaTeX output ---------------------------------------------
 
@@ -221,8 +221,8 @@ latex_elements = {
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
-  ('index', 'TestPkg.tex', u'TestPkg Documentation',
-   u'Usual Suspects', 'manual'),
+  ('index', 'ILAMB.tex', u'ILAMB Documentation',
+   u'Nathan Collier', 'manual'),
 ]
 
 # The name of an image file (relative to this directory) to place at the top of
@@ -251,8 +251,8 @@ latex_documents = [
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
 man_pages = [
-    ('index', 'testpkg', u'TestPkg Documentation',
-     [u'Usual Suspects'], 1)
+    ('index', 'testpkg', u'ILAMB Documentation',
+     [u'Nathan Collier'], 1)
 ]
 
 # If true, show URL addresses after external links.
@@ -265,8 +265,8 @@ man_pages = [
 # (source start file, target name, title, author,
 #  dir menu entry, description, category)
 texinfo_documents = [
-  ('index', 'TestPkg', u'TestPkg Documentation',
-   u'Usual Suspects', 'TestPkg', 'One line description of project.',
+  ('index', 'ILAMB', u'ILAMB Documentation',
+   u'Nathan Collier', 'ILAMB', 'One line description of project.',
    'Miscellaneous'),
 ]
 
@@ -286,13 +286,13 @@ texinfo_documents = [
 # -- Options for Epub output ----------------------------------------------
 
 # Bibliographic Dublin Core info.
-epub_title = u'TestPkg'
-epub_author = u'Usual Suspects'
-epub_publisher = u'Usual Suspects'
-epub_copyright = u'2014, Usual Suspects'
+epub_title = u'ILAMB'
+epub_author = u'Nathan Collier'
+epub_publisher = u'Nathan Collier'
+epub_copyright = u'2014, Nathan Collier'
 
 # The basename for the epub file. It defaults to the project name.
-#epub_basename = u'TestPkg'
+#epub_basename = u'ILAMB'
 
 # The HTML theme for the epub output. Since the default themes are not optimized
 # for small screen space, using the same theme for HTML and epub output is
