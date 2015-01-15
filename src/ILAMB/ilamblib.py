@@ -149,10 +149,36 @@ def ComputeAnnualMean(t,var):
     end   = begin+int(t[begin:].size/12.)*12
     tmean = np.ma.average(  t[begin:end].reshape((-1,12)),axis=1,weights=DAYS_PER_MONTH/365.)
     vmean = np.ma.average(var[begin:end].reshape((-1,12)),axis=1,weights=DAYS_PER_MONTH/365.)
-    tmp = var[begin:end].reshape((-1,12))
     vmax  = np.ma.max(var[begin:end].reshape((-1,12)),axis=1)
     vmin  = np.ma.min(var[begin:end].reshape((-1,12)),axis=1)
     return tmean,vmean,vmin,vmax
+
+def ComputeDecadalAmplitude(t,var):
+    """
+    Computes the annual mean of the input time series.
+
+    Parameters
+    ----------
+    t : numpy.ndarray
+        a 1D array of times in days since 00:00:00 1/1/1850
+    var : numpy.ndarray
+        an array assumed to be a monthly average of a variable
+    
+    Returns
+    -------
+    tmean : numpy.ndarray
+        a 1D array of times in days since 00:00:00 1/1/1850
+    vmean : numpy.ndarray
+        an array assumed to be a monthly average of a variable
+    """
+    tmean,vmean,vmin,vmax = ComputeAnnualMean(t,var)
+    A     = vmax-vmin
+    begin = np.argmin(tmean[:9]%365)
+    end   = begin+int(tmean[begin:].size/10.)*10
+    tmean = np.apply_along_axis(np.mean,1,tmean[begin:end].reshape((-1,10)))
+    Amean = np.apply_along_axis(np.mean,1,A[begin:end].reshape((-1,10)))
+    Astd  = np.apply_along_axis(np.std ,1,A[begin:end].reshape((-1,10)))
+    return tmean,Amean,Astd
 
 def ComputeTrend(t,var,window=10.):
     tt    = []
