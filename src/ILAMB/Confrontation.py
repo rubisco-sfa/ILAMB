@@ -24,6 +24,11 @@ class Confrontation():
         self.metric["Trend"] = []
         self.metric["Trend"].append("")
 
+    def getData(self,t0,tf):
+        begin = np.argmin(np.abs(self.t-t0))
+        end   = np.argmin(np.abs(self.t-tf))+1
+        return self.t[begin:end],self.var[begin:end]
+
     def extractModelResult(self,M):
         """
         Extracts the model result on the time interval needed for this confrontation.
