@@ -6,8 +6,16 @@ class ModelResult():
     """
     A class for exploring model results.
     """
-    def __init__(self,path):
-        self.path = path
+    def __init__(self,path,filter=""):
+        self.path   = path
+        self.filter = filter
+
+    def explore(self):
+        from netCDF4 import Dataset
+        for fname in glob.glob("%s/*%s*.nc" % (self.path,self.filter)):
+            f = Dataset(fname)
+            for key in f.variables.keys():
+                if key.count("co2") > 0: print fname,key
         
     def extractPointTimeSeries(self,variable,lat,lon,initial_time=-1e20,final_time=1e20,navg=1):
         """
@@ -44,7 +52,11 @@ class ModelResult():
         # create a list of data which has a non-null intersection over the desired time range
         data   = []
         ntimes = 0
-        for fname in glob.glob("%s/*.nc" % self.path):
+        for fname in glob.glob("%s/*%s*.nc" % (self.path,self.filter)):
+            print fname
+            if fname.count("/co2")==1 and fname.count("co2mass")==0:
+                t,var = il.ExtractPointTimeSeries(fname,variable,lat,lon,navg=navg)
+                print t.shape,var.shape
             try:
                 t,var = il.ExtractPointTimeSeries(fname,variable,lat,lon,navg=navg)
                 nt    = ((t>=initial_time)*(t<=final_time)).sum()
@@ -59,12 +71,14 @@ class ModelResult():
         data = sorted(data,key=lambda entry: entry[0][0])
         tc   = np.zeros(ntimes)
         varc = np.zeros(ntimes)
+        masc = np.zeros(ntimes,dtype=bool)
         begin = 0
         for d in data:
             t,var = d
             mask = (t>=initial_time)*(t<=final_time)
             n = mask.sum(); end = begin+n
-            tc  [begin:end] =   t[mask]
-            varc[begin:end] = var[mask]
+            tc  [begin:end] =        t[mask]
+            varc[begin:end] = var.data[mask]
+            masc[begin:end] = var.mask[mask]
             begin = end
-        return tc,varc
+        return tc,np.ma.masked_array(varc,mask=masc)
