@@ -1,5 +1,6 @@
 from netCDF4 import Dataset
 import numpy as np
+from datetime import datetime
 
 DAYS_PER_MONTH = np.asarray([31,28,31,30,31,30,31,31,30,31,30,31],dtype='float')
 
@@ -24,7 +25,7 @@ def ExtractPointTimeSeries(filename,variable,lat,lon,navg=1):
     Returns
     -------
     t : numpy.ndarray
-        a 1D array of times in days since 00:00:00 1/1/1850
+        a 1D array of times in days since 1850-01-01 00:00:00
     var : numpy.ndarray
         an array of the extracted variable
 
@@ -33,22 +34,31 @@ def ExtractPointTimeSeries(filename,variable,lat,lon,navg=1):
     NotImplementedError
             If the variable is in an unexpected format
     """
-    f     = Dataset(filename)
-    t     = f.variables['time']
-    lats  = f.variables['lat']
-    lons  = f.variables['lon']
-    ilat  = lats[...].searchsorted(lat)
-    ilon  = lons[...].searchsorted(lon)
-    var   = f.variables[variable]
-    ndim  = len(var.shape)
-    if ndim == 4:
-        var   = var[:,:,ilon,ilat]
-        first = var.mask[0,:].sum() # assumes same number of masked layers for all time series
-        last  = first+navg
-        var   = np.apply_along_axis(np.mean,1,var.data[:,first:last])
+    f    = Dataset(filename)
+    try:
+        vari = f.variables[variable]
+    except:
+        raise ValueError("%s is not a variable in this netCDF file" % variable)
+    t    = f.variables['time']
+    unit = t.units.split(" since ")
+    assert unit[0] == "days"
+    t0   = datetime(1850,1,1,0,0,0)
+    tf   = datetime.strptime((unit[-1].split())[0],"%Y-%m-%d")
+    dt   = (tf-t0).days
+    lats = f.variables['lat']
+    lons = f.variables['lon']
+    ilat = lats[...].searchsorted(lat)
+    ilon = lons[...].searchsorted(lon)
+    if vari.ndim == 4:
+        var   = vari[:,:,ilon,ilat]
+        if var is not np.ma.masked:
+            var   = var[:,0]
+        else:
+            first = np.apply_along_axis(np.sum,1,var.mask)
+            var   = var[np.ix_(range(t.shape[0])),first][0,:]
     else:
         raise NotImplementedError("Unexpected data format for given variable.")
-    return t[:],var
+    return t[:]-dt,var
 
 def ComputeNormalizedRootMeanSquaredError(reference,prediction):
     r"""
