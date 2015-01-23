@@ -6,23 +6,24 @@ class Confrontation():
     A class for confronting model results with observational data.
     """
     def __init__(self,path):
-        """
-        This is all info that would need to be extracted from the
-        observational data file and/or the configure file.
-        """
+        
+        # Populate with observational data needed for the confrontation
         self.path = path
         mml       = np.genfromtxt("%s/monthly_mlo.csv" % path,delimiter=",",skip_header=57)
-        self.t    = (mml[:,3]-1850)*365 # days since 00:00:00 1/1/1850
+        self.t    = (mml[:,3]-1850.)*365. # days since 00:00:00 1/1/1850
         self.var  = np.ma.masked_where(mml[:,4]<0,mml[:,4])
+        
+        # This confrontation compares a point value
         self.lat  = 19.4
         self.lon  = 24.4
-        self.variable = "co2"
-        self.metric = {}
-        self.metric["Annual Mean"]    = []
-        self.metric["Seasonal Cycle"] = []
-        self.metric["Interannual Variability"] = []
-        self.metric["Trend"] = []
-        self.metric["Trend"].append("")
+
+        # A list of the output variables and units that this confrontation requires
+        self.requires = ["co2"]
+        self.units    = ["ppm"]
+
+        self.close = {}
+        self.close["co2"] = ["co2mass"]
+
 
     def getData(self,t0,tf):
         begin = np.argmin(np.abs(self.t-t0))

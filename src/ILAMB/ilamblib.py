@@ -28,6 +28,8 @@ def ExtractPointTimeSeries(filename,variable,lat,lon,navg=1):
         a 1D array of times in days since 1850-01-01 00:00:00
     var : numpy.ndarray
         an array of the extracted variable
+    unit : string
+        a description of the extracted unit
 
     Raises
     ------
@@ -58,7 +60,7 @@ def ExtractPointTimeSeries(filename,variable,lat,lon,navg=1):
             var   = var[np.ix_(range(t.shape[0])),first][0,:]
     else:
         raise NotImplementedError("Unexpected data format for given variable.")
-    return t[:]-dt,var
+    return t[:]-dt,var,vari.units
 
 def RootMeanSquaredError(reference,prediction,normalize="none"):
     r"""

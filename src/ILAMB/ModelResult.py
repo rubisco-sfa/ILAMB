@@ -43,6 +43,8 @@ class ModelResult():
             a 1D array of times in days since 00:00:00 1/1/1850
         var : numpy.ndarray
             an array of the extracted variable
+        unit : string
+            a description of the extracted unit
 
         Raises
         ------
@@ -53,13 +55,9 @@ class ModelResult():
         data   = []
         ntimes = 0
         for fname in glob.glob("%s/*%s*.nc" % (self.path,self.filter)):
-            print fname
-            if fname.count("/co2")==1 and fname.count("co2mass")==0:
-                t,var = il.ExtractPointTimeSeries(fname,variable,lat,lon,navg=navg)
-                print t.shape,var.shape
             try:
-                t,var = il.ExtractPointTimeSeries(fname,variable,lat,lon,navg=navg)
-                nt    = ((t>=initial_time)*(t<=final_time)).sum()
+                t,var,unit = il.ExtractPointTimeSeries(fname,variable,lat,lon,navg=navg)
+                nt      = ((t>=initial_time)*(t<=final_time)).sum()
                 ntimes += nt
                 if nt == 0: continue
             except:
@@ -77,8 +75,13 @@ class ModelResult():
             t,var = d
             mask = (t>=initial_time)*(t<=final_time)
             n = mask.sum(); end = begin+n
-            tc  [begin:end] =        t[mask]
-            varc[begin:end] = var.data[mask]
-            masc[begin:end] = var.mask[mask]
+            if var is not np.ma.masked:
+                tc  [begin:end] =   t[mask]
+                varc[begin:end] = var[mask]
+                masc[begin:end] =     mask
+            else:
+                tc  [begin:end] =        t[mask]
+                varc[begin:end] = var.data[mask]
+                masc[begin:end] = var.mask[mask]
             begin = end
-        return tc,np.ma.masked_array(varc,mask=masc)
+        return tc,np.ma.masked_array(varc,mask=masc),unit
