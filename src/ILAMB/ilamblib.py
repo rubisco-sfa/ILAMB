@@ -26,7 +26,7 @@ def ExtractPointTimeSeries(filename,variable,lat,lon,navg=1):
     -------
     t : numpy.ndarray
         a 1D array of times in days since 1850-01-01 00:00:00
-    var : numpy.ndarray
+    var : numpy.ma.core.MaskedArray
         an array of the extracted variable
     unit : string
         a description of the extracted unit
@@ -53,11 +53,8 @@ def ExtractPointTimeSeries(filename,variable,lat,lon,navg=1):
     ilon = lons[...].searchsorted(lon)
     if vari.ndim == 4:
         var   = vari[:,:,ilon,ilat]
-        if var is not np.ma.masked:
-            var   = var[:,0]
-        else:
-            first = np.apply_along_axis(np.sum,1,var.mask)
-            var   = var[np.ix_(range(t.shape[0])),first][0,:]
+        first = np.apply_along_axis(np.sum,1,var.mask)
+        var   = var[np.ix_(range(t.shape[0])),first][0,:]
     else:
         raise NotImplementedError("Unexpected data format for given variable.")
     return t[:]-dt,var,vari.units
