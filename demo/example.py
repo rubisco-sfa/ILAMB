@@ -68,10 +68,12 @@ for subdir, dirs, files in os.walk(root):
             ax.text(t[-1],v[-1],M.name,color=M.color,ha="left",va="center")
 
     except il.VarNotInModel:
+        # just print a "." to reflect no data was found
         print "\t."
 
+# plot the Mauna Loa data
 t = C.t/365.+1850
 ax.plot(t,C.var,'-k',lw=3,alpha=0.25)
 ax.text(t[-1],np.ma.min(C.var[-10:]),"Mauna Loa",color='k',alpha=0.5,ha="left",va="center")
 fig.savefig("summaryco2.pdf")
-#plt.show()
+
