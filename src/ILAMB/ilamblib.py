@@ -2,12 +2,23 @@ from netCDF4 import Dataset
 import numpy as np
 from datetime import datetime
 
+class VarNotInFile(Exception):
+    pass
+
+class VarNotInModel(Exception):
+    pass
+
 DAYS_PER_MONTH = np.asarray([31,28,31,30,31,30,31,31,30,31,30,31],dtype='float')
 
-def ExtractPointTimeSeries(filename,variable,lat,lon,navg=1):
-    r"""
-    Extracts the timeseries of a given variable at a given point from a
-    netcdf file.
+def GenerateDistinctColors(N,saturation=0.67,value=0.67):
+    from colorsys import hsv_to_rgb
+    HSV_tuples = [(x/float(N-1), saturation, value) for x in range(N)]
+    RGB_tuples = map(lambda x: hsv_to_rgb(*x), HSV_tuples)
+    return RGB_tuples
+
+def ExtractPointTimeSeries(filename,variable,lat,lon,navg=1,verbose=False):
+    r"""Extracts the timeseries of a given variable at a given point from a
+    netCDF file.
 
     Parameters
     ----------
@@ -30,34 +41,33 @@ def ExtractPointTimeSeries(filename,variable,lat,lon,navg=1):
         an array of the extracted variable
     unit : string
         a description of the extracted unit
-
-    Raises
-    ------
-    NotImplementedError
-            If the variable is in an unexpected format
     """
-    f    = Dataset(filename)
+    f = Dataset(filename)
     try:
+        if verbose: print "Looking for %s in %s" % (variable,filename)
         vari = f.variables[variable]
     except:
-        raise ValueError("%s is not a variable in this netCDF file" % variable)
+        if verbose: print "%s is not a variable in this netCDF file" % variable
+        raise VarNotInFile("%s is not a variable in this netCDF file" % variable)
+
+    # determine time shift
     t    = f.variables['time']
     unit = t.units.split(" since ")
     assert unit[0] == "days"
     t0   = datetime(1850,1,1,0,0,0)
     tf   = datetime.strptime((unit[-1].split())[0],"%Y-%m-%d")
     dt   = (tf-t0).days
-    lats = f.variables['lat']
-    lons = f.variables['lon']
-    ilat = lats[...].searchsorted(lat)
-    ilon = lons[...].searchsorted(lon)
-    if vari.ndim == 4:
-        var   = vari[:,:,ilon,ilat]
-        first = np.apply_along_axis(np.sum,1,var.mask)
-        var   = var[np.ix_(range(t.shape[0])),first][0,:]
-    else:
-        raise NotImplementedError("Unexpected data format for given variable.")
-    return t[:]-dt,var,vari.units
+
+    # extract variable by finding the closest lat,lon if they exist
+    try:
+        lats = f.variables['lat']
+        lons = f.variables['lon']
+        ilat = np.argmin(np.abs(lats[...]-lat))
+        ilon = np.argmin(np.abs(lons[...]-lon))
+        var  = np.ma.masked_values(vari[...,ilon,ilat],vari._FillValue)
+    except:
+        var  = np.ma.masked_values(vari[...],vari._FillValue)
+    return t[:]+dt,var,vari.units
 
 def RootMeanSquaredError(reference,prediction,normalize="none"):
     r"""
