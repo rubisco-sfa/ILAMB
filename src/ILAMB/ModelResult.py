@@ -12,7 +12,8 @@ class ModelResult():
         self.filter = filter
         self.name   = modelname
         self.variables = []
-        self.explore()
+        self.confrontations = {}
+        #self.explore()
 
     def __str__(self):
         out  = "Model Result\n"

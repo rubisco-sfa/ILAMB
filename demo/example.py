@@ -54,8 +54,10 @@ for subdir, dirs, files in os.walk(root):
         # cdata will be a dictionary of all the variables from the
         # model result which this confrontation needs. In this case,
         # it should only return one variable, "co2".
-        cdata = C.extractModelResult(M)            
+        cdata = C.extractModelResult(M)   
         for key in cdata.keys():
+
+            if key in ["metrics","data"]: continue
 
             # For each variable, print the variable name, unit, and mean
             data = cdata[key]
