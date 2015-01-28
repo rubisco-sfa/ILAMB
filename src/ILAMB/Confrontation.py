@@ -64,7 +64,8 @@ class Confrontation():
                     magdiff = int(round(np.log10(mag)-np.log10(np.ma.mean(var)),0))
                     cdata[rvar] = {}
                     cdata[rvar]["t"]    = t
-                    cdata[rvar]["var"]  = var*10**magdiff
+                    cdata[rvar]["var"]  = var
+                    if magdiff == 6: cdata[rvar]["var"] *= 1e6
                     cdata[rvar]["unit"] = unit
                     
             except il.VarNotInModel:
@@ -93,36 +94,7 @@ class Confrontation():
                     
         if not cdata: 
             raise il.VarNotInModel("Required variables do not exist in this model on the confrontation time frame")
+            
+        
+
         return cdata
-
-    def computeNormalizedRootMeanSquaredError(self,M,t=[],var=[]):
-        """
-        
-
-        """
-        # if data wasn't passed in, grab it now
-        if not (np.asarray(t).size or np.asarray(var).size):
-            t,var = M.extractPointTimeSeries(self.variable,
-                                             self.lat,
-                                             self.lon,
-                                             initial_time=self.t.min(),
-                                             final_time  =self.t.max())
-        begin = np.argmin(np.abs(self.t-t[0]))
-        end   = begin+t.size
-        return il.ComputeNormalizedRootMeanSquaredError(self.var[begin:end],var)
-
-    def computeNormalizedBias(self,M,t=[],var=[]):
-        """
-        
-
-        """
-        # if data wasn't passed in, grab it now
-        if not (np.asarray(t).size or np.asarray(var).size):
-            t,var = M.extractPointTimeSeries(self.variable,
-                                             self.lat,
-                                             self.lon,
-                                             initial_time=self.t.min(),
-                                             final_time  =self.t.max())
-        begin = np.argmin(np.abs(self.t-t[0]))
-        end   = begin+t.size
-        return il.ComputeNormalizedBias(self.var[begin:end],var)
