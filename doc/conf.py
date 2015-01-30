@@ -50,7 +50,7 @@ master_doc = 'index'
 
 # General information about the project.
 project = u'ILAMB'
-copyright = u'2014, Nathan Collier'
+copyright = u'2014, Nathan Collier, Forrest Hoffman'
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
@@ -222,7 +222,7 @@ latex_elements = {
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
   ('index', 'ILAMB.tex', u'ILAMB Documentation',
-   u'Nathan Collier', 'manual'),
+   u'Nathan Collier, Forrest Hoffman', 'manual'),
 ]
 
 # The name of an image file (relative to this directory) to place at the top of
@@ -252,7 +252,7 @@ latex_documents = [
 # (source start file, name, description, authors, manual section).
 man_pages = [
     ('index', 'testpkg', u'ILAMB Documentation',
-     [u'Nathan Collier'], 1)
+     [u'Nathan Collier, Forrest Hoffman'], 1)
 ]
 
 # If true, show URL addresses after external links.
@@ -266,7 +266,7 @@ man_pages = [
 #  dir menu entry, description, category)
 texinfo_documents = [
   ('index', 'ILAMB', u'ILAMB Documentation',
-   u'Nathan Collier', 'ILAMB', 'One line description of project.',
+   u'Nathan Collier, Forrest Hoffman', 'ILAMB', 'One line description of project.',
    'Miscellaneous'),
 ]
 
@@ -287,9 +287,9 @@ texinfo_documents = [
 
 # Bibliographic Dublin Core info.
 epub_title = u'ILAMB'
-epub_author = u'Nathan Collier'
-epub_publisher = u'Nathan Collier'
-epub_copyright = u'2014, Nathan Collier'
+epub_author = u'Nathan Collier, Forrest Hoffman'
+epub_publisher = u'Nathan Collier, Forrest Hoffman'
+epub_copyright = u'2014, Nathan Collier, Forrest Hoffman'
 
 # The basename for the epub file. It defaults to the project name.
 #epub_basename = u'ILAMB'
