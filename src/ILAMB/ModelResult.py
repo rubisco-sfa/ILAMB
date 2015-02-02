@@ -13,28 +13,27 @@ class ModelResult():
         self.name   = modelname
         self.variables = []
         self.confrontations = {}
-        #self.explore()
 
     def __str__(self):
         out  = "Model Result\n"
         out += "------------\n"
         out += "  Name: %s\n" % self.name
-        out += "  Variables: %s\n" % (",".join(self.variables))
         out += "\n"
         return out
-
-    def explore(self):
-        from netCDF4 import Dataset
-        self.variables = []
-        for fname in glob.glob("%s/*%s*.nc" % (self.path,self.filter)):
-            f = Dataset(fname)
-            for key in f.variables.keys():
-                if key not in self.variables: self.variables.append(key)
         
     def extractPointTimeSeries(self,variable,lat,lon,initial_time=-1e20,final_time=1e20):
-        """
-        Extracts a time series of the given variable from the model
+        """Extracts a time series of the given variable from the model
         results given a latitude and longitude.
+
+        This routine will look for netCDF files with the "nc" suffix
+        in the model directory. It will open all such files looking
+        for the specified variable name. If the variable is found at
+        the given latitude and longitude as defined by
+        ILAMB.ilamblib.ExtractPointTimeSeries and at least partially
+        on the desired time interval, this data is added to a
+        list. After examining all files, then the routine will sort
+        the list in ascending time and then check/disgard overlapping
+        time segments. Finally, a composite data array is returned.
 
         Parameters
         ----------
@@ -43,7 +42,8 @@ class ModelResult():
         lat : float
             latitude in degrees at which to extract field
         lon : float 
-            longitude in degrees east of the international dateline at which to extract field
+            longitude in degrees east of the international dateline at 
+            which to extract field
         initial_time : float, optional
             include model results occurring after this time
         final_time : float, optional
