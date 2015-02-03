@@ -1,5 +1,6 @@
 import numpy as np
 import ilamblib as il
+from constants import convert
 
 class Confrontation():
     """
@@ -8,142 +9,111 @@ class Confrontation():
     def __init__(self,path):
 
         # Populate with observational data needed for the confrontation
-        self.name = "CO2MaunaLoa"
-        self.path = path
-        mml       = np.genfromtxt("%s/monthly_mlo.csv" % path,delimiter=",",skip_header=57)
-        self.t    = (mml[:,3]-1850.)*365. # days since 00:00:00 1/1/1850
-        self.var  = np.ma.masked_where(mml[:,4]<0,mml[:,4])
-        
-        # This confrontation compares data at a point
-        self.lat  = 19.4
-        self.lon  = 24.4
+        mml           = np.genfromtxt("%s/monthly_mlo.csv" % path,delimiter=",",skip_header=57)
+        self.name     = "CO2MaunaLoa"
+        self.path     = path
+        self.t        = (mml[:,3]-1850.)*365. # convert to days since 00:00:00 1/1/1850
+        self.var      = np.ma.masked_where(mml[:,4]<0,mml[:,4])
+        self.unit     = "1e-6"
+        self.lat      = 19.4
+        self.lon      = 24.4
+        self.nlayers  = 3 
 
-        # A list of the output variables and units that this confrontation requires
-        self.requires = ["co2"]
-        self.units    = ["1e-6"]
-        self.orders   = [300] # rough order of magnitudes
-
-        self.close = {}
-        self.close["co2"] = "co2mass"
-
-
-    def getData(self,t0,tf):
-        begin = np.argmin(np.abs(self.t-t0))
-        end   = np.argmin(np.abs(self.t-tf))+1
-        return self.t[begin:end],self.var[begin:end]
-
-    def extractModelResult(self,M):
-        """
-        Extracts the model result on the time interval needed for this confrontation.
+    def getData(self,initial_time=-1e20,final_time=1e20,output_unit=""):
+        """Retrieves the confrontation data on the desired time frame and in
+        the desired unit.
 
         Parameters
         ----------
-        M : ILAMB.ModelResult.ModelResult
+        initial_time : float, optional
+            include model results occurring after this time
+        final_time : float, optional
+            include model results occurring before this time
+        output_unit : string, optional
+            if specified, will try to convert the units of the variable 
+            extract to these units given (see convert in ILAMB.constants)
+
+        Returns
+        -------
+        t : numpy.ndarray
+            a 1D array of times in days since 00:00:00 1/1/1850
+        var : numpy.ma.core.MaskedArray
+            an array of the extracted variable
+        unit : string
+            a description of the extracted unit
+        """
+        begin = np.argmin(np.abs(self.t-initial_time))
+        end   = np.argmin(np.abs(self.t-final_time))+1
+        if output_unit is not "":
+            try:
+                self.var *= convert["co2"][output_unit][self.unit]
+                self.unit = output_unit
+            except:
+                raise il.UnknownUnit("Variable is in units of [%s], you asked for [%s] but I do not know how to convert" % (self.unit,output_unit))
+        return self.t[begin:end],self.var[begin:end],self.unit
+
+    def confront(self,m):
+        """
+        
+
+        Parameters
+        ----------
+        m : ILAMB.ModelResult.ModelResult
             the model results
 
         Returns
         -------
-        t,var : numpy.ndarray
-            the time series of the variable on the confrontation time interval
         """
+        # time limits for this confrontation, with a little padding to
+        # account for differences in monthly times representations
+        t0,tf = self.t.min()-5, self.t.max()+5
+
+        # extract the time, variable, and unit of the model result
+        tm,vm,um = m.extractPointTimeSeries("co2",self.lat,self.lon,
+                                            initial_time=t0,
+                                            final_time=tf,
+                                            alt_vars=["co2mass"],
+                                            output_unit="1e-6")
+        
+        # update time limits, might be less model data than observations
+        t0,tf = tm.min(), tm.max()
+
+        # get the corresponding observational data on the same time frame
+        to,vo,uo = self.getData(initial_time=t0,final_time=tf,output_unit="1e-6")
+
+        # perform some assertion to verify data integrity, are the
+        # times within 15 days of each other?
+        assert np.allclose(tm,to,atol=15)
+
+        # some CO2 results are given in atmospheric layers, so we need
+        # to handle this...
+        if vm.ndim == 2:
+            # ...however, many of the early layers are masked, so
+            # determine which index is the first non-masked
+            index = np.apply_along_axis(np.sum,1,vm.mask)
+
+            # now we will average the first nlayers non-masked layers
+            tmp = np.zeros(tm.size)
+            for i in range(self.nlayers):
+                tmp += vm[np.ix_(range(tm.size)),(index+i).clip(0,vm.shape[1])][0,:]
+            vm = tmp/self.nlayers
+
+        # now we can do some analysis, the results of which we will
+        # load into a dictionary which we return. The
+        # plotting/visualization routines are written to operate on
+        # this dictionary so its format is important.
         cdata = {}
-        for rvar,runit,mag in zip(self.requires,self.units,self.orders):
-            try:
-                t,var,unit = M.extractPointTimeSeries(rvar,
-                                                      self.lat,
-                                                      self.lon,
-                                                      initial_time=self.t.min(),
-                                                      final_time  =self.t.max())
-                if unit == runit: 
 
-                    # some co2 comes in layers of the atmosphere, take the first non-null value
-                    first = np.apply_along_axis(np.sum,1,var.mask)
-                    var   = var[np.ix_(range(t.shape[0])),first][0,:]
+        # put the extracted model data and manipulations here
+        cdata["model"] = {} 
+        cdata["model"]["t"] = tm; cdata["model"]["var"] = vm; cdata["model"]["unit"] = um
 
-                    # some files list unit as "ppm" but are really unitless, convert!
-                    magdiff = int(round(np.log10(mag)-np.log10(np.ma.mean(var)),0))
-                    cdata[rvar] = {}
-                    cdata[rvar]["t"]    = t
-                    cdata[rvar]["var"]  = var
-                    if magdiff == 6: cdata[rvar]["var"] *= 1e6
-                    cdata[rvar]["unit"] = unit
-                    
-            except il.VarNotInModel:
-                pass # model variable doesn't exist, but that's ok
-                
-        # If data that is required isn't in our dictionary, then try 'close' variables
-        for key in self.requires:
-            if key not in cdata.keys():
-                try:
-                    t,var,unit = M.extractPointTimeSeries(self.close[rvar],
-                                                          self.lat,
-                                                          self.lon,
-                                                          initial_time=self.t.min(),
-                                                          final_time  =self.t.max())
-                    cdata[rvar] = {}
-                    cdata[rvar]["t"]    = t
-                    cdata[rvar]["var"]  = var
-                    cdata[rvar]["unit"] = unit
-                    
-                    if unit == "kg":
-                        from constants import co2_ppm_per_kg
-                        cdata[rvar]["var"] *= co2_ppm_per_kg
-                        cdata[rvar]["unit"] = "1e-6"
-
-                except il.VarNotInModel:
-                    pass # model variable doesn't exist, but that's ok
-                    
-        if not cdata: 
-            raise il.VarNotInModel("Required variables do not exist in this model on the confrontation time frame")
-            
-        # Now we assume that the dictionary has what we need and do some analysis
-
-        # First we add the confrontation data to the dictionary, adjusted to the time of the model result
-        begin = np.argmin(np.abs(self.t-cdata["co2"]["t"][0]))
-        end   = begin+cdata["co2"]["t"].size
-        cdata["data"]         = {}
-        cdata["data"]["t"]    = self.t  [begin:end]
-        cdata["data"]["var"]  = self.var[begin:end]
-        cdata["data"]["unit"] = "1e-6"
-
-        # Next we perform some analysis of the model and confrontation data
-        for key in ["co2","data"]:
-            annual_mean_times,annual_mean            = il.AnnualMean      (cdata[key]["t"],cdata[key]["var"])
-            decade_mean_times,amplit_mean,amplit_std = il.DecadalAmplitude(cdata[key]["t"],cdata[key]["var"])
-            trend = il.WindowedTrend (cdata[key]["t"],cdata[key]["var"])
-            tmax  = il.DecadalMaxTime(cdata[key]["t"],cdata[key]["var"])
-            tmin  = il.DecadalMinTime(cdata[key]["t"],cdata[key]["var"])
-            cdata[key]["Annual"]          = {}        
-            cdata[key]["Annual"]["t"]     = annual_mean_times
-            cdata[key]["Annual"]["mean"]  = annual_mean
-            cdata[key]["Decadal"]         = {}        
-            cdata[key]["Decadal"]["t"]    = decade_mean_times
-            cdata[key]["Decadal"]["amplitude_mean"] = amplit_mean
-            cdata[key]["Decadal"]["amplitude_std"]  = amplit_std
-            cdata[key]["Decadal"]["tmax"] = tmax
-            cdata[key]["Decadal"]["tmin"] = tmin
-            cdata[key]["Trend"]           = trend
-            
-        # Finally we compute some metrics
-        cdata["metrics"] = {}; m = cdata["metrics"]
-        m["RawBias"]   = il.Bias                (cdata["data"]["var"]  ,cdata["co2"]["var"])
-        m["RawRMSE"]   = il.RootMeanSquaredError(cdata["data"]["var"]  ,cdata["co2"]["var"])
-        m["TrendBias"] = il.Bias                (cdata["data"]["Trend"],cdata["co2"]["Trend"])
-        m["TrendRMSE"] = il.RootMeanSquaredError(cdata["data"]["Trend"],cdata["co2"]["Trend"])
-        m["AmpMeanBias"] = il.Bias(cdata["data"]["Decadal"]["amplitude_mean"],
-                                   cdata["co2" ]["Decadal"]["amplitude_mean"])
-        m["AmpMeanRMSE"] = il.RootMeanSquaredError(cdata["data"]["Decadal"]["amplitude_mean"],
-                                                   cdata["co2" ]["Decadal"]["amplitude_mean"])
-        m["AmpStdBias"] = il.Bias(cdata["data"]["Decadal"]["amplitude_std"],
-                                  cdata["co2" ]["Decadal"]["amplitude_std"])
-        m["AmpStdRMSE"] = il.RootMeanSquaredError(cdata["data"]["Decadal"]["amplitude_std"],
-                                                  cdata["co2" ]["Decadal"]["amplitude_std"])
-
-        # Define phase shift
-        max_time_diff   = cdata["co2"]["Decadal"]["tmax"]-cdata["data"]["Decadal"]["tmax"]
-        min_time_diff   = cdata["co2"]["Decadal"]["tmin"]-cdata["data"]["Decadal"]["tmin"]
-        phase_shift     = 0.5*(max_time_diff + min_time_diff)
-        m["PhaseShift"    ] = phase_shift
-        m["PhaseShiftMean"] = phase_shift.mean()
-
+        # put the observation data and manipulations here
+        cdata["obs"] = {} 
+        cdata["obs"]["t"] = to; cdata["obs"]["var"] = vo; cdata["obs"]["unit"] = uo
+        
+        # include metrics
+        cdata["metric"] = {}
+        cdata["metric"]["MonthlyMean"] = {"bias":il.Bias                (vm,vo,normalize="score"),
+                                          "rmse":il.RootMeanSquaredError(vm,vo,normalize="score")}
         return cdata

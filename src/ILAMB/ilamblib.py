@@ -151,8 +151,11 @@ def Bias(reference,prediction,normalize="none"):
     0.0
     """
     assert reference.size == prediction.size
-    bias = (prediction-reference).mean()
-    if normalize == "maxmin": rmse /= (reference.max()-reference.min())
+    pmean = np.ma.mean(prediction)
+    rmean = np.ma.mean(reference)
+    bias  = pmean-rmean
+    if normalize == "maxmin": bias /= (reference.max()-reference.min())
+    if normalize == "score" : bias  = (1.-np.abs(bias/rmean)).clip(0,1)
     return bias
 
 def AnnualMean(t,var):

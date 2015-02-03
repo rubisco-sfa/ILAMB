@@ -82,19 +82,25 @@ class ModelResult():
                     nt      = ((t>=initial_time)*(t<=final_time)).sum()
                     ntimes += nt
                     if nt == 0: continue
-                    data.append((t,var,vname))
+                    data.append((t,var,vname,nt))
                 except il.VarNotInFile: 
                     continue
         if ntimes == 0: 
             raise il.VarNotInModel("These variable(s) do not exist in this model on that time frame: %s" % (",".join(altvars)))
             
         # a model might have the variable and its alternates, only use the highest preference variable present
-        thin = []
+        thin   = []
         for vname in altvars:
             for d in data:
-                if d[-1] == vname: thin.append(d)
+                if d[2] == vname: thin.append(d)
             if len(thin) > 0: break
         data = thin
+
+        # now check again that data exists on this time frame
+        ntimes = 0
+        for d in data: ntimes += d[3]
+        if ntimes == 0: 
+            raise il.VarNotInModel("These variable(s) do not exist in this model on that time frame: %s" % (",".join(altvars)))
 
         # sort the list by the first time, create a composite array
         data = sorted(data,key=lambda entry: entry[0][0])
@@ -111,7 +117,7 @@ class ModelResult():
         masc = np.zeros(shp,dtype=bool)
         begin = 0
         for d in data:
-            t,var,vname = d
+            t,var,vname,nt = d
             mask = (t>=initial_time)*(t<=final_time)
             n = mask.sum(); end = begin+n
             tc  [begin:end] =        t[mask]
