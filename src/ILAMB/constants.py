@@ -34,4 +34,7 @@ co2_ppm_per_kg     = g_per_kg / co2_g_per_ppm
 co2_ppm_per_C_Pg   = g_per_Pg / co2_g_per_ppm * CO2_molar_mass/C_molar_mass
 
 
-
+convert = {}
+convert["co2"] = {}
+convert["co2"]["1e-6"] = {"kg"  :co2_ppm_per_kg, "1e-6": 1.}
+convert["co2"]["kg"]   = {"1e-6":1./co2_ppm_per_kg, "kg": 1.}

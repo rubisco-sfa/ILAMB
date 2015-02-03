@@ -8,6 +8,9 @@ class VarNotInFile(Exception):
 class VarNotInModel(Exception):
     pass
 
+class UnknownUnit(Exception):
+    pass
+
 DAYS_PER_MONTH = np.asarray([31,28,31,30,31,30,31,31,30,31,30,31],dtype='float')
 
 def GenerateDistinctColors(N,saturation=0.67,value=0.67):

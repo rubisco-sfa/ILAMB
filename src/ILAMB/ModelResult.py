@@ -1,5 +1,6 @@
 import glob
 import ilamblib as il
+from constants import convert
 import numpy as np
 
 class ModelResult():
@@ -21,7 +22,7 @@ class ModelResult():
         out += "\n"
         return out
         
-    def extractPointTimeSeries(self,variable,lat,lon,initial_time=-1e20,final_time=1e20):
+    def extractPointTimeSeries(self,variable,lat,lon,alt_vars=[],initial_time=-1e20,final_time=1e20,output_unit=""):
         """Extracts a time series of the given variable from the model
         results given a latitude and longitude.
 
@@ -58,19 +59,24 @@ class ModelResult():
         unit : string
             a description of the extracted unit
         """
+        altvars = list(alt_vars)
+        altvars.insert(0,variable)
         # create a list of data which has a non-null intersection over the desired time range
         data   = []
         ntimes = 0
         for fname in glob.glob("%s/*%s*.nc" % (self.path,self.filter)):
-            try:
-                t,var,unit = il.ExtractPointTimeSeries(fname,variable,lat,lon)
-                nt      = ((t>=initial_time)*(t<=final_time)).sum()
-                ntimes += nt
-                if nt == 0: continue
-            except il.VarNotInFile: 
-                continue
-            data.append((t,var))
-        if ntimes == 0: raise il.VarNotInModel("%s does not exist in this model on that time frame" % variable)
+            for vname in altvars:
+                try:
+                    t,var,unit = il.ExtractPointTimeSeries(fname,vname,lat,lon)
+                    nt      = ((t>=initial_time)*(t<=final_time)).sum()
+                    ntimes += nt
+                    if nt == 0: continue
+                    data.append((t,var))
+                except il.VarNotInFile: 
+                    continue
+
+        if ntimes == 0: 
+            raise il.VarNotInModel("These variable(s) do not exist in this model on that time frame: %s" % (",".join(altvars)))
 
         # sort the list by the first time, create a composite array
         data = sorted(data,key=lambda entry: entry[0][0])
@@ -98,4 +104,11 @@ class ModelResult():
             else:
                 masc[begin:end] = var.mask[mask]
             begin = end
+
+        if output_unit is not "":
+            try:
+                varc *= convert[variable][output_unit][unit]
+                unit = output_unit
+            except:
+                raise il.UnknownUnit("Variable is in units of [%s], you asked for [%s] but I do not know how to convert" % (unit,output_unit))
         return tc,np.ma.masked_array(varc,mask=masc),unit
