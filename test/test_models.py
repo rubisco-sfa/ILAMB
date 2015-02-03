@@ -7,7 +7,7 @@ import os
 
 # Initialize the models
 M = []
-root = "./data/"
+root = "/chrysaor/CMIP5/"
 for subdir, dirs, files in os.walk(root):
 
     # If not a historical simulation, then skip

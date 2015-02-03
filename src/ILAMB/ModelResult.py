@@ -32,9 +32,12 @@ class ModelResult():
         the given latitude and longitude as defined by
         ILAMB.ilamblib.ExtractPointTimeSeries and at least partially
         on the desired time interval, this data is added to a
-        list. After examining all files, then the routine will sort
-        the list in ascending time and then check/disgard overlapping
-        time segments. Finally, a composite data array is returned.
+        list. Optionally a user may specify alternative variables, or
+        alternative names of variables and the function will look for
+        these also, giving preference to the given variable. After
+        examining all files, then the routine will sort the list in
+        ascending time and then check/disgard overlapping time
+        segments. Finally, a composite data array is returned.
 
         Parameters
         ----------
@@ -45,10 +48,15 @@ class ModelResult():
         lon : float 
             longitude in degrees east of the international dateline at 
             which to extract field
+        alt_vars: list of strings, optional
+            alternate variables to search for if `variable' is not found
         initial_time : float, optional
             include model results occurring after this time
         final_time : float, optional
             include model results occurring before this time
+        output_unit : string, optional
+            if specified, will try to convert the units of the variable 
+            extract to these units given. (See convert in ILAMB.constants)
 
         Returns
         -------
@@ -58,32 +66,41 @@ class ModelResult():
             an array of the extracted variable
         unit : string
             a description of the extracted unit
+
         """
         altvars = list(alt_vars)
         altvars.insert(0,variable)
+
         # create a list of data which has a non-null intersection over the desired time range
         data   = []
         ntimes = 0
         for fname in glob.glob("%s/*%s*.nc" % (self.path,self.filter)):
+            found = False
             for vname in altvars:
                 try:
                     t,var,unit = il.ExtractPointTimeSeries(fname,vname,lat,lon)
                     nt      = ((t>=initial_time)*(t<=final_time)).sum()
                     ntimes += nt
                     if nt == 0: continue
-                    data.append((t,var))
+                    data.append((t,var,vname))
                 except il.VarNotInFile: 
                     continue
-
         if ntimes == 0: 
             raise il.VarNotInModel("These variable(s) do not exist in this model on that time frame: %s" % (",".join(altvars)))
+            
+        # a model might have the variable and its alternates, only use the highest preference variable present
+        thin = []
+        for vname in altvars:
+            for d in data:
+                if d[-1] == vname: thin.append(d)
+            if len(thin) > 0: break
+        data = thin
 
         # sort the list by the first time, create a composite array
         data = sorted(data,key=lambda entry: entry[0][0])
         mono = np.asarray([entry[0][-1] for entry in data])
         mono = mono[:-1]>mono[1:]
-        if mono.sum() > 0:
-            # there seems to be some overlapping data so I will remove it
+        if mono.sum() > 0: # there seems to be some overlapping data so I will remove it
             for i in range(mono.shape[0]): 
                 if mono[i]: 
                     tmp     = data.pop(i)
@@ -94,7 +111,7 @@ class ModelResult():
         masc = np.zeros(shp,dtype=bool)
         begin = 0
         for d in data:
-            t,var = d
+            t,var,vname = d
             mask = (t>=initial_time)*(t<=final_time)
             n = mask.sum(); end = begin+n
             tc  [begin:end] =        t[mask]
@@ -105,6 +122,7 @@ class ModelResult():
                 masc[begin:end] = var.mask[mask]
             begin = end
 
+        # if you asked for a specific unit, try to convert
         if output_unit is not "":
             try:
                 varc *= convert[variable][output_unit][unit]
