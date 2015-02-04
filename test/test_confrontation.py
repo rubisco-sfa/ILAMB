@@ -13,7 +13,9 @@ for subdir, dirs, files in os.walk(root):
     mname = subdir.replace(root,"").replace("esmHistorical","").replace("/","").upper()
     M.append(ModelResult(subdir,modelname=mname,filter="r1i1p1"))
 
-C = Confrontation("../demo/data/")
+Con = Confrontation()
+print Con
+C   = Con.list()[0]
 
 t,var,unit = C.getData()
 print t.shape,var.shape,unit
@@ -30,3 +32,4 @@ for m in M:
         continue
 
 plt.show()
+

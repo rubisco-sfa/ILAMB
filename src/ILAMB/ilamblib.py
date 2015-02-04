@@ -115,19 +115,30 @@ def RootMeanSquaredError(reference,prediction,normalize="none"):
     if normalize == "maxmin": rmse /= (reference.max()-reference.min())
     return rmse
 
-def Bias(reference,prediction,normalize="none"):
+def Bias(reference,prediction,normalize="none",weights=None):
     r"""
     Computes the bias of two vectors.
 
-    Given two vectors :math:`\mathbf{x}` and :math:`\mathbf{y}` of length :math:`n` the bias is
+    Given two vectors :math:`\mathbf{x}` and :math:`\mathbf{y}` of
+    length :math:`n` the bias is
 
-    .. math:: \sum_{i=1}^{n}\frac{\left(x_i-y_i\right)}{n}
+    .. math:: \bar{\mathbf{y}}-\bar{\mathbf{x}}
 
     where :math:`\mathbf{x}` is considered the reference vector. The
-    RMSE can be normalized in one of several ways. The keyword
+    bar notation denotes a mean, or
+
+    .. math:: \bar{\mathbf{x}} = \sum_{i=1}^{n}\frac{x_i}{n}
+
+    The RMSE can be normalized in one of several ways. The keyword
     "maxmin" will return the normalized bias by
 
     .. math:: \frac{\text{bias}}{\max(\mathbf{x})-\min(\mathbf{x})}
+
+    The "score" keyword will normlize the bias by
+
+    .. math:: 1-\left|\frac{\text{bias}}{\bar{\mathbf{x}}}\right|
+
+    Values less than zero will be clipped at zero.
 
     Parameters
     ----------
@@ -135,7 +146,7 @@ def Bias(reference,prediction,normalize="none"):
         1D array representing the first data series
     prediction : numpy.ndarray
         1D array representing the second data series
-    normalize : string
+    normalize : string, optional
         use to specify the normalization technique
 
     Returns
