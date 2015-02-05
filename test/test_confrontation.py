@@ -16,17 +16,14 @@ for subdir, dirs, files in os.walk(root):
 Con = Confrontation()
 print Con
 C   = Con.list()[0]
-
-t,var,unit = C.getData()
-print t.shape,var.shape,unit
-t,var,unit = C.getData(output_unit="kg")
-print t.shape,var.shape,unit
+plt.plot(C.t,C.var,'-k')
 
 for m in M:
     try:
         data = C.confront(m)
-        print m.name,data["metric"]["MonthlyMean"]
+        print m.name
         plt.plot(data["model"]["t"],data["model"]["var"],'-')
+        
     except il.VarNotInModel:
         print m.name,"X"
         continue

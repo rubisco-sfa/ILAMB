@@ -122,23 +122,23 @@ def Bias(reference,prediction,normalize="none",weights=None):
     Given two vectors :math:`\mathbf{x}` and :math:`\mathbf{y}` of
     length :math:`n` the bias is
 
-    .. math:: \bar{\mathbf{y}}-\bar{\mathbf{x}}
+    .. math:: \text{bias} = \bar{\mathbf{y}}-\bar{\mathbf{x}}
 
     where :math:`\mathbf{x}` is considered the reference vector. The
     bar notation denotes a mean, or
 
-    .. math:: \bar{\mathbf{x}} = \sum_{i=1}^{n}\frac{x_i}{n}
+    .. math:: \bar{\mathbf{x}} = \frac{\sum_{i=1}^{n}x_i}{n}
 
     The RMSE can be normalized in one of several ways. The keyword
     "maxmin" will return the normalized bias by
 
-    .. math:: \frac{\text{bias}}{\max(\mathbf{x})-\min(\mathbf{x})}
+    .. math:: \text{normalized bias} = \frac{\text{bias}}{\max(\mathbf{x})-\min(\mathbf{x})}
 
     The "score" keyword will normlize the bias by
 
-    .. math:: 1-\left|\frac{\text{bias}}{\bar{\mathbf{x}}}\right|
+    .. math:: \text{normalized bias} = 1-\left|\frac{\text{bias}}{\bar{\mathbf{x}}}\right|
 
-    Values less than zero will be clipped at zero.
+    where values less than zero will be clipped at zero.
 
     Parameters
     ----------
@@ -147,7 +147,7 @@ def Bias(reference,prediction,normalize="none",weights=None):
     prediction : numpy.ndarray
         1D array representing the second data series
     normalize : string, optional
-        use to specify the normalization technique
+        use to specify the normalization technique, one of "score","maxmin"
 
     Returns
     -------
@@ -162,8 +162,8 @@ def Bias(reference,prediction,normalize="none",weights=None):
     0.0
     """
     assert reference.size == prediction.size
-    pmean = np.ma.mean(prediction)
-    rmean = np.ma.mean(reference)
+    pmean = np.ma.average(prediction,weights=weights)
+    rmean = np.ma.average(reference,weights=weights)
     bias  = pmean-rmean
     if normalize == "maxmin": bias /= (reference.max()-reference.min())
     if normalize == "score" : bias  = (1.-np.abs(bias/rmean)).clip(0,1)
@@ -369,3 +369,10 @@ def DecadalMinTime(t,var):
     tmin  = np.ma.mean(tmin,axis=1)
     return tmin
 
+def MonthlyWeights(t):
+    from constants import dpm_noleap
+    dpy = dpm_noleap.sum()
+    monthly_weights = dpm_noleap/dpy
+    w  = monthly_weights[np.asarray((t % dpy)/dpy*12,dtype='int')]
+    w /= w.sum()
+    return w

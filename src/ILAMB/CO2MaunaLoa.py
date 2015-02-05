@@ -114,13 +114,19 @@ class CO2MaunaLoa():
         # put the extracted model data and manipulations here
         cdata["model"] = {} 
         cdata["model"]["t"] = tm; cdata["model"]["var"] = vm; cdata["model"]["unit"] = um
+        cdata["model"]["tannual"],cdata["model"]["vannual"] = il.AnnualMean(tm,vm)
 
         # put the observation data and manipulations here
         cdata["obs"] = {} 
         cdata["obs"]["t"] = to; cdata["obs"]["var"] = vo; cdata["obs"]["unit"] = uo
+        cdata["obs"]["tannual"],cdata["obs"]["vannual"] = il.AnnualMean(to,vo)
         
         # include metrics
+        mw = il.MonthlyWeights(tm)
         cdata["metric"] = {}
-        cdata["metric"]["MonthlyMean"] = {"bias":il.Bias                (vm,vo,normalize="score"),
+        cdata["metric"]["MonthlyMean"] = {"bias":il.Bias                (vm,vo,normalize="score",weights=mw),
                                           "rmse":il.RootMeanSquaredError(vm,vo,normalize="score")}
+        cdata["metric"]["AnnualMean"]  = {"bias":il.Bias                (cdata["obs"]["vannual"],cdata["model"]["vannual"]),
+                                          "rmse":il.RootMeanSquaredError(cdata["obs"]["vannual"],cdata["model"]["vannual"])}
+        
         return cdata
