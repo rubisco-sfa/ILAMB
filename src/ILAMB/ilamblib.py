@@ -72,7 +72,7 @@ def ExtractPointTimeSeries(filename,variable,lat,lon,navg=1,verbose=False):
         var  = np.ma.masked_values(vari[...],vari._FillValue)
     return t[:]+dt,var,vari.units
 
-def RootMeanSquaredError(reference,prediction,normalize="none"):
+def RootMeanSquaredError(reference,prediction,normalize="none",weights=None):
     r"""
     Computes the root mean squared error (RMSE) of two vectors.
 
@@ -111,8 +111,11 @@ def RootMeanSquaredError(reference,prediction,normalize="none"):
     1.5  
     """
     assert reference.size == prediction.size
-    rmse  = np.sqrt(((prediction-reference)**2).mean())
+    rmse = np.sqrt(np.ma.average((prediction-reference)**2,weights=weights))
     if normalize == "maxmin": rmse /= (reference.max()-reference.min())
+    if normalize == "score":
+        rmse0 = np.sqrt(np.ma.average(reference**2,weights=weights))
+        rmse  = (1-rmse/rmse0).clip(0)
     return rmse
 
 def Bias(reference,prediction,normalize="none",weights=None):

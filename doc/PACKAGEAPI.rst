@@ -21,4 +21,10 @@ Confrontation
 .. autoclass:: ILAMB.Confrontation.Confrontation
    :members:
 
+Confrontations
+--------------
+
+.. autoclass:: ILAMB.CO2MaunaLoa.CO2MaunaLoa
+   :members:
+
 

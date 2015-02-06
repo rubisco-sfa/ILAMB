@@ -1,32 +1,41 @@
 from ILAMB.Confrontation import Confrontation
 from ILAMB.ModelResult import ModelResult
 from ILAMB import ilamblib as il
+from ILAMB.Post import ConfrontationTableASCII
 import pylab as plt
 import numpy as np
-import os
+import os,pickle
 
-# Initialize the models
-M    = []
-root = "/chrysaor/CMIP5/"
-for subdir, dirs, files in os.walk(root):
-    if "esmHistorical" not in subdir: continue
-    mname = subdir.replace(root,"").replace("esmHistorical","").replace("/","").upper()
-    M.append(ModelResult(subdir,modelname=mname,filter="r1i1p1"))
-
-Con = Confrontation()
-print Con
-C   = Con.list()[0]
-plt.plot(C.t,C.var,'-k')
-
-for m in M:
-    try:
-        data = C.confront(m)
-        print m.name
-        plt.plot(data["model"]["t"],data["model"]["var"],'-')
+if not os.path.isfile("CMIP5_CO2_MaunaLoa.pkl"):
+    # Initialize the models
+    M    = []
+    root = "/chrysaor/CMIP5/"
+    for subdir, dirs, files in os.walk(root):
+        if "esmHistorical" not in subdir: continue
+        mname = subdir.replace(root,"").replace("esmHistorical","").replace("/","").upper()
+        M.append(ModelResult(subdir,modelname=mname,filter="r1i1p1"))
         
-    except il.VarNotInModel:
-        print m.name,"X"
-        continue
+    Cs = Confrontation()
+    C  = (Cs.list())[0]
 
-plt.show()
+    for m in M:
+        try:
+            m.confrontations[C.name] = C.confront(m)        
+            print m.name
+        except il.VarNotInModel:
+            print m.name,"X"
+            continue
+
+    f = file("CMIP5_CO2_MaunaLoa.pkl","wb")
+    pickle.dump(M,f)
+    f.close()
+
+f = file("CMIP5_CO2_MaunaLoa.pkl","rb")
+M = pickle.load(f)
+f.close()
+
+Cs = Confrontation()
+C  = (Cs.list())[0]
+M  = sorted(M,key=lambda model: model.name.lower())
+print ConfrontationTableASCII(C.name,M)
 

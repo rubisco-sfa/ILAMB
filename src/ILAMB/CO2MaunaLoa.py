@@ -52,7 +52,7 @@ class CO2MaunaLoa():
         return self.t[begin:end],self.var[begin:end],self.unit
 
     def confront(self,m):
-        """Confronts the input model with the observational data.
+        r"""Confronts the input model with the observational data.
 
         This confrontation uses the Mauna Loa CO2 data and compares it
         to model results at that given latutide and longitude. If the
@@ -70,7 +70,43 @@ class CO2MaunaLoa():
         -------
         cdata : dictionary
             contains all outputs/metrics
+
+        Notes
+        -----
+        The dictionary key "metric" will return a dictionary which
+        contains the analysis results. For this confrontation we
+        include the following quantities in the analysis:
+
+        "PeriodMean" : float 
+            The mean value of the model result over the time period of
+            the observational data
+        "MonthlyMeanBias" : float
+            The bias of the monthly mean model result compared to the
+            observational data in "1e-6"
+        "MonthlyMeanRMSE" : float
+            The RMSE of the monthly mean model result compared to the
+            observational data in "1e-6"
+        "MonthlyMeanBiasScore" : float
+            The MonthlyMeanBias normalized to dimensionless units on
+            [0,1]. See the "score" normalization method of
+            ILAMB.ilamblib.Bias
+        "MonthlyMeanRMSEScore" : float
+            The MonthlyMeanRMSE normalized to dimensionless units on
+            [0,1]. See the "score" normalization method of
+            ILAMB.ilamblib.RootMeanSquaredError
+        "InterannualVariabilityScore" : float
+            A dimensionless score comparing the standard deviation of
+            the annual amplitudes. If :math:`A_{\text{model}}` is a
+            vector of the annual model amplitudes and
+            :math:`A_{\text{obs}}` is that of the observations, then
+            the interannual variability score is given by
+
+            .. math:: 1-\left|\frac{\sigma(A_{\text{model}})-\sigma(A_{\text{obs}})}{\sigma(A_{\text{obs}})}\right|
+
+            where the score is truncated to be on the [0,1] interval
+            and :math:`\sigma` denotes the standard deviation operator.
         """
+
         # time limits for this confrontation, with a little padding to
         # account for differences in monthly time representations
         t0,tf = self.t.min()-5, self.t.max()+5
@@ -114,19 +150,28 @@ class CO2MaunaLoa():
         # put the extracted model data and manipulations here
         cdata["model"] = {} 
         cdata["model"]["t"] = tm; cdata["model"]["var"] = vm; cdata["model"]["unit"] = um
-        cdata["model"]["tannual"],cdata["model"]["vannual"] = il.AnnualMean(tm,vm)
 
         # put the observation data and manipulations here
         cdata["obs"] = {} 
         cdata["obs"]["t"] = to; cdata["obs"]["var"] = vo; cdata["obs"]["unit"] = uo
-        cdata["obs"]["tannual"],cdata["obs"]["vannual"] = il.AnnualMean(to,vo)
         
-        # include metrics
+        # make a few function aliases to help readibility
+        mean = np.ma.average
+        bias = il.Bias
+        rmse = il.RootMeanSquaredError
+
+        # give each time a weight to be used in the weighted averages below
         mw = il.MonthlyWeights(tm)
+
+        # put the metrics here
         cdata["metric"] = {}
-        cdata["metric"]["MonthlyMean"] = {"bias":il.Bias                (vm,vo,normalize="score",weights=mw),
-                                          "rmse":il.RootMeanSquaredError(vm,vo,normalize="score")}
-        cdata["metric"]["AnnualMean"]  = {"bias":il.Bias                (cdata["obs"]["vannual"],cdata["model"]["vannual"]),
-                                          "rmse":il.RootMeanSquaredError(cdata["obs"]["vannual"],cdata["model"]["vannual"])}
-        
+        cdata["metric"]["PeriodMean"]           = mean(vm,weights=mw)
+        cdata["metric"]["MonthlyMeanBias"]      = bias(vm,vo,weights=mw)
+        cdata["metric"]["MonthlyMeanBiasScore"] = bias(vm,vo,weights=mw,normalize="score")
+        cdata["metric"]["MonthlyMeanRMSE"]      = rmse(vm,vo,weights=mw)
+        cdata["metric"]["MonthlyMeanRMSEScore"] = rmse(vm,vo,weights=mw,normalize="score")
+        vmmin,vmmax = il.AnnualMinMax(tm,vm); stdm = (vmmax-vmmin).std()
+        vomin,vomax = il.AnnualMinMax(to,vo); stdo = (vomax-vomin).std()
+        cdata["metric"]["InterannualVariabilityScore"] = (1-np.abs((stdm-stdo)/stdo)).clip(0)
+
         return cdata
