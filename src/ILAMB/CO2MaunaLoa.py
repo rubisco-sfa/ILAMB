@@ -4,7 +4,7 @@ from constants import convert
 
 class CO2MaunaLoa():
     """
-    A class for confronting model results with observational data.
+    Confront models with the CO2 concentration data from Mauna Loa.
     """
     def __init__(self):
 
