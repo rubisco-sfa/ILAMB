@@ -9,14 +9,14 @@ import os,pickle
 if not os.path.isfile("CMIP5_CO2_MaunaLoa.pkl"):
     # Initialize the models
     M    = []
-    root = "/chrysaor/CMIP5/"
+    root = "/chrysaor/CMIP5/inmcm4/"
     for subdir, dirs, files in os.walk(root):
         if "esmHistorical" not in subdir: continue
         mname = subdir.replace(root,"").replace("esmHistorical","").replace("/","").upper()
         M.append(ModelResult(subdir,modelname=mname,filter="r1i1p1"))
         
     Cs = Confrontation()
-    C  = (Cs.list())[0]
+    C  = (Cs.list())[1]
 
     for m in M:
         try:
@@ -35,7 +35,7 @@ M = pickle.load(f)
 f.close()
 
 Cs = Confrontation()
-C  = (Cs.list())[0]
+C  = (Cs.list())[1]
 M  = sorted(M,key=lambda model: model.name.lower())
-print ConfrontationTableASCII(C.name,M)
+#print ConfrontationTableASCII(C.name,M)
 

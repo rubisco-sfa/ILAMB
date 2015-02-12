@@ -19,7 +19,7 @@ def GenerateDistinctColors(N,saturation=0.67,value=0.67):
     RGB_tuples = map(lambda x: hsv_to_rgb(*x), HSV_tuples)
     return RGB_tuples
 
-def ExtractPointTimeSeries(filename,variable,lat,lon,navg=1,verbose=False):
+def ExtractPointTimeSeries(filename,variable,lat,lon,verbose=False):
     r"""Extracts the timeseries of a given variable at a given point from a
     netCDF file.
 
@@ -33,8 +33,6 @@ def ExtractPointTimeSeries(filename,variable,lat,lon,navg=1,verbose=False):
         latitude in degrees at which to extract field
     lon : float 
         longitude in degrees east of the international dateline at which to extract field
-    navg : int, optional
-        number of non-fill variable layers to include in average
 
     Returns
     -------
@@ -71,6 +69,47 @@ def ExtractPointTimeSeries(filename,variable,lat,lon,navg=1,verbose=False):
     except:
         var  = np.ma.masked_values(vari[...],vari._FillValue)
     return t[:]+dt,var,vari.units
+
+def ExtractTimeSeries(filename,variable,verbose=False):
+    r"""Extracts the timeseries of a given variable from a netCDF file.
+
+    Parameters
+    ----------
+    filename : string
+        name of the NetCDF file to read
+    variable : string
+        name of the variable to extract
+
+    Returns
+    -------
+    t : numpy.ndarray
+        a 1D array of times in days since 1850-01-01 00:00:00
+    var : numpy.ma.core.MaskedArray
+        an array of the extracted variable
+    unit : string
+        a description of the extracted unit
+    """
+    f = Dataset(filename)
+    try:
+        if verbose: print "Looking for %s in %s" % (variable,filename)
+        vari = f.variables[variable]
+    except:
+        if verbose: print "%s is not a variable in this netCDF file" % variable
+        raise VarNotInFile("%s is not a variable in this netCDF file" % variable)
+    t    = f.variables['time']
+    unit = t.units.split(" since ")
+    assert unit[0] == "days"
+    t0   = datetime(1850,1,1,0,0,0)
+    tf   = datetime.strptime((unit[-1].split())[0],"%Y-%m-%d")
+    dt   = (tf-t0).days
+    var  = np.ma.masked_values(vari[...],vari._FillValue)
+    lat  = f.variables["lat"][...]
+    lon  = f.variables["lon"][...]
+    print "Model"
+    print "  ",lat.shape,lat.min(),lat.max()                
+    print "  ",lon.shape,lon.min(),lon.max()
+
+    return t[:]+dt,var,vari.units,lat,lon
 
 def RootMeanSquaredError(reference,prediction,normalize="none",weights=None):
     r"""
