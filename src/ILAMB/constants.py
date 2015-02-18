@@ -33,6 +33,8 @@ co2_g_per_ppm      = dry_air_moles * CO2_molar_mass / 1.e+6
 co2_ppm_per_kg     = g_per_kg / co2_g_per_ppm
 co2_ppm_per_C_Pg   = g_per_Pg / co2_g_per_ppm * CO2_molar_mass/C_molar_mass
 
+# Earth constants
+earth_rad = 6.371e6 # meters
 
 convert = {}
 convert["co2"] = {}

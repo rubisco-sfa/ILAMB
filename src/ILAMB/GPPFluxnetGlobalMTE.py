@@ -105,7 +105,6 @@ class GPPFluxnetGlobalMTE():
             result compared to that of the observational data in units
             of "g/s"
         "PhaseChange" : float
-
             The mean time difference in the annual peaks of gross
             primary production in the model result compared to the
             observational data. The annual peak time is written as
@@ -126,10 +125,9 @@ class GPPFluxnetGlobalMTE():
         """
         # get confrontation data
         t,gpp,unit,lat,lon = self.getData()
+        il.CellAreas(lat,lon)
+        
 
-        print "Confrontation"
-        print "  ",lat.shape,lat.min(),lat.max()                
-        print "  ",lon.shape,lon.min(),lon.max()
 
         # time limits for this confrontation, with a little padding to
         # account for differences in monthly time representations
@@ -137,10 +135,24 @@ class GPPFluxnetGlobalMTE():
 
         # extract the time, variable, and unit of the model result
         tm,vm,um = m.extractTimeSeries("gpp",initial_time=t0,final_time=tf)
-        print vm.shape,um
-
+        
         # update time limits, might be less model data than observations
         t0,tf = tm.min(), tm.max()
+
+        def SpatiallyIntegratedTimeSeries(var,areas):
+            return np.ma.apply_over_axes(np.ma.sum,var*areas,[1,2]).reshape(-1)
+            
+        vobar = SpatiallyIntegratedTimeSeries(gpp,np.ones(gpp.shape))
+        uobar = unit.replace(" m-2","")
+
+        vmbar = SpatiallyIntegratedTimeSeries(vm,m.land_areas)
+        umbar = um.replace(" m-2","")
+
+        metric = {}
+        metric["PeriodMean"]
+
+        cdata["metric"] = metric
+        
 
         cdata = {}
         return cdata

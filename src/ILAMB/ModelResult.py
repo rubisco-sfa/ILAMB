@@ -2,18 +2,34 @@ import glob
 import ilamblib as il
 from constants import convert
 import numpy as np
+from netCDF4 import Dataset
 
 class ModelResult():
-    """
-    A class for exploring model results.
+    """A class for exploring model results.
     """
     def __init__(self,path,modelname="unamed",color=(0,0,0),filter=""):
-        self.path   = path
-        self.color  = color
-        self.filter = filter
-        self.name   = modelname
-        self.variables = []
+        self.path           = path
+        self.color          = color
+        self.filter         = filter
+        self.name           = modelname
         self.confrontations = {}
+        self.cell_areas     = None
+        self.land_fraction  = None
+        self.land_areas     = None
+        self.land_area      = None
+        self._getGridInformation()
+        return
+
+    def _getGridInformation(self):
+        files = glob.glob("%s/*%s*.nc" % (self.path,"areacella"))
+        if len(files) > 0:
+             self.cell_areas = (Dataset(files[0]).variables["areacella"])[...]
+        files = glob.glob("%s/*%s*.nc" % (self.path,"sftlf"))            
+        if len(files) > 0:
+            self.land_fraction = (Dataset(files[0]).variables["sftlf"])[...]
+            self.land_areas = self.cell_areas*self.land_fraction
+            self.land_area  = np.ma.sum(self.land_areas)
+        return
 
     def __str__(self):
         out  = "Model Result\n"
