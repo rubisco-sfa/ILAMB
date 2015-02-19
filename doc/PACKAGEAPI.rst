@@ -8,14 +8,17 @@ ilamblib
 
 This first layer is a module which provides python implementations of common operations performed in operating and analyzing data. They are organized here by categories to help give a sense for how they are intended to be used.
 
-Input/Output
-~~~~~~~~~~~~
+Miscellaneous
+~~~~~~~~~~~~~
 
 .. currentmodule:: ILAMB.ilamblib
 .. autosummary::
    :toctree: _generated
 
    ExtractPointTimeSeries
+   ExtractTimeSeries
+   GenerateDistinctColors
+   MonthlyWeights
 
 Metrics
 ~~~~~~~
@@ -38,6 +41,8 @@ Analysis
    DecadalMaxTime
    DecadalMinTime
    WindowedTrend
+   SpatiallyIntegratedTimeSeries
+   TemporallyIntegratedTimeSeries
 
 ModelResults
 ------------

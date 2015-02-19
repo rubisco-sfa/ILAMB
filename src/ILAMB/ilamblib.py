@@ -1,6 +1,6 @@
+from datetime import datetime
 from netCDF4 import Dataset
 import numpy as np
-from datetime import datetime
 
 class VarNotInFile(Exception):
     pass
@@ -11,9 +11,28 @@ class VarNotInModel(Exception):
 class UnknownUnit(Exception):
     pass
 
-DAYS_PER_MONTH = np.asarray([31,28,31,30,31,30,31,31,30,31,30,31],dtype='float')
-
 def GenerateDistinctColors(N,saturation=0.67,value=0.67):
+    r"""Generates N distinct colors.
+
+    Computes N distinct colors using HSV color space. We hold the
+    saturation and value levels constant and linearly vary the
+    hue. Finally we convert to RGB color space for use with other
+    functions.
+
+    Parameters
+    ----------
+    N : int
+        number of distinct colors to generate
+    saturation : float, optional
+        argument of HSV color space
+    value : float, optional
+        argument of HSV color space
+
+    Returns
+    -------
+    RGB_tuples : list
+       list of N distinct RGB tuples    
+    """
     from colorsys import hsv_to_rgb
     HSV_tuples = [(x/float(N-1), saturation, value) for x in range(N)]
     RGB_tuples = map(lambda x: hsv_to_rgb(*x), HSV_tuples)
@@ -42,6 +61,10 @@ def ExtractPointTimeSeries(filename,variable,lat,lon,verbose=False):
         an array of the extracted variable
     unit : string
         a description of the extracted unit
+
+    Notes
+    -----
+    Collapse this function with ExtractTimeSeries.
     """
     f = Dataset(filename)
     try:
@@ -88,6 +111,10 @@ def ExtractTimeSeries(filename,variable,verbose=False):
         an array of the extracted variable
     unit : string
         a description of the extracted unit
+
+    Notes
+    -----
+    Collapse this function with ExtractPointTimeSeries.
     """
     f = Dataset(filename)
     try:
@@ -105,10 +132,6 @@ def ExtractTimeSeries(filename,variable,verbose=False):
     var  = np.ma.masked_values(vari[...],vari._FillValue)
     lat  = f.variables["lat"][...]
     lon  = f.variables["lon"][...]
-    print "Model"
-    print "  ",lat.shape,lat.min(),lat.max()                
-    print "  ",lon.shape,lon.min(),lon.max()
-
     return t[:]+dt,var,vari.units,lat,lon
 
 def RootMeanSquaredError(reference,prediction,normalize="none",weights=None):
@@ -132,8 +155,10 @@ def RootMeanSquaredError(reference,prediction,normalize="none",weights=None):
         1D array representing the first data series
     prediction : numpy.ndarray
         1D array representing the second data series
-    normalize : string
+    normalize : string, optional
         use to specify the normalization technique
+    weights : numpy.ndarray, optional
+        specify to use a weighted mean
 
     Returns
     -------
@@ -190,6 +215,8 @@ def Bias(reference,prediction,normalize="none",weights=None):
         1D array representing the second data series
     normalize : string, optional
         use to specify the normalization technique, one of "score","maxmin"
+    weights : numpy.ndarray, optional
+        specify to use a weighted mean
 
     Returns
     -------
@@ -237,10 +264,10 @@ def AnnualMean(t,var):
     >>> np.allclose(xmean[0],2.5027322404371586)
     True
     """
-    assert t.size >= 12 
+    assert t.size >= 12
     begin = np.argmin(t[:11]%365)
     end   = begin+int(t[begin:].size/12.)*12
-    dpm   = DAYS_PER_MONTH # needs to be read from a constants file
+    from constants import dpm_noleap as dpm
     dpy   = dpm.sum()
     tmean = np.ma.average(  t[begin:end].reshape((-1,12)),axis=1,weights=dpm/dpy)
     vmean = np.ma.average(var[begin:end].reshape((-1,12)),axis=1,weights=dpm/dpy)
@@ -315,7 +342,8 @@ def DecadalAmplitude(t,var):
     return tmean,Amean,Astd
     
 def WindowedTrend(t,var,window=365.):
-    r"""
+    r"""Compute a windowed trend.
+
     For each point in the time series, compute the slope of the
     best-fit line which passes through the data lying within the
     specified window of time.
@@ -412,31 +440,85 @@ def DecadalMinTime(t,var):
     return tmin
 
 def MonthlyWeights(t):
+    r"""For the given time series, return the number of days in time
+    period.
+
+    Each element of the time array is assumed to correspond to a
+    month. The routine then returns the number of days in each month
+    of the entire time series. These weights are ideal to be used in
+    temporal evaluations.
+
+    Parameters
+    ----------
+    t : numpy.ndarray
+        a 1D array of times in days since 00:00:00 1/1/1850
+
+    Returns
+    -------
+    w : numpy.ndarray
+        a 1D array of weights, number of days per month
+    """
     from constants import dpm_noleap
     dpy = dpm_noleap.sum()
     monthly_weights = dpm_noleap/dpy
     w  = monthly_weights[np.asarray((t % dpy)/dpy*12,dtype='int')]
-    w /= w.sum()
     return w
 
-def CellAreas(lat,lon):
-    from constants import earth_rad
+def SpatiallyIntegratedTimeSeries(var,areas):
+    r"""Integrate a variable over space.
+    
+    Given a variable :math:`f(\mathbf{x},t)`, the spatially averaged
+    variable is then given as
 
-    x = np.zeros(lon.size+1)
-    x[1:-1] = 0.5*(lon[1:]+lon[:-1])
-    x[ 0]   = lon[ 0]-0.5*(lon[ 1]-lon[ 0])
-    x[-1]   = lon[-1]+0.5*(lon[-1]-lon[-2])
-    if(x.max() > 181): x -= 180
-    x *= np.pi/180.
+    .. math:: \overline{f}(t) = \int_A f(\mathbf{x},t)\ dA
 
-    y = np.zeros(lat.size+1)
-    y[1:-1] = 0.5*(lat[1:]+lat[:-1])
-    y[ 0]   = lat[ 0]-0.5*(lat[ 1]-lat[ 0])
-    y[-1]   = lat[-1]+0.5*(lat[-1]-lat[-2])
-    y *= np.pi/180.
+    where we approximate this integral by nodal integration.
 
-    dx    = earth_rad*(x[1:]-x[:-1])
-    dy    = earth_rad*(np.sin(y[1:])-np.sin(y[:-1]))
-    areas = np.outer(dx,dy)
+    Parameters
+    ----------
+    var : numpy.ndarray
+        an array assumed to be a monthly average of a variable where
+        there are at least two dimensions, (...,latitudes,longitudes)
+    area : numpy.ndarray
+        a two-dimensional array of areas of the form,
+        (latitudes,longitudes)
 
-    return areas
+    Returns
+    -------
+    vbar : numpy.array
+        the spatially integrated variable
+    """
+    assert var.shape[-2:] == areas.shape
+    vbar = np.ma.apply_over_axes(np.ma.sum,var*areas,[-2,-1]).reshape(-1)
+    return vbar
+            
+def TemporallyIntegratedTimeSeries(t,var):
+    r"""Integrate a variable over time.
+    
+    Given a variable :math:`f(\mathbf{x},t)`, the temporally averaged
+    variable is then given as
+
+    .. math:: \hat{f}(\mathbf{x}) = \int_t f(\mathbf{x},t)\ dt
+
+    where we approximate this integral by nodal integration.
+
+    Parameters
+    ----------
+    t : numpy.ndarray
+        a 1D array of times in days since 00:00:00 1/1/1850
+    var : numpy.ndarray
+        an array assumed to be a monthly average of a variable with
+        the dimensions, (ntimes,latitudes,longitudes)
+
+    Returns
+    -------
+    vhat : numpy.array
+        the temporally integrated variable
+    """
+    wgt  = MonthlyWeights(t)*365*24*3600
+    if var.ndim == 1:
+        vhat = np.ma.sum(var*wgt) 
+    else:
+        vhat = np.ma.sum(var*wgt[:,np.newaxis,np.newaxis],axis=0) 
+    return vhat
+ 

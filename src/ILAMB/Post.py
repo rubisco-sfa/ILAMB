@@ -1,3 +1,15 @@
+import pylab as plt
+
+def UseLatexPltOptions(fsize=18):
+    params = {'axes.titlesize':fsize,
+              'axes.labelsize':fsize,
+              'font.size':fsize,
+              'legend.fontsize':fsize,
+              'xtick.labelsize':fsize,
+              'ytick.labelsize':fsize}
+    plt.rcParams.update(params)
+    plt.rc('text', usetex=True)
+    plt.rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
 
 def ConfrontationTableASCII(cname,M):
     

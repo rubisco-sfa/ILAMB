@@ -17,13 +17,26 @@ class ModelResult():
         self.land_fraction  = None
         self.land_areas     = None
         self.land_area      = None
+        self.lat            = None
+        self.lon            = None        
+        self.lat_bnds       = None
+        self.lon_bnds       = None        
         self._getGridInformation()
         return
 
     def _getGridInformation(self):
         files = glob.glob("%s/*%s*.nc" % (self.path,"areacella"))
         if len(files) > 0:
-             self.cell_areas = (Dataset(files[0]).variables["areacella"])[...]
+            f = Dataset(files[0])
+            self.cell_areas    = f.variables["areacella"][...]
+            self.lat           = f.variables["lat"][...]
+            self.lon           = f.variables["lon"][...]
+            self.lat_bnds      = np.zeros(self.lat.size+1)
+            self.lat_bnds[:-1] = f.variables["lat_bnds"][:,0]
+            self.lat_bnds[-1]  = f.variables["lat_bnds"][-1,1]
+            self.lon_bnds      = np.zeros(self.lon.size+1)
+            self.lon_bnds[:-1] = f.variables["lon_bnds"][:,0]
+            self.lon_bnds[-1]  = f.variables["lon_bnds"][-1,1]
         files = glob.glob("%s/*%s*.nc" % (self.path,"sftlf"))            
         if len(files) > 0:
             self.land_fraction = (Dataset(files[0]).variables["sftlf"])[...]
@@ -263,3 +276,35 @@ class ModelResult():
             except:
                 raise il.UnknownUnit("Variable is in units of [%s], you asked for [%s] but I do not know how to convert" % (unit,output_unit))
         return tc,np.ma.masked_array(varc,mask=masc),unit
+
+    def globalPlot(self,var,biome="global",ax=None):
+        from mpl_toolkits.basemap import Basemap
+        from pylab import cm
+        from matplotlib.colors import from_levels_and_colors
+        from constants import biomes
+        lats,lons = biomes[biome]
+        bmap = Basemap(projection='cyl',
+                       llcrnrlon=lons[ 0],llcrnrlat=lats[ 0],
+                       urcrnrlon=lons[-1],urcrnrlat=lats[-1],
+                       resolution='c',ax=ax)
+        nroll = np.argmin(np.abs(self.lon-180))
+        lon   = np.roll(self.lon,nroll); lon[:nroll] -= 360
+        x,y   = bmap(lon,self.lat)
+        cmap,norm = from_levels_and_colors([0,0.075,0.15,0.25,0.75,1.5,3.5,7.5,12.5,17.5,22.0],
+                                           ['deepskyblue',
+                                            'cyan',
+                                            'green',
+                                            'greenyellow',
+                                            'yellow',
+                                            'sandybrown',
+                                            'darkorange',
+                                            'r',
+                                            'firebrick',
+                                            'indigo'])
+        ax    = bmap.pcolormesh(x,y,np.roll(var,nroll,axis=1),zorder=2) #,cmap=cmap,norm=norm)
+        bmap.drawmeridians(np.arange(-150,151,30),labels=[0,0,0,1],zorder=1,dashes=[1000000,1],linewidth=0.5)
+        bmap.drawparallels(np.arange( -90, 91,30),labels=[1,0,0,0],zorder=1,dashes=[1000000,1],linewidth=0.5)
+        bmap.drawcoastlines(linewidth=0.5)
+        bmap.colorbar(ax) #,ticks=[0.05,0.1,0.2,0.5,1,2,5,10,15,20])
+        return ax
+

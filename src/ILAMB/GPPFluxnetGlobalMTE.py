@@ -1,5 +1,6 @@
 from netCDF4 import Dataset
 import numpy as np
+import pylab as plt
 import ilamblib as il
 from constants import convert
 
@@ -81,7 +82,7 @@ class GPPFluxnetGlobalMTE():
         include the following quantities in the analysis. We define
         :math:`gpp(\mathbf{x},t)` as the mean monthly gross primary
         productivity as a function of space (:math:`\mathbf{x}`) and
-        time (:math:`t`) given in units of "g m^-2 s^-1". For
+        time (:math:`t`) given in units of "g m-2 s-1". For
         convenience, we will define here a spatially integrated
         quantity as well,
         
@@ -120,39 +121,51 @@ class GPPFluxnetGlobalMTE():
 
             .. math:: \frac{1}{A} \int_A  \left(\bar{t}_{\text{peak}}^{\text{model}}(\mathbf{x}) - \bar{t}_{\text{peak}}^{\text{obs}}(\mathbf{x})\right)\ dA
 
-            
-        
         """
         # get confrontation data
-        t,gpp,unit,lat,lon = self.getData()
-        il.CellAreas(lat,lon)
+        #t,gpp,unit,lat,lon = self.getData()
+        #il.CellAreas(lat,lon)
         
-
-
         # time limits for this confrontation, with a little padding to
         # account for differences in monthly time representations
-        t0,tf = t.min()-5, t.max()+5
+        #t0,tf = t.min()-5,t.max()+5
 
         # extract the time, variable, and unit of the model result
-        tm,vm,um = m.extractTimeSeries("gpp",initial_time=t0,final_time=tf)
-        
+        t0,tf=48180.,1e20
+        tm,vm,um = m.extractTimeSeries("gpp",initial_time=t0,final_time=tf,
+                                       output_unit="g m-2 s-1")
+
+        # sign conversions vary, if all values are non-positive, flip signs
+        if (vm>0).sum() == 0: vm *= -1 
+
         # update time limits, might be less model data than observations
-        t0,tf = tm.min(), tm.max()
+        t0,tf  = tm.min(),tm.max()
+        ndays  = tf-t0
+        nyears = ndays/365.
 
-        def SpatiallyIntegratedTimeSeries(var,areas):
-            return np.ma.apply_over_axes(np.ma.sum,var*areas,[1,2]).reshape(-1)
-            
-        vobar = SpatiallyIntegratedTimeSeries(gpp,np.ones(gpp.shape))
-        uobar = unit.replace(" m-2","")
+        # integration
+        vmhat = il.TemporallyIntegratedTimeSeries(tm,vm)          # [g m-2]
+        vmbar = il.SpatiallyIntegratedTimeSeries(vm,m.land_areas) # [g s-1]
+        vmtot = il.TemporallyIntegratedTimeSeries(tm,vmbar)       # [g    ]
 
-        vmbar = SpatiallyIntegratedTimeSeries(vm,m.land_areas)
-        umbar = um.replace(" m-2","")
-
-        metric = {}
-        metric["PeriodMean"]
-
-        cdata["metric"] = metric
-        
-
+        # populate dictionary to return
         cdata = {}
+
+        # compute metrics
+        metric = {}
+        metric["PeriodMean"] = {}
+        metric["PeriodMean"]["var"]  = vmtot*1e-15/nyears
+        metric["PeriodMean"]["unit"] = "Pg yr-1"
+        cdata["metric"] = metric
+
         return cdata
+
+
+    def post(self):
+        """
+        fig = plt.figure(figsize=(12,5))
+        ax  = fig.add_axes([0.06,0.025,0.9,0.965])
+        ax.set_title("Period Mean Gross Primary Production (GPP) [%s] for %s" % ("$g/(m^2 day)$",m.name))
+        ax  = m.globalPlot(vmhat,ax=ax)
+        fig.savefig("gpp_%s.png" % m.name)
+        """
