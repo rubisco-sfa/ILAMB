@@ -164,14 +164,28 @@ class CO2MaunaLoa():
         mw = il.MonthlyWeights(tm)
 
         # put the metrics here
-        cdata["metric"] = {}
-        cdata["metric"]["PeriodMean"]           = mean(vm,weights=mw)
-        cdata["metric"]["MonthlyMeanBias"]      = bias(vm,vo,weights=mw)
-        cdata["metric"]["MonthlyMeanBiasScore"] = bias(vm,vo,weights=mw,normalize="score")
-        cdata["metric"]["MonthlyMeanRMSE"]      = rmse(vm,vo,weights=mw)
-        cdata["metric"]["MonthlyMeanRMSEScore"] = rmse(vm,vo,weights=mw,normalize="score")
+        metric = {}
+        metric["PeriodMean"] = {}
+        metric["PeriodMean"]["var"]            = mean(vm,weights=mw)
+        metric["PeriodMean"]["unit"]           = "ppm"
+        metric["MonthlyMeanBias"] = {}
+        metric["MonthlyMeanBias"]["var"]       = bias(vm,vo,weights=mw)
+        metric["MonthlyMeanBias"]["unit"]      = "ppm"
+        metric["MonthlyMeanBiasScore"] = {}
+        metric["MonthlyMeanBiasScore"]["var"]  = bias(vm,vo,weights=mw,normalize="score")
+        metric["MonthlyMeanBiasScore"]["unit"] = "-"
+        metric["MonthlyMeanRMSE"] = {}
+        metric["MonthlyMeanRMSE"]["var"]       = rmse(vm,vo,weights=mw)
+        metric["MonthlyMeanRMSE"]["unit"]      = "ppm"
+        metric["MonthlyMeanRMSEScore"] = {}
+        metric["MonthlyMeanRMSEScore"]["var"]  = rmse(vm,vo,weights=mw,normalize="score")
+        metric["MonthlyMeanRMSEScore"]["unit"] = "-"
         vmmin,vmmax = il.AnnualMinMax(tm,vm); stdm = (vmmax-vmmin).std()
         vomin,vomax = il.AnnualMinMax(to,vo); stdo = (vomax-vomin).std()
-        cdata["metric"]["InterannualVariabilityScore"] = (1-np.abs((stdm-stdo)/stdo)).clip(0)
+        metric["InterannualVariabilityScore"] = {}
+        metric["InterannualVariabilityScore"]["var"]  = (1-np.abs((stdm-stdo)/stdo)).clip(0)
+        metric["InterannualVariabilityScore"]["unit"] = "-"
+
+        cdata["metric"] = metric
 
         return cdata

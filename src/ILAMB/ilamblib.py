@@ -522,3 +522,25 @@ def TemporallyIntegratedTimeSeries(t,var):
         vhat = np.ma.sum(var*wgt[:,np.newaxis,np.newaxis],axis=0) 
     return vhat
  
+
+def CellAreas(lat,lon):
+    from constants import earth_rad as R
+
+    x = np.zeros(lon.size+1)
+    x[1:-1] = 0.5*(lon[1:]+lon[:-1])
+    x[ 0]   = lon[ 0]-0.5*(lon[ 1]-lon[ 0])
+    x[-1]   = lon[-1]+0.5*(lon[-1]-lon[-2])
+    if(x.max() > 181): x -= 180
+    x *= np.pi/180.
+
+    y = np.zeros(lat.size+1)
+    y[1:-1] = 0.5*(lat[1:]+lat[:-1])
+    y[ 0]   = lat[ 0]-0.5*(lat[ 1]-lat[ 0])
+    y[-1]   = lat[-1]+0.5*(lat[-1]-lat[-2])
+    y *= np.pi/180.
+
+    dx    = earth_rad*(x[1:]-x[:-1])
+    dy    = earth_rad*(np.sin(y[1:])-np.sin(y[:-1]))
+    areas = np.outer(dx,dy)
+
+    return areas

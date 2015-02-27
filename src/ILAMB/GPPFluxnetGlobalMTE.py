@@ -3,6 +3,7 @@ import numpy as np
 import pylab as plt
 import ilamblib as il
 from constants import convert
+from Post import GlobalPlot
 
 class GPPFluxnetGlobalMTE():
     """Confront models with the gross primary production (GPP) product
@@ -10,7 +11,7 @@ class GPPFluxnetGlobalMTE():
     """
     def __init__(self):
         self.name = "GPPFluxnetGlobalMTE"
-        self.path = "/home/ncf/data/ILAMB/DATA/FLUXNET-MTE/derived/"
+        self.path = "/chrysaor/ILAMB/gpp/FLUXNET-MTE/derived/"
         self.nlat = 360
         self.nlon = 720
 
@@ -123,15 +124,13 @@ class GPPFluxnetGlobalMTE():
 
         """
         # get confrontation data
-        #t,gpp,unit,lat,lon = self.getData()
-        #il.CellAreas(lat,lon)
-        
+        to,vo,unit,lat,lon = self.getData()
+
         # time limits for this confrontation, with a little padding to
         # account for differences in monthly time representations
-        #t0,tf = t.min()-5,t.max()+5
+        t0,tf = to.min()-5,to.max()+5
 
         # extract the time, variable, and unit of the model result
-        t0,tf=48180.,1e20
         tm,vm,um = m.extractTimeSeries("gpp",initial_time=t0,final_time=tf,
                                        output_unit="g m-2 s-1")
 
@@ -143,7 +142,13 @@ class GPPFluxnetGlobalMTE():
         ndays  = tf-t0
         nyears = ndays/365.
 
-        # integration
+        # observation integration
+        vohat = il.TemporallyIntegratedTimeSeries(to,vo)          # [g m-2]
+        vobar = il.SpatiallyIntegratedTimeSeries(vo,np.ones(vo.shape[1:])) # [g s-1]
+        votot = il.TemporallyIntegratedTimeSeries(to,vobar)       # [g    ]
+        self.plot(lat,lon,vohat/nyears)
+
+        # model integration
         vmhat = il.TemporallyIntegratedTimeSeries(tm,vm)          # [g m-2]
         vmbar = il.SpatiallyIntegratedTimeSeries(vm,m.land_areas) # [g s-1]
         vmtot = il.TemporallyIntegratedTimeSeries(tm,vmbar)       # [g    ]
@@ -151,21 +156,38 @@ class GPPFluxnetGlobalMTE():
         # populate dictionary to return
         cdata = {}
 
+        # put the observational data and manipulations here
+        cdata["obs"] = {} 
+        cdata["obs"]["t"]    = to
+        cdata["obs"]["lat"]  = lat
+        cdata["obs"]["lon"]  = lon
+        cdata["obs"]["vhat"] = vohat
+        cdata["obs"]["vbar"] = vobar
+
+        # put the extracted model data and manipulations here
+        cdata["model"] = {} 
+        cdata["model"]["t"]    = tm
+        cdata["model"]["vhat"] = vmhat
+        cdata["model"]["vbar"] = vmbar
+
         # compute metrics
         metric = {}
         metric["PeriodMean"] = {}
         metric["PeriodMean"]["var"]  = vmtot*1e-15/nyears
         metric["PeriodMean"]["unit"] = "Pg yr-1"
-        cdata["metric"] = metric
 
+        cdata["metric"] = metric
         return cdata
 
-
-    def post(self):
-        """
+    def plot(self,lat,lon,var):
         fig = plt.figure(figsize=(12,5))
         ax  = fig.add_axes([0.06,0.025,0.9,0.965])
-        ax.set_title("Period Mean Gross Primary Production (GPP) [%s] for %s" % ("$g/(m^2 day)$",m.name))
-        ax  = m.globalPlot(vmhat,ax=ax)
-        fig.savefig("gpp_%s.png" % m.name)
-        """
+        ax.set_title("Period Mean Gross Primary Production (GPP) $g/(m^2 day)$")
+        GlobalPlot(lat,lon,var,ax=ax)
+        fig.savefig("%s.png" % self.name)
+        
+
+    def post(self,m):
+        if "GPPFluxnetGlobalMTE" is not m.confrontations.keys(): return
+        return
+        
