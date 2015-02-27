@@ -12,6 +12,7 @@ class GPPFluxnetGlobalMTE():
     def __init__(self):
         self.name = "GPPFluxnetGlobalMTE"
         self.path = "/chrysaor/ILAMB/gpp/FLUXNET-MTE/derived/"
+        #self.path = "/home/ncf/data/ILAMB/DATA/FLUXNET-MTE/derived/"
         self.nlat = 360
         self.nlon = 720
 
@@ -45,6 +46,7 @@ class GPPFluxnetGlobalMTE():
         yf   = min(int(  final_time/365.),2005)
         ny   = yf-y0+1; nm = 12*ny
         t    = np.zeros(nm)
+        # FIX: if you ever only wanted some of the MTE data, this would fail
         var  = np.ma.zeros((nm,self.nlat,self.nlon))
         unit = ""
         lat,lon = None,None
@@ -61,7 +63,17 @@ class GPPFluxnetGlobalMTE():
                 if lat is None:
                     lat = f.variables["lat"][...]
                     lon = f.variables["lon"][...]
-        return t,var,unit,lat,lon+180.
+
+        # if you asked for a specific unit, try to convert
+        # FIX: migrate this to ilamblib
+        unit = unit.lower()
+        if output_unit is not "":
+            try:
+                var *= convert["gpp"][output_unit][unit]
+                unit = output_unit
+            except:
+                raise il.UnknownUnit("Variable is in units of [%s], you asked for [%s] but I do not know how to convert" % (unit,output_unit))
+        return t,var,unit,lat,lon
 
     def confront(self,m):
         r"""Confronts the input model with the observational data.
@@ -123,8 +135,13 @@ class GPPFluxnetGlobalMTE():
             .. math:: \frac{1}{A} \int_A  \left(\bar{t}_{\text{peak}}^{\text{model}}(\mathbf{x}) - \bar{t}_{\text{peak}}^{\text{obs}}(\mathbf{x})\right)\ dA
 
         """
+        # if the model data doesn't have areas or land fractions, we
+        # can't do area studies
+        if m.cell_areas is None or m.land_fraction is None: 
+            raise il.AreasNotInModel("The %s model cannot perform the %s confrontation because it does not have either areas or land fractions" % (m.name,self.name))
+
         # get confrontation data
-        to,vo,unit,lat,lon = self.getData()
+        to,vo,unit,lat,lon = self.getData(output_unit="g m-2 s-1")
 
         # time limits for this confrontation, with a little padding to
         # account for differences in monthly time representations
@@ -137,6 +154,9 @@ class GPPFluxnetGlobalMTE():
         # sign conversions vary, if all values are non-positive, flip signs
         if (vm>0).sum() == 0: vm *= -1 
 
+        # not all models properly mask out oceans, this will make analysis faster
+        vm = np.ma.masked_where((vm.mask+np.abs(vm)<1e-15)>0,vm,copy=False)
+
         # update time limits, might be less model data than observations
         t0,tf  = tm.min(),tm.max()
         ndays  = tf-t0
@@ -146,16 +166,25 @@ class GPPFluxnetGlobalMTE():
         vohat = il.TemporallyIntegratedTimeSeries(to,vo)          # [g m-2]
         vobar = il.SpatiallyIntegratedTimeSeries(vo,np.ones(vo.shape[1:])) # [g s-1]
         votot = il.TemporallyIntegratedTimeSeries(to,vobar)       # [g    ]
-        self.plot(lat,lon,vohat/nyears)
+
+        fig = plt.figure(figsize=(12,5))
+        ax  = fig.add_axes([0.06,0.025,0.9,0.965])
+        GlobalPlot(lat,lon,vohat/(nyears*365.))
+        fig.savefig("gpp.png")
 
         # model integration
         vmhat = il.TemporallyIntegratedTimeSeries(tm,vm)          # [g m-2]
         vmbar = il.SpatiallyIntegratedTimeSeries(vm,m.land_areas) # [g s-1]
         vmtot = il.TemporallyIntegratedTimeSeries(tm,vmbar)       # [g    ]
 
+        fig = plt.figure(figsize=(12,5))
+        ax  = fig.add_axes([0.06,0.025,0.9,0.965])
+        GlobalPlot(m.lat,m.lon,vmhat/(nyears*365.))
+        fig.savefig("gpp%s.png" % m.name)
+
         # populate dictionary to return
         cdata = {}
-
+        
         # put the observational data and manipulations here
         cdata["obs"] = {} 
         cdata["obs"]["t"]    = to

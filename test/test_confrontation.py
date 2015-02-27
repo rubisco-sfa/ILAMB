@@ -16,6 +16,7 @@ if not os.path.isfile("XCMIP5_CO2_MaunaLoa.pkl"):
         M.append(ModelResult(subdir,modelname=mname,filter="r1i1p1"))
         
     C = Confrontation().list()
+    C = C[1:]
 
     for c in C:
         print c.name
@@ -24,6 +25,8 @@ if not os.path.isfile("XCMIP5_CO2_MaunaLoa.pkl"):
                 m.confrontations[c.name] = c.confront(m)  
                 print "  ",m.name
             except il.VarNotInModel:
+                continue
+            except il.AreasNotInModel:
                 continue
 
 for c in C:

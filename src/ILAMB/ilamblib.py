@@ -11,6 +11,9 @@ class VarNotInModel(Exception):
 class UnknownUnit(Exception):
     pass
 
+class AreasNotInModel(Exception):
+    pass
+
 def GenerateDistinctColors(N,saturation=0.67,value=0.67):
     r"""Generates N distinct colors.
 
