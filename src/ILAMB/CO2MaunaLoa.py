@@ -189,3 +189,6 @@ class CO2MaunaLoa():
         cdata["metric"] = metric
 
         return cdata
+
+    def plot(self,M):
+        pass

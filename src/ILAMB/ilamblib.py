@@ -492,7 +492,7 @@ def SpatiallyIntegratedTimeSeries(var,areas):
         the spatially integrated variable
     """
     assert var.shape[-2:] == areas.shape
-    vbar = np.ma.apply_over_axes(np.ma.sum,var*areas,[-2,-1]).reshape(-1)
+    vbar = (var*areas).sum(axis=-1).sum(axis=-1)
     return vbar
             
 def TemporallyIntegratedTimeSeries(t,var):
@@ -524,10 +524,12 @@ def TemporallyIntegratedTimeSeries(t,var):
     else:
         vhat = np.ma.sum(var*wgt[:,np.newaxis,np.newaxis],axis=0) 
     return vhat
- 
 
 def CellAreas(lat,lon):
-    from constants import earth_rad as R
+    """Given arrays of latitude and longitude, return cell areas in square meters.
+
+    """
+    from constants import earth_rad
 
     x = np.zeros(lon.size+1)
     x[1:-1] = 0.5*(lon[1:]+lon[:-1])
@@ -544,6 +546,6 @@ def CellAreas(lat,lon):
 
     dx    = earth_rad*(x[1:]-x[:-1])
     dy    = earth_rad*(np.sin(y[1:])-np.sin(y[:-1]))
-    areas = np.outer(dx,dy)
+    areas = np.outer(dx,dy).T
 
     return areas

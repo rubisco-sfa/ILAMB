@@ -1,6 +1,7 @@
 from numpy import asarray,ones,copy as npcopy
+from matplotlib.colors import from_levels_and_colors
 
-__all__ = ['spm','mph','hpd','mpy','dpy_noleap','dpy_gregorian','dpy_360','dpm_noleap','dpm_gregorian','dpm_360','g_per_Pg','g_per_kg','Ar_molar_mass','C_molar_mass','N_molar_mass','O_molar_mass','CO2_molar_mass','dry_air_molar_mass','dry_air_mass','dry_air_moles','co2_g_per_ppm','co2_ppm_per_kg','co2_ppm_per_C_Pg','biomes']
+__all__ = ['spm','mph','hpd','mpy','dpy_noleap','dpy_gregorian','dpy_360','dpm_noleap','dpm_gregorian','dpm_360','g_per_Pg','g_per_kg','Ar_molar_mass','C_molar_mass','N_molar_mass','O_molar_mass','CO2_molar_mass','dry_air_molar_mass','dry_air_mass','dry_air_moles','co2_g_per_ppm','co2_ppm_per_kg','co2_ppm_per_C_Pg','biomes','NCARclrs','NCARcmap','NCARnorm']
 
 # Time constants
 spm              = 60.     # seconds per minute
@@ -64,3 +65,16 @@ biomes["ceas"]         = (( 30.25, 54.75),(  30.25, 135.25))
 biomes["seas"]         = (( 10.25, 30.25),(  65.25, 120.25))
 biomes["eqas"]         = ((-10.25, 10.25),(  99.75, 150.25))
 biomes["aust"]         = ((-34.75,-10.25),( 124.75, 154.75))
+
+NCARclrs = asarray([[93,0,135],
+                    [196,0,43],
+                    [255,35,0],
+                    [255,140,0],
+                    [255,207,0],
+                    [248,255,0],
+                    [97,210,0],
+                    [0,197,56],
+                    [0,242,211],
+                    [0,144,255],
+                    [0,0,255]],dtype=float)/255.
+

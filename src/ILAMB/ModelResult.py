@@ -22,6 +22,15 @@ class ModelResult():
         self.lat_bnds       = None
         self.lon_bnds       = None        
         self._getGridInformation()
+        """
+        if self.land_areas is not None:
+            import pylab as plt
+            from Post import GlobalPlot
+            fig = plt.figure(figsize=(12,5))
+            ax  = fig.add_axes([0.06,0.025,0.9,0.965])
+            GlobalPlot(self.lat,self.lon,self.land_areas,shift=True)
+            fig.savefig("land_areas_%s.png" % self.name)
+        """
         return
 
     def _getGridInformation(self):
@@ -39,7 +48,7 @@ class ModelResult():
             self.lon_bnds[-1]  = f.variables["lon_bnds"][-1,1]
         files = glob.glob("%s/*%s*.nc" % (self.path,"sftlf"))            
         if len(files) > 0:
-            self.land_fraction = (Dataset(files[0]).variables["sftlf"])[...]
+            self.land_fraction = (Dataset(files[0]).variables["sftlf"])[...]*0.01
             self.land_areas = self.cell_areas*self.land_fraction
             self.land_area  = np.ma.sum(self.land_areas)
         return
