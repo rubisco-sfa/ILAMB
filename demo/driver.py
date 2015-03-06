@@ -13,6 +13,7 @@ for subdir, dirs, files in os.walk(root):
     if "esmHistorical" not in subdir: continue
     mname = subdir.replace(root,"").replace("esmHistorical","").replace("/","").upper()
     M.append(ModelResult(subdir,modelname=mname,filter="r1i1p1"))
+    M[-1].diagnose()
 
 # Assign colors
 clrs = il.GenerateDistinctColors(len(M))
@@ -22,6 +23,7 @@ for m in M:
 
 # Confront models
 C = Confrontation().list()
+for c in C: c.diagnose()
 for c in C:
     print c.name
     for m in M:

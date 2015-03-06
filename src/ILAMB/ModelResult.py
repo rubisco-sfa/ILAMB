@@ -22,16 +22,6 @@ class ModelResult():
         self.lat_bnds       = None
         self.lon_bnds       = None        
         self._getGridInformation()
-        """
-        if self.land_areas is not None:
-            import pylab as plt
-            from Post import GlobalPlot
-            fig = plt.figure(figsize=(12,5))
-            ax  = fig.add_axes([0.06,0.025,0.9,0.965])
-            GlobalPlot(self.lat,self.lon,self.land_areas,shift=True)
-            fig.savefig("land_areas_%s.png" % self.name)
-        """
-        return
 
     def _getGridInformation(self):
         files = glob.glob("%s/*%s*.nc" % (self.path,"areacella"))
@@ -51,6 +41,21 @@ class ModelResult():
             self.land_fraction = (Dataset(files[0]).variables["sftlf"])[...]*0.01
             self.land_areas = self.cell_areas*self.land_fraction
             self.land_area  = np.ma.sum(self.land_areas)
+        return
+
+    def diagnose(self):
+        print "Diagnosing the %s model..." % self.name
+        if self.land_areas is not None:
+            from pylab import subplots
+            from Post import GlobalPlot
+            fig,ax = subplots(nrows=3,figsize=(12,18))
+            GlobalPlot(self.lat,self.lon,self.cell_areas,shift=True,ax=ax[0],biome="global.large")
+            GlobalPlot(self.lat,self.lon,self.land_fraction,shift=True,ax=ax[1],biome="global.large")
+            GlobalPlot(self.lat,self.lon,self.land_areas,shift=True,ax=ax[2],biome="global.large")
+            ax[0].set_title("areacella")
+            ax[1].set_title("sftlf/100")
+            ax[2].set_title("areacella*sftlf/100")
+            fig.savefig("land_areas_%s.png" % self.name)
         return
 
     def __str__(self):
