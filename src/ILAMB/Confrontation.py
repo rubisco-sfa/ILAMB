@@ -13,8 +13,8 @@ class Confrontation():
         c["HydrologyCycle"]          = {}
         c["RadiationAndEnergyCycle"] = {}
         c["Forcings"]                = {}
-        #c["EcosystemAndCarbonCycle"]["CO2"] = {"CO2MaunaLoa":CO2MaunaLoa}
-        c["EcosystemAndCarbonCycle"]["GPP"] = {"GPPFluxnetGlobalMTE":GPPFluxnetGlobalMTE}
+        c["EcosystemAndCarbonCycle"]["CO2"] = {"CO2MaunaLoa":CO2MaunaLoa}
+        #c["EcosystemAndCarbonCycle"]["GPP"] = {"GPPFluxnetGlobalMTE":GPPFluxnetGlobalMTE}
         
         self.confrontation = c
 

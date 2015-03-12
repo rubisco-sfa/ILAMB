@@ -3,6 +3,7 @@ import ilamblib as il
 from constants import convert
 import numpy as np
 from netCDF4 import Dataset
+import os
 
 class ModelResult():
     """A class for exploring model results.
@@ -117,17 +118,20 @@ class ModelResult():
         # create a list of data which has a non-null intersection over the desired time range
         data   = []
         ntimes = 0
-        for fname in glob.glob("%s/*%s*.nc" % (self.path,self.filter)):
-            found = False
-            for vname in altvars:
-                try:
-                    t,var,unit = il.ExtractPointTimeSeries(fname,vname,lat,lon)
-                    nt      = ((t>=initial_time)*(t<=final_time)).sum()
-                    ntimes += nt
-                    if nt == 0: continue
-                    data.append((t,var,vname,nt))
-                except il.VarNotInFile: 
-                    continue
+        for subdir, dirs, files in os.walk(self.path):
+            for f in files:
+                if ".nc" not in f: continue
+                fname = "%s/%s" % (subdir,f)
+                found = False
+                for vname in altvars:
+                    try:
+                        t,var,unit = il.ExtractPointTimeSeries(fname,vname,lat,lon)
+                        nt      = ((t>=initial_time)*(t<=final_time)).sum()
+                        ntimes += nt
+                        if nt == 0: continue
+                        data.append((t,var,vname,nt))
+                    except il.VarNotInFile: 
+                        continue
         if ntimes == 0: 
             raise il.VarNotInModel("These variable(s) do not exist in this model on that time frame: %s" % (",".join(altvars)))
             
@@ -228,17 +232,21 @@ class ModelResult():
         # create a list of data which has a non-null intersection over the desired time range
         data   = []
         ntimes = 0
-        for fname in glob.glob("%s/*%s*.nc" % (self.path,self.filter)):
-            found = False
-            for vname in altvars:
-                try:
-                    t,var,unit,lat,lon = il.ExtractTimeSeries(fname,vname)
-                    nt      = ((t>=initial_time)*(t<=final_time)).sum()
-                    ntimes += nt
-                    if nt == 0: continue
-                    data.append((t,var,vname,nt))
-                except il.VarNotInFile: 
-                    continue
+        for subdir, dirs, files in os.walk(self.path):
+            for f in files:
+                if ".nc"       not in f: continue
+                if self.filter not in f: continue
+                fname = "%s/%s" % (subdir,f)
+                found = False
+                for vname in altvars:
+                    try:
+                        t,var,unit,lat,lon = il.ExtractTimeSeries(fname,vname)
+                        nt      = ((t>=initial_time)*(t<=final_time)).sum()
+                        ntimes += nt
+                        if nt == 0: continue
+                        data.append((t,var,vname,nt))
+                    except il.VarNotInFile: 
+                        continue
         if ntimes == 0: 
             raise il.VarNotInModel("These variable(s) do not exist in this model on that time frame: %s" % (",".join(altvars)))
             

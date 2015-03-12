@@ -5,6 +5,9 @@ import numpy as np
 class VarNotInFile(Exception):
     pass
 
+class VarNotMonthly(Exception):
+    pass
+
 class VarNotInModel(Exception):
     pass
 

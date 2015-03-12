@@ -1,6 +1,7 @@
 import numpy as np
 import ilamblib as il
 from constants import convert
+from os import environ
 
 class CO2MaunaLoa():
     """
@@ -9,10 +10,11 @@ class CO2MaunaLoa():
     def __init__(self):
 
         # Populate with observational data needed for the confrontation
-        mml           = np.genfromtxt("../demo/data/monthly_mlo.csv",delimiter=",",skip_header=57)
-        self.name     = "CO2MaunaLoa"
-        self.t        = (mml[:,3]-1850.)*365. # convert to days since 00:00:00 1/1/1850
-        self.var      = np.ma.masked_where(mml[:,4]<0,mml[:,4])
+        fname        = "%s/%s" % (environ["ILAMB_ROOT"],"DATA/co2/MAUNA.LOA/original/co2_1958-2014.txt")
+        data         = np.fromfile(fname,sep=" ").reshape((-1,7))
+        self.name    = "CO2MaunaLoa"
+        self.t       = (data[:,2]-1850)*365.  # convert to days since 00:00:00 1/1/1850
+        self.var     = data[:,5]
         self.unit     = "1e-6"
         self.lat      = 19.4
         self.lon      = 24.4
@@ -117,6 +119,14 @@ class CO2MaunaLoa():
                                             final_time=tf,
                                             alt_vars=["co2mass"],
                                             output_unit="1e-6")
+
+        # errata: belongs somewhere else! They claim it is in ppm, but really is mole fraction
+        if m.name == "GFDL-ESM2G": vm *= 1e6
+
+        # check that the variables is monthly as expected
+        dt = (tm[1:]-tm[:-1]).mean()
+        if not np.allclose(dt,30,atol=3):
+            raise il.VarNotMonthly("Spacing of co2 data from the %s model is not monthly, dt = %f" % (m.name,dt))
         
         # update time limits, might be less model data than observations
         t0,tf = tm.min(), tm.max()
