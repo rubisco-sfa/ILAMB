@@ -253,16 +253,16 @@ class GPPFluxnetGlobalMTE():
         metric["PeriodMean"]["var"]  = vmtot*1e-15/nyears
         metric["PeriodMean"]["unit"] = "Pg yr-1"
         metric["MonthlyMeanBias"] = {}
-        metric["MonthlyMeanBias"]["var"]       = bias(vmbar,vobar,weights=mw)*1e-15*spy
+        metric["MonthlyMeanBias"]["var"]       = bias(vobar,vmbar,weights=mw)*1e-15*spy
         metric["MonthlyMeanBias"]["unit"]      = "Pg yr-1"
         metric["MonthlyMeanBiasScore"] = {}
-        metric["MonthlyMeanBiasScore"]["var"]  = bias(vmbar,vobar,weights=mw,normalize="score")
+        metric["MonthlyMeanBiasScore"]["var"]  = bias(vobar,vmbar,weights=mw,normalize="score")
         metric["MonthlyMeanBiasScore"]["unit"] = "-"
         metric["MonthlyMeanRMSE"] = {}
-        metric["MonthlyMeanRMSE"]["var"]       = rmse(vmbar,vobar,weights=mw)*1e-15*spy
+        metric["MonthlyMeanRMSE"]["var"]       = rmse(vobar,vmbar,weights=mw)*1e-15*spy
         metric["MonthlyMeanRMSE"]["unit"]      = "Pg yr-1"
         metric["MonthlyMeanRMSEScore"] = {}
-        metric["MonthlyMeanRMSEScore"]["var"]  = rmse(vmbar,vobar,weights=mw,normalize="score")
+        metric["MonthlyMeanRMSEScore"]["var"]  = rmse(vobar,vmbar,weights=mw,normalize="score")
         metric["MonthlyMeanRMSEScore"]["unit"] = "-"
 
         cdata["metric"] = metric

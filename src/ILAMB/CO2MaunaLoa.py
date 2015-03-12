@@ -184,16 +184,16 @@ class CO2MaunaLoa():
         metric["PeriodMean"]["var"]            = mean(vm,weights=mw)
         metric["PeriodMean"]["unit"]           = "ppm"
         metric["MonthlyMeanBias"] = {}
-        metric["MonthlyMeanBias"]["var"]       = bias(vm,vo,weights=mw)
+        metric["MonthlyMeanBias"]["var"]       = bias(vo,vm,weights=mw)
         metric["MonthlyMeanBias"]["unit"]      = "ppm"
         metric["MonthlyMeanBiasScore"] = {}
-        metric["MonthlyMeanBiasScore"]["var"]  = bias(vm,vo,weights=mw,normalize="score")
+        metric["MonthlyMeanBiasScore"]["var"]  = bias(vo,vm,weights=mw,normalize="score")
         metric["MonthlyMeanBiasScore"]["unit"] = "-"
         metric["MonthlyMeanRMSE"] = {}
-        metric["MonthlyMeanRMSE"]["var"]       = rmse(vm,vo,weights=mw)
+        metric["MonthlyMeanRMSE"]["var"]       = rmse(vo,vm,weights=mw)
         metric["MonthlyMeanRMSE"]["unit"]      = "ppm"
         metric["MonthlyMeanRMSEScore"] = {}
-        metric["MonthlyMeanRMSEScore"]["var"]  = rmse(vm,vo,weights=mw,normalize="score")
+        metric["MonthlyMeanRMSEScore"]["var"]  = rmse(vo,vm,weights=mw,normalize="score")
         metric["MonthlyMeanRMSEScore"]["unit"] = "-"
         vmmin,vmmax = il.AnnualMinMax(tm,vm); stdm = (vmmax-vmmin).std()
         vomin,vomax = il.AnnualMinMax(to,vo); stdo = (vomax-vomin).std()
