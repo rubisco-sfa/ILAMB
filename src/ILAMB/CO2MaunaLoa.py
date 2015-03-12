@@ -19,6 +19,7 @@ class CO2MaunaLoa():
         self.lat      = 19.4
         self.lon      = 24.4
         self.nlayers  = 3 
+        self.metric   = {}
 
     def getData(self,initial_time=-1e20,final_time=1e20,output_unit=""):
         """Retrieves the confrontation data on the desired time frame and in
@@ -172,6 +173,10 @@ class CO2MaunaLoa():
 
         # give each time a weight to be used in the weighted averages below
         mw = il.MonthlyWeights(tm)
+
+        self.metric["PeriodMean"] = {}
+        self.metric["PeriodMean"]["var"]  = mean(vo,weights=mw)
+        self.metric["PeriodMean"]["unit"] = "ppm"
 
         # put the metrics here
         metric = {}

@@ -25,6 +25,8 @@ for subdir, dirs, files in os.walk(root):
     mname = mname.replace("/","")
     M.append(ModelResult(subdir,modelname=mname,filter="r1i1p1"))
 
+M = sorted(M,key=lambda m: m.name.upper())
+
 # Assign colors
 clrs = il.GenerateDistinctColors(len(M))
 maxL = 0
@@ -54,5 +56,6 @@ for c in C:
             
 # Postprocess
 for c in C:
-    print ConfrontationTableASCII(c.name,M)
+    print ""
+    print ConfrontationTableASCII(c,M)
 

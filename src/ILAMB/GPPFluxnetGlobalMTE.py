@@ -4,6 +4,7 @@ import pylab as plt
 import ilamblib as il
 from constants import convert
 from Post import GlobalPlot
+from os import environ
 
 class GPPFluxnetGlobalMTE():
     """Confront models with the gross primary productivity (GPP) product
@@ -11,11 +12,11 @@ class GPPFluxnetGlobalMTE():
     """
     def __init__(self):
         self.name = "GPPFluxnetGlobalMTE"
-        self.path = "/chrysaor/ILAMB/gpp/FLUXNET-MTE/derived/"
-        #self.path = "/home/ncf/data/ILAMB/DATA/FLUXNET-MTE/derived/"
+        self.path = environ["ILAMB_ROOT"] + "/DATA/gpp/FLUXNET-MTE/derived/"
         self.nlat = 360
         self.nlon = 720
         self.data = {}
+        self.metric = {}
 
     def diagnose(self):
         from pylab import subplots
@@ -182,7 +183,7 @@ class GPPFluxnetGlobalMTE():
         
         # time limits for this confrontation, with a little padding to
         # account for differences in monthly time representations
-        t0,tf = to.min()-5,to.max()+5
+        t0,tf = to.min(),to.max()
 
         # extract the time, variable, and unit of the model result
         tm,vm,um = m.extractTimeSeries("gpp",initial_time=t0,final_time=tf,
@@ -218,6 +219,13 @@ class GPPFluxnetGlobalMTE():
         vmbar = il.SpatiallyIntegratedTimeSeries(vm,m.land_areas) # [g s-1]
         vmtot = il.TemporallyIntegratedTimeSeries(tm,vmbar)       # [g    ]
 
+        # The models could be on different time scales, if so we will
+        # need to do nearest neighbor interpolation.
+        if tm.shape[0] != to.shape[0]:
+            from scipy.interpolate import interp1d
+            f = interp1d(tm,vmbar,kind="nearest",assume_sorted=True,bounds_error=False)
+            vmbar = np.ma.masked_invalid(f(to))
+
         # populate dictionary to return
         cdata = {}
         
@@ -227,11 +235,35 @@ class GPPFluxnetGlobalMTE():
         cdata["model"]["vhat"] = vmhat
         cdata["model"]["vbar"] = vmbar
 
+        # make a few function aliases to help readibility
+        bias = il.Bias
+        rmse = il.RootMeanSquaredError
+
+        # give each time a weight to be used in the weighted averages below
+        mw  = il.MonthlyWeights(to)
+        spy = 365.*24*3600
+ 
+        self.metric["PeriodMean"] = {}
+        self.metric["PeriodMean"]["var"]  = votot*1e-15/nyears
+        self.metric["PeriodMean"]["unit"] = "Pg yr-1"
+
         # compute metrics
         metric = {}
         metric["PeriodMean"] = {}
         metric["PeriodMean"]["var"]  = vmtot*1e-15/nyears
         metric["PeriodMean"]["unit"] = "Pg yr-1"
+        metric["MonthlyMeanBias"] = {}
+        metric["MonthlyMeanBias"]["var"]       = bias(vmbar,vobar,weights=mw)*1e-15*spy
+        metric["MonthlyMeanBias"]["unit"]      = "Pg yr-1"
+        metric["MonthlyMeanBiasScore"] = {}
+        metric["MonthlyMeanBiasScore"]["var"]  = bias(vmbar,vobar,weights=mw,normalize="score")
+        metric["MonthlyMeanBiasScore"]["unit"] = "-"
+        metric["MonthlyMeanRMSE"] = {}
+        metric["MonthlyMeanRMSE"]["var"]       = rmse(vmbar,vobar,weights=mw)*1e-15*spy
+        metric["MonthlyMeanRMSE"]["unit"]      = "Pg yr-1"
+        metric["MonthlyMeanRMSEScore"] = {}
+        metric["MonthlyMeanRMSEScore"]["var"]  = rmse(vmbar,vobar,weights=mw,normalize="score")
+        metric["MonthlyMeanRMSEScore"]["unit"] = "-"
 
         cdata["metric"] = metric
         return cdata

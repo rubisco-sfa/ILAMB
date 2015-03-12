@@ -12,13 +12,13 @@ def UseLatexPltOptions(fsize=18):
     plt.rc('text', usetex=True)
     plt.rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
 
-def ConfrontationTableASCII(cname,M):
+def ConfrontationTableASCII(c,M):
     
     # determine header info
     head = None
     for m in M:
-        if cname in m.confrontations.keys():
-            head = m.confrontations[cname]["metric"].keys()
+        if c.name in m.confrontations.keys():
+            head = m.confrontations[c.name]["metric"].keys()
             break
     if head is None: return ""
 
@@ -32,7 +32,7 @@ def ConfrontationTableASCII(cname,M):
         if "Bias"        in name: val *= 2**1
         return val
     head   = sorted(head,key=_columnval)
-    metric = m.confrontations[cname]["metric"]
+    metric = m.confrontations[c.name]["metric"]
 
     # what is the longest model name?
     lenM = 0
@@ -44,6 +44,8 @@ def ConfrontationTableASCII(cname,M):
     for h in head: lineL += len(h)+2
 
     s  = "".join(["-"]*lineL) + "\n"
+    s += ("{0:^%d}" % lineL).format(c.name) + "\n"
+    s += "".join(["-"]*lineL) + "\n"
     s += ("{0:>%d}" % lenM).format("ModelName")
     for h in head: s += ("{0:>%d}" % (len(h)+2)).format(h)
     s += "\n" + ("{0:>%d}" % lenM).format("")
@@ -51,10 +53,17 @@ def ConfrontationTableASCII(cname,M):
     s += "\n" + "".join(["-"]*lineL)
 
     # print the table
+    s += ("\n{0:>%d}" % lenM).format("Benchmark")
+    for h in head:
+        if h in c.metric.keys():
+            s += ("{0:>%d,.3f}" % (len(h)+2)).format(c.metric[h]["var"])
+        else:
+            s += ("{0:>%d}" % (len(h)+2)).format("~")
+
     for m in M:
         s += ("\n{0:>%d}" % lenM).format(m.name)
-        if cname in m.confrontations.keys():
-            for h in head: s += ("{0:>%d,.3f}" % (len(h)+2)).format(m.confrontations[cname]["metric"][h]["var"])
+        if c.name in m.confrontations.keys():
+            for h in head: s += ("{0:>%d,.3f}" % (len(h)+2)).format(m.confrontations[c.name]["metric"][h]["var"])
         else:
             for h in head: s += ("{0:>%d}" % (len(h)+2)).format("~")
     return s

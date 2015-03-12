@@ -24,24 +24,45 @@ class ModelResult():
         self.lon_bnds       = None        
         self._getGridInformation()
 
+    def _fileExists(self,contains):
+        """Looks through the model result path for a file that contains the text specified in "constains". Returns "" if not found.
+        """
+        fname = ""
+        for subdir, dirs, files in os.walk(self.path):
+            for f in files:
+                if contains not in f: continue
+                if ".nc" not in f: continue
+                fname = "%s/%s" % (subdir,f)
+                return fname
+        return fname
+
     def _getGridInformation(self):
-        files = glob.glob("%s/*%s*.nc" % (self.path,"areacella"))
-        if len(files) > 0:
-            f = Dataset(files[0])
-            self.cell_areas    = f.variables["areacella"][...]
-            self.lat           = f.variables["lat"][...]
-            self.lon           = f.variables["lon"][...]
-            self.lat_bnds      = np.zeros(self.lat.size+1)
-            self.lat_bnds[:-1] = f.variables["lat_bnds"][:,0]
-            self.lat_bnds[-1]  = f.variables["lat_bnds"][-1,1]
-            self.lon_bnds      = np.zeros(self.lon.size+1)
-            self.lon_bnds[:-1] = f.variables["lon_bnds"][:,0]
-            self.lon_bnds[-1]  = f.variables["lon_bnds"][-1,1]
-        files = glob.glob("%s/*%s*.nc" % (self.path,"sftlf"))            
-        if len(files) > 0:
-            self.land_fraction = (Dataset(files[0]).variables["sftlf"])[...]*0.01
+        # Look for a file named areacella...
+        fname = self._fileExists("areacella")
+        if fname == "": return # there are no areas associated with this model result
+
+        # Now grab area information for this model
+        f = Dataset(fname)
+        self.cell_areas    = f.variables["areacella"][...]
+        self.lat           = f.variables["lat"][...]
+        self.lon           = f.variables["lon"][...]
+        self.lat_bnds      = np.zeros(self.lat.size+1)
+        self.lat_bnds[:-1] = f.variables["lat_bnds"][:,0]
+        self.lat_bnds[-1]  = f.variables["lat_bnds"][-1,1]
+        self.lon_bnds      = np.zeros(self.lon.size+1)
+        self.lon_bnds[:-1] = f.variables["lon_bnds"][:,0]
+        self.lon_bnds[-1]  = f.variables["lon_bnds"][-1,1]
+
+        # Now we do the same for land fractions
+        fname = self._fileExists("sftlf")
+        if fname == "": 
+            self.land_areas = self.cell_areas 
+        else:
+            self.land_fraction = (Dataset(fname).variables["sftlf"])[...]
+            # some models represent the fraction as a percent 
+            if np.ma.max(self.land_fraction) > 1: self.land_fraction *= 0.01 
             self.land_areas = self.cell_areas*self.land_fraction
-            self.land_area  = np.ma.sum(self.land_areas)
+        self.land_area = np.ma.sum(self.land_areas)
         return
 
     def diagnose(self):
@@ -54,8 +75,8 @@ class ModelResult():
             GlobalPlot(self.lat,self.lon,self.land_fraction,shift=True,ax=ax[1],biome="global.large")
             GlobalPlot(self.lat,self.lon,self.land_areas,shift=True,ax=ax[2],biome="global.large")
             ax[0].set_title("areacella")
-            ax[1].set_title("sftlf/100")
-            ax[2].set_title("areacella*sftlf/100")
+            ax[1].set_title("sftlf")
+            ax[2].set_title("areacella*sftlf")
             fig.savefig("land_areas_%s.png" % self.name)
         return
 
