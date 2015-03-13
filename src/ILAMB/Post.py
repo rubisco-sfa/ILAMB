@@ -68,6 +68,73 @@ def ConfrontationTableASCII(c,M):
             for h in head: s += ("{0:>%d}" % (len(h)+2)).format("~")
     return s
 
+def ConfrontationTableGoogle(c,M):
+    
+    # determine header info
+    head = None
+    for m in M:
+        if c.name in m.confrontations.keys():
+            head = m.confrontations[c.name]["metric"].keys()
+            break
+    if head is None: return ""
+
+    # we need to sort the header, I will use a score based on words I
+    # find the in header text
+    def _columnval(name):
+        val = 1
+        if "Score"       in name: val *= 2**4
+        if "Interannual" in name: val *= 2**3
+        if "RMSE"        in name: val *= 2**2
+        if "Bias"        in name: val *= 2**1
+        return val
+    head   = sorted(head,key=_columnval)
+    metric = m.confrontations[c.name]["metric"]
+
+    s  = """
+<html>
+  <head>
+    <script type="text/javascript" src="https://www.google.com/jsapi"></script>
+    <script type="text/javascript">
+      google.load("visualization", "1", {packages:["table"]});
+      google.setOnLoadCallback(draw%sTable);
+""" % c.name
+    s += "      function draw%sTable() {\n" % c.name
+    s += "        var data = new google.visualization.DataTable();\n"
+    s += "        data.addColumn('string','ModelName');\n"
+    for h in head: s += "        data.addColumn('number','%s');\n" % h
+    s += "        data.addRows(%d);\n" % (len(M))
+    row = -1
+    for m in M:
+        row += 1
+        col  = 0
+        s   += "        data.setCell(%d,0,'%s');\n" % (row,m.name)
+        if c.name in m.confrontations.keys():
+            for h in head: 
+                col += 1
+                s   += "        data.setCell(%d,%d,%.3f);\n" % (row,col,m.confrontations[c.name]["metric"][h]["var"])
+        else:
+            for h in head:
+                col += 1
+                s   += "        data.setCell(%d,%d,null);\n" % (row,col)
+    s += r"""  
+        var table = new google.visualization.Table(document.getElementById('table_div'));
+        table.draw(data, {showRowNumber: true});
+
+        google.visualization.events.addListener(table, 'select', function() {
+          var row = table.getSelection()[0].row;
+          alert('You selected ' + data.getValue(row, 0));
+        });
+      }
+    </script>
+  </head>
+  <body>
+    <div id="table_div"></div>
+  </body>
+</html>"""
+    return s
+
+
+
 def GlobalPlot(lat,lon,var,biome="global",ticks=None,tcmap=None,tnorm=None,shift=False,ax=None):
     """
 

@@ -5,7 +5,7 @@ cateloged in Mingquan's ftp site.
 from ILAMB.Confrontation import Confrontation
 from ILAMB.ModelResult import ModelResult
 from ILAMB import ilamblib as il
-from ILAMB.Post import ConfrontationTableASCII
+import ILAMB.Post as post
 import pylab as plt
 import numpy as np
 import os,time
@@ -21,7 +21,7 @@ root = "%s/MODELS/CMIP5" % (os.environ["ILAMB_ROOT"])
 for subdir, dirs, files in os.walk(root):
     mname = subdir.replace(root,"")
     if mname.count("/") != 1: continue
-    mname = mname.replace("/","")
+    mname = mname.replace("/","").upper()
     M.append(ModelResult(subdir,modelname=mname,filter="r1i1p1"))
 
 M = sorted(M,key=lambda m: m.name.upper())
@@ -58,6 +58,12 @@ for c in C:
 
 # Postprocess
 for c in C:
-    print ""
-    print ConfrontationTableASCII(c,M)
 
+    # quick ASCII table
+    print ""
+    print post.ConfrontationTableASCII(c,M)
+
+    # HTML Google-chart table
+    f = file("%s.html" % c.name,"w")
+    f.write(post.ConfrontationTableGoogle(c,M))
+    f.close()
