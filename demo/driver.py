@@ -8,13 +8,12 @@ from ILAMB import ilamblib as il
 from ILAMB.Post import ConfrontationTableASCII
 import pylab as plt
 import numpy as np
-import os
+import os,time
 
 # Some color constants for printing to the terminal
 OKGREEN = '\033[92m'
-WARNING = '\033[93m'
-FAIL = '\033[91m'
-ENDC = '\033[0m'
+FAIL    = '\033[91m'
+ENDC    = '\033[0m'
 
 # Initialize the models
 M    = []
@@ -37,9 +36,10 @@ for m in M:
 
 # Confront models
 C = Confrontation().list()
-print "Running confrontations:"
+print "\nRunning confrontations..."
 for c in C:
-    print "  %s" % c.name
+    t0 = time.time()
+    print "\n  %s" % c.name
     for m in M:
         try:
             m.confrontations[c.name] = c.confront(m)  
@@ -53,7 +53,9 @@ for c in C:
         except il.VarNotMonthly:
             print ("    {0:<%d} %sVarNotMonthly%s" % (maxL,FAIL,ENDC)).format(m.name)
             continue
-            
+    dt = time.time()-t0
+    print "  Completed in %.1f seconds" % dt
+
 # Postprocess
 for c in C:
     print ""
