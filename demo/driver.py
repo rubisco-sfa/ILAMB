@@ -67,3 +67,6 @@ for c in C:
     f = file("%s.html" % c.name,"w")
     f.write(post.ConfrontationTableGoogle(c,M))
     f.close()
+
+    # generate plots
+    c.plot(M)

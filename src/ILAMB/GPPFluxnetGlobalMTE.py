@@ -275,6 +275,7 @@ class GPPFluxnetGlobalMTE():
         self._mapPeriodMeanGPP()
         for m in M: self._mapPeriodMeanGPP(m=m)
         # composite time series
+        """
         fig,ax = plt.subplots(figsize=(12,5))
         self._timeSeriesMeanGPP(ax=ax)
         for m in M: self._timeSeriesMeanGPP(m=m,ax=ax)
@@ -285,25 +286,26 @@ class GPPFluxnetGlobalMTE():
         lgd = ax.legend(handles, labels, loc='center left', bbox_to_anchor=(1,0.5))
         fig.savefig('gpp.pdf', bbox_extra_artists=(lgd,), bbox_inches='tight')
         plt.close()
-        
+        """
+
     def _mapPeriodMeanGPP(self,m=None):
         from matplotlib.colors import from_levels_and_colors
         from constants import NCARclrs
         if m is not None:
             if self.name not in m.confrontations.keys(): return
         fig = plt.figure(figsize=(12,5))
-        ax  = fig.add_axes([0.06,0.025,0.9,0.965])
+        ax  = fig.add_axes([0.06,0.025,0.88,0.965])
         if m is None:
             ax.set_title("Period Mean Gross Primary Productivity (GPP) of %s $g/(m^2 day)$" % self.name)
             lat,lon = self.data["lat"],self.data["lon"]
             var     = self.data["vohat"]/(self.data["to"].max()-self.data["to"].min())
-            fname = "gpp_%s.png" % self.name
+            fname = "%s_Benchmark.png" % (self.name)
             shift = False
         else:
             lat,lon = m.lat,m.lon
             var     = m.confrontations[self.name]["model"]["vhat"]/(self.data["to"].max()-self.data["to"].min())
             ax.set_title("Period Mean Gross Primary Productivity (GPP) of %s $g/(m^2 day)$" % m.name)
-            fname = "gpp_%s.png" % m.name
+            fname = "%s_%s.png" % (self.name,m.name)
             shift = True
         NCARcmap,NCARnorm = from_levels_and_colors([0,0.05,0.1,0.2,0.5,1.0,2.0,5.0,10.0,15.0,20.0,100.0],NCARclrs[::-1])
         GlobalPlot(lat,lon,var,

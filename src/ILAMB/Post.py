@@ -102,36 +102,51 @@ def ConfrontationTableGoogle(c,M):
     s += "        var data = new google.visualization.DataTable();\n"
     s += "        data.addColumn('string','ModelName');\n"
     for h in head: s += "        data.addColumn('number','%s');\n" % h
-    s += "        data.addRows(%d);\n" % (len(M))
-    row = -1
+    s += "        data.addRows(%d);\n" % (len(M)+1)   
+ 
+    row = 0
+    s   += "        data.setCell(%d,0,'Benchmark');\n" % (row)
+    col = 0
+    for h in head:
+        col += 1
+        if h in c.metric.keys():
+            s += "data.setCell(%d,%d,%.3f); " % (row,col,c.metric[h]["var"])
+        else:
+            s += "data.setCell(%d,%d,null); " % (row,col)
+    s += "\n"
     for m in M:
         row += 1
         col  = 0
-        s   += "        data.setCell(%d,0,'%s');\n" % (row,m.name)
+        s   += "        data.setCell(%d,0,'%s'); " % (row,m.name)
         if c.name in m.confrontations.keys():
             for h in head: 
                 col += 1
-                s   += "        data.setCell(%d,%d,%.3f);\n" % (row,col,m.confrontations[c.name]["metric"][h]["var"])
+                s   += "data.setCell(%d,%d,%.3f); " % (row,col,m.confrontations[c.name]["metric"][h]["var"])
         else:
             for h in head:
                 col += 1
-                s   += "        data.setCell(%d,%d,null);\n" % (row,col)
-    s += r"""  
+                s   += "data.setCell(%d,%d,null); " % (row,col)
+        s += "\n"
+    s += """  
         var table = new google.visualization.Table(document.getElementById('table_div'));
         table.draw(data, {showRowNumber: true});
 
         google.visualization.events.addListener(table, 'select', function() {
           var row = table.getSelection()[0].row;
-          alert('You selected ' + data.getValue(row, 0));
+          document.getElementById("img").src= '%s_' + data.getValue(row, 0) + '.png'
         });
       }
     </script>
   </head>
   <body>
-    <div id="table_div"></div>
+    <div id="table_div" align="center"></div>
+    <div id="img_div" align="center">
+      <img src="%s_Benchmark.png" id="img"></img>
+    </div>
   </body>
-</html>"""
+</html>""" % (c.name,c.name)
     return s
+
 
 
 
