@@ -4,7 +4,7 @@ import pylab as plt
 import ilamblib as il
 from constants import convert
 from Post import GlobalPlot
-from os import environ
+from os import stat,environ
 
 class GPPFluxnetGlobalMTE():
     """Confront models with the gross primary productivity (GPP) product
@@ -13,6 +13,10 @@ class GPPFluxnetGlobalMTE():
     def __init__(self):
         self.name = "GPPFluxnetGlobalMTE"
         self.path = environ["ILAMB_ROOT"] + "/DATA/gpp/FLUXNET-MTE/derived/"
+        try:
+            stat(self.path)
+        except:
+            raise il.MisplacedData("I am looking for data for the %s confrontation here:\n\n%s\n\nBut I cannot find it. Did you download the data? Have you set the ILAMB_ROOT envronment variable?" % (self.name,self.path))
         self.nlat = 360
         self.nlon = 720
         self.data = {}

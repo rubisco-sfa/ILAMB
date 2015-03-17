@@ -36,6 +36,7 @@ for m in M:
 
 # Confront models
 C = Confrontation().list()
+
 print "\nRunning confrontations..."
 for c in C:
     t0 = time.time()

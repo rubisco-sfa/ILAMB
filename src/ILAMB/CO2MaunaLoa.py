@@ -1,7 +1,7 @@
 import numpy as np
 import ilamblib as il
 from constants import convert
-from os import environ
+from os import path,environ
 
 class CO2MaunaLoa():
     """
@@ -10,9 +10,11 @@ class CO2MaunaLoa():
     def __init__(self):
 
         # Populate with observational data needed for the confrontation
-        fname        = "%s/%s" % (environ["ILAMB_ROOT"],"DATA/co2/MAUNA.LOA/original/co2_1958-2014.txt")
-        data         = np.fromfile(fname,sep=" ").reshape((-1,7))
         self.name    = "CO2MaunaLoa"
+        fname        = "%s/%s" % (environ["ILAMB_ROOT"],"DATA/co2/MAUNA.LOA/original/co2_1958-2014.txt")
+        if not path.isfile(fname):
+            raise il.MisplacedData("I am looking for data for the %s confrontation here:\n\n%s\n\nBut I cannot find it. Did you download the data? Have you set the ILAMB_ROOT envronment variable?" % (self.name,fname))
+        data         = np.fromfile(fname,sep=" ").reshape((-1,7))
         self.t       = (data[:,2]-1850)*365.  # convert to days since 00:00:00 1/1/1850
         self.var     = data[:,5]
         self.unit     = "1e-6"
