@@ -200,7 +200,9 @@ class GPPFluxnetGlobalMTE():
         if (vm>0).sum() == 0: vm *= -1 
 
         # not all models properly mask out oceans
-        vm = np.ma.masked_where((vm.mask+np.abs(vm)<1e-15)>0,vm,copy=False)
+        vm = np.ma.masked_where(((vm.mask)+
+                                 (np.abs(vm)<1e-15)+
+                                 (vm>1e30)),vm,copy=False)
 
         # update time limits, might be less model data than observations
         t0,tf  = tm.min(),tm.max()
@@ -277,10 +279,10 @@ class GPPFluxnetGlobalMTE():
         # FIX: migrate this into ilamblib
         rows    = np.apply_along_axis(np.argmin,1,np.abs(lat[:,np.newaxis]-m.lat))
         cols    = np.apply_along_axis(np.argmin,1,np.abs(((lon<0)*(lon+360)+(lon>=0)*lon)[:,np.newaxis]-m.lon))
-        biasmap = (vmhat[np.ix_(rows,cols)] - vohat)/ndays
+        vmhati  = vmhat[np.ix_(rows,cols)]
+        biasmap = np.ma.masked_where(vmhati.mask+vohat.mask,(vmhati-vohat)/ndays)
         cdata["model"]["bias"] = biasmap
         self.data["BiasMaxMag"] = max(self.data["BiasMaxMag"],-np.ma.min(biasmap),np.ma.max(biasmap))
-
         return cdata
 
     def plot(self,M):
