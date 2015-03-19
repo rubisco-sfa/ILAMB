@@ -3,8 +3,9 @@ import numpy as np
 import pylab as plt
 import ilamblib as il
 from constants import convert
-from Post import GlobalPlot
+import Post as post
 from os import stat,environ
+from scipy.interpolate import interp1d
 
 class GPPFluxnetGlobalMTE():
     """Confront models with the gross primary productivity (GPP) product
@@ -20,8 +21,10 @@ class GPPFluxnetGlobalMTE():
         self.nlat = 360
         self.nlon = 720
         self.data = {}
+        self.data["GppMax"] = 0
+        self.data["BiasMaxMag"] = 0
         self.metric = {}
-
+        
     def diagnose(self):
         from pylab import subplots
         from Post import GlobalPlot
@@ -226,7 +229,6 @@ class GPPFluxnetGlobalMTE():
         # The models could be on different time scales, if so we will
         # need to do nearest neighbor interpolation.
         if tm.shape[0] != to.shape[0]:
-            from scipy.interpolate import interp1d
             f = interp1d(tm,vmbar,kind="nearest",assume_sorted=True,bounds_error=False)
             vmbar = np.ma.masked_invalid(f(to))
 
@@ -250,6 +252,7 @@ class GPPFluxnetGlobalMTE():
         self.metric["PeriodMean"] = {}
         self.metric["PeriodMean"]["var"]  = votot*1e-15/nyears
         self.metric["PeriodMean"]["unit"] = "Pg yr-1"
+        self.data["GppMax"] = max(self.data["GppMax"],np.ma.max(vmhat)/ndays,np.ma.max(vohat)/ndays)
 
         # compute metrics
         metric = {}
@@ -268,18 +271,29 @@ class GPPFluxnetGlobalMTE():
         metric["MonthlyMeanRMSEScore"] = {}
         metric["MonthlyMeanRMSEScore"]["var"]  = rmse(vobar,vmbar,weights=mw,normalize="score")
         metric["MonthlyMeanRMSEScore"]["unit"] = "-"
-
         cdata["metric"] = metric
+
+        # compare the bias using nearest neighbor interpolation of the observational data
+        # FIX: migrate this into ilamblib
+        rows    = np.apply_along_axis(np.argmin,1,np.abs(lat[:,np.newaxis]-m.lat))
+        cols    = np.apply_along_axis(np.argmin,1,np.abs(((lon<0)*(lon+360)+(lon>=0)*lon)[:,np.newaxis]-m.lon))
+        biasmap = (vmhat[np.ix_(rows,cols)] - vohat)/ndays
+        cdata["model"]["bias"] = biasmap
+        self.data["BiasMaxMag"] = max(self.data["BiasMaxMag"],-np.ma.min(biasmap),np.ma.max(biasmap))
+
         return cdata
 
     def plot(self,M):
         """Generate all plots for this confrontation
         """
-        # map plots
+        # Setup some font sizes in matplotlib
+        post.UseLatexPltOptions(10)
+        # Produce map plots
         self._mapPeriodMeanGPP()
         for m in M: self._mapPeriodMeanGPP(m=m)
-        # composite time series
+        for m in M: self._mapBias(m)
         """
+        # composite time series
         fig,ax = plt.subplots(figsize=(12,5))
         self._timeSeriesMeanGPP(ax=ax)
         for m in M: self._timeSeriesMeanGPP(m=m,ax=ax)
@@ -293,32 +307,51 @@ class GPPFluxnetGlobalMTE():
         """
 
     def _mapPeriodMeanGPP(self,m=None):
-        from matplotlib.colors import from_levels_and_colors
-        from constants import NCARclrs
         if m is not None:
             if self.name not in m.confrontations.keys(): return
-        fig = plt.figure(figsize=(12,5))
-        ax  = fig.add_axes([0.06,0.025,0.88,0.965])
+        w     = 6.8
+        fig   = plt.figure(figsize=(w,0.4117647058823529*w)) 
+        ax    = fig.add_axes([0.06,0.025,0.88,0.965])
         if m is None:
             ax.set_title("Period Mean Gross Primary Productivity (GPP) of %s $g/(m^2 day)$" % self.name)
             lat,lon = self.data["lat"],self.data["lon"]
             var     = self.data["vohat"]/(self.data["to"].max()-self.data["to"].min())
-            fname = "%s_Benchmark.png" % (self.name)
-            shift = False
+            fname   = "%s_Benchmark.png" % (self.name)
+            shift   = False
         else:
             lat,lon = m.lat,m.lon
             var     = m.confrontations[self.name]["model"]["vhat"]/(self.data["to"].max()-self.data["to"].min())
             ax.set_title("Period Mean Gross Primary Productivity (GPP) of %s $g/(m^2 day)$" % m.name)
             fname = "%s_%s.png" % (self.name,m.name)
             shift = True
-        NCARcmap,NCARnorm = from_levels_and_colors([0,0.05,0.1,0.2,0.5,1.0,2.0,5.0,10.0,15.0,20.0,100.0],NCARclrs[::-1])
-        GlobalPlot(lat,lon,var,
-                   ax    = ax,
-                   shift = shift,
-                   ticks = np.asarray([0,0.05,0.1,0.2,0.5,1,2,5,10,15,20]),
-                   tcmap = NCARcmap,
-                   tnorm = NCARnorm)
+        post.GlobalPlot(lat,lon,var,
+                        ax    = ax,
+                        shift = shift,
+                        biome = "global",
+                        vmin  = 0,
+                        vmax  = self.data["GppMax"],
+                        cmap  = "Greens")
         fig.savefig(fname)
+        plt.close()
+
+
+    def _mapBias(self,m):
+        if self.name not in m.confrontations.keys(): return
+        w     = 6.8
+        fig   = plt.figure(figsize=(w,0.4117647058823529*w))
+        ax    = fig.add_axes([0.06,0.025,0.88,0.965])
+        lat   = self.data["lat"]
+        lon   = self.data["lon"]
+        var   = m.confrontations[self.name]["model"]["bias"]
+        ax.set_title("Gross Primary Productivity (GPP) Bias of %s $g/(m^2 day)$" % m.name)
+        post.GlobalPlot(lat,lon,var,
+                        ax    =  ax,
+                        shift =  False,
+                        biome =  "global",
+                        vmin  = -self.data["BiasMaxMag"],
+                        vmax  =  self.data["BiasMaxMag"],
+                        cmap  =  "seismic")
+        fig.savefig("%s_%s_Bias.png" % (self.name,m.name))
         plt.close()
 
     def _timeSeriesMeanGPP(self,m=None,ax=None):

@@ -9,8 +9,8 @@ def UseLatexPltOptions(fsize=18):
               'xtick.labelsize':fsize,
               'ytick.labelsize':fsize}
     plt.rcParams.update(params)
-    plt.rc('text', usetex=True)
-    plt.rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
+    #plt.rc('text', usetex=True)
+    #plt.rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
 
 def ConfrontationTableASCII(c,M):
     
@@ -134,6 +134,7 @@ def ConfrontationTableGoogle(c,M):
         google.visualization.events.addListener(table, 'select', function() {
           var row = table.getSelection()[0].row;
           document.getElementById("img").src= '%s_' + data.getValue(row, 0) + '.png'
+          document.getElementById("bias").src= '%s_' + data.getValue(row, 0) + '_Bias.png'
         });
       }
     </script>
@@ -143,14 +144,14 @@ def ConfrontationTableGoogle(c,M):
     <div id="img_div" align="center">
       <img src="%s_Benchmark.png" id="img"></img>
     </div>
+    <div id="bias_div" align="center">
+      <img src="%s_Benchmark.png" id="bias"></img>
+    </div>
   </body>
-</html>""" % (c.name,c.name)
+</html>""" % (c.name,c.name,c.name,c.name)
     return s
 
-
-
-
-def GlobalPlot(lat,lon,var,biome="global",ticks=None,tcmap=None,tnorm=None,shift=False,ax=None):
+def GlobalPlot(lat,lon,var,biome="global.large",shift=False,ax=None,**keywords):
     """
 
     """
@@ -168,15 +169,15 @@ def GlobalPlot(lat,lon,var,biome="global",ticks=None,tcmap=None,tnorm=None,shift
     else:
         alon = lon
         tmp  = var
+    vmin = keywords.get("vmin",None)
+    vmax = keywords.get("vmax",None)
+    cmap = keywords.get("cmap","jet")
     x,y = bmap(alon,lat)
-    try:
-        ax = bmap.pcolormesh(x,y,tmp,vmin=ticks.min(),vmax=1.05*ticks.max(),zorder=2,cmap=tcmap,norm=tnorm)
-        bmap.colorbar(ax,ticks=ticks)
-    except:
-        ax = bmap.pcolormesh(x,y,tmp)
-        bmap.colorbar(ax)
-    bmap.drawmeridians(np.arange(-150,151,30),labels=[0,0,0,1],zorder=1,dashes=[1000000,1],linewidth=0.5)
-    bmap.drawparallels(np.arange( -60, 61,30),labels=[1,0,0,0],zorder=1,dashes=[1000000,1],linewidth=0.5)
-    bmap.drawcoastlines(linewidth=0.5)
+    ax  = bmap.pcolormesh(x,y,tmp,zorder=2,vmin=vmin,vmax=vmax,cmap=cmap)
+    bmap.colorbar(ax)
+    #bmap.drawmeridians(np.arange(-150,151,30),labels=[0,0,0,1],zorder=1,dashes=[1000000,1],linewidth=0.5)
+    #bmap.drawparallels(np.arange( -60, 61,30),labels=[1,0,0,0],zorder=1,dashes=[1000000,1],linewidth=0.5)
+    bmap.drawcoastlines(linewidth=0.1)
 
-
+    
+    
