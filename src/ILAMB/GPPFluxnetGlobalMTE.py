@@ -215,9 +215,14 @@ class GPPFluxnetGlobalMTE():
             vohat = il.TemporallyIntegratedTimeSeries(to,vo)    # [g m-2]
             vobar = il.SpatiallyIntegratedTimeSeries(vo,area)   # [g s-1]
             votot = il.TemporallyIntegratedTimeSeries(to,vobar) # [g    ]
+            voavg,vostd,tomx,tost = il.AnnualCycleInformation(to,vobar)
             self.data["vohat"] = vohat
             self.data["vobar"] = vobar
             self.data["votot"] = votot
+            self.data["voavg"] = voavg
+            self.data["vostd"] = vostd
+            self.data["tomx" ] = tomx
+            self.data["tost" ] = tost
         else:
             vohat = self.data["vohat"]
             vobar = self.data["vobar"]
@@ -228,10 +233,15 @@ class GPPFluxnetGlobalMTE():
         vmbar = il.SpatiallyIntegratedTimeSeries(vm,m.land_areas) # [g s-1]
         vmtot = il.TemporallyIntegratedTimeSeries(tm,vmbar)       # [g    ]
 
+        # annual cycle
+        vmavg,vmstd,tmmx,tmst = il.AnnualCycleInformation(tm,vmbar)
+
         # The models could be on different time scales, if so we will
         # need to do nearest neighbor interpolation.
+        # FIX: pull out times in terms of months since 1/1/1850 so we don't need this
         if tm.shape[0] != to.shape[0]:
             f = interp1d(tm,vmbar,kind="nearest",assume_sorted=True,bounds_error=False)
+            tm    = to
             vmbar = np.ma.masked_invalid(f(to))
 
         # populate dictionary to return
@@ -242,7 +252,11 @@ class GPPFluxnetGlobalMTE():
         cdata["model"]["t"]    = tm
         cdata["model"]["vhat"] = vmhat
         cdata["model"]["vbar"] = vmbar
-
+        cdata["model"]["vavg"] = vmavg
+        cdata["model"]["vstd"] = vmstd
+        cdata["model"]["tmax"] = tmmx
+        cdata["model"]["tstd"] = tmst
+        
         # make a few function aliases to help readibility
         bias = il.Bias
         rmse = il.RootMeanSquaredError
@@ -285,30 +299,20 @@ class GPPFluxnetGlobalMTE():
         self.data["BiasMaxMag"] = max(self.data["BiasMaxMag"],-np.ma.min(biasmap),np.ma.max(biasmap))
         return cdata
 
-    def plot(self,M):
+    def plot(self,M,path=""):
         """Generate all plots for this confrontation
         """
         # Setup some font sizes in matplotlib
         post.UseLatexPltOptions(10)
         # Produce map plots
-        self._mapPeriodMeanGPP()
-        for m in M: self._mapPeriodMeanGPP(m=m)
-        for m in M: self._mapBias(m)
-        """
-        # composite time series
-        fig,ax = plt.subplots(figsize=(12,5))
-        self._timeSeriesMeanGPP(ax=ax)
-        for m in M: self._timeSeriesMeanGPP(m=m,ax=ax)
-        ax.set_xlabel("Simulation time [$y$]")
-        ax.set_ylabel("Gross Primary Productivity (GPP) [$g/(m^2 day)$]")
-        fig.tight_layout()
-        handles, labels = ax.get_legend_handles_labels()
-        lgd = ax.legend(handles, labels, loc='center left', bbox_to_anchor=(1,0.5))
-        fig.savefig('gpp.pdf', bbox_extra_artists=(lgd,), bbox_inches='tight')
-        plt.close()
-        """
+        self._mapPeriodMeanGPP(path=path)
+        for m in M: self._mapPeriodMeanGPP(m=m,path=path)
+        for m in M: self._mapBias(m,path=path)
+        # Composite time series
+        for m in M: self._timeSeriesMeanGPP(m,path=path)
+        for m in M: self._timeSeriesAnnualCycle(m,path=path)
 
-    def _mapPeriodMeanGPP(self,m=None):
+    def _mapPeriodMeanGPP(self,m=None,path=""):
         if m is not None:
             if self.name not in m.confrontations.keys(): return
         w     = 6.8
@@ -318,13 +322,13 @@ class GPPFluxnetGlobalMTE():
             ax.set_title("Period Mean Gross Primary Productivity (GPP) of %s $g/(m^2 day)$" % self.name)
             lat,lon = self.data["lat"],self.data["lon"]
             var     = self.data["vohat"]/(self.data["to"].max()-self.data["to"].min())
-            fname   = "%s_Benchmark.png" % (self.name)
+            fname   = "Benchmark.png"
             shift   = False
         else:
             lat,lon = m.lat,m.lon
             var     = m.confrontations[self.name]["model"]["vhat"]/(self.data["to"].max()-self.data["to"].min())
             ax.set_title("Period Mean Gross Primary Productivity (GPP) of %s $g/(m^2 day)$" % m.name)
-            fname = "%s_%s.png" % (self.name,m.name)
+            fname = "%s.png" % (m.name)
             shift = True
         post.GlobalPlot(lat,lon,var,
                         ax    = ax,
@@ -333,11 +337,10 @@ class GPPFluxnetGlobalMTE():
                         vmin  = 0,
                         vmax  = self.data["GppMax"],
                         cmap  = "Greens")
-        fig.savefig(fname)
+        fig.savefig("./%s/%s" % (path,fname))
         plt.close()
 
-
-    def _mapBias(self,m):
+    def _mapBias(self,m,path=""):
         if self.name not in m.confrontations.keys(): return
         w     = 6.8
         fig   = plt.figure(figsize=(w,0.4117647058823529*w))
@@ -353,17 +356,62 @@ class GPPFluxnetGlobalMTE():
                         vmin  = -self.data["BiasMaxMag"],
                         vmax  =  self.data["BiasMaxMag"],
                         cmap  =  "seismic")
-        fig.savefig("%s_%s_Bias.png" % (self.name,m.name))
+        fig.savefig("./%s/%s_Bias.png" % (path,m.name))
         plt.close()
 
-    def _timeSeriesMeanGPP(self,m=None,ax=None):
-        if m is None:
-            t    = self.data["to"]/365.+1850
-            vbar = self.data["vobar"]/np.ma.sum(self.data["area"])*24.*3600.
-            ax.plot(t,vbar,'-',lw=2,color='k',alpha=0.25,label="obs")
-        else:
-            if self.name not in m.confrontations.keys(): return                
-            t    = m.confrontations[self.name]["model"]["t"]/365.+1850
-            vbar = m.confrontations[self.name]["model"]["vbar"]/m.land_area*24.*3600.
-            ax.plot(t,vbar,'-',color=m.color,label=m.name)
+    def _timeSeriesMeanGPP(self,m,path=""):
+        if self.name not in m.confrontations.keys(): return
+        w      = 6.8
+        fig,ax = plt.subplots(figsize=(w,0.4117647058823529*w))
+        ax.set_xlabel("Simulation time [$y$]")
+        ax.set_title("Mean Gross Primary Productivity (GPP) [$g/(m^2 day)$]")
+        fig.tight_layout()
 
+        # obs
+        t    = self.data["to"]/365.+1850
+        vbar = self.data["vobar"]/np.ma.sum(self.data["area"])*24.*3600.
+        ax.plot(t,vbar,'-',lw=2,color='k',alpha=0.25,label="obs")
+
+        # model
+        t    = m.confrontations[self.name]["model"]["t"]/365.+1850
+        vbar = m.confrontations[self.name]["model"]["vbar"]/m.land_area*24.*3600.
+        ax.plot(t,vbar,'-',color=m.color,label=m.name)
+
+        fig.savefig('./%s/%s_Mean.png' % (path,m.name)) #, bbox_extra_artists=(lgd,), bbox_inches='tight')
+        plt.close()
+
+    def _timeSeriesAnnualCycle(self,m,path=""):
+        if self.name not in m.confrontations.keys(): return
+        w      = 6.8
+        fig,ax = plt.subplots(figsize=(w,0.4117647058823529*w))
+        ax.set_xlabel("Month")
+        ax.set_title("Annual Cycle Gross Primary Productivity (GPP) [$g/(m^2 day)$]")
+        fig.tight_layout()
+
+        # obs
+        t    = range(12)
+        area = np.ma.sum(self.data["area"])
+        vavg = self.data["voavg"]/area*24.*3600.
+        vstd = self.data["vostd"]/area*24.*3600.
+        ax.fill_between(t,vavg-vstd,vavg+vstd,color='k',alpha=0.125)
+        ax.plot(t,vavg,'-',color='k',alpha=0.25,label="obs")
+        ax.errorbar(self.data["tomx"]*12,
+                    vavg.max(),
+                    xerr=self.data["tost"]*12,
+                    fmt="o",color='k',alpha=0.25)
+
+        # model
+        vavg = m.confrontations[self.name]["model"]["vavg"]/m.land_area*24.*3600.
+        vstd = m.confrontations[self.name]["model"]["vstd"]/m.land_area*24.*3600.
+        ax.fill_between(t,vavg-vstd,vavg+vstd,color=m.color,alpha=0.25)
+        ax.plot(t,vavg,'-',color=m.color,label=m.name)
+        ax.errorbar(m.confrontations[self.name]["model"]["tmax"]*12,
+                    vavg.max(),
+                    xerr=m.confrontations[self.name]["model"]["tstd"]*12,
+                    fmt="o",color=m.color,elinewidth=2)
+
+        ax.set_xlim(0,11)
+        ax.set_xticks(t)
+        ax.set_xticklabels(['J','F','M','A','M','J','J','A','S','O','N','D'])
+        fig.savefig('./%s/%s_Cycle.png' % (path,m.name)) #, bbox_extra_artists=(lgd,), bbox_inches='tight')
+        plt.close()

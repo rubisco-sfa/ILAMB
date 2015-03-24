@@ -18,24 +18,27 @@ ENDC    = '\033[0m'
 # Initialize the models
 M    = []
 root = "%s/MODELS/CMIP5" % (os.environ["ILAMB_ROOT"])
+print "\nSearching for model results in %s..." % root
+maxL = 0
 for subdir, dirs, files in os.walk(root):
     mname = subdir.replace(root,"")
     if mname.count("/") != 1: continue
     mname = mname.replace("/","").upper()
+    maxL  = max(maxL,len(mname))
     M.append(ModelResult(subdir,modelname=mname,filter="r1i1p1"))
-
 M = sorted(M,key=lambda m: m.name.upper())
+for m in M: print ("    {0:<%d}" % (maxL)).format(m.name)
 
 # Assign colors
 clrs = il.GenerateDistinctColors(len(M))
-maxL = 0
 for m in M:
     clr     = clrs.pop(np.random.randint(0,high=len(clrs)))
     m.color = clr
-    maxL    = max(maxL,len(m.name))
-
+    
 # Confront models
-C = Confrontation().list()
+C = Confrontation()
+print "\n%s" % C
+C = C.list()
 
 print "\nRunning confrontations..."
 for c in C:
@@ -57,17 +60,33 @@ for c in C:
     dt = time.time()-t0
     print "  Completed in %.1f seconds" % dt
 
+print "\nPost-processing..."
+
+# Put everything here
+build = "./_build"
+try:
+    os.mkdir(build)
+except:
+    pass
+
 # Postprocess
 for c in C:
 
-    # quick ASCII table
-    print ""
-    print post.ConfrontationTableASCII(c,M)
+    print "\n  %s" % c.name
+    t0 = time.time()
+    path = "%s/%s" % (build,c.name)
+    try:
+        os.mkdir(path)
+    except:
+        pass
 
     # HTML Google-chart table
-    f = file("%s.html" % c.name,"w")
+    f = file("%s/%s.html" % (path,c.name),"w")
     f.write(post.ConfrontationTableGoogle(c,M))
     f.close()
 
     # generate plots
-    c.plot(M)
+    c.plot(M,path=path)
+    
+    dt = time.time()-t0
+    print "  Completed in %.1f seconds" % dt

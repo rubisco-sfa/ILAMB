@@ -133,8 +133,10 @@ def ConfrontationTableGoogle(c,M):
 
         google.visualization.events.addListener(table, 'select', function() {
           var row = table.getSelection()[0].row;
-          document.getElementById("img").src= '%s_' + data.getValue(row, 0) + '.png'
-          document.getElementById("bias").src= '%s_' + data.getValue(row, 0) + '_Bias.png'
+          document.getElementById("img").src= data.getValue(row, 0) + '.png'
+          document.getElementById("bias").src= data.getValue(row, 0) + '_Bias.png'
+          document.getElementById("mean").src= data.getValue(row, 0) + '_Mean.png'
+          document.getElementById("cycle").src= data.getValue(row, 0) + '_Cycle.png'
         });
       }
     </script>
@@ -142,13 +144,13 @@ def ConfrontationTableGoogle(c,M):
   <body>
     <div id="table_div" align="center"></div>
     <div id="img_div" align="center">
-      <img src="%s_Benchmark.png" id="img"></img>
-    </div>
-    <div id="bias_div" align="center">
-      <img src="%s_Benchmark.png" id="bias"></img>
+      <img src="Benchmark.png" id="img"></img>
+      <img src="Benchmark_Bias.png" id="bias"></img><br>
+      <img src="Benchmark_Mean.png" id="mean"></img>
+      <img src="Benchmark_Cycle.png" id="cycle"></img>
     </div>
   </body>
-</html>""" % (c.name,c.name,c.name,c.name)
+</html>"""
     return s
 
 def GlobalPlot(lat,lon,var,biome="global.large",shift=False,ax=None,**keywords):

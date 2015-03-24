@@ -207,5 +207,5 @@ class CO2MaunaLoa():
 
         return cdata
 
-    def plot(self,M):
+    def plot(self,M,path=""):
         pass
