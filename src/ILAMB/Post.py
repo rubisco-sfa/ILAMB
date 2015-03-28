@@ -68,7 +68,7 @@ def ConfrontationTableASCII(c,M):
             for h in head: s += ("{0:>%d}" % (len(h)+2)).format("~")
     return s
 
-def ConfrontationTableGoogle(c,M):
+def ConfrontationTableGoogle(c,M,regions=["global"]):
     
     # determine header info
     head = None
@@ -105,7 +105,7 @@ def ConfrontationTableGoogle(c,M):
     s += "        data.addRows(%d);\n" % (len(M)+1)   
  
     row = 0
-    s   += "        data.setCell(%d,0,'Benchmark');\n" % (row)
+    s   += "        data.setCell(%d,0,'Benchmark');" % (row)
     col = 0
     for h in head:
         col += 1
@@ -129,37 +129,55 @@ def ConfrontationTableGoogle(c,M):
         s += "\n"
     s += """  
         var table = new google.visualization.Table(document.getElementById('table_div'));
-        table.draw(data, {showRowNumber: true});
+        table.draw(data, {showRowNumber: false});
 
-        google.visualization.events.addListener(table, 'select', function() {
-          var row = table.getSelection()[0].row;
-          document.getElementById("img").src= data.getValue(row, 0) + '.png'
-          document.getElementById("bias").src= data.getValue(row, 0) + '_Bias.png'
-          document.getElementById("mean").src= data.getValue(row, 0) + '_Mean.png'
-          document.getElementById("cycle").src= data.getValue(row, 0) + '_Cycle.png'
-        });
+        function updateImages() {
+          try {
+            var row = table.getSelection()[0].row;
+          }
+          catch(err) {
+            var row = 0;
+          }
+          var reg = document.getElementById("region").options[document.getElementById("region").selectedIndex].value
+          var mod = data.getValue(row, 0)
+          document.getElementById("img"  ).src = mod + "_"      + reg + ".png"
+          document.getElementById("bias" ).src = mod + "_Bias_" + reg + ".png"
+          document.getElementById("mean" ).src = mod + "_Mean.png"
+          document.getElementById("cycle").src = mod + "_Cycle.png"
+        }
+
+        google.visualization.events.addListener(table, 'select', updateImages);
+
+        table.setSelection([{'row': 0}]);
+        updateImages();
       }
     </script>
   </head>
   <body>
+    <select id="region" onchange="drawGPPFluxnetGlobalMTETable()">
+"""
+    for region in regions:
+        s += '      <option value="%s">%s</option>\n' % (region,region)
+    s += """
+    </select>
     <div id="table_div" align="center"></div>
     <div id="img_div" align="center">
-      <img src="Benchmark.png" id="img"></img>
-      <img src="Benchmark_Bias.png" id="bias"></img><br>
-      <img src="Benchmark_Mean.png" id="mean"></img>
-      <img src="Benchmark_Cycle.png" id="cycle"></img>
+      <img src="Benchmark_global.png" id="img"></img>
+      <img src="" id="bias"></img><br>
+      <img src="" id="mean"></img>
+      <img src="" id="cycle"></img>
     </div>
   </body>
 </html>"""
     return s
 
-def GlobalPlot(lat,lon,var,biome="global.large",shift=False,ax=None,**keywords):
+def GlobalPlot(lat,lon,var,region="global.large",shift=False,ax=None,**keywords):
     """
 
     """
     from mpl_toolkits.basemap import Basemap
-    from constants import biomes
-    lats,lons = biomes[biome]
+    from constants import regions
+    lats,lons = regions[region]
     bmap = Basemap(projection='cyl',
                    llcrnrlon=lons[ 0],llcrnrlat=lats[ 0],
                    urcrnrlon=lons[-1],urcrnrlat=lats[-1],

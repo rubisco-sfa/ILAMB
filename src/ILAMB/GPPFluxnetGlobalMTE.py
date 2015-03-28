@@ -24,7 +24,8 @@ class GPPFluxnetGlobalMTE():
         self.data["GppMax"] = 0
         self.data["BiasMaxMag"] = 0
         self.metric = {}
-        
+        self.regions = ["global","bona","tena","ceam","nhsa","shsa","euro","mide","nhaf","shaf","boas","ceas","seas","eqas","aust"]
+
     def diagnose(self):
         from pylab import subplots
         from Post import GlobalPlot
@@ -34,10 +35,10 @@ class GPPFluxnetGlobalMTE():
         area = il.CellAreas(lat,lon)
 
         fig,ax = subplots(nrows=3,figsize=(12,18))
-        GlobalPlot(lat,lon,area          ,shift=True,ax=ax[0],biome="global.large")
-        GlobalPlot(lat,lon,vo.mask[0,...],shift=True,ax=ax[1],biome="global.large")
+        GlobalPlot(lat,lon,area          ,shift=True,ax=ax[0],region="global.large")
+        GlobalPlot(lat,lon,vo.mask[0,...],shift=True,ax=ax[1],region="global.large")
         area = np.ma.masked_where(vo.mask[0,...],area,copy=False)
-        GlobalPlot(lat,lon,area          ,shift=True,ax=ax[2],biome="global.large")
+        GlobalPlot(lat,lon,area          ,shift=True,ax=ax[2],region="global.large")
         ax[0].set_title("area from ilamblib.CellAreas")
         ax[1].set_title("gpp mask")
         ax[2].set_title("land areas * gpp mask")
@@ -305,14 +306,15 @@ class GPPFluxnetGlobalMTE():
         # Setup some font sizes in matplotlib
         post.UseLatexPltOptions(10)
         # Produce map plots
-        self._mapPeriodMeanGPP(path=path)
-        for m in M: self._mapPeriodMeanGPP(m=m,path=path)
-        for m in M: self._mapBias(m,path=path)
+        for region in self.regions:
+            self._mapPeriodMeanGPP(path=path,region=region)
+            for m in M: self._mapPeriodMeanGPP(m=m,path=path,region=region)
+            for m in M: self._mapBias(m,path=path,region=region)
         # Composite time series
         for m in M: self._timeSeriesMeanGPP(m,path=path)
         for m in M: self._timeSeriesAnnualCycle(m,path=path)
 
-    def _mapPeriodMeanGPP(self,m=None,path=""):
+    def _mapPeriodMeanGPP(self,m=None,path="",region="global"):
         if m is not None:
             if self.name not in m.confrontations.keys(): return
         w     = 6.8
@@ -322,25 +324,25 @@ class GPPFluxnetGlobalMTE():
             ax.set_title("Period Mean Gross Primary Productivity (GPP) of %s $g/(m^2 day)$" % self.name)
             lat,lon = self.data["lat"],self.data["lon"]
             var     = self.data["vohat"]/(self.data["to"].max()-self.data["to"].min())
-            fname   = "Benchmark.png"
+            fname   = "Benchmark_%s.png" % region
             shift   = False
         else:
             lat,lon = m.lat,m.lon
             var     = m.confrontations[self.name]["model"]["vhat"]/(self.data["to"].max()-self.data["to"].min())
             ax.set_title("Period Mean Gross Primary Productivity (GPP) of %s $g/(m^2 day)$" % m.name)
-            fname = "%s.png" % (m.name)
+            fname = "%s_%s.png" % (m.name,region)
             shift = True
         post.GlobalPlot(lat,lon,var,
                         ax    = ax,
                         shift = shift,
-                        biome = "global",
+                        region = region,
                         vmin  = 0,
                         vmax  = self.data["GppMax"],
                         cmap  = "Greens")
         fig.savefig("./%s/%s" % (path,fname))
         plt.close()
 
-    def _mapBias(self,m,path=""):
+    def _mapBias(self,m,path="",region="global"):
         if self.name not in m.confrontations.keys(): return
         w     = 6.8
         fig   = plt.figure(figsize=(w,0.4117647058823529*w))
@@ -350,13 +352,13 @@ class GPPFluxnetGlobalMTE():
         var   = m.confrontations[self.name]["model"]["bias"]
         ax.set_title("Gross Primary Productivity (GPP) Bias of %s $g/(m^2 day)$" % m.name)
         post.GlobalPlot(lat,lon,var,
-                        ax    =  ax,
-                        shift =  False,
-                        biome =  "global",
-                        vmin  = -self.data["BiasMaxMag"],
-                        vmax  =  self.data["BiasMaxMag"],
-                        cmap  =  "seismic")
-        fig.savefig("./%s/%s_Bias.png" % (path,m.name))
+                        ax     =  ax,
+                        shift  =  False,
+                        region =  region,
+                        vmin   = -self.data["BiasMaxMag"],
+                        vmax   =  self.data["BiasMaxMag"],
+                        cmap   =  "seismic")
+        fig.savefig("./%s/%s_Bias_%s.png" % (path,m.name,region))
         plt.close()
 
     def _timeSeriesMeanGPP(self,m,path=""):

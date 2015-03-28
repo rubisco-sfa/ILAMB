@@ -71,9 +71,9 @@ class ModelResult():
             from pylab import subplots
             from Post import GlobalPlot
             fig,ax = subplots(nrows=3,figsize=(12,18))
-            GlobalPlot(self.lat,self.lon,self.cell_areas,shift=True,ax=ax[0],biome="global.large")
-            GlobalPlot(self.lat,self.lon,self.land_fraction,shift=True,ax=ax[1],biome="global.large")
-            GlobalPlot(self.lat,self.lon,self.land_areas,shift=True,ax=ax[2],biome="global.large")
+            GlobalPlot(self.lat,self.lon,self.cell_areas,shift=True,ax=ax[0],region="global.large")
+            GlobalPlot(self.lat,self.lon,self.land_fraction,shift=True,ax=ax[1],region="global.large")
+            GlobalPlot(self.lat,self.lon,self.land_areas,shift=True,ax=ax[2],region="global.large")
             ax[0].set_title("areacella")
             ax[1].set_title("sftlf")
             ax[2].set_title("areacella*sftlf")
@@ -320,12 +320,12 @@ class ModelResult():
                 raise il.UnknownUnit("Variable is in units of [%s], you asked for [%s] but I do not know how to convert" % (unit,output_unit))
         return tc,np.ma.masked_array(varc,mask=masc),unit
 
-    def globalPlot(self,var,biome="global",ax=None):
+    def globalPlot(self,var,region="global",ax=None):
         from mpl_toolkits.basemap import Basemap
         from pylab import cm
         from matplotlib.colors import from_levels_and_colors
-        from constants import biomes
-        lats,lons = biomes[biome]
+        from constants import regions
+        lats,lons = regions[region]
         bmap = Basemap(projection='cyl',
                        llcrnrlon=lons[ 0],llcrnrlat=lats[ 0],
                        urcrnrlon=lons[-1],urcrnrlat=lats[-1],

@@ -1,7 +1,7 @@
 from numpy import asarray,ones,copy as npcopy
 from matplotlib.colors import from_levels_and_colors
 
-__all__ = ['spm','mph','hpd','mpy','dpy_noleap','dpy_gregorian','dpy_360','dpm_noleap','dpm_gregorian','dpm_360','g_per_Pg','g_per_kg','Ar_molar_mass','C_molar_mass','N_molar_mass','O_molar_mass','CO2_molar_mass','dry_air_molar_mass','dry_air_mass','dry_air_moles','co2_g_per_ppm','co2_ppm_per_kg','co2_ppm_per_C_Pg','biomes','NCARclrs','NCARcmap','NCARnorm']
+__all__ = ['spm','mph','hpd','mpy','dpy_noleap','dpy_gregorian','dpy_360','dpm_noleap','dpm_gregorian','dpm_360','g_per_Pg','g_per_kg','Ar_molar_mass','C_molar_mass','N_molar_mass','O_molar_mass','CO2_molar_mass','dry_air_molar_mass','dry_air_mass','dry_air_moles','co2_g_per_ppm','co2_ppm_per_kg','co2_ppm_per_C_Pg','regions','NCARclrs','NCARcmap','NCARnorm']
 
 # Time constants
 spm              = 60.     # seconds per minute
@@ -45,26 +45,26 @@ convert["gpp"] = {}
 convert["gpp"]["kg m-2 s-1"] = {"g m-2 s-1":1e-3,"kg m-2 s-1":1.}
 convert["gpp"]["g m-2 s-1"]  = {"kg m-2 s-1":1e+3,"g m-2 s-1":1.}
 
-biomes = {}
-biomes["global.large"] = ((-89.75, 89.75),(-179.75, 179.75))
-biomes["global"]       = ((-60.25, 80.25),(-179.75, 179.75))
-biomes["amazon"]       = ((-12.25,  6.75),(- 75.25,- 50.25))
-biomes["alaska"]       = (( 50.25, 75.25),(-170.25,-130.25))
-biomes["australia"]    = ((-50.25,-10.25),( 100.25, 160.25))
-biomes["bona"]         = (( 49.75, 79.75),(-170.25,- 60.25))
-biomes["tena"]         = (( 30.25, 49.75),(-125.25,- 80.25))
-biomes["ceam"]         = ((  9.75, 30.25),(-115.25,- 80.25))
-biomes["nhsa"]         = ((  0.25,  9.75),(- 80.25,- 50.25))
-biomes["shsa"]         = ((-59.75,  0.25),(- 80.25,- 40.25))
-biomes["euro"]         = (( 40.25, 70.25),(- 10.25,  30.25))
-biomes["mide"]         = (( 20.25, 40.25),(- 10.25,  60.25))
-biomes["nhaf"]         = ((  0.25, 20.25),(- 20.25,  45.25))
-biomes["shaf"]         = ((-34.75,  0.25),(  10.25,  45.25))
-biomes["boas"]         = (( 54.75, 70.25),(  30.25, 179.75))
-biomes["ceas"]         = (( 30.25, 54.75),(  30.25, 135.25))
-biomes["seas"]         = (( 10.25, 30.25),(  65.25, 120.25))
-biomes["eqas"]         = ((-10.25, 10.25),(  99.75, 150.25))
-biomes["aust"]         = ((-34.75,-10.25),( 124.75, 154.75))
+regions = {}
+regions["global.large"] = ((-89.75, 89.75),(-179.75, 179.75))
+regions["global"]       = ((-60.25, 80.25),(-179.75, 179.75))
+regions["amazon"]       = ((-12.25,  6.75),(- 75.25,- 50.25))
+regions["alaska"]       = (( 50.25, 75.25),(-170.25,-130.25))
+regions["australia"]    = ((-50.25,-10.25),( 100.25, 160.25))
+regions["bona"]         = (( 49.75, 79.75),(-170.25,- 60.25))
+regions["tena"]         = (( 30.25, 49.75),(-125.25,- 80.25))
+regions["ceam"]         = ((  9.75, 30.25),(-115.25,- 80.25))
+regions["nhsa"]         = ((  0.25,  9.75),(- 80.25,- 50.25))
+regions["shsa"]         = ((-59.75,  0.25),(- 80.25,- 40.25))
+regions["euro"]         = (( 40.25, 70.25),(- 10.25,  30.25))
+regions["mide"]         = (( 20.25, 40.25),(- 10.25,  60.25))
+regions["nhaf"]         = ((  0.25, 20.25),(- 20.25,  45.25))
+regions["shaf"]         = ((-34.75,  0.25),(  10.25,  45.25))
+regions["boas"]         = (( 54.75, 70.25),(  30.25, 179.75))
+regions["ceas"]         = (( 30.25, 54.75),(  30.25, 135.25))
+regions["seas"]         = (( 10.25, 30.25),(  65.25, 120.25))
+regions["eqas"]         = ((-10.25, 10.25),(  99.75, 150.25))
+regions["aust"]         = ((-34.75,-10.25),( 124.75, 154.75))
 
 NCARclrs = asarray([[93,0,135],
                     [196,0,43],

@@ -82,7 +82,7 @@ for c in C:
 
     # HTML Google-chart table
     f = file("%s/%s.html" % (path,c.name),"w")
-    f.write(post.ConfrontationTableGoogle(c,M))
+    f.write(post.ConfrontationTableGoogle(c,M,regions=c.regions))
     f.close()
 
     # generate plots
