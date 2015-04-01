@@ -386,8 +386,6 @@ def WindowedTrend(t,var,window=365.):
 
 def AnnualCycleInformation(t,var):
     r""" 
-    For each decade in the input dataset, compute the mean time of the
-    year in which the maximum var is realized.
 
     Parameters
     ----------
@@ -402,16 +400,12 @@ def AnnualCycleInformation(t,var):
         a 1D array of the mean maximum times of the year in fractions
         of a year
 
-    Notes
-    -----
-    Fractions of a decade at the beginning and end of the dataset are
-    discarded.
     """
     begin = np.argmin(t[:11]%365)
     end   = begin+int(t[begin:].size/12.)*12
-    tt    = t[begin:end].reshape((-1,12))/365.+1850.
-    ts    = tt[0,:]-tt[0,0]
-    v     = var[begin:end].reshape((-1,12))
+    ts    = np.arange(12)
+    shp   = (-1,12) + var.shape[1:]
+    v     = var[begin:end,...].reshape(shp)
     vmean = np.ma.mean(v,axis=0)
     vstd  = np.ma.std (v,axis=0)
     ts    = ts[np.ma.argmax(v,axis=1)]

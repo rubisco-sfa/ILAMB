@@ -1,7 +1,7 @@
 from numpy import asarray,ones,copy as npcopy
 from matplotlib.colors import from_levels_and_colors
 
-__all__ = ['spm','mph','hpd','mpy','dpy_noleap','dpy_gregorian','dpy_360','dpm_noleap','dpm_gregorian','dpm_360','g_per_Pg','g_per_kg','Ar_molar_mass','C_molar_mass','N_molar_mass','O_molar_mass','CO2_molar_mass','dry_air_molar_mass','dry_air_mass','dry_air_moles','co2_g_per_ppm','co2_ppm_per_kg','co2_ppm_per_C_Pg','regions','NCARclrs','NCARcmap','NCARnorm']
+__all__ = ['spm','mph','hpd','mpy','dpy_noleap','dpy_gregorian','dpy_360','dpm_noleap','dpm_gregorian','dpm_360','g_per_Pg','g_per_kg','Ar_molar_mass','C_molar_mass','N_molar_mass','O_molar_mass','CO2_molar_mass','dry_air_molar_mass','dry_air_mass','dry_air_moles','co2_g_per_ppm','co2_ppm_per_kg','co2_ppm_per_C_Pg','regions','NCARclrs','NCARcmap','NCARnorm','region_names']
 
 # Time constants
 spm              = 60.     # seconds per minute
@@ -65,6 +65,22 @@ regions["ceas"]         = (( 30.25, 54.75),(  30.25, 135.25))
 regions["seas"]         = (( 10.25, 30.25),(  65.25, 120.25))
 regions["eqas"]         = ((-10.25, 10.25),(  99.75, 150.25))
 regions["aust"]         = ((-34.75,-10.25),( 124.75, 154.75))
+
+region_names = {"global":"global",
+                "bona"  :"Boreal North America",
+                "tena"  :"Temperature North America",
+                "ceam"  :"Central America",
+                "nhsa"  :"Northern Hemisphere South America",
+                "shsa"  :"Southern Hemisphere South America",
+                "euro"  :"Europe",
+                "mide"  :"Middle East",
+                "nhaf"  :"Northern Hemisphere Africa",
+                "shaf"  :"Southern Hemisphere Africa",
+                "boas"  :"Boreal Asia",
+                "ceas"  :"Central Asia",
+                "seas"  :"Southeast Asia",
+                "eqas"  :"Equatorial Asia",
+                "aust"  :"Australia"}
 
 NCARclrs = asarray([[93,0,135],
                     [196,0,43],

@@ -22,6 +22,7 @@ class CO2MaunaLoa():
         self.lon      = 24.4
         self.nlayers  = 3 
         self.metric   = {}
+        self.regions  = []
 
     def getData(self,initial_time=-1e20,final_time=1e20,output_unit=""):
         """Retrieves the confrontation data on the desired time frame and in

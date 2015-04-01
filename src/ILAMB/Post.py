@@ -69,7 +69,7 @@ def ConfrontationTableASCII(c,M):
     return s
 
 def ConfrontationTableGoogle(c,M,regions=["global"]):
-    
+    from constants import region_names
     # determine header info
     head = None
     for m in M:
@@ -148,6 +148,9 @@ def ConfrontationTableGoogle(c,M,regions=["global"]):
           document.getElementById("bias" ).src = mod + "_Bias_" + reg + ".png"
           document.getElementById("mean" ).src = mod + "_Mean.png"
           document.getElementById("cycle").src = mod + "_Cycle.png"
+          document.getElementById("peak" ).src = mod + "_Peak_" + reg + ".png"
+          document.getElementById("pstd" ).src = mod + "_Pstd_"  + reg + ".png"
+          document.getElementById("shift").src = mod + "_Shift_"+ reg + ".png"
         }
 
         google.visualization.events.addListener(table, 'select', updateImages);
@@ -166,7 +169,7 @@ def ConfrontationTableGoogle(c,M,regions=["global"]):
       <select id="region" onchange="drawGPPFluxnetGlobalMTETable()">
 """
     for region in regions:
-        s += '        <option value="%s">%s</option>\n' % (region,region)
+        s += '        <option value="%s">%s (%s)</option>\n' % (region,region_names[region],region)
     s += """
       </select>
       <div id="table_div" align="center"></div>
@@ -188,6 +191,14 @@ def ConfrontationTableGoogle(c,M,regions=["global"]):
 	<h1>Annual cycle [g/(m^2 day)]</h1>
 	<div id="img_div" align="center">
 	  <img src="" id="cycle" width=680 height=280 alt="Data not available"></img>
+	</div>
+      </div>
+      <div data-role="collapsible" data-collapsed="false">
+	<h1>Phase</h1>
+	<div id="img_div" align="center">
+	  <img src="Benchmark_Peak_global.png" id="peak" width=680 height=280 alt="Data not available"></img>
+	  <img src="" id="pstd" width=680 height=280 alt="Data not available"></img><br>
+	  <img src="" id="shift" width=680 height=280 alt="Data not available"></img>
 	</div>
       </div>
 
@@ -213,12 +224,15 @@ def GlobalPlot(lat,lon,var,region="global.large",shift=False,ax=None,**keywords)
     else:
         alon = lon
         tmp  = var
-    vmin = keywords.get("vmin",None)
-    vmax = keywords.get("vmax",None)
-    cmap = keywords.get("cmap","jet")
+    vmin  = keywords.get("vmin",None)
+    vmax  = keywords.get("vmax",None)
+    cmap  = keywords.get("cmap","jet")
+    ticks = keywords.get("ticks",None)
+    ticklabels = keywords.get("ticklabels",None)
     x,y = bmap(alon,lat)
     ax  = bmap.pcolormesh(x,y,tmp,zorder=2,vmin=vmin,vmax=vmax,cmap=cmap)
-    bmap.colorbar(ax)
+    cb  = bmap.colorbar(ax,ticks=ticks)
+    if ticklabels is not None: cb.ax.set_yticklabels(ticklabels)
     #bmap.drawmeridians(np.arange(-150,151,30),labels=[0,0,0,1],zorder=1,dashes=[1000000,1],linewidth=0.5)
     #bmap.drawparallels(np.arange( -60, 61,30),labels=[1,0,0,0],zorder=1,dashes=[1000000,1],linewidth=0.5)
     bmap.drawcoastlines(linewidth=0.1)

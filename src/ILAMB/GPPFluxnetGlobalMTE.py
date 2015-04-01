@@ -24,7 +24,7 @@ class GPPFluxnetGlobalMTE():
         self.data["GppMax"] = 0
         self.data["BiasMaxMag"] = 0
         self.metric = {}
-        self.regions = ["global","bona","tena","ceam","nhsa","shsa","euro","mide","nhaf","shaf","boas","ceas","seas","eqas","aust"]
+        self.regions = ["global","nhsa"] #,"bona","tena","ceam","nhsa","shsa","euro","mide","nhaf","shaf","boas","ceas","seas","eqas","aust"]
 
     def getData(self,initial_time=-1e20,final_time=1e20,output_unit=""):
         """Retrieves the confrontation data on the desired time frame and in
@@ -146,11 +146,11 @@ class GPPFluxnetGlobalMTE():
 
         """
         # If the model data doesn't have areas or land fractions, we
-        # can't do area studies.
+        # can't do area integrations.
         if m.cell_areas is None or m.land_fraction is None: 
             raise il.AreasNotInModel("The %s model cannot perform the %s confrontation because it does not have either areas or land fractions" % (m.name,self.name))
 
-        # Get the confronation data, but it might already be stored
+        # Get the observational data, but it might already be stored
         # with the confrontation. This will save parsing the same data
         # for each confrontation.
         if "to" not in self.data.keys():
@@ -163,9 +163,9 @@ class GPPFluxnetGlobalMTE():
             self.data["lon"]  = lon
             self.data["area"] = area
         else:
-            to   = self.data["to"]
-            vo   = self.data["vo"]
-            unit = self.data["unit"]
+            to   = self.data["to"]   # observation times
+            vo   = self.data["vo"]   # observation values
+            unit = self.data["unit"] 
             lat  = self.data["lat"]
             lon  = self.data["lon"]
             area = self.data["area"]
@@ -181,7 +181,9 @@ class GPPFluxnetGlobalMTE():
         # sign conversions vary, if all values are non-positive, flip signs
         if (vm>0).sum() == 0: vm *= -1 
 
-        # not all models properly mask out oceans
+        # not all models properly mask out oceans, so if the gpp is
+        # very small or very large, add to the mask that is already
+        # there.
         vm = np.ma.masked_where(((vm.mask)+
                                  (np.abs(vm)<1e-15)+
                                  (vm>1e30)),vm,copy=False)
@@ -192,12 +194,15 @@ class GPPFluxnetGlobalMTE():
         nyears = ndays/365.
 
         # observation integration, this might already be done so we
-        # will save processing time by referring to it 
+        # will save processing time by referring to it
         if "vohat" not in self.data.keys():
             vohat = il.TemporallyIntegratedTimeSeries(to,vo)    # [g m-2]
             vobar = il.SpatiallyIntegratedTimeSeries(vo,area)   # [g s-1]
             votot = il.TemporallyIntegratedTimeSeries(to,vobar) # [g    ]
             voavg,vostd,tomx,tost = il.AnnualCycleInformation(to,vobar)
+            junk,junk,opeak,opstd = il.AnnualCycleInformation(to,vo)
+            opeak = np.ma.masked_array(opeak,mask=vohat.mask,copy=False)
+            opstd = np.ma.masked_array(opstd,mask=vohat.mask,copy=False)
             self.data["vohat"] = vohat
             self.data["vobar"] = vobar
             self.data["votot"] = votot
@@ -205,22 +210,27 @@ class GPPFluxnetGlobalMTE():
             self.data["vostd"] = vostd
             self.data["tomx" ] = tomx
             self.data["tost" ] = tost
+            self.data["peak" ] = opeak
+            self.data["pstd" ] = opstd
         else:
             vohat = self.data["vohat"]
             vobar = self.data["vobar"]
             votot = self.data["votot"]
+            opeak  = self.data["peak" ]
 
         # model integration
         vmhat = il.TemporallyIntegratedTimeSeries(tm,vm)          # [g m-2]
         vmbar = il.SpatiallyIntegratedTimeSeries(vm,m.land_areas) # [g s-1]
         vmtot = il.TemporallyIntegratedTimeSeries(tm,vmbar)       # [g    ]
-
-        # annual cycle
         vmavg,vmstd,tmmx,tmst = il.AnnualCycleInformation(tm,vmbar)
+        junk,junk,mpeak,mpstd = il.AnnualCycleInformation(tm,vm)
+        mpeak = np.ma.masked_array(mpeak,mask=vmhat.mask,copy=False)
+        mpstd = np.ma.masked_array(mpstd,mask=vmhat.mask,copy=False)
 
-        # The models could be on different time scales, if so we will
-        # need to do nearest neighbor interpolation.
-        # FIX: pull out times in terms of months since 1/1/1850 so we don't need this
+        # The model/obs could be on different time scales, if so we
+        # will need to do nearest neighbor interpolation.  FIX: pull
+        # out times in terms of months since 1/1/1850 so we don't need
+        # this
         if tm.shape[0] != to.shape[0]:
             f = interp1d(tm,vmbar,kind="nearest",assume_sorted=True,bounds_error=False)
             tm    = to
@@ -238,7 +248,9 @@ class GPPFluxnetGlobalMTE():
         cdata["model"]["vstd"] = vmstd
         cdata["model"]["tmax"] = tmmx
         cdata["model"]["tstd"] = tmst
-        
+        cdata["model"]["peak"] = mpeak
+        cdata["model"]["pstd" ] = mpstd
+
         # make a few function aliases to help readibility
         bias = il.Bias
         rmse = il.RootMeanSquaredError
@@ -247,16 +259,17 @@ class GPPFluxnetGlobalMTE():
         mw  = il.MonthlyWeights(to)
         spy = 365.*24*3600
  
+        # store some metric data with the confrontation
         self.metric["PeriodMean"] = {}
         self.metric["PeriodMean"]["var"]  = votot*1e-15/nyears
         self.metric["PeriodMean"]["unit"] = "Pg yr-1"
-        self.data["GppMax"] = max(self.data["GppMax"],np.ma.max(vmhat)/ndays,np.ma.max(vohat)/ndays)
+        self.data["GppMax"] = max(self.data["GppMax"],np.ma.max(vmhat)/ndays,np.ma.max(vohat)/ndays) # used in plots
 
         # compute metrics
         metric = {}
         metric["PeriodMean"] = {}
-        metric["PeriodMean"]["var"]  = vmtot*1e-15/nyears
-        metric["PeriodMean"]["unit"] = "Pg yr-1"
+        metric["PeriodMean"]["var"]            = vmtot*1e-15/nyears
+        metric["PeriodMean"]["unit"]           = "Pg yr-1"
         metric["MonthlyMeanBias"] = {}
         metric["MonthlyMeanBias"]["var"]       = bias(vobar,vmbar,weights=mw)*1e-15*spy
         metric["MonthlyMeanBias"]["unit"]      = "Pg yr-1"
@@ -278,7 +291,12 @@ class GPPFluxnetGlobalMTE():
         vmhati  = vmhat[np.ix_(rows,cols)]
         biasmap = np.ma.masked_where(vmhati.mask+vohat.mask,(vmhati-vohat)/ndays)
         cdata["model"]["bias"] = biasmap
-        self.data["BiasMaxMag"] = max(self.data["BiasMaxMag"],-np.ma.min(biasmap),np.ma.max(biasmap))
+        self.data["BiasMaxMag"] = max(self.data["BiasMaxMag"],-np.ma.min(biasmap),np.ma.max(biasmap)) # used in plots
+
+        mpeaki   = mpeak[np.ix_(rows,cols)]
+        shiftmap = np.ma.masked_where(vmhati.mask+vohat.mask,mpeaki-opeak)
+        cdata["model"]["shift"] = shiftmap
+
         return cdata
 
     def plot(self,M,path=""):
@@ -289,11 +307,18 @@ class GPPFluxnetGlobalMTE():
         # Produce map plots
         for region in self.regions:
             self._mapPeriodMeanGPP(path=path,region=region)
-            for m in M: self._mapPeriodMeanGPP(m=m,path=path,region=region)
-            for m in M: self._mapBias(m,path=path,region=region)
+            self._mapPeak(path=path,region=region)
+            self._mapPeakStd(path=path,region=region)
+            for m in M: 
+                self._mapPeriodMeanGPP(m=m,path=path,region=region)
+                self._mapPeak(m=m,path=path,region=region)
+                self._mapPeakStd(m=m,path=path,region=region)
+                self._mapBias(m,path=path,region=region)
+                self._mapShift(m,path=path,region=region)
         # Composite time series
-        for m in M: self._timeSeriesMeanGPP(m,path=path)
-        for m in M: self._timeSeriesAnnualCycle(m,path=path)
+        for m in M: 
+            self._timeSeriesMeanGPP(m,path=path)
+            self._timeSeriesAnnualCycle(m,path=path)
 
     def _mapPeriodMeanGPP(self,m=None,path="",region="global"):
         if m is not None:
@@ -302,7 +327,7 @@ class GPPFluxnetGlobalMTE():
         fig   = plt.figure(figsize=(w,0.4117647058823529*w)) 
         ax    = fig.add_axes([0.06,0.025,0.88,0.965])
         if m is None:
-            ax.set_title("Period Mean Gross Primary Productivity (GPP) of %s $g/(m^2 day)$" % self.name)
+            ax.set_title("Period Mean Gross Primary Productivity (GPP) of %s" % self.name)
             lat,lon = self.data["lat"],self.data["lon"]
             var     = self.data["vohat"]/(self.data["to"].max()-self.data["to"].min())
             fname   = "Benchmark_%s.png" % region
@@ -310,7 +335,7 @@ class GPPFluxnetGlobalMTE():
         else:
             lat,lon = m.lat,m.lon
             var     = m.confrontations[self.name]["model"]["vhat"]/(self.data["to"].max()-self.data["to"].min())
-            ax.set_title("Period Mean Gross Primary Productivity (GPP) of %s $g/(m^2 day)$" % m.name)
+            ax.set_title("Period Mean Gross Primary Productivity (GPP) of %s" % m.name)
             fname = "%s_%s.png" % (m.name,region)
             shift = True
         post.GlobalPlot(lat,lon,var,
@@ -320,6 +345,65 @@ class GPPFluxnetGlobalMTE():
                         vmin  = 0,
                         vmax  = self.data["GppMax"],
                         cmap  = "Greens")
+        fig.savefig("./%s/%s" % (path,fname))
+        plt.close()
+
+    def _mapPeak(self,m=None,path="",region="global"):
+        if m is not None:
+            if self.name not in m.confrontations.keys(): return
+        w     = 6.8
+        fig   = plt.figure(figsize=(w,0.4117647058823529*w)) 
+        ax    = fig.add_axes([0.06,0.025,0.88,0.965])
+        if m is None:
+            ax.set_title("Peak month of GPP for %s" % self.name)
+            lat,lon = self.data["lat"],self.data["lon"]
+            var     = self.data["peak"]
+            fname   = "Benchmark_Peak_%s.png" % region
+            shift   = False
+        else:
+            lat,lon = m.lat,m.lon
+            var     = m.confrontations[self.name]["model"]["peak"]
+            ax.set_title("Peak month of GPP for %s" % m.name)
+            fname = "%s_Peak_%s.png" % (m.name,region)
+            shift = True
+        # round to nearest month
+        var = np.round(var)
+        post.GlobalPlot(lat,lon,var,
+                        ax     = ax,
+                        shift  = shift,
+                        region = region,
+                        vmin   = 0,
+                        vmax   = 11,
+                        ticks  = range(12),
+                        ticklabels = ["Jan","Feb","Mar","Apr","Jun","Jul","Aug","Sep","Oct","Nov","Dec"],
+                        cmap   = "jet")
+        fig.savefig("./%s/%s" % (path,fname))
+        plt.close()
+
+    def _mapPeakStd(self,m=None,path="",region="global"):
+        if m is not None:
+            if self.name not in m.confrontations.keys(): return
+        w     = 6.8
+        fig   = plt.figure(figsize=(w,0.4117647058823529*w)) 
+        ax    = fig.add_axes([0.06,0.025,0.88,0.965])
+        if m is None:
+            ax.set_title("Peak month std of GPP for %s" % self.name)
+            lat,lon = self.data["lat"],self.data["lon"]
+            var     = self.data["pstd"]
+            fname   = "Benchmark_Pstd_%s.png" % region
+            shift   = False
+        else:
+            lat,lon = m.lat,m.lon
+            var     = m.confrontations[self.name]["model"]["pstd"]
+            ax.set_title("Peak month std of GPP for %s" % m.name)
+            fname = "%s_Pstd_%s.png" % (m.name,region)
+            shift = True
+        # round to nearest month
+        post.GlobalPlot(lat,lon,var,
+                        ax     = ax,
+                        shift  = shift,
+                        region = region,
+                        cmap   = "Oranges")
         fig.savefig("./%s/%s" % (path,fname))
         plt.close()
 
@@ -340,6 +424,26 @@ class GPPFluxnetGlobalMTE():
                         vmax   =  self.data["BiasMaxMag"],
                         cmap   =  "seismic")
         fig.savefig("./%s/%s_Bias_%s.png" % (path,m.name,region))
+        plt.close()
+
+    def _mapShift(self,m,path="",region="global"):
+        if self.name not in m.confrontations.keys(): return
+        w     = 6.8
+        fig   = plt.figure(figsize=(w,0.4117647058823529*w))
+        ax    = fig.add_axes([0.06,0.025,0.88,0.965])
+        lat   = self.data["lat"]
+        lon   = self.data["lon"]
+        var   = m.confrontations[self.name]["model"]["shift"]
+        ax.set_title("Phase shift of %s" % m.name)
+        post.GlobalPlot(lat,lon,var,
+                        ax     =  ax,
+                        shift  =  False,
+                        region =  region,
+                        vmin   = -6,
+                        vmax   =  6,
+                        ticks  = range(-6,7),
+                        cmap   =  "seismic")
+        fig.savefig("./%s/%s_Shift_%s.png" % (path,m.name,region))
         plt.close()
 
     def _timeSeriesMeanGPP(self,m,path=""):
@@ -378,9 +482,9 @@ class GPPFluxnetGlobalMTE():
         vstd = self.data["vostd"]/area*24.*3600.
         ax.fill_between(t,vavg-vstd,vavg+vstd,color='k',alpha=0.125)
         ax.plot(t,vavg,'-',color='k',alpha=0.25,label="obs")
-        ax.errorbar(self.data["tomx"]*12,
+        ax.errorbar(self.data["tomx"],
                     vavg.max(),
-                    xerr=self.data["tost"]*12,
+                    xerr=self.data["tost"],
                     fmt="o",color='k',alpha=0.25)
 
         # model
@@ -388,9 +492,9 @@ class GPPFluxnetGlobalMTE():
         vstd = m.confrontations[self.name]["model"]["vstd"]/m.land_area*24.*3600.
         ax.fill_between(t,vavg-vstd,vavg+vstd,color=m.color,alpha=0.25)
         ax.plot(t,vavg,'-',color=m.color,label=m.name)
-        ax.errorbar(m.confrontations[self.name]["model"]["tmax"]*12,
+        ax.errorbar(m.confrontations[self.name]["model"]["tmax"],
                     vavg.max(),
-                    xerr=m.confrontations[self.name]["model"]["tstd"]*12,
+                    xerr=m.confrontations[self.name]["model"]["tstd"],
                     fmt="o",color=m.color,elinewidth=2)
 
         ax.set_xlim(0,11)
