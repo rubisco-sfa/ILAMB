@@ -93,6 +93,10 @@ def ConfrontationTableGoogle(c,M,regions=["global"]):
     s  = """
 <html>
   <head>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="http://code.jquery.com/mobile/1.4.5/jquery.mobile-1.4.5.min.css">
+    <script src="http://code.jquery.com/jquery-1.11.2.min.js"></script>
+    <script src="http://code.jquery.com/mobile/1.4.5/jquery.mobile-1.4.5.min.js"></script>
     <script type="text/javascript" src="https://www.google.com/jsapi"></script>
     <script type="text/javascript">
       google.load("visualization", "1", {packages:["table"]});
@@ -154,19 +158,39 @@ def ConfrontationTableGoogle(c,M,regions=["global"]):
     </script>
   </head>
   <body>
-    <select id="region" onchange="drawGPPFluxnetGlobalMTETable()">
+    <div data-role="page" id="pageone">
+      <div data-role="header">
+	<h1>GPPFluxnetGlobalMTE</h1>
+      </div>
+
+      <select id="region" onchange="drawGPPFluxnetGlobalMTETable()">
 """
     for region in regions:
-        s += '      <option value="%s">%s</option>\n' % (region,region)
+        s += '        <option value="%s">%s</option>\n' % (region,region)
     s += """
-    </select>
-    <div id="table_div" align="center"></div>
-    <div id="img_div" align="center">
-      <img src="Benchmark_global.png" id="img"></img>
-      <img src="" id="bias"></img><br>
-      <img src="" id="mean"></img>
-      <img src="" id="cycle"></img>
-    </div>
+      </select>
+      <div id="table_div" align="center"></div>
+
+      <div data-role="collapsible" data-collapsed="false">
+	<h1>Temporally integrated period mean [g/(m^2 day)]</h1>
+	<div id="img_div" align="center">
+	  <img src="Benchmark_global.png" id="img" width=680 height=280 alt="Data not available"></img>
+	  <img src="" id="bias" width=680 height=280 alt="Data not available"></img><br>
+	</div>
+      </div>
+      <div data-role="collapsible" data-collapsed="false">
+	<h1>Spatially integrated regional mean [g/(m^2 day)]</h1>
+	<div id="img_div" align="center">
+	  <img src="" id="mean" width=680 height=280 alt="Data not available"></img>
+	</div>
+      </div>
+      <div data-role="collapsible" data-collapsed="false">
+	<h1>Annual cycle [g/(m^2 day)]</h1>
+	<div id="img_div" align="center">
+	  <img src="" id="cycle" width=680 height=280 alt="Data not available"></img>
+	</div>
+      </div>
+
   </body>
 </html>"""
     return s

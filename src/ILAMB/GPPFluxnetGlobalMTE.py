@@ -26,25 +26,6 @@ class GPPFluxnetGlobalMTE():
         self.metric = {}
         self.regions = ["global","bona","tena","ceam","nhsa","shsa","euro","mide","nhaf","shaf","boas","ceas","seas","eqas","aust"]
 
-    def diagnose(self):
-        from pylab import subplots
-        from Post import GlobalPlot
-        print "Diagnosing the %s confrontation..." % self.name
-
-        to,vo,unit,lat,lon = self.getData(output_unit="g m-2 s-1")
-        area = il.CellAreas(lat,lon)
-
-        fig,ax = subplots(nrows=3,figsize=(12,18))
-        GlobalPlot(lat,lon,area          ,shift=True,ax=ax[0],region="global.large")
-        GlobalPlot(lat,lon,vo.mask[0,...],shift=True,ax=ax[1],region="global.large")
-        area = np.ma.masked_where(vo.mask[0,...],area,copy=False)
-        GlobalPlot(lat,lon,area          ,shift=True,ax=ax[2],region="global.large")
-        ax[0].set_title("area from ilamblib.CellAreas")
-        ax[1].set_title("gpp mask")
-        ax[2].set_title("land areas * gpp mask")
-        fig.savefig("land_areas_%s.png" % self.name)
-        return
-
     def getData(self,initial_time=-1e20,final_time=1e20,output_unit=""):
         """Retrieves the confrontation data on the desired time frame and in
         the desired unit.
