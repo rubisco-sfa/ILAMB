@@ -24,7 +24,7 @@ class GPPFluxnetGlobalMTE():
         self.data["GppMax"] = 0
         self.data["BiasMaxMag"] = 0
         self.metric = {}
-        self.regions = ["global","nhsa"] #,"bona","tena","ceam","nhsa","shsa","euro","mide","nhaf","shaf","boas","ceas","seas","eqas","aust"]
+        self.regions = ["global","bona","tena","ceam","nhsa","shsa","euro","mide","nhaf","shaf","boas","ceas","seas","eqas","aust"]
 
     def getData(self,initial_time=-1e20,final_time=1e20,output_unit=""):
         """Retrieves the confrontation data on the desired time frame and in
@@ -263,7 +263,7 @@ class GPPFluxnetGlobalMTE():
         self.metric["Mean"] = {}
         self.metric["Mean"]["var"]  = votot*1e-15/nyears
         self.metric["Mean"]["unit"] = "Pg yr-1"
-        self.metric["Mean"]["desc"] = "GPP flux rates integrated over the region and time period divided by number of years"
+        self.metric["Mean"]["desc"] = "The GPP flux rate integrated over the region and time period divided by number of years"
         self.data["GppMax"] = max(self.data["GppMax"],np.ma.max(vmhat)/ndays,np.ma.max(vohat)/ndays) # used in plots
 
         # compute metrics
@@ -271,7 +271,7 @@ class GPPFluxnetGlobalMTE():
         metric["Mean"] = {}
         metric["Mean"]["var"]       = vmtot*1e-15/nyears
         metric["Mean"]["unit"]      = "Pg yr-1"
-        metric["Mean"]["desc"]      = "GPP flux rates integrated over the region and time period divided by number of years"
+        metric["Mean"]["desc"]      = "The GPP flux rate integrated over the region and time period divided by number of years"
         metric["Bias"] = {}
         metric["Bias"]["var"]       = bias(vobar,vmbar,weights=mw)*1e-15*spy
         metric["Bias"]["unit"]      = "Pg yr-1"
@@ -333,7 +333,6 @@ class GPPFluxnetGlobalMTE():
         fig   = plt.figure(figsize=(w,0.4117647058823529*w)) 
         ax    = fig.add_axes([0.06,0.025,0.88,0.965])
         if m is None:
-            ax.set_title("Period Mean Gross Primary Productivity (GPP) of %s" % self.name)
             lat,lon = self.data["lat"],self.data["lon"]
             var     = self.data["vohat"]/(self.data["to"].max()-self.data["to"].min())
             fname   = "Benchmark_%s.png" % region
@@ -341,17 +340,24 @@ class GPPFluxnetGlobalMTE():
         else:
             lat,lon = m.lat,m.lon
             var     = m.confrontations[self.name]["model"]["vhat"]/(self.data["to"].max()-self.data["to"].min())
-            ax.set_title("Period Mean Gross Primary Productivity (GPP) of %s" % m.name)
             fname = "%s_%s.png" % (m.name,region)
             shift = True
-        post.GlobalPlot(lat,lon,var,
-                        ax    = ax,
+        post.GlobalPlot(lat,lon,var,ax,
                         shift = shift,
                         region = region,
                         vmin  = 0,
                         vmax  = self.data["GppMax"],
                         cmap  = "Greens")
         fig.savefig("./%s/%s" % (path,fname))
+        plt.close()
+        
+        fig,ax = plt.subplots(figsize=(w,0.15*w),tight_layout=True) 
+        post.ColorBar(var,ax,
+                      vmin  = 0,
+                      vmax  = self.data["GppMax"],
+                      cmap  = "Greens",
+                      label = "g/(m2 d)")
+        fig.savefig("./%s/%s" % (path,"mean_legend.png"))
         plt.close()
 
     def _mapPeak(self,m=None,path="",region="global"):
@@ -361,7 +367,6 @@ class GPPFluxnetGlobalMTE():
         fig   = plt.figure(figsize=(w,0.4117647058823529*w)) 
         ax    = fig.add_axes([0.06,0.025,0.88,0.965])
         if m is None:
-            ax.set_title("Peak month of GPP for %s" % self.name)
             lat,lon = self.data["lat"],self.data["lon"]
             var     = self.data["peak"]
             fname   = "Benchmark_Peak_%s.png" % region
@@ -369,13 +374,11 @@ class GPPFluxnetGlobalMTE():
         else:
             lat,lon = m.lat,m.lon
             var     = m.confrontations[self.name]["model"]["peak"]
-            ax.set_title("Peak month of GPP for %s" % m.name)
             fname = "%s_Peak_%s.png" % (m.name,region)
             shift = True
         # round to nearest month
         var = np.round(var)
-        post.GlobalPlot(lat,lon,var,
-                        ax     = ax,
+        post.GlobalPlot(lat,lon,var,ax,
                         shift  = shift,
                         region = region,
                         vmin   = 0,
@@ -386,6 +389,17 @@ class GPPFluxnetGlobalMTE():
         fig.savefig("./%s/%s" % (path,fname))
         plt.close()
 
+        fig,ax = plt.subplots(figsize=(w,0.15*w),tight_layout=True) 
+        post.ColorBar(var,ax,
+                      vmin  =  0,
+                      vmax  =  11,
+                      cmap  =  "jet",
+                      ticks  = range(12),
+                      ticklabels = ["Jan","Feb","Mar","Apr","Jun","Jul","Aug","Sep","Oct","Nov","Dec"],
+                      label =  "Month")
+        fig.savefig("./%s/%s" % (path,"peak_legend.png"))
+        plt.close()
+
     def _mapPeakStd(self,m=None,path="",region="global"):
         if m is not None:
             if self.name not in m.confrontations.keys(): return
@@ -393,7 +407,6 @@ class GPPFluxnetGlobalMTE():
         fig   = plt.figure(figsize=(w,0.4117647058823529*w)) 
         ax    = fig.add_axes([0.06,0.025,0.88,0.965])
         if m is None:
-            ax.set_title("Peak month std of GPP for %s" % self.name)
             lat,lon = self.data["lat"],self.data["lon"]
             var     = self.data["pstd"]
             fname   = "Benchmark_Pstd_%s.png" % region
@@ -401,16 +414,21 @@ class GPPFluxnetGlobalMTE():
         else:
             lat,lon = m.lat,m.lon
             var     = m.confrontations[self.name]["model"]["pstd"]
-            ax.set_title("Peak month std of GPP for %s" % m.name)
             fname = "%s_Pstd_%s.png" % (m.name,region)
             shift = True
         # round to nearest month
-        post.GlobalPlot(lat,lon,var,
-                        ax     = ax,
+        post.GlobalPlot(lat,lon,var,ax,
                         shift  = shift,
                         region = region,
                         cmap   = "Oranges")
         fig.savefig("./%s/%s" % (path,fname))
+        plt.close()
+
+        fig,ax = plt.subplots(figsize=(w,0.15*w),tight_layout=True) 
+        post.ColorBar(var,ax,
+                      cmap  =  "Oranges",
+                      label =  "month")
+        fig.savefig("./%s/%s" % (path,"pstd_legend.png"))
         plt.close()
 
     def _mapBias(self,m,path="",region="global"):
@@ -421,15 +439,23 @@ class GPPFluxnetGlobalMTE():
         lat   = self.data["lat"]
         lon   = self.data["lon"]
         var   = m.confrontations[self.name]["model"]["bias"]
-        ax.set_title("Gross Primary Productivity (GPP) Bias of %s $g/(m^2 day)$" % m.name)
-        post.GlobalPlot(lat,lon,var,
-                        ax     =  ax,
+        post.GlobalPlot(lat,lon,var,ax,
                         shift  =  False,
                         region =  region,
                         vmin   = -self.data["BiasMaxMag"],
                         vmax   =  self.data["BiasMaxMag"],
-                        cmap   =  "seismic")
+                        cmap   =  "seismic",
+                        unit   =  "g/(m2 d)")
         fig.savefig("./%s/%s_Bias_%s.png" % (path,m.name,region))
+        plt.close()
+
+        fig,ax = plt.subplots(figsize=(w,0.15*w),tight_layout=True) 
+        post.ColorBar(var,ax,
+                      vmin  = -self.data["BiasMaxMag"],
+                      vmax  =  self.data["BiasMaxMag"],
+                      cmap  =  "seismic",
+                      label =  "g/(m2 d)")
+        fig.savefig("./%s/%s" % (path,"bias_legend.png"))
         plt.close()
 
     def _mapShift(self,m,path="",region="global"):
@@ -440,24 +466,31 @@ class GPPFluxnetGlobalMTE():
         lat   = self.data["lat"]
         lon   = self.data["lon"]
         var   = m.confrontations[self.name]["model"]["shift"]
-        ax.set_title("Phase shift of %s" % m.name)
-        post.GlobalPlot(lat,lon,var,
-                        ax     =  ax,
+        post.GlobalPlot(lat,lon,var,ax,
                         shift  =  False,
                         region =  region,
                         vmin   = -6,
                         vmax   =  6,
                         ticks  = range(-6,7),
-                        cmap   =  "seismic")
+                        cmap   =  "PRGn")
         fig.savefig("./%s/%s_Shift_%s.png" % (path,m.name,region))
+        plt.close()
+
+        fig,ax = plt.subplots(figsize=(w,0.15*w),tight_layout=True) 
+        post.ColorBar(var,ax,
+                      vmin  = -6,
+                      vmax  =  6,
+                      cmap  =  "PRGn",
+                      label =  "month")
+        fig.savefig("./%s/%s" % (path,"shift_legend.png"))
         plt.close()
 
     def _timeSeriesMeanGPP(self,m,path=""):
         if self.name not in m.confrontations.keys(): return
         w      = 6.8
         fig,ax = plt.subplots(figsize=(w,0.4117647058823529*w))
-        ax.set_xlabel("Simulation time [$y$]")
-        ax.set_title("Mean Gross Primary Productivity (GPP) [$g/(m^2 day)$]")
+        ax.set_xlabel("Year")
+        ax.set_ylabel("g/(m2 d)")
         fig.tight_layout()
 
         # obs
@@ -469,8 +502,11 @@ class GPPFluxnetGlobalMTE():
         t    = m.confrontations[self.name]["model"]["t"]/365.+1850
         vbar = m.confrontations[self.name]["model"]["vbar"]/m.land_area*24.*3600.
         ax.plot(t,vbar,'-',color=m.color,label=m.name)
-
-        fig.savefig('./%s/%s_Mean.png' % (path,m.name)) #, bbox_extra_artists=(lgd,), bbox_inches='tight')
+        
+        # legend
+        handles, labels = ax.get_legend_handles_labels()
+        lgd = ax.legend(handles, labels, ncol=2, loc='upper center', bbox_to_anchor=(0.5,1.2))
+        fig.savefig('./%s/%s_Mean.png' % (path,m.name), bbox_extra_artists=(lgd,), bbox_inches='tight')
         plt.close()
 
     def _timeSeriesAnnualCycle(self,m,path=""):
@@ -478,7 +514,7 @@ class GPPFluxnetGlobalMTE():
         w      = 6.8
         fig,ax = plt.subplots(figsize=(w,0.4117647058823529*w))
         ax.set_xlabel("Month")
-        ax.set_title("Annual Cycle Gross Primary Productivity (GPP) [$g/(m^2 day)$]")
+        ax.set_ylabel("g/(m2 d)")
         fig.tight_layout()
 
         # obs
@@ -506,5 +542,9 @@ class GPPFluxnetGlobalMTE():
         ax.set_xlim(0,11)
         ax.set_xticks(t)
         ax.set_xticklabels(['J','F','M','A','M','J','J','A','S','O','N','D'])
-        fig.savefig('./%s/%s_Cycle.png' % (path,m.name)) #, bbox_extra_artists=(lgd,), bbox_inches='tight')
+
+        # legend
+        handles, labels = ax.get_legend_handles_labels()
+        lgd = ax.legend(handles, labels, ncol=2, loc='upper center', bbox_to_anchor=(0.5,1.2))
+        fig.savefig('./%s/%s_Cycle.png' % (path,m.name), bbox_extra_artists=(lgd,), bbox_inches='tight')
         plt.close()

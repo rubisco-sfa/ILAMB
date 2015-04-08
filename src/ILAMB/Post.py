@@ -116,7 +116,7 @@ def ConfrontationTableGoogle(c,M,regions=["global"]):
     for h in head:
         col += 1
         if h in c.metric.keys():
-            s += "data.setCell(%d,%d,%.3f); " % (row,col,c.metric[h]["var"])
+            s += "data.setCell(%d,%d,%.03f); " % (row,col,c.metric[h]["var"])
         else:
             s += "data.setCell(%d,%d,null); " % (row,col)
     s += "\n"
@@ -127,7 +127,7 @@ def ConfrontationTableGoogle(c,M,regions=["global"]):
         if c.name in m.confrontations.keys():
             for h in head: 
                 col += 1
-                s   += "data.setCell(%d,%d,%.3f); " % (row,col,m.confrontations[c.name]["metric"][h]["var"])
+                s   += "data.setCell(%d,%d,%.03f); " % (row,col,m.confrontations[c.name]["metric"][h]["var"])
         else:
             for h in head:
                 col += 1
@@ -152,6 +152,7 @@ def ConfrontationTableGoogle(c,M,regions=["global"]):
           document.getElementById("mean" ).src = mod + "_Mean.png"
           document.getElementById("cycle").src = mod + "_Cycle.png"
           document.getElementById("peak" ).src = mod + "_Peak_" + reg + ".png"
+          document.getElementById("bpeak").src = "Benchmark_Peak_" + reg + ".png"
           document.getElementById("pstd" ).src = mod + "_Pstd_"  + reg + ".png"
           document.getElementById("shift").src = mod + "_Shift_"+ reg + ".png"
         }
@@ -196,40 +197,107 @@ def ConfrontationTableGoogle(c,M,regions=["global"]):
 	      <th align="left"><img src="" id="bias" width=680 height=280 alt="Data not available"></img><br></th>
             </tr>
 	  </thead>
+         <tbody>
+            <tr>
+	      <th width="20"></th>
+	      <th><img src="mean_legend.png" id="leg" width=680 height=102 alt="Data not available"></img></th>
+	      <th width="20"></th>
+	      <th><img src="bias_legend.png" id="leg" width=680 height=102 alt="Data not available"></img></th>
+            </tr>
+          </tbody>
 	</table>
       </div>
       <div data-role="collapsible" data-collapsed="false">
 	<h1>Spatially integrated regional mean</h1>
-	<div id="img_div" align="center">
-	  <img src="" id="mean" width=680 height=280 alt="Data not available"></img>
-	</div>
+	<table data-role="table" class="ui-responsive" id="myTable">
+	  <thead>
+            <tr>
+	      <th align="right" width="20"><h1 id="myH1">MEAN</h1></th>
+	      <th align="left"><img src="" id="mean" width=680 height=280 alt="Data not available"></img></th>
+            </tr>
+	  </thead>
+	</table>
       </div>
       <div data-role="collapsible" data-collapsed="false">
 	<h1>Annual cycle</h1>
-	<div id="img_div" align="center">
-	  <img src="" id="cycle" width=680 height=280 alt="Data not available"></img>
-	</div>
+	<table data-role="table" class="ui-responsive" id="myTable">
+	  <thead>
+            <tr>
+	      <th align="right" width="20"><h1 id="myH1">MEAN</h1></th>
+	      <th align="left"><img src="" id="cycle" width=680 height=280 alt="Data not available"></img></th>
+            </tr>
+	  </thead>
+	</table>
       </div>
       <div data-role="collapsible" data-collapsed="false">
 	<h1>Phase</h1>
-	<div id="img_div" align="center">
-	  <img src="Benchmark_Peak_global.png" id="peak" width=680 height=280 alt="Data not available"></img>
-	  <img src="" id="pstd" width=680 height=280 alt="Data not available"></img><br>
-	  <img src="" id="shift" width=680 height=280 alt="Data not available"></img>
-	</div>
+	<table data-role="table" class="ui-responsive" id="myTable">
+         <thead>
+            <tr>
+	      <th align="right" width="20"><h1 id="myH1">PEAK</h1></th>
+	      <th align="left"><img src="Benchmark_Peak_global.png" id="peak" width=680 height=280 alt="Data not available"></img></th>
+	      <th align="right" width="20"><h1 id="myH1">OBS</h1></th>
+	      <th align="left"><img src="Benchmark_Peak_global.png" id="bpeak" width=680 height=280 alt="Data not available"></img></th>
+            </tr>
+         </thead>
+         <tbody>
+            <tr>
+	      <th width="20"></th>
+	      <th><img src="peak_legend.png" id="leg" width=680 height=102 alt="Data not available"></img></th>
+	      <th width="20"></th>
+	      <th><img src="peak_legend.png" id="leg" width=680 height=102 alt="Data not available"></img></th>
+            </tr>
+            <tr>
+	      <th align="right" width="20"><h1 id="myH1">STDEV</h1></th>
+	      <th align="left"><img src="" id="pstd" width=680 height=280 alt="Data not available"></img></th>
+	      <th align="right" width="20"><h1 id="myH1">SHIFT</h1></th>
+	      <th align="left"><img src="" id="shift" width=680 height=280 alt="Data not available"></img></th>
+            </tr>
+            <tr>
+	      <th width="20"></th>
+	      <th><img src="pstd_legend.png" id="leg" width=680 height=102 alt="Data not available"></img></th>
+	      <th width="20"></th>
+	      <th><img src="shift_legend.png" id="leg" width=680 height=102 alt="Data not available"></img></th>
+            </tr>
+          </tbody>
+	</table>
       </div>
 
   </body>
 </html>"""
     return s
 
-def GlobalPlot(lat,lon,var,region="global.large",shift=False,ax=None,**keywords):
+def GlobalPlot(lat,lon,var,ax,region="global.large",shift=False,**keywords):
     """
 
     """
     from mpl_toolkits.basemap import Basemap
     from constants import regions
+
+    vmin  = keywords.get("vmin",None)
+    vmax  = keywords.get("vmax",None)
+    cmap  = keywords.get("cmap","jet")
+    ticks = keywords.get("ticks",None)
+    ticklabels = keywords.get("ticklabels",None)
+    unit  = keywords.get("unit",None)
+
+    # aspect ratio stuff
     lats,lons = regions[region]
+    lats = np.asarray(lats); lons = np.asarray(lons)
+    dlat,dlon = lats[1]-lats[0],lons[1]-lons[0]
+    fsize = ax.get_figure().get_size_inches()
+    figure_ar = fsize[1]/fsize[0]
+    scale = figure_ar*dlon/dlat
+    if scale >= 1.:
+        lats[1] += 0.5*dlat*(scale-1.)
+        lats[0] -= 0.5*dlat*(scale-1.)
+    else:
+        scale = 1./scale
+        lons[1] += 0.5*dlon*(scale-1.)
+        lons[0] -= 0.5*dlon*(scale-1.)
+    lats = lats.clip(-90,90)
+    lons = lons.clip(-180,180)
+
     bmap = Basemap(projection='cyl',
                    llcrnrlon=lons[ 0],llcrnrlat=lats[ 0],
                    urcrnrlon=lons[-1],urcrnrlat=lats[-1],
@@ -241,18 +309,24 @@ def GlobalPlot(lat,lon,var,region="global.large",shift=False,ax=None,**keywords)
     else:
         alon = lon
         tmp  = var
+    x,y = bmap(alon,lat)
+    ax  = bmap.pcolormesh(x,y,tmp,zorder=2,vmin=vmin,vmax=vmax,cmap=cmap)
+
+    bmap.drawcoastlines(linewidth=0.2,color="darkslategrey")
+
+def ColorBar(var,ax,**keywords):
+    from matplotlib import colorbar,colors
     vmin  = keywords.get("vmin",None)
     vmax  = keywords.get("vmax",None)
     cmap  = keywords.get("cmap","jet")
     ticks = keywords.get("ticks",None)
     ticklabels = keywords.get("ticklabels",None)
-    x,y = bmap(alon,lat)
-    ax  = bmap.pcolormesh(x,y,tmp,zorder=2,vmin=vmin,vmax=vmax,cmap=cmap)
-    cb  = bmap.colorbar(ax,ticks=ticks)
-    if ticklabels is not None: cb.ax.set_yticklabels(ticklabels)
-    #bmap.drawmeridians(np.arange(-150,151,30),labels=[0,0,0,1],zorder=1,dashes=[1000000,1],linewidth=0.5)
-    #bmap.drawparallels(np.arange( -60, 61,30),labels=[1,0,0,0],zorder=1,dashes=[1000000,1],linewidth=0.5)
-    bmap.drawcoastlines(linewidth=0.1)
-
-    
-    
+    label = keywords.get("label",None)
+    if vmin is None: vmin = np.ma.min(var)
+    if vmax is None: vmax = np.ma.max(var)
+    cb = colorbar.ColorbarBase(ax,cmap=cmap,
+                               norm=colors.Normalize(vmin=vmin,vmax=vmax),
+                               orientation='horizontal')
+    cb.set_label(label)
+    if ticks is not None: cb.set_ticks(ticks)
+    if ticklabels is not None: cb.set_ticklabels(ticklabels)

@@ -24,7 +24,7 @@ for subdir, dirs, files in os.walk(root):
     mname = subdir.replace(root,"")
     if mname.count("/") != 1: continue
     mname = mname.replace("/","").upper()
-    if mname not in ["BCC-CSM1-1","CCSM4"]: continue
+    #if mname not in ["BCC-CSM1-1","CCSM4"]: continue
     maxL  = max(maxL,len(mname))
     M.append(ModelResult(subdir,modelname=mname,filter="r1i1p1"))
 M = sorted(M,key=lambda m: m.name.upper())
