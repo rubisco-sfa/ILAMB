@@ -71,10 +71,10 @@ def ConfrontationTableASCII(c,M):
 def ConfrontationTableGoogle(c,M,regions=["global"]):
     from constants import region_names
     # determine header info
-    head = None
+    head    = None
     for m in M:
         if c.name in m.confrontations.keys():
-            head = m.confrontations[c.name]["metric"].keys()
+            head    = m.confrontations[c.name]["metric"].keys()
             break
     if head is None: return ""
 
@@ -104,8 +104,10 @@ def ConfrontationTableGoogle(c,M,regions=["global"]):
 """ % c.name
     s += "      function draw%sTable() {\n" % c.name
     s += "        var data = new google.visualization.DataTable();\n"
-    s += "        data.addColumn('string','ModelName');\n"
-    for h in head: s += "        data.addColumn('number','%s');\n" % h
+    s += "        data.addColumn('string','Model');\n"
+    for h in head: 
+        unit = metric[h]["unit"].replace(" ",r"&thinsp;").replace("-1",r"<sup>-1</sup>")
+        s += """        data.addColumn('number','<span title="%s">%s [%s]</span>');\n""" % (metric[h]["desc"],h,unit)
     s += "        data.addRows(%d);\n" % (len(M)+1)   
  
     row = 0
@@ -133,7 +135,7 @@ def ConfrontationTableGoogle(c,M,regions=["global"]):
         s += "\n"
     s += """  
         var table = new google.visualization.Table(document.getElementById('table_div'));
-        table.draw(data, {showRowNumber: false});
+        table.draw(data, {showRowNumber: false,allowHtml: true});
 
         function updateImages() {
           try {
@@ -144,6 +146,7 @@ def ConfrontationTableGoogle(c,M,regions=["global"]):
           }
           var reg = document.getElementById("region").options[document.getElementById("region").selectedIndex].value
           var mod = data.getValue(row, 0)
+          $("#header h1 #htxt").text("GPPFluxnetGlobalMTE / " + mod + " / " + reg);
           document.getElementById("img"  ).src = mod + "_"      + reg + ".png"
           document.getElementById("bias" ).src = mod + "_Bias_" + reg + ".png"
           document.getElementById("mean" ).src = mod + "_Mean.png"
@@ -159,11 +162,19 @@ def ConfrontationTableGoogle(c,M,regions=["global"]):
         updateImages();
       }
     </script>
+    <style>
+      #myH1 {
+        transform: 
+          translate(0px, 140px)
+          rotate(270deg);
+        width: 20px;
+      }
+    </style>
   </head>
   <body>
     <div data-role="page" id="pageone">
-      <div data-role="header">
-	<h1>GPPFluxnetGlobalMTE</h1>
+      <div id="header" data-role="header" data-position="fixed" data-tap-toggle="false">
+	<h1><span id="htxt">GPPFluxnetGlobalMTE</span></h1>
       </div>
 
       <select id="region" onchange="drawGPPFluxnetGlobalMTETable()">
@@ -175,20 +186,26 @@ def ConfrontationTableGoogle(c,M,regions=["global"]):
       <div id="table_div" align="center"></div>
 
       <div data-role="collapsible" data-collapsed="false">
-	<h1>Temporally integrated period mean [g/(m^2 day)]</h1>
-	<div id="img_div" align="center">
-	  <img src="Benchmark_global.png" id="img" width=680 height=280 alt="Data not available"></img>
-	  <img src="" id="bias" width=680 height=280 alt="Data not available"></img><br>
-	</div>
+	<h1>Temporally integrated period mean</h1>
+	<table data-role="table" class="ui-responsive" id="myTable">
+	  <thead>
+            <tr>
+	      <th align="right" width="20"><h1 id="myH1">MEAN</h1></th>
+	      <th align="left"><img src="Benchmark_global.png" id="img" width=680 height=280 alt="Data not available"></img></th>
+	      <th align="right" width="20"><h1 id="myH1">BIAS</h1></th>
+	      <th align="left"><img src="" id="bias" width=680 height=280 alt="Data not available"></img><br></th>
+            </tr>
+	  </thead>
+	</table>
       </div>
       <div data-role="collapsible" data-collapsed="false">
-	<h1>Spatially integrated regional mean [g/(m^2 day)]</h1>
+	<h1>Spatially integrated regional mean</h1>
 	<div id="img_div" align="center">
 	  <img src="" id="mean" width=680 height=280 alt="Data not available"></img>
 	</div>
       </div>
       <div data-role="collapsible" data-collapsed="false">
-	<h1>Annual cycle [g/(m^2 day)]</h1>
+	<h1>Annual cycle</h1>
 	<div id="img_div" align="center">
 	  <img src="" id="cycle" width=680 height=280 alt="Data not available"></img>
 	</div>

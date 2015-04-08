@@ -260,28 +260,34 @@ class GPPFluxnetGlobalMTE():
         spy = 365.*24*3600
  
         # store some metric data with the confrontation
-        self.metric["PeriodMean"] = {}
-        self.metric["PeriodMean"]["var"]  = votot*1e-15/nyears
-        self.metric["PeriodMean"]["unit"] = "Pg yr-1"
+        self.metric["Mean"] = {}
+        self.metric["Mean"]["var"]  = votot*1e-15/nyears
+        self.metric["Mean"]["unit"] = "Pg yr-1"
+        self.metric["Mean"]["desc"] = "GPP flux rates integrated over the region and time period divided by number of years"
         self.data["GppMax"] = max(self.data["GppMax"],np.ma.max(vmhat)/ndays,np.ma.max(vohat)/ndays) # used in plots
 
         # compute metrics
         metric = {}
-        metric["PeriodMean"] = {}
-        metric["PeriodMean"]["var"]            = vmtot*1e-15/nyears
-        metric["PeriodMean"]["unit"]           = "Pg yr-1"
-        metric["MonthlyMeanBias"] = {}
-        metric["MonthlyMeanBias"]["var"]       = bias(vobar,vmbar,weights=mw)*1e-15*spy
-        metric["MonthlyMeanBias"]["unit"]      = "Pg yr-1"
-        metric["MonthlyMeanBiasScore"] = {}
-        metric["MonthlyMeanBiasScore"]["var"]  = bias(vobar,vmbar,weights=mw,normalize="score")
-        metric["MonthlyMeanBiasScore"]["unit"] = "-"
-        metric["MonthlyMeanRMSE"] = {}
-        metric["MonthlyMeanRMSE"]["var"]       = rmse(vobar,vmbar,weights=mw)*1e-15*spy
-        metric["MonthlyMeanRMSE"]["unit"]      = "Pg yr-1"
-        metric["MonthlyMeanRMSEScore"] = {}
-        metric["MonthlyMeanRMSEScore"]["var"]  = rmse(vobar,vmbar,weights=mw,normalize="score")
-        metric["MonthlyMeanRMSEScore"]["unit"] = "-"
+        metric["Mean"] = {}
+        metric["Mean"]["var"]       = vmtot*1e-15/nyears
+        metric["Mean"]["unit"]      = "Pg yr-1"
+        metric["Mean"]["desc"]      = "GPP flux rates integrated over the region and time period divided by number of years"
+        metric["Bias"] = {}
+        metric["Bias"]["var"]       = bias(vobar,vmbar,weights=mw)*1e-15*spy
+        metric["Bias"]["unit"]      = "Pg yr-1"
+        metric["Bias"]["desc"]      = "Bias of the GPP flux rates integrated over the region"
+        metric["BiasScore"] = {}
+        metric["BiasScore"]["var"]  = bias(vobar,vmbar,weights=mw,normalize="score")
+        metric["BiasScore"]["unit"] = "-"
+        metric["BiasScore"]["desc"] = "Bias score of the GPP flux rates integrated over the region"
+        metric["RMSE"] = {}
+        metric["RMSE"]["var"]       = rmse(vobar,vmbar,weights=mw)*1e-15*spy
+        metric["RMSE"]["unit"]      = "Pg yr-1"
+        metric["RMSE"]["desc"]      = "RMSE of the GPP flux rates integrated over the region"
+        metric["RMSEScore"] = {}
+        metric["RMSEScore"]["var"]  = rmse(vobar,vmbar,weights=mw,normalize="score")
+        metric["RMSEScore"]["unit"] = "-"
+        metric["RMSEScore"]["desc"] = "RMSE score of the GPP flux rates integrated over the region"
         cdata["metric"] = metric
 
         # compare the bias using nearest neighbor interpolation of the observational data
