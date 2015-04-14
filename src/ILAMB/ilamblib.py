@@ -584,3 +584,107 @@ def CellAreas(lat,lon):
     areas = np.outer(dx,dy).T
 
     return areas
+
+def GlobalLatLonGrid(res):
+    r"""Generates a latitude/longitude grid at a desired resolution
+    
+    Computes 1D arrays of latitude and longitude values which
+    correspond to cell interfaces and centroids at a given resolution.
+
+    Parameters
+    ----------
+    res : float
+        the desired resolution of the grid in degrees
+
+    Returns
+    -------
+    lat_bnd : numpy.ndarray
+        a 1D array of latitudes which represent cell interfaces
+    lon_bnd : numpy.ndarray
+        a 1D array of longitudes which represent cell interfaces
+    lat : numpy.ndarray
+        a 1D array of latitudes which represent cell centroids
+    lon : numpy.ndarray
+        a 1D array of longitudes which represent cell centroids
+    """
+    nlon    = int(360./res)+1
+    nlat    = int(180./res)+1
+    lon_bnd = np.linspace(-180,180,nlon)
+    lat_bnd = np.linspace(-90,90,nlat)
+    lat     = 0.5*(lat_bnd[1:]+lat_bnd[:-1])
+    lon     = 0.5*(lon_bnd[1:]+lon_bnd[:-1])
+    return lat_bnd,lon_bnd,lat,lon
+
+def NearestNeighborInterpolation(lat1,lon1,data1,lat2,lon2):
+    r"""Interpolates globally grided data at another resolution
+
+    Parameters
+    ----------
+    lat1 : numpy.ndarray
+        a 1D array of latitudes of cell centroids corresponding to the 
+        source data
+    lon1 : numpy.ndarray
+        a 1D array of longitudes of cell centroids corresponding to the 
+        source data
+    data1 : numpy.ndarray
+        an array of data to be interpolated of shape = (lat1.size,lon1.size,...)
+    lat2 : numpy.ndarray
+        a 1D array of latitudes of cell centroids corresponding to the 
+        target resolution
+    lon2 : numpy.ndarray
+        a 1D array of longitudes of cell centroids corresponding to the 
+        target resolution
+
+    Returns
+    -------
+    data2 : numpy.ndarray
+        an array of interpolated data of shape = (lat2.size,lon2.size,...)
+    """
+    rows  = np.apply_along_axis(np.argmin,1,np.abs(lat2[:,np.newaxis]-lat1))
+    cols  = np.apply_along_axis(np.argmin,1,np.abs(lon2[:,np.newaxis]-lon1))
+    data2 = data1[np.ix_(rows,cols)]
+    return data2
+    
+def TrueError(lat1_bnd,lon1_bnd,lat1,lon1,data1,lat2_bnd,lon2_bnd,lat2,lon2,data2):
+    r"""Computes the pointwise difference between two sets of gridded data
+
+    To obtain the pointwise error we populate a list of common cell
+    interfaces and then interpolate both input arrays to the composite
+    grid resolution using nearest-neighbor interpolation.
+
+    Parameters
+    ----------
+    lat1_bnd, lon1_bnd, lat1, lon1 : numpy.ndarray
+        1D arrays corresponding to the latitude/longitudes of the cell 
+        interfaces/centroids
+    data1 : numpy.ndarray
+        an array of data to be interpolated of shape = (lat1.size,lon1.size,...)
+    lat2_bnd, lon2_bnd, lat2, lon2 : numpy.ndarray
+        1D arrays corresponding to the latitude/longitudes of the cell 
+        interfaces/centroids
+    data2 : numpy.ndarray
+        an array of data to be interpolated of shape = (lat2.size,lon2.size,...)
+
+    Returns
+    -------
+    lat_bnd, lon_bnd, lat, lon : numpy.ndarray
+        1D arrays corresponding to the latitude/longitudes of the cell 
+        interfaces/centroids of the resulting error
+    error : numpy array
+        an array of the pointwise error of shape = (lat.size,lon.size,...)
+    """
+    # combine limits, sort and remove duplicates
+    lat_bnd = np.hstack((lat1_bnd,lat2_bnd)); lat_bnd.sort(); lat_bnd = np.unique(lat_bnd)
+    lon_bnd = np.hstack((lon1_bnd,lon2_bnd)); lon_bnd.sort(); lon_bnd = np.unique(lon_bnd)
+
+    # need centroids of new grid for nearest-neighbor interpolation
+    lat = 0.5*(lat_bnd[1:]+lat_bnd[:-1])
+    lon = 0.5*(lon_bnd[1:]+lon_bnd[:-1])
+    
+    # interpolate datasets at new grid
+    d1 = NearestNeighborInterpolation(lat1,lon1,data1,lat,lon)
+    d2 = NearestNeighborInterpolation(lat2,lon2,data2,lat,lon)
+    
+    # relative to the first grid/data
+    error = d2-d1
+    return lat_bnd,lon_bnd,lat,lon,error
