@@ -385,7 +385,7 @@ def WindowedTrend(t,var,window=365.):
     return trend
 
 def AnnualCycleInformation(t,var):
-    r""" 
+    r"""Returns information regarding the annual cycle
 
     Parameters
     ----------

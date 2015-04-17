@@ -19,6 +19,8 @@ Miscellaneous
    ExtractTimeSeries
    GenerateDistinctColors
    MonthlyWeights
+   CellAreas
+   GlobalLatLonGrid
 
 Metrics
 ~~~~~~~
@@ -28,6 +30,8 @@ Metrics
 
    Bias
    RootMeanSquaredError
+   NearestNeighborInterpolation
+   TrueError
 
 Analysis
 ~~~~~~~~
@@ -37,6 +41,7 @@ Analysis
 
    AnnualMean
    AnnualMinMax
+   AnnualCycleInformation
    DecadalAmplitude
    DecadalMaxTime
    DecadalMinTime
@@ -96,3 +101,6 @@ Finally we provide a module with many ways of presenting these results. While we
    :toctree: _generated
 
    ConfrontationTableASCII
+   ConfrontationTableGoogle
+   GlobalPlot
+   ColorBar
