@@ -1,7 +1,7 @@
 from numpy import asarray,ones,copy as npcopy
 from matplotlib.colors import from_levels_and_colors
 
-__all__ = ['spm','mph','hpd','mpy','dpy_noleap','dpy_gregorian','dpy_360','dpm_noleap','dpm_gregorian','dpm_360','g_per_Pg','g_per_kg','Ar_molar_mass','C_molar_mass','N_molar_mass','O_molar_mass','CO2_molar_mass','dry_air_molar_mass','dry_air_mass','dry_air_moles','co2_g_per_ppm','co2_ppm_per_kg','co2_ppm_per_C_Pg','regions','NCARclrs','NCARcmap','NCARnorm','region_names']
+__all__ = ['spm','mph','hpd','mpy','dpy_noleap','dpy_gregorian','dpy_360','dpm_noleap','dpm_gregorian','dpm_360','g_per_Pg','g_per_kg','Ar_molar_mass','C_molar_mass','N_molar_mass','O_molar_mass','CO2_molar_mass','dry_air_molar_mass','dry_air_mass','dry_air_moles','co2_g_per_ppm','co2_ppm_per_kg','co2_ppm_per_C_Pg','regions','NCARclrs','NCARcmap','NCARnorm','region_names','dpy','mid_months']
 
 # Time constants
 spm              = 60.     # seconds per minute
@@ -14,6 +14,13 @@ dpy_360          = 360.0   # days per year (for 30 days/month)
 dpm_noleap       = asarray([31,28,31,30,31,30,31,31,30,31,30,31],dtype='float') # days per month
 dpm_gregorian    = npcopy(dpm_noleap) ; dpm_gregorian[1] = dpm_gregorian[1] + 0.25
 dpm_360          = ones(mpy)*30.
+mid_months       = asarray([15.5,45.,74.5,105.,135.5,166.,196.5,227.5,258.,288.5,319.,349.5],dtype='float')
+
+dpy = {"noleap"    : dpy_noleap,
+       "365_day"   : dpy_noleap,
+       "360_day"   : dpy_360,
+       "gregorian" : dpy_gregorian, 
+       "proleptic_gregorian" : dpy_gregorian} 
 
 # Mass unit conversions
 g_per_Pg         = 1e+15   # grams per Pg
