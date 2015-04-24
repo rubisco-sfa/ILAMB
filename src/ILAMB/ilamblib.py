@@ -1,7 +1,7 @@
 from datetime import datetime
-from netCDF4 import Dataset
+from netCDF4 import Dataset,num2date,date2num
 import numpy as np
-from constants import regions as ILAMBregions
+from constants import dpy,mid_months,regions as ILAMBregions
 
 class VarNotInFile(Exception):
     pass
@@ -84,7 +84,7 @@ def ExtractPointTimeSeries(filename,variable,lat,lon,verbose=False):
         if verbose: print "%s is not a variable in this netCDF file" % variable
         raise VarNotInFile("%s is not a variable in this netCDF file" % variable)
 
-    # determine time shift
+    # determine time shift, #netCDF4.num2date()
     t    = f.variables['time']
     unit = t.units.split(" since ")
     assert unit[0] == "days"
@@ -102,6 +102,60 @@ def ExtractPointTimeSeries(filename,variable,lat,lon,verbose=False):
     except:
         var  = np.ma.masked_values(vari[...],vari._FillValue)
     return t[:]+dt,var,vari.units
+
+
+def MultiModelMean(M,variable,output_unit,spatial_resolution,**keywords):
+    r"""
+    
+    """
+    res_lat   = keywords.get("res_lat",spatial_resolution)
+    res_lon   = keywords.get("res_lon",spatial_resolution)
+
+    # grab data from all models
+    data   = []
+    t0,tf  = 1e20,1e-20
+    models = ""
+    for m in M:
+        if m.land_areas is None: continue
+        try:
+            t,var,unit = m.extractTimeSeries("gpp",output_unit="g m-2 s-1")
+        except VarNotInModel: continue
+        except VarNotMonthly: continue
+        data.append((m,t,var))
+        t0 = min(t0,t.min())
+        tf = max(tf,t.max())
+        models += m.name + ","
+
+    # setup time range
+    t = np.arange(int(round(t0/365.)),int(round(tf/365.)))
+    t = t[:,np.newaxis]*365. + mid_months
+    t = t.flatten()
+
+    # setup spatial range
+    lat_bnd,lon_bnd,lat,lon = GlobalLatLonGrid(spatial_resolution,from_zero=True,res_lat=res_lat,res_lon=res_lon)
+
+    # sum up via interpolation
+    mean_data = np.zeros((t.size,lat.size,lon.size))
+    num_model = np.zeros((t.size,lat.size,lon.size),dtype=int)
+    for tpl in data:
+        m,tm,vm    = tpl
+        rows       = np.apply_along_axis(np.argmin,1,np.abs(lat[:,np.newaxis]-m.lat))
+        cols       = np.apply_along_axis(np.argmin,1,np.abs(lon[:,np.newaxis]-m.lon))
+        times      = np.apply_along_axis(np.argmin,1,np.abs(t[:,np.newaxis]-tm))
+        data       = vm.data[np.ix_(times,rows,cols)]
+        mask       = vm.mask[np.ix_(times,rows,cols)]
+        space_mask = (m.land_areas[np.ix_(rows,cols)]<1e-12)        
+        time_mask  = (t<tm.min()-2)+(t>tm.max()+2)
+        mask      += time_mask[:,np.newaxis,np.newaxis]+space_mask
+        mean_data += (mask==0)*data
+        num_model += (mask==0)
+
+    # now take averages
+    mean_data = np.ma.masked_where(num_model==0,mean_data,copy=False)
+    mean_data /= num_model.clip(1)
+    np.ma.set_fill_value(mean_data,1e20)
+
+    return t,lat,lon,mean_data,num_model,models[:-1]
 
 def ExtractTimeSeries(filename,variable,verbose=False):
     r"""Extracts the timeseries of a given variable from a netCDF file.
@@ -133,16 +187,13 @@ def ExtractTimeSeries(filename,variable,verbose=False):
     except:
         if verbose: print "%s is not a variable in this netCDF file" % variable
         raise VarNotInFile("%s is not a variable in this netCDF file" % variable)
-    t    = f.variables['time']
-    unit = t.units.split(" since ")
-    assert unit[0] == "days"
-    t0   = datetime(1850,1,1,0,0,0)
-    tf   = datetime.strptime((unit[-1].split())[0],"%Y-%m-%d")
-    dt   = (tf-t0).days
-    var  = np.ma.masked_values(vari[...],vari._FillValue)
+    tvar = f.variables['time']
+    t    = num2date(tvar[:],tvar.units,calendar=tvar.calendar) # converts data to dates
+    t    = date2num(t,"days since 1850-1-1",calendar="noleap") # convert to numbers but with uniform datum and calendar
+    var  = np.ma.masked_greater_equal(vari[...],vari._FillValue)
     lat  = f.variables["lat"][...]
     lon  = f.variables["lon"][...]
-    return t[:]+dt,var,vari.units,lat,lon
+    return t,var,vari.units,lat,lon
 
 def RootMeanSquaredError(reference,prediction,normalize="none",weights=None):
     r"""
@@ -586,7 +637,7 @@ def CellAreas(lat,lon):
 
     return areas
 
-def GlobalLatLonGrid(res):
+def GlobalLatLonGrid(res,**keywords):
     r"""Generates a latitude/longitude grid at a desired resolution
     
     Computes 1D arrays of latitude and longitude values which
@@ -596,6 +647,8 @@ def GlobalLatLonGrid(res):
     ----------
     res : float
         the desired resolution of the grid in degrees
+    from_zero : boolean
+        sets longitude convention { True:(0,360), False:(-180,180) }
 
     Returns
     -------
@@ -608,9 +661,13 @@ def GlobalLatLonGrid(res):
     lon : numpy.ndarray
         a 1D array of longitudes which represent cell centroids
     """
-    nlon    = int(360./res)+1
-    nlat    = int(180./res)+1
+    from_zero = keywords.get("from_zero",False)
+    res_lat   = keywords.get("res_lat",res)
+    res_lon   = keywords.get("res_lon",res)
+    nlon    = int(360./res_lon)+1
+    nlat    = int(180./res_lat)+1
     lon_bnd = np.linspace(-180,180,nlon)
+    if from_zero: lon_bnd += 180
     lat_bnd = np.linspace(-90,90,nlat)
     lat     = 0.5*(lat_bnd[1:]+lat_bnd[:-1])
     lon     = 0.5*(lon_bnd[1:]+lon_bnd[:-1])
