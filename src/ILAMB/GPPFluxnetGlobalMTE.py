@@ -24,7 +24,7 @@ class GPPFluxnetGlobalMTE():
         self.data["GppMax"] = 0
         self.data["BiasMaxMag"] = 0
         self.metric = {}
-        self.regions = ["global"]#,"bona","tena","ceam","nhsa","shsa","euro","mide","nhaf","shaf","boas","ceas","seas","eqas","aust"]
+        self.regions = ["global","bona","tena","ceam","nhsa","shsa","euro","mide","nhaf","shaf","boas","ceas","seas","eqas","aust"]
 
     def getData(self,initial_time=-1e20,final_time=1e20,output_unit=""):
         """Retrieves the confrontation data on the desired time frame and in

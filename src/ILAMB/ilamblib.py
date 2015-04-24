@@ -772,15 +772,38 @@ def AnalysisSpatiallyIntegrated(t,var,lat,lon,areas,units,
             var.mask  = rem_mask+mask
             space_integrated_var[region] = SpatiallyIntegratedTimeSeries(var,areas)
             
-        # restore original mask
+        # Restore original mask
         var.mask = rem_mask
         return space_integrated_var
 
     # If needed integrate the reference dataset 
     if space_integrated_ref_var is None:
         space_integrated_ref_var = _integrateOverRegions(ref_var,ref_lat,ref_lon,ref_areas,regions)
-            
+
     # Integrate the input dataset
     space_integrated_var = _integrateOverRegions(var,lat,lon,areas,regions)
 
-    
+    # Find maximum overlapping region for comparisons
+    mint = max(t.min(),ref_t.min())
+    maxt = min(t.max(),ref_t.max())
+    b     = np.argmin(np.abs(    t-mint)); e     = np.argmin(np.abs(    t-maxt)); 
+    ref_b = np.argmin(np.abs(ref_t-mint)); ref_e = np.argmin(np.abs(ref_t-maxt)); 
+
+    # Make sure these time series are discretely comparable
+    assert t[b:e].shape == ref_t[ref_b:ref_e].shape
+    assert np.allclose(t[b:e],ref_t[ref_b:ref_e],atol=15) # +- half a month
+
+    # Bias and RMSE needs to be weighted by days per month
+    mw = MonthlyWeights(t[b:e])
+
+    # Compute bias and RMSE
+    RMSE = RootMeanSquaredError
+    for region in regions:
+        # Convenience renaming to make this next part more readable
+        x          = space_integrated_ref_var[region][ref_b:ref_e]
+        y          = space_integrated_var    [region][    b:    e]
+        bias       = Bias(x,y,weights=mw)
+        bias_score = Bias(x,y,weights=mw,normalize="score")
+        rmse       = RMSE(x,y,weights=mw)
+        rmse_score = RMSE(x,y,weights=mw,normalize="score")
+        print "%s\t%+1.3e %+1.3e %.2f %.2f" % (region,bias,rmse,bias_score,rmse_score)

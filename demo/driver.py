@@ -61,6 +61,7 @@ for c in C:
     dt = time.time()-t0
     print "  Completed in %.1f seconds" % dt
 
+"""
 print "\nPost-processing..."
 
 # Put everything here
@@ -91,3 +92,4 @@ for c in C:
     
     dt = time.time()-t0
     print "  Completed in %.1f seconds" % dt
+"""
