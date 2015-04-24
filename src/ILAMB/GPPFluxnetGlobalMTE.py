@@ -176,10 +176,14 @@ class GPPFluxnetGlobalMTE():
 
         # extract the time, variable, and unit of the model result
         tm,vm,um = m.extractTimeSeries("gpp",initial_time=t0,final_time=tf,
-                                       output_unit="g m-2 s-1")
+                                       output_unit="g m-2 s-1")        
 
         # sign conversions vary, if all values are non-positive, flip signs
         if (vm>0).sum() == 0: vm *= -1 
+
+        il.AnalysisSpatiallyIntegrated(tm,vm,m.lat,m.lon,m.land_areas,um,
+                                       to,vo,  lat,  lon,       area,
+                                       regions=self.regions)
 
         # not all models properly mask out oceans, so if the gpp is
         # very small or very large, add to the mask that is already

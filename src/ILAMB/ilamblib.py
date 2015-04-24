@@ -1,6 +1,7 @@
 from datetime import datetime
 from netCDF4 import Dataset
 import numpy as np
+from constants import regions as ILAMBregions
 
 class VarNotInFile(Exception):
     pass
@@ -688,3 +689,41 @@ def TrueError(lat1_bnd,lon1_bnd,lat1,lon1,data1,lat2_bnd,lon2_bnd,lat2,lon2,data
     # relative to the first grid/data
     error = d2-d1
     return lat_bnd,lon_bnd,lat,lon,error
+
+def AnalysisSpatiallyIntegrated(t,var,lat,lon,areas,units,
+                                ref_t,ref_var,ref_lat,ref_lon,ref_areas,
+                                regions=["global.large"],
+                                space_integrated_ref_var=None):
+
+    def _integrateOverRegions(var,lat,lon,areas,regions):
+        """A local function to keep from repeating code"""
+
+        # We will be modifying the variable mask to integrate over
+        # regions, so we need to store what it was so we can restore the
+        # var as it was passed in
+        rem_mask = np.copy(var.mask)
+
+        # Longitude conventions are often different, map to (-180,180)
+        tlon = (lon<=180)*lon+(lon>180)*(lon-360)
+        
+        # Integrate the input dataset over regions
+        space_integrated_var = {}
+        for region in regions:
+            lats,lons = ILAMBregions[region]
+            mask      = (np.outer(( lat>lats[0])*( lat<lats[1]),
+                                  (tlon>lons[0])*(tlon<lons[1]))==0)
+            var.mask  = rem_mask+mask
+            space_integrated_var[region] = SpatiallyIntegratedTimeSeries(var,areas)
+            
+        # restore original mask
+        var.mask = rem_mask
+        return space_integrated_var
+
+    # If needed integrate the reference dataset 
+    if space_integrated_ref_var is None:
+        space_integrated_ref_var = _integrateOverRegions(ref_var,ref_lat,ref_lon,ref_areas,regions)
+            
+    # Integrate the input dataset
+    space_integrated_var = _integrateOverRegions(var,lat,lon,areas,regions)
+
+    
