@@ -2,10 +2,11 @@ from netCDF4 import Dataset
 import numpy as np
 import pylab as plt
 import ilamblib as il
-from constants import convert
+from constants import convert,spd
 import Post as post
 from os import stat,environ
 from scipy.interpolate import interp1d
+
 
 class GPPFluxnetGlobalMTE():
     """Confront models with the gross primary productivity (GPP) product
@@ -17,25 +18,21 @@ class GPPFluxnetGlobalMTE():
         try:
             stat(self.path)
         except:
-            raise il.MisplacedData("I am looking for data for the %s confrontation here:\n\n%s\n\nBut I cannot find it. Did you download the data? Have you set the ILAMB_ROOT envronment variable?" % (self.name,self.path))
-        self.nlat = 360
-        self.nlon = 720
+            msg  = "I am looking for data for the %s confrontation here\n\n" % self.name
+            msg += "%s\n\nbut I cannot find it. " % self.path
+            msg += "Did you download the data? Have you set the ILAMB_ROOT envronment variable?"
+            raise il.MisplacedData(msg)
         self.data = {}
-        self.data["GppMax"] = 0
+        self.data["GppMax"    ] = 0
         self.data["BiasMaxMag"] = 0
-        self.metric = {}
-        self.regions = ["global","bona","tena","ceam","nhsa","shsa","euro","mide","nhaf","shaf","boas","ceas","seas","eqas","aust"]
-
-    def getData(self,initial_time=-1e20,final_time=1e20,output_unit=""):
-        """Retrieves the confrontation data on the desired time frame and in
-        the desired unit.
+        self.data["obs_spatial_integrated_gpp"] = None
+        self.regions = ["global","amazon"]
+        
+    def getData(self,output_unit=None):
+        """Retrieves the confrontation data in the desired unit.
 
         Parameters
         ----------
-        initial_time : float, optional
-            include model results occurring after this time
-        final_time : float, optional
-            include model results occurring before this time
         output_unit : string, optional
             if specified, will try to convert the units of the variable 
             extract to these units given (see convert in ILAMB.constants)
@@ -48,41 +45,20 @@ class GPPFluxnetGlobalMTE():
             an array of the extracted variable
         unit : string
             a description of the extracted unit
+        lat,lon : numpy.ndarray
+            1D arrays of the latitudes and longitudes of cell centers
         """
-        # why are these stored as separate netCDF files? Isn't I/O
-        # latency worse if these are broken up and I have to build a
-        # composite?
-        y0   = max(int(initial_time/365.),1982)
-        yf   = min(int(  final_time/365.),2005)
-        ny   = yf-y0+1; nm = 12*ny
-        t    = np.zeros(nm)
-        # FIX: if you ever only wanted some of the MTE data, this would fail
-        var  = np.ma.zeros((nm,self.nlat,self.nlon))
-        unit = ""
-        lat,lon = None,None
-        for y in range(ny):
-            yr = y+1982
-            for m in range(12):
-                ind   = 12*y+m
-                fname = "%s%d/gpp_0.5x0.5_%d%02d.nc" % (self.path,yr,yr,m+1)
-                f = Dataset(fname)
-                v = f.variables["gpp"]
-                t  [ind    ] = v.time
-                var[ind,...] = v[...]
-                unit = v.units
-                if lat is None:
-                    lat = f.variables["lat"][...]
-                    lon = f.variables["lon"][...]
+        t,var,unit,lat,lon = il.ExtractTimeSeries("%s/gpp.nc" % self.path,"gpp")
 
         # if you asked for a specific unit, try to convert
-        # FIX: migrate this to ilamblib
-        unit = unit.lower()
-        if output_unit is not "":
+        if output_unit is not None:
             try:
                 var *= convert["gpp"][output_unit][unit]
                 unit = output_unit
             except:
-                raise il.UnknownUnit("Variable is in units of [%s], you asked for [%s] but I do not know how to convert" % (unit,output_unit))
+                msg  = "The gpp variable is in units of [%s]. " % unit
+                msg += "You asked for units of [%s] but I do not know how to convert" % output_unit
+                raise il.UnknownUnit(msg)
         return t,var,unit,lat,lon
 
     def confront(self,m):
@@ -92,222 +68,61 @@ class GPPFluxnetGlobalMTE():
         ----------
         m : ILAMB.ModelResult.ModelResult
             the model results                  
-
-        Returns
-        -------
-        cdata : dictionary                  
-            contains all outputs/metrics
-
-        Notes
-        -----
-        The dictionary key "metric" will return a dictionary which
-        contains the analysis results. For this confrontation we
-        include the following quantities in the analysis. We define
-        :math:`gpp(\mathbf{x},t)` as the mean monthly gross primary
-        productivity as a function of space (:math:`\mathbf{x}`) and
-        time (:math:`t`) given in units of "g m-2 s-1". For
-        convenience, we will define here a spatially integrated
-        quantity as well,
-        
-        .. math:: \overline{gpp}(t) = \int_A gpp(\mathbf{x},t)\ dA
-
-        where :math:`A` refers to the area of interest.
-
-        "PeriodMean" : float
-            The mean gross primary productivity for the globe
-            averaged over the time period, or
-
-            .. math:: \frac{\int_{t_0}^{t_f} \overline{gpp}(t)\ dt}{t_f-t_0}
-
-            in units of "g/s"
-        "MonthlyMeanBias" : float
-            The bias of the spatially integrated monthly mean model
-            result compared to that of the observational data in units
-            of "g/s"
-        "MonthlyMeanRMSE" : float
-            The RMSE of the spatially integrated monthly mean model
-            result compared to that of the observational data in units
-            of "g/s"
-        "PhaseChange" : float
-            The mean time difference in the annual peaks of gross
-            primary productivity in the model result compared to the
-            observational data. The annual peak time is written as
-            :math:`t_{\text{peak}}(\mathbf{x},t_a)` where :math:`t_a`
-            refers to the year. Then we can compute a temporally
-            averaged quantity,
-
-            .. math:: \bar{t}_{\text{peak}}(\mathbf{x}) = \frac{1}{t_{af}-t_{a0}}\int_{t_{a0}}^{t_{af}} t_{\text{peak}}(\mathbf{x},t)\ dt
-
-            Then the phase change is given as the difference of peak
-            times of the model relative to the observations,
-            integrated over the area of interest, or
-
-            .. math:: \frac{1}{A} \int_A  \left(\bar{t}_{\text{peak}}^{\text{model}}(\mathbf{x}) - \bar{t}_{\text{peak}}^{\text{obs}}(\mathbf{x})\right)\ dA
-
         """
-        # If the model data doesn't have areas or land fractions, we
-        # can't do area integrations.
+        # If the model data doesn't have both cell areas and land
+        # fractions, we can't do area integrations
         if m.cell_areas is None or m.land_fraction is None: 
-            raise il.AreasNotInModel("The %s model cannot perform the %s confrontation because it does not have either areas or land fractions" % (m.name,self.name))
+            msg  = "The %s model cannot perform the %s confrontation " % (m.name,self.name)
+            msg += "because it does not have either areas or land fractions"
+            raise il.AreasNotInModel(msg)
 
-        # Get the observational data, but it might already be stored
-        # with the confrontation. This will save parsing the same data
-        # for each confrontation.
-        if "to" not in self.data.keys():
-            to,vo,unit,lat,lon = self.getData(output_unit="g m-2 s-1")
-            area = np.ma.masked_where(vo.mask[0,...],il.CellAreas(lat,lon),copy=False)
-            self.data["to"]   = to
-            self.data["vo"]   = vo
-            self.data["unit"] = unit
-            self.data["lat"]  = lat
-            self.data["lon"]  = lon
-            self.data["area"] = area
-        else:
-            to   = self.data["to"]   # observation times
-            vo   = self.data["vo"]   # observation values
-            unit = self.data["unit"] 
-            lat  = self.data["lat"]
-            lon  = self.data["lon"]
-            area = self.data["area"]
-        
-        # time limits for this confrontation, with a little padding to
-        # account for differences in monthly time representations
-        t0,tf = to.min(),to.max()
+        # get the observational data
+        obs_t,obs_gpp,unit,lat,lon = self.getData(output_unit="g m-2 s-1")
+        areas = np.ma.masked_where(obs_gpp.mask[0,...],il.CellAreas(lat,lon),copy=False)
 
-        # extract the time, variable, and unit of the model result
-        tm,vm,um = m.extractTimeSeries("gpp",initial_time=t0,final_time=tf,
-                                       output_unit="g m-2 s-1")        
+        # time limits for this confrontation (with a little padding)
+        t0,tf = obs_t.min()-7,obs_t.max()+7
 
-        # sign conversions vary, if all values are non-positive, flip signs
-        if (vm>0).sum() == 0: vm *= -1 
+        # get the model result
+        model_t,model_gpp,unit = m.extractTimeSeries("gpp",
+                                                     initial_time=t0,final_time=tf,
+                                                     output_unit="g m-2 s-1")        
 
-        il.AnalysisSpatiallyIntegrated(tm,vm,m.lat,m.lon,m.land_areas,um,
-                                       to,vo,  lat,  lon,       area,
-                                       regions=self.regions)
+        # perform spatial integrals and analysis
+        result = il.AnalysisSpatiallyIntegrated(model_t,model_gpp,m.lat,m.lon,m.land_areas,unit,
+                                                  obs_t,  obs_gpp,  lat,  lon,       areas,
+                                                regions=self.regions,
+                                                space_integrated_ref_var=self.data["obs_spatial_integrated_gpp"])
+        model_spatial_integrated_gpp            = result[0]
+        self.data["obs_spatial_integrated_gpp"] = result[1]
+        spatial_metrics                         = result[2]
 
-        # not all models properly mask out oceans, so if the gpp is
-        # very small or very large, add to the mask that is already
-        # there.
-        vm = np.ma.masked_where(((vm.mask)+
-                                 (np.abs(vm)<1e-15)+
-                                 (vm>1e30)),vm,copy=False)
+        # write confrontation results to output file
+        f = Dataset("%s_%s.nc" % (self.name,m.name),mode="w")
+        f.createDimension("time")
 
-        # update time limits, might be less model data than observations
-        t0,tf  = tm.min(),tm.max()
-        ndays  = tf-t0
-        nyears = ndays/365.
+        T = f.createVariable("time","double",("time"))
+        T.setncattr("units","days since 1850-01-01 00:00:00")
+        T.setncattr("calendar","noleap")
+        T.setncattr("axis","T")
+        T.setncattr("long_name","time")
+        T.setncattr("standard_name","time")
+        T[...] = model_t
 
-        # observation integration, this might already be done so we
-        # will save processing time by referring to it
-        if "vohat" not in self.data.keys():
-            vohat = il.TemporallyIntegratedTimeSeries(to,vo)    # [g m-2]
-            vobar = il.SpatiallyIntegratedTimeSeries(vo,area)   # [g s-1]
-            votot = il.TemporallyIntegratedTimeSeries(to,vobar) # [g    ]
-            voavg,vostd,tomx,tost = il.AnnualCycleInformation(to,vobar)
-            junk,junk,opeak,opstd = il.AnnualCycleInformation(to,vo)
-            opeak = np.ma.masked_array(opeak,mask=vohat.mask,copy=False)
-            opstd = np.ma.masked_array(opstd,mask=vohat.mask,copy=False)
-            self.data["vohat"] = vohat
-            self.data["vobar"] = vobar
-            self.data["votot"] = votot
-            self.data["voavg"] = voavg
-            self.data["vostd"] = vostd
-            self.data["tomx" ] = tomx
-            self.data["tost" ] = tost
-            self.data["peak" ] = opeak
-            self.data["pstd" ] = opstd
-        else:
-            vohat = self.data["vohat"]
-            vobar = self.data["vobar"]
-            votot = self.data["votot"]
-            opeak  = self.data["peak" ]
+        for region in self.regions:
+            G = f.createVariable("spatial_integrated_gpp_over_%s" % region,"double",("time"))
+            G.setncattr("standard_name","Spatially Integrated GPP over %s" % region)
+            G.setncattr("long_name","Carbon Mass Flux out of Atmosphere due to Gross Primary Production on Land integrated over %s land area" % region)
+            G.setncattr("units","g m-2 d-1")
+            for metric in spatial_metrics[region].keys():
+                conversion = spd/m.land_area
+                if "score" in metric: conversion = 1.
+                G.setncattr("metric_%s" % metric,spatial_metrics[region][metric]*conversion)
+            G[...] = model_spatial_integrated_gpp[region]/m.land_area*spd
 
-        # model integration
-        vmhat = il.TemporallyIntegratedTimeSeries(tm,vm)          # [g m-2]
-        vmbar = il.SpatiallyIntegratedTimeSeries(vm,m.land_areas) # [g s-1]
-        vmtot = il.TemporallyIntegratedTimeSeries(tm,vmbar)       # [g    ]
-        vmavg,vmstd,tmmx,tmst = il.AnnualCycleInformation(tm,vmbar)
-        junk,junk,mpeak,mpstd = il.AnnualCycleInformation(tm,vm)
-        mpeak = np.ma.masked_array(mpeak,mask=vmhat.mask,copy=False)
-        mpstd = np.ma.masked_array(mpstd,mask=vmhat.mask,copy=False)
+        f.close()
 
-        # The model/obs could be on different time scales, if so we
-        # will need to do nearest neighbor interpolation.  FIX: pull
-        # out times in terms of months since 1/1/1850 so we don't need
-        # this
-        if tm.shape[0] != to.shape[0]:
-            f = interp1d(tm,vmbar,kind="nearest",assume_sorted=True,bounds_error=False)
-            tm    = to
-            vmbar = np.ma.masked_invalid(f(to))
-
-        # populate dictionary to return
-        cdata = {}
-        
-        # put the extracted model data and manipulations here
-        cdata["model"] = {} 
-        cdata["model"]["t"]    = tm
-        cdata["model"]["vhat"] = vmhat
-        cdata["model"]["vbar"] = vmbar
-        cdata["model"]["vavg"] = vmavg
-        cdata["model"]["vstd"] = vmstd
-        cdata["model"]["tmax"] = tmmx
-        cdata["model"]["tstd"] = tmst
-        cdata["model"]["peak"] = mpeak
-        cdata["model"]["pstd" ] = mpstd
-
-        # make a few function aliases to help readibility
-        bias = il.Bias
-        rmse = il.RootMeanSquaredError
-
-        # give each time a weight to be used in the weighted averages below
-        mw  = il.MonthlyWeights(to)
-        spy = 365.*24*3600
- 
-        # store some metric data with the confrontation
-        self.metric["Mean"] = {}
-        self.metric["Mean"]["var"]  = votot*1e-15/nyears
-        self.metric["Mean"]["unit"] = "Pg yr-1"
-        self.metric["Mean"]["desc"] = "The GPP flux rate integrated over the region and time period divided by number of years"
-        self.data["GppMax"] = max(self.data["GppMax"],np.ma.max(vmhat)/ndays,np.ma.max(vohat)/ndays) # used in plots
-
-        # compute metrics
-        metric = {}
-        metric["Mean"] = {}
-        metric["Mean"]["var"]       = vmtot*1e-15/nyears
-        metric["Mean"]["unit"]      = "Pg yr-1"
-        metric["Mean"]["desc"]      = "The GPP flux rate integrated over the region and time period divided by number of years"
-        metric["Bias"] = {}
-        metric["Bias"]["var"]       = bias(vobar,vmbar,weights=mw)*1e-15*spy
-        metric["Bias"]["unit"]      = "Pg yr-1"
-        metric["Bias"]["desc"]      = "Bias of the GPP flux rates integrated over the region"
-        metric["BiasScore"] = {}
-        metric["BiasScore"]["var"]  = bias(vobar,vmbar,weights=mw,normalize="score")
-        metric["BiasScore"]["unit"] = "-"
-        metric["BiasScore"]["desc"] = "Bias score of the GPP flux rates integrated over the region"
-        metric["RMSE"] = {}
-        metric["RMSE"]["var"]       = rmse(vobar,vmbar,weights=mw)*1e-15*spy
-        metric["RMSE"]["unit"]      = "Pg yr-1"
-        metric["RMSE"]["desc"]      = "RMSE of the GPP flux rates integrated over the region"
-        metric["RMSEScore"] = {}
-        metric["RMSEScore"]["var"]  = rmse(vobar,vmbar,weights=mw,normalize="score")
-        metric["RMSEScore"]["unit"] = "-"
-        metric["RMSEScore"]["desc"] = "RMSE score of the GPP flux rates integrated over the region"
-        cdata["metric"] = metric
-
-        # compare the bias using nearest neighbor interpolation of the observational data
-        # FIX: migrate this into ilamblib
-        rows    = np.apply_along_axis(np.argmin,1,np.abs(lat[:,np.newaxis]-m.lat))
-        cols    = np.apply_along_axis(np.argmin,1,np.abs(((lon<0)*(lon+360)+(lon>=0)*lon)[:,np.newaxis]-m.lon))
-        vmhati  = vmhat[np.ix_(rows,cols)]
-        biasmap = np.ma.masked_where(vmhati.mask+vohat.mask,(vmhati-vohat)/ndays)
-        cdata["model"]["bias"] = biasmap
-        self.data["BiasMaxMag"] = max(self.data["BiasMaxMag"],-np.ma.min(biasmap),np.ma.max(biasmap)) # used in plots
-
-        mpeaki   = mpeak[np.ix_(rows,cols)]
-        shiftmap = np.ma.masked_where(vmhati.mask+vohat.mask,mpeaki-opeak)
-        cdata["model"]["shift"] = shiftmap
-
-        return cdata
+        return 
 
     def plot(self,M,path=""):
         """Generate all plots for this confrontation

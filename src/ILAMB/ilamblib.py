@@ -21,6 +21,12 @@ class AreasNotInModel(Exception):
 class MisplacedData(Exception):
     pass
 
+class NotTemporalVariable(Exception):
+    pass
+
+class NotSpatialVariable(Exception):
+    pass
+
 def GenerateDistinctColors(N,saturation=0.67,value=0.67):
     r"""Generates N distinct colors.
 
@@ -187,12 +193,14 @@ def ExtractTimeSeries(filename,variable,verbose=False):
     except:
         if verbose: print "%s is not a variable in this netCDF file" % variable
         raise VarNotInFile("%s is not a variable in this netCDF file" % variable)
-    tvar = f.variables['time']
+    tvar = f.variables["time"]
     t    = num2date(tvar[:],tvar.units,calendar=tvar.calendar) # converts data to dates
     t    = date2num(t,"days since 1850-1-1",calendar="noleap") # convert to numbers but with uniform datum and calendar
-    var  = np.ma.masked_greater_equal(vari[...],vari._FillValue)
+    var  = vari[...]
     lat  = f.variables["lat"][...]
     lon  = f.variables["lon"][...]
+    if type(var) is type(np.asarray([])):
+        var = np.ma.masked_values(var,vari._FillValue,copy=False)
     return t,var,vari.units,lat,lon
 
 def RootMeanSquaredError(reference,prediction,normalize="none",weights=None):
@@ -610,7 +618,7 @@ def TemporallyIntegratedTimeSeries(t,var):
         vhat = np.ma.sum(var*wgt) 
     else:
         vhat = np.ma.sum(var*wgt[:,np.newaxis,np.newaxis],axis=0) 
-    return vhat
+    return np.ma.masked_array(vhat)
 
 def CellAreas(lat,lon):
     """Given arrays of latitude and longitude, return cell areas in square meters.
@@ -750,8 +758,45 @@ def TrueError(lat1_bnd,lon1_bnd,lat1,lon1,data1,lat2_bnd,lon2_bnd,lat2,lon2,data
 def AnalysisSpatiallyIntegrated(t,var,lat,lon,areas,units,
                                 ref_t,ref_var,ref_lat,ref_lon,ref_areas,
                                 regions=["global.large"],
-                                space_integrated_ref_var=None):
+                                space_integrated_ref_var=None,divide_by_area=False):
+    r"""Performs a generic analysis by integrating an input variable over regions.
 
+    Parameters
+    ----------
+    t : numpy.ndarray
+        a 1D array of times
+    var : numpy.ndarray
+        an array containing the analysis variable
+    lat,lon : numpy.ndarray
+        1D arrays of latitudes and longitudes
+    areas : numpy.ndarray
+        a 2D array containing the areas of each land cell
+    units : string
+        units of the input variable (currently unused)
+    ref_t : numpy.ndarray
+        a 1D array of times
+    ref_var : numpy.ndarray
+        an array containing the analysis variable
+    ref_lat,ref_lon : numpy.ndarray
+        1D arrays of latitudes and longitudes
+    ref_areas : numpy.ndarray
+        a 2D array containing the areas of each land cell
+    regions : list
+        optionally specify regions over which you would like to perform the analysis
+    space_integrated_ref_var : dict
+        if None, the reference variable will be integrated. Pass in
+        the dictionary to avoid recalculating
+
+    Returns
+    -------
+    space_integrated_var : dict
+        a dictionary of numpy.ndarrays representing the spatial
+        integral of the input variable over all regions specified. They
+        keys are the region names.
+    metrics : dict
+        a dictionary of metrics over each region. First key is region,
+        second key is the metric name.
+    """
     def _integrateOverRegions(var,lat,lon,areas,regions):
         """A local function to keep from repeating code"""
 
@@ -797,13 +842,16 @@ def AnalysisSpatiallyIntegrated(t,var,lat,lon,areas,units,
     mw = MonthlyWeights(t[b:e])
 
     # Compute bias and RMSE
-    RMSE = RootMeanSquaredError
+    RMSE    = RootMeanSquaredError
+    metrics = {}
     for region in regions:
         # Convenience renaming to make this next part more readable
         x          = space_integrated_ref_var[region][ref_b:ref_e]
         y          = space_integrated_var    [region][    b:    e]
-        bias       = Bias(x,y,weights=mw)
-        bias_score = Bias(x,y,weights=mw,normalize="score")
-        rmse       = RMSE(x,y,weights=mw)
-        rmse_score = RMSE(x,y,weights=mw,normalize="score")
-        print "%s\t%+1.3e %+1.3e %.2f %.2f" % (region,bias,rmse,bias_score,rmse_score)
+        metrics[region] = {}
+        metrics[region]["bias"      ] = Bias(x,y,weights=mw)
+        metrics[region]["bias_score"] = Bias(x,y,weights=mw,normalize="score")
+        metrics[region]["rmse"      ] = RMSE(x,y,weights=mw)
+        metrics[region]["rmse_score"] = RMSE(x,y,weights=mw,normalize="score")
+
+    return space_integrated_var,space_integrated_ref_var,metrics

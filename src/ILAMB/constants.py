@@ -1,12 +1,14 @@
 from numpy import asarray,ones,copy as npcopy
 from matplotlib.colors import from_levels_and_colors
 
-__all__ = ['spm','mph','hpd','mpy','dpy_noleap','dpy_gregorian','dpy_360','dpm_noleap','dpm_gregorian','dpm_360','g_per_Pg','g_per_kg','Ar_molar_mass','C_molar_mass','N_molar_mass','O_molar_mass','CO2_molar_mass','dry_air_molar_mass','dry_air_mass','dry_air_moles','co2_g_per_ppm','co2_ppm_per_kg','co2_ppm_per_C_Pg','regions','NCARclrs','NCARcmap','NCARnorm','region_names','dpy','mid_months']
+__all__ = ['spm','mph','hpd','mpy','dpy_noleap','dpy_gregorian','dpy_360','dpm_noleap','dpm_gregorian','dpm_360','g_per_Pg','g_per_kg','Ar_molar_mass','C_molar_mass','N_molar_mass','O_molar_mass','CO2_molar_mass','dry_air_molar_mass','dry_air_mass','dry_air_moles','co2_g_per_ppm','co2_ppm_per_kg','co2_ppm_per_C_Pg','regions','NCARclrs','NCARcmap','NCARnorm','region_names','dpy','mid_months','spd','spy']
 
 # Time constants
 spm              = 60.     # seconds per minute
 mph              = 60.     # minutes per hour
 hpd              = 24.     # hours per day
+spd              = spm*mph*hpd
+spy              = spd*365.
 mpy              = 12.     # months per year
 dpy_noleap       = 365.0   # days per year (for no leap year calendars)
 dpy_gregorian    = 365.25  # days per year
