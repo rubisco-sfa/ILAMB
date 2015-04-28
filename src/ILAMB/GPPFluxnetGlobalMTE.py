@@ -6,7 +6,7 @@ from constants import convert,spd
 import Post as post
 from os import stat,environ
 from scipy.interpolate import interp1d
-
+from Variable import Variable
 
 class GPPFluxnetGlobalMTE():
     """Confront models with the gross primary productivity (GPP) product
@@ -59,7 +59,7 @@ class GPPFluxnetGlobalMTE():
                 msg  = "The gpp variable is in units of [%s]. " % unit
                 msg += "You asked for units of [%s] but I do not know how to convert" % output_unit
                 raise il.UnknownUnit(msg)
-        return t,var,unit,lat,lon
+        return Variable(var,unit,time=t,lat=lat,lon=lon,name="gpp")
 
     def confront(self,m):
         r"""Confronts the input model with the observational data.
@@ -77,12 +77,24 @@ class GPPFluxnetGlobalMTE():
             raise il.AreasNotInModel(msg)
 
         # get the observational data
-        obs_t,obs_gpp,unit,lat,lon = self.getData(output_unit="g m-2 s-1")
-        areas = np.ma.masked_where(obs_gpp.mask[0,...],il.CellAreas(lat,lon),copy=False)
+        obs_gpp = self.getData(output_unit="g m-2 s-1")
 
         # time limits for this confrontation (with a little padding)
-        t0,tf = obs_t.min()-7,obs_t.max()+7
+        t0,tf = obs_gpp.time.min()-7,obs_gpp.time.max()+7
 
+        # get the model data
+        mod_gpp = m.extractTimeSeries("gpp",
+                                      initial_time=t0,final_time=tf,
+                                      output_unit="g m-2 s-1")
+
+        obs_spaceint_gpp = obs_gpp.integrateInSpace()
+        mod_spaceint_gpp = mod_gpp.integrateInSpace()
+
+        f = Dataset("%s_%s.nc" % (self.name,m.name),mode="w")
+        mod_spaceint_gpp.toNetCDF4(f)
+        f.close()
+
+        """
         # get the model result
         model_t,model_gpp,unit = m.extractTimeSeries("gpp",
                                                      initial_time=t0,final_time=tf,
@@ -121,6 +133,7 @@ class GPPFluxnetGlobalMTE():
             G[...] = model_spatial_integrated_gpp[region]/m.land_area*spd
 
         f.close()
+        """
 
         return 
 
