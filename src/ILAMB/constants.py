@@ -54,6 +54,17 @@ convert["gpp"] = {}
 convert["gpp"]["kg m-2 s-1"] = {"g m-2 s-1":1e-3,"kg m-2 s-1":1.}
 convert["gpp"]["g m-2 s-1"]  = {"kg m-2 s-1":1e+3,"g m-2 s-1":1.}
 
+# mass conversions
+convert["g" ] = {"g" :1e+0 ,"kg":1e-3 ,"Kg":1e-3 ,"Pg":1e-15}
+convert["kg"] = {"g" :1e+3 ,"kg":1e+0 ,"Kg":1e+0 ,"Pg":1e-12}
+convert["Kg"] = {"g" :1e+3 ,"kg":1e+0 ,"Kg":1e+0 ,"Pg":1e-12}
+convert["Pg"] = {"g" :1e+15,"kg":1e+12,"Kg":1e+12,"Pg":1e+0 }
+
+# time conversions
+convert["s"] = {"s":1. ,"d":1./spd,"y":1./spy }
+convert["d"] = {"s":spd,"d":1.    ,"y":spd/spy}
+convert["y"] = {"s":spy,"d":dpy   ,"y":1.     }
+
 regions = {}
 regions["global.large"] = ((-89.75, 89.75),(-179.75, 179.75))
 regions["global"]       = ((-60.25, 80.25),(-179.75, 179.75))

@@ -12,6 +12,9 @@ class VarNotMonthly(Exception):
 class VarNotInModel(Exception):
     pass
 
+class VarsNotComparable(Exception):
+    pass
+
 class UnknownUnit(Exception):
     pass
 
@@ -746,7 +749,7 @@ def TrueError(lat1_bnd,lon1_bnd,lat1,lon1,data1,lat2_bnd,lon2_bnd,lat2,lon2,data
     # need centroids of new grid for nearest-neighbor interpolation
     lat = 0.5*(lat_bnd[1:]+lat_bnd[:-1])
     lon = 0.5*(lon_bnd[1:]+lon_bnd[:-1])
-    
+
     # interpolate datasets at new grid
     d1 = NearestNeighborInterpolation(lat1,lon1,data1,lat,lon)
     d2 = NearestNeighborInterpolation(lat2,lon2,data2,lat,lon)

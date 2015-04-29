@@ -1,5 +1,6 @@
 import ilamblib as il
-from constants import spd,spy,regions as ILAMBregions
+import Post as post
+from constants import spd,spy,convert,regions as ILAMBregions
 import numpy as np
 import pylab as plt
 
@@ -17,7 +18,10 @@ class Variable:
         self.area = area # [m2]
         self.temporal = False
         self.spatial  = False
-        if time is not None: self.temporal = True
+        self.dt       = 0.
+        if time is not None: 
+            self.temporal = True
+            self.dt = (time[1:]-time[:-1]).mean()
         if lat  is not None: self.spatial  = True
         if lon  is not None:
             self.lon = (self.lon<=180)*self.lon+(self.lon>180)*(self.lon-360)
@@ -35,7 +39,7 @@ class Variable:
         def _checkTime(t,dataset):
             if "time" in dataset.dimensions.keys():
                 assert t.shape == dataset.variables["time"][...].shape
-                assert np.allclose(t,dataset.variables["time"][...],atol=15)
+                assert np.allclose(t,dataset.variables["time"][...],atol=0.5*self.dt)
             else:
                 dataset.createDimension("time")
                 T = dataset.createVariable("time","double",("time"))
@@ -46,8 +50,31 @@ class Variable:
                 T.setncattr("standard_name","time")
                 T[...] = t
 
+        def _checkSpace(lat,lon,dataset):
+            if "lat" in dataset.dimensions.keys():
+                assert lat.shape == dataset.variables["lat"][...].shape
+                assert np.allclose(lat,dataset.variables["lat"][...])
+                assert lon.shape == dataset.variables["lon"][...].shape
+                assert np.allclose(lon,dataset.variables["lon"][...])
+            else:
+                dataset.createDimension("lon")
+                X = dataset.createVariable("lon","double",("lon"))
+                X.setncattr("units","degrees_east")
+                X.setncattr("axis","X")
+                X.setncattr("long_name","longitude")
+                X.setncattr("standard_name","longitude")
+                X[...] = lon
+                dataset.createDimension("lat")
+                Y = dataset.createVariable("lat","double",("lat"))
+                Y.setncattr("units","degrees_north")
+                Y.setncattr("axis","Y")
+                Y.setncattr("long_name","latitude")
+                Y.setncattr("standard_name","latitude")
+                Y[...] = lat
+
         if self.temporal: _checkTime(self.time,dataset)
-        
+        if self.spatial:  _checkSpace(self.lat,self.lon,dataset)
+
         dim = []
         if self.temporal: 
             dim.append("time")
@@ -78,8 +105,55 @@ class Variable:
         unit = self.unit.replace(" m-2","")
         return Variable(integral,unit,time=self.time,name=name)
 
-    def convert(self,unit):
+    def annualCycle(self,):
         pass
+
+    def convert(self,unit):
+        r"""Lame attempt to handle unit conversions"""
+        def _parseToken(t):
+            power = 1.
+            denom = False
+            if "-" in t:
+                t     = t.split("-")
+                power = float(t[-1])
+                denom = True
+                t     = t[0]
+            return t,denom,power
+        stoken = self.unit.split(" ")
+        ttoken =      unit.split(" ")
+        fct    = 1.0
+        for s in stoken:
+            s,sdenom,spower = _parseToken(s)
+            found = False
+            for t in ttoken:
+                t,tdenom,tpower = _parseToken(t)
+                if convert[s].has_key(t):
+                    found = True
+                    if sdenom: 
+                        fct /= convert[s][t]**spower
+                    else:
+                        fct *= convert[s][t]**spower
+                if found: break
+            assert found==True
+        self.data *= fct
+        self.unit  = unit
+        return self
+
+    def spatialDifference(self,var):
+        def _make_bnds(x):
+            bnds       = np.zeros(x.size+1)
+            bnds[1:-1] = 0.5*(x[1:]+x[:-1])
+            bnds[0]    = x[0] -0.5*(x[ 1]-x[ 0])
+            bnds[-1]   = x[-1]+0.5*(x[-1]-x[-2])
+            return bnds
+        assert var.unit == self.unit
+        lat_bnd1 = _make_bnds(self.lat)
+        lon_bnd1 = _make_bnds(self.lon)
+        lat_bnd2 = _make_bnds( var.lat)
+        lon_bnd2 = _make_bnds( var.lon)
+        lat_bnd,lon_bnd,lat,lon,error = il.TrueError(lat_bnd1,lon_bnd1,self.lat,self.lon,self.data,
+                                                     lat_bnd2,lon_bnd2, var.lat, var.lon, var.data)
+        return Variable(error,var.unit,lat=lat,lon=lon,name="%s_minus_%s" % (var.name,self.name))
 
     def integrateInTime(self):
         if not self.temporal: raise il.NotTemporalVariable()
@@ -92,29 +166,40 @@ class Variable:
         if " y-1" in self.unit: 
             integral *= spy
             unit      = self.unit.replace(" y-1","")
-        return Variable(integral,unit,lat=self.lat,lon=self.lon,area=self.area)
+        name = self.name + "_integrated_over_time"
+        return Variable(integral,unit,lat=self.lat,lon=self.lon,area=self.area,name=name)
 
-    def bias(self,var):
-        pass
+    def _overlap(self,var):
+        mint = max(var.time.min(),self.time.min())
+        maxt = min(var.time.max(),self.time.max())
+        b     = np.argmin(np.abs( var.time-mint)); e     = np.argmin(np.abs( var.time-maxt)) 
+        ref_b = np.argmin(np.abs(self.time-mint)); ref_e = np.argmin(np.abs(self.time-maxt)) 
+        comparable = (var.time[b:e].shape == self.time[ref_b:ref_e].shape)
+        if comparable:
+            comparable = np.allclose(var.time[b:e],self.time[ref_b:ref_e],atol=0.5*self.dt)
+        return comparable,b,e,ref_b,ref_e
 
-    def RMSE(self,var):
-        pass
+    def bias(self,var,normalize="none"):
+        comparable,b,e,vb,ve = self._overlap(var)
+        if not comparable: raise il.VarsNotComparable()
+        mw = il.MonthlyWeights(self.time[b:e])
+        return il.Bias(self.data[b:e],var.data[vb:ve],normalize=normalize)
 
-    def plot(self,ax):
+    def RMSE(self,var,normalize="none"):
+        comparable,b,e,vb,ve = self._overlap(var)
+        if not comparable: raise il.VarsNotComparable()
+        mw = il.MonthlyWeights(self.time[b:e])
+        return il.RootMeanSquaredError(self.data[b:e],var.data[vb:ve],normalize=normalize)
+
+    def plot(self,ax,**keywords):
         if self.temporal and not self.spatial:
             ax.plot(self.time,self.data,'-')
+        if not self.temporal and self.spatial:
+            vmin   = keywords.get("vmin",self.data.min())
+            vmax   = keywords.get("vmax",self.data.max())
+            region = keywords.get("region","global")
+            cmap   = keywords.get("cmap","rainbow")
+            ax     = post.GlobalPlot(self.lat,self.lon,self.data,ax,
+                                     vmin   = vmin  , vmax = vmax,
+                                     region = region, cmap = cmap)
         return ax
-
-if __name__ == "__main__":
-    from netCDF4 import Dataset
-    from os import environ
-    d   = Dataset("%s/DATA/gpp/FLUXNET-MTE/derived/gpp.nc" % environ["ILAMB_ROOT"],mode="r")
-    t   = d.variables["time"]
-    lat = d.variables["lat"]
-    lon = d.variables["lon"]
-    gpp = d.variables["gpp"]
-    v   = Variable(gpp[...],gpp.units,time=t[...],lon=lon[...],lat=lat[...])
-    va  = v.integrateInSpace(region="amazon")
-    vt  = va.integrateInTime()
-
-    #va.plot()

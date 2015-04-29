@@ -27,14 +27,14 @@ class GPPFluxnetGlobalMTE():
         self.data["BiasMaxMag"] = 0
         self.data["obs_spatial_integrated_gpp"] = None
         self.regions = ["global","amazon"]
-        
+
     def getData(self,output_unit=None):
         """Retrieves the confrontation data in the desired unit.
 
         Parameters
         ----------
         output_unit : string, optional
-            if specified, will try to convert the units of the variable 
+            if specified, will try to convert the units of the variable
             extract to these units given (see convert in ILAMB.constants)
 
         Returns
@@ -67,11 +67,11 @@ class GPPFluxnetGlobalMTE():
         Parameters
         ----------
         m : ILAMB.ModelResult.ModelResult
-            the model results                  
+            the model results
         """
         # If the model data doesn't have both cell areas and land
         # fractions, we can't do area integrations
-        if m.cell_areas is None or m.land_fraction is None: 
+        if m.cell_areas is None or m.land_fraction is None:
             msg  = "The %s model cannot perform the %s confrontation " % (m.name,self.name)
             msg += "because it does not have either areas or land fractions"
             raise il.AreasNotInModel(msg)
@@ -83,59 +83,53 @@ class GPPFluxnetGlobalMTE():
         t0,tf = obs_gpp.time.min()-7,obs_gpp.time.max()+7
 
         # get the model data
-        mod_gpp = m.extractTimeSeries("gpp",
-                                      initial_time=t0,final_time=tf,
+        mod_gpp = m.extractTimeSeries("gpp",initial_time=t0,final_time=tf,
                                       output_unit="g m-2 s-1")
 
-        obs_spaceint_gpp = obs_gpp.integrateInSpace()
-        mod_spaceint_gpp = mod_gpp.integrateInSpace()
-
+        # open a netCDF4 dataset for dumping confrontation information
         f = Dataset("%s_%s.nc" % (self.name,m.name),mode="w")
-        mod_spaceint_gpp.toNetCDF4(f)
-        f.close()
 
-        """
-        # get the model result
-        model_t,model_gpp,unit = m.extractTimeSeries("gpp",
-                                                     initial_time=t0,final_time=tf,
-                                                     output_unit="g m-2 s-1")        
+        # integrate in time, independent of regions
+        mod_timeint_gpp  = mod_gpp.integrateInTime()
+        obs_timeint_gpp  = obs_gpp.integrateInTime()
 
-        # perform spatial integrals and analysis
-        result = il.AnalysisSpatiallyIntegrated(model_t,model_gpp,m.lat,m.lon,m.land_areas,unit,
-                                                  obs_t,  obs_gpp,  lat,  lon,       areas,
-                                                regions=self.regions,
-                                                space_integrated_ref_var=self.data["obs_spatial_integrated_gpp"])
-        model_spatial_integrated_gpp            = result[0]
-        self.data["obs_spatial_integrated_gpp"] = result[1]
-        spatial_metrics                         = result[2]
+        # diff map of the time integrated gpp
+        bias = obs_timeint_gpp.spatialDifference(mod_timeint_gpp)
 
-        # write confrontation results to output file
-        f = Dataset("%s_%s.nc" % (self.name,m.name),mode="w")
-        f.createDimension("time")
-
-        T = f.createVariable("time","double",("time"))
-        T.setncattr("units","days since 1850-01-01 00:00:00")
-        T.setncattr("calendar","noleap")
-        T.setncattr("axis","T")
-        T.setncattr("long_name","time")
-        T.setncattr("standard_name","time")
-        T[...] = model_t
-
+        # regional analysis
         for region in self.regions:
-            G = f.createVariable("spatial_integrated_gpp_over_%s" % region,"double",("time"))
-            G.setncattr("standard_name","Spatially Integrated GPP over %s" % region)
-            G.setncattr("long_name","Carbon Mass Flux out of Atmosphere due to Gross Primary Production on Land integrated over %s land area" % region)
-            G.setncattr("units","g m-2 d-1")
-            for metric in spatial_metrics[region].keys():
-                conversion = spd/m.land_area
-                if "score" in metric: conversion = 1.
-                G.setncattr("metric_%s" % metric,spatial_metrics[region][metric]*conversion)
-            G[...] = model_spatial_integrated_gpp[region]/m.land_area*spd
+
+            # integrate in space
+            obs_spaceint_gpp = obs_gpp.integrateInSpace(region=region).convert("Pg y-1")
+            mod_spaceint_gpp = mod_gpp.integrateInSpace(region=region).convert("Pg y-1")
+
+            obs_spaceint_gpp.bias(mod_spaceint_gpp)
+            obs_spaceint_gpp.bias(mod_spaceint_gpp,normalize="score")
+            obs_spaceint_gpp.RMSE(mod_spaceint_gpp)
+            obs_spaceint_gpp.RMSE(mod_spaceint_gpp,normalize="score")
+
+            mod_spaceint_gpp.toNetCDF4(f)
+
+
+            fig,ax = plt.subplots(figsize=(6.8,2.8),tight_layout=True)
+            ax  = obs_spaceint_gpp.plot(ax)
+            ax  = mod_spaceint_gpp.plot(ax)
+            plt.show()
+
+            fig = plt.figure(figsize=(6.8,2.8))
+            ax  = fig.add_axes([0.06,0.025,0.88,0.965])
+            obs_timeint_gpp.plot(ax,region=region,cmap="Greens")
+            plt.show()
+
+            fig  = plt.figure(figsize=(6.8,2.8))
+            ax   = fig.add_axes([0.06,0.025,0.88,0.965])
+
+            vmax = np.abs(bias.data).max()
+            bias.plot(ax,vmin=-vmax,vmax=vmax,region=region,cmap="seismic")
+            plt.show()
 
         f.close()
-        """
-
-        return 
+        return
 
     def plot(self,M,path=""):
         """Generate all plots for this confrontation
@@ -147,14 +141,14 @@ class GPPFluxnetGlobalMTE():
             self._mapPeriodMeanGPP(path=path,region=region)
             self._mapPeak(path=path,region=region)
             self._mapPeakStd(path=path,region=region)
-            for m in M: 
+            for m in M:
                 self._mapPeriodMeanGPP(m=m,path=path,region=region)
                 self._mapPeak(m=m,path=path,region=region)
                 self._mapPeakStd(m=m,path=path,region=region)
                 self._mapBias(m,path=path,region=region)
                 self._mapShift(m,path=path,region=region)
         # Composite time series
-        for m in M: 
+        for m in M:
             self._timeSeriesMeanGPP(m,path=path)
             self._timeSeriesAnnualCycle(m,path=path)
 
@@ -162,7 +156,7 @@ class GPPFluxnetGlobalMTE():
         if m is not None:
             if self.name not in m.confrontations.keys(): return
         w     = 6.8
-        fig   = plt.figure(figsize=(w,0.4117647058823529*w)) 
+        fig   = plt.figure(figsize=(w,0.4117647058823529*w))
         ax    = fig.add_axes([0.06,0.025,0.88,0.965])
         if m is None:
             lat,lon = self.data["lat"],self.data["lon"]
@@ -182,8 +176,8 @@ class GPPFluxnetGlobalMTE():
                         cmap  = "Greens")
         fig.savefig("./%s/%s" % (path,fname))
         plt.close()
-        
-        fig,ax = plt.subplots(figsize=(w,0.15*w),tight_layout=True) 
+
+        fig,ax = plt.subplots(figsize=(w,0.15*w),tight_layout=True)
         post.ColorBar(var,ax,
                       vmin  = 0,
                       vmax  = self.data["GppMax"],
@@ -196,7 +190,7 @@ class GPPFluxnetGlobalMTE():
         if m is not None:
             if self.name not in m.confrontations.keys(): return
         w     = 6.8
-        fig   = plt.figure(figsize=(w,0.4117647058823529*w)) 
+        fig   = plt.figure(figsize=(w,0.4117647058823529*w))
         ax    = fig.add_axes([0.06,0.025,0.88,0.965])
         if m is None:
             lat,lon = self.data["lat"],self.data["lon"]
@@ -221,7 +215,7 @@ class GPPFluxnetGlobalMTE():
         fig.savefig("./%s/%s" % (path,fname))
         plt.close()
 
-        fig,ax = plt.subplots(figsize=(w,0.15*w),tight_layout=True) 
+        fig,ax = plt.subplots(figsize=(w,0.15*w),tight_layout=True)
         post.ColorBar(var,ax,
                       vmin  =  0,
                       vmax  =  11,
@@ -236,7 +230,7 @@ class GPPFluxnetGlobalMTE():
         if m is not None:
             if self.name not in m.confrontations.keys(): return
         w     = 6.8
-        fig   = plt.figure(figsize=(w,0.4117647058823529*w)) 
+        fig   = plt.figure(figsize=(w,0.4117647058823529*w))
         ax    = fig.add_axes([0.06,0.025,0.88,0.965])
         if m is None:
             lat,lon = self.data["lat"],self.data["lon"]
@@ -256,7 +250,7 @@ class GPPFluxnetGlobalMTE():
         fig.savefig("./%s/%s" % (path,fname))
         plt.close()
 
-        fig,ax = plt.subplots(figsize=(w,0.15*w),tight_layout=True) 
+        fig,ax = plt.subplots(figsize=(w,0.15*w),tight_layout=True)
         post.ColorBar(var,ax,
                       cmap  =  "Oranges",
                       label =  "month")
@@ -281,7 +275,7 @@ class GPPFluxnetGlobalMTE():
         fig.savefig("./%s/%s_Bias_%s.png" % (path,m.name,region))
         plt.close()
 
-        fig,ax = plt.subplots(figsize=(w,0.15*w),tight_layout=True) 
+        fig,ax = plt.subplots(figsize=(w,0.15*w),tight_layout=True)
         post.ColorBar(var,ax,
                       vmin  = -self.data["BiasMaxMag"],
                       vmax  =  self.data["BiasMaxMag"],
@@ -308,7 +302,7 @@ class GPPFluxnetGlobalMTE():
         fig.savefig("./%s/%s_Shift_%s.png" % (path,m.name,region))
         plt.close()
 
-        fig,ax = plt.subplots(figsize=(w,0.15*w),tight_layout=True) 
+        fig,ax = plt.subplots(figsize=(w,0.15*w),tight_layout=True)
         post.ColorBar(var,ax,
                       vmin  = -6,
                       vmax  =  6,
@@ -334,7 +328,7 @@ class GPPFluxnetGlobalMTE():
         t    = m.confrontations[self.name]["model"]["t"]/365.+1850
         vbar = m.confrontations[self.name]["model"]["vbar"]/m.land_area*24.*3600.
         ax.plot(t,vbar,'-',color=m.color,label=m.name)
-        
+
         # legend
         handles, labels = ax.get_legend_handles_labels()
         lgd = ax.legend(handles, labels, ncol=2, loc='upper center', bbox_to_anchor=(0.5,1.2))
