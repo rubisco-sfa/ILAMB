@@ -49,6 +49,17 @@ Analysis
    SpatiallyIntegratedTimeSeries
    TemporallyIntegratedTimeSeries
 
+Variable
+~~~~~~~~
+
+.. currentmodule:: ILAMB.Variable
+.. autosummary::
+   :toctree: _generated
+   :nosignatures:
+   :template: class.rst
+
+   Variable
+
 ModelResults
 ------------
 

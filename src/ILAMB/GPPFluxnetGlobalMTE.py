@@ -5,7 +5,6 @@ import ilamblib as il
 from constants import convert,spd
 import Post as post
 from os import stat,environ
-from scipy.interpolate import interp1d
 from Variable import Variable
 
 class GPPFluxnetGlobalMTE():
@@ -39,18 +38,10 @@ class GPPFluxnetGlobalMTE():
 
         Returns
         -------
-        t : numpy.ndarray
-            a 1D array of times in days since 00:00:00 1/1/1850
-        var : numpy.ma.core.MaskedArray
-            an array of the extracted variable
-        unit : string
-            a description of the extracted unit
-        lat,lon : numpy.ndarray
-            1D arrays of the latitudes and longitudes of cell centers
+        var : ILAMB.Variable.Variable
+            the requested variable
         """
         t,var,unit,lat,lon = il.ExtractTimeSeries("%s/gpp.nc" % self.path,"gpp")
-
-        # if you asked for a specific unit, try to convert
         if output_unit is not None:
             try:
                 var *= convert["gpp"][output_unit][unit]
@@ -81,6 +72,7 @@ class GPPFluxnetGlobalMTE():
 
         # time limits for this confrontation (with a little padding)
         t0,tf = obs_gpp.time.min()-7,obs_gpp.time.max()+7
+        ndays = tf-t0
 
         # get the model data
         mod_gpp = m.extractTimeSeries("gpp",initial_time=t0,final_time=tf,
@@ -90,8 +82,15 @@ class GPPFluxnetGlobalMTE():
         f = Dataset("%s_%s.nc" % (self.name,m.name),mode="w")
 
         # integrate in time, independent of regions
+        if self.data.has_key("obs_timeint_gpp"):
+            obs_timeint_gpp = self.data["obs_timeint_gpp"]
+        else:
+            obs_timeint_gpp  = obs_gpp.integrateInTime()
+            self.data["obs_timeint_gpp"] = obs_timeint_gpp 
         mod_timeint_gpp  = mod_gpp.integrateInTime()
-        obs_timeint_gpp  = obs_gpp.integrateInTime()
+
+        # dump to file
+        mod_timeint_gpp.toNetCDF4(f)
 
         # diff map of the time integrated gpp
         bias = obs_timeint_gpp.spatialDifference(mod_timeint_gpp)
@@ -100,33 +99,22 @@ class GPPFluxnetGlobalMTE():
         for region in self.regions:
 
             # integrate in space
-            obs_spaceint_gpp = obs_gpp.integrateInSpace(region=region).convert("Pg y-1")
+            if self.data.has_key("obs_spaceint_gpp"):
+                obs_spaceint_gpp = self.data["obs_spaceint_gpp"]
+            else:
+                obs_spaceint_gpp = obs_gpp.integrateInSpace(region=region).convert("Pg y-1")
+                self.data["obs_spaceint_gpp"] = obs_spaceint_gpp 
             mod_spaceint_gpp = mod_gpp.integrateInSpace(region=region).convert("Pg y-1")
 
-            obs_spaceint_gpp.bias(mod_spaceint_gpp)
-            obs_spaceint_gpp.bias(mod_spaceint_gpp,normalize="score")
-            obs_spaceint_gpp.RMSE(mod_spaceint_gpp)
-            obs_spaceint_gpp.RMSE(mod_spaceint_gpp,normalize="score")
+            # metrics
+            metrics = {}
+            metrics["bias"      ] = obs_spaceint_gpp.bias(mod_spaceint_gpp)
+            metrics["bias_score"] = obs_spaceint_gpp.bias(mod_spaceint_gpp,normalize="score")
+            metrics["rmse"      ] = obs_spaceint_gpp.RMSE(mod_spaceint_gpp)
+            metrics["rmse_score"] = obs_spaceint_gpp.RMSE(mod_spaceint_gpp,normalize="score")
 
-            mod_spaceint_gpp.toNetCDF4(f)
-
-
-            fig,ax = plt.subplots(figsize=(6.8,2.8),tight_layout=True)
-            ax  = obs_spaceint_gpp.plot(ax)
-            ax  = mod_spaceint_gpp.plot(ax)
-            plt.show()
-
-            fig = plt.figure(figsize=(6.8,2.8))
-            ax  = fig.add_axes([0.06,0.025,0.88,0.965])
-            obs_timeint_gpp.plot(ax,region=region,cmap="Greens")
-            plt.show()
-
-            fig  = plt.figure(figsize=(6.8,2.8))
-            ax   = fig.add_axes([0.06,0.025,0.88,0.965])
-
-            vmax = np.abs(bias.data).max()
-            bias.plot(ax,vmin=-vmax,vmax=vmax,region=region,cmap="seismic")
-            plt.show()
+            # dump to file
+            mod_spaceint_gpp.toNetCDF4(f,attributes=metrics)
 
         f.close()
         return
@@ -374,3 +362,23 @@ class GPPFluxnetGlobalMTE():
         lgd = ax.legend(handles, labels, ncol=2, loc='upper center', bbox_to_anchor=(0.5,1.2))
         fig.savefig('./%s/%s_Cycle.png' % (path,m.name), bbox_extra_artists=(lgd,), bbox_inches='tight')
         plt.close()
+
+
+"""
+            fig,ax = plt.subplots(figsize=(6.8,2.8),tight_layout=True)
+            ax  = obs_spaceint_gpp.plot(ax)
+            ax  = mod_spaceint_gpp.plot(ax)
+            plt.show()
+
+            fig = plt.figure(figsize=(6.8,2.8))
+            ax  = fig.add_axes([0.06,0.025,0.88,0.965])
+            obs_timeint_gpp.plot(ax,region=region,cmap="Greens")
+            plt.show()
+
+            fig  = plt.figure(figsize=(6.8,2.8))
+            ax   = fig.add_axes([0.06,0.025,0.88,0.965])
+
+            vmax = np.abs(bias.data).max()
+            bias.plot(ax,vmin=-vmax,vmax=vmax,region=region,cmap="seismic")
+            plt.show()
+"""
