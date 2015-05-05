@@ -85,6 +85,7 @@ regions["ceas"]         = (( 30.25, 54.75),(  30.25, 135.25))
 regions["seas"]         = (( 10.25, 30.25),(  65.25, 120.25))
 regions["eqas"]         = ((-10.25, 10.25),(  99.75, 150.25))
 regions["aust"]         = ((-34.75,-10.25),( 124.75, 154.75))
+regions["us-cornbelt"]  = (( 33.00, 55.00),(-116.00,- 80.00))
 
 region_names = {"global":"global",
                 "bona"  :"Boreal North America",

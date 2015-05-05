@@ -197,11 +197,22 @@ def ExtractTimeSeries(filename,variable,verbose=False):
         if verbose: print "%s is not a variable in this netCDF file" % variable
         raise VarNotInFile("%s is not a variable in this netCDF file" % variable)
     tvar = f.variables["time"]
-    t    = num2date(tvar[:],tvar.units,calendar=tvar.calendar) # converts data to dates
+    cal  = "noleap"
+    unit = tvar.units
+    data = tvar[:]
+    if "calendar" in tvar.ncattrs(): cal = tvar.calendar
+    if "year" in tvar.units: 
+        data *= 365.
+        unit  = "days since 0-1-1"
+    t    = num2date(data,unit,calendar=cal) # converts data to dates
     t    = date2num(t,"days since 1850-1-1",calendar="noleap") # convert to numbers but with uniform datum and calendar
     var  = vari[...]
-    lat  = f.variables["lat"][...]
-    lon  = f.variables["lon"][...]
+    try:
+        lat  = f.variables["lat"][...]
+        lon  = f.variables["lon"][...]
+    except:
+        lat  = f.variables["latitude"][...]
+        lon  = f.variables["longitude"][...]
     if type(var) is type(np.asarray([])):
         var = np.ma.masked_values(var,vari._FillValue,copy=False)
     return t,var,vari.units,lat,lon

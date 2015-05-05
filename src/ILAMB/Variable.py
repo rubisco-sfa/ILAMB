@@ -4,6 +4,15 @@ from constants import spd,spy,convert,regions as ILAMBregions
 import numpy as np
 import pylab as plt
 
+def FromNetCDF4(filename,variable_name,**keywords):
+    """hack, fix, note: t0 and tf must bracket the data somehow"""
+    t0 = keywords.get("t0",-1e20)
+    tf = keywords.get("tf",+1e20)
+    t,var,unit,lat,lon = il.ExtractTimeSeries(filename,variable_name)
+    begin = np.argmin(np.abs(t-t0))
+    end   = np.argmin(np.abs(t-tf))+1
+    return Variable(var[begin:end,...],unit,name=variable_name,time=t[begin:end],lat=lat,lon=lon)
+
 class Variable:
     """A class for managing variables defined in time and the globe.
 
@@ -258,6 +267,13 @@ class Variable:
                                                      lat_bnd2,lon_bnd2, var.lat, var.lon, var.data)
         diff = Variable(error,var.unit,lat=lat,lon=lon,name="%s_minus_%s" % (var.name,self.name))
         return diff
+
+    def interpolateSpatial(self,lat,lon):
+        if lat is None or lon is None: raise il.NotSpatialVariable("Must be a spatial variable to interpolate")
+        assert self.temporal == False
+        if not self.spatial: raise il.NotSpatialVariable("Must be a spatial variable to interpolate")
+        data = il.NearestNeighborInterpolation(self.lat,self.lon,self.data,lat,lon)
+        return Variable(data,self.unit,lat=lat,lon=lon)
 
     def integrateInTime(self):
         """Integrates the variable over time
