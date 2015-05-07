@@ -487,6 +487,33 @@ def AnnualCycleInformation(t,var):
     tmstd = np.ma.std (ts,axis=0)
     return vmean,vstd,tmax,tmstd
 
+def AnnualMaxTime(t,var):
+    r"""Returns information regarding the annual cycle
+
+    Parameters
+    ----------
+    t : numpy.ndarray
+        a 1D array of times in days since 00:00:00 1/1/1850
+    var : numpy.ndarray
+        an array assumed to be a monthly average of a variable    
+
+    Returns
+    -------
+    tmax : numpy.ndarray
+        a 1D array of the mean maximum times of the year in fractions
+        of a year
+
+    """
+    begin = np.argmin(t[:11]%365)
+    end   = begin+int(t[begin:].size/12.)*12
+    ts    = np.arange(12)
+    shp   = (-1,12) + var.shape[1:]
+    v     = var[begin:end,...].reshape(shp)
+    ts    = ts[np.ma.argmax(v,axis=1)]
+    tmax  = np.ma.masked_array(np.ma.mean(ts,axis=0),mask=var[0,...].mask)
+    tmstd = np.ma.masked_array(np.ma.std (ts,axis=0),mask=var[0,...].mask)
+    return tmax,tmstd
+
 def DecadalMaxTime(t,var):
     r""" 
     For each decade in the input dataset, compute the mean time of the
@@ -629,10 +656,12 @@ def TemporallyIntegratedTimeSeries(t,var):
     """
     wgt  = MonthlyWeights(t)*365*24*3600
     if var.ndim == 1:
-        vhat = np.ma.sum(var*wgt) 
+        vhat = np.ma.sum(var*wgt)
+        mask = np.zeros(vhat.shape,dtype=int)
     else:
-        vhat = np.ma.sum(var*wgt[:,np.newaxis,np.newaxis],axis=0) 
-    return np.ma.masked_array(vhat)
+        vhat = np.ma.sum(var*wgt[:,np.newaxis,np.newaxis],axis=0)
+        mask = var[0,...].mask
+    return np.ma.masked_array(vhat,mask=mask,copy=False)
 
 def CellAreas(lat,lon):
     """Given arrays of latitude and longitude, return cell areas in square meters.

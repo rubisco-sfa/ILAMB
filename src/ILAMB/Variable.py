@@ -25,7 +25,7 @@ class Variable:
     pseudocolor plot if the variable is spatial.
     """
 
-    def __init__(self,data,unit,name="unnamed",time=None,lat=None,lon=None,area=None):
+    def __init__(self,data,unit,name="unnamed",time=None,lat=None,lon=None,area=None,std=None):
         """Constructor for the variable class
 
         Parameter
@@ -48,9 +48,13 @@ class Variable:
             a 1D array of longitudes of cell centroids
         area : numpy.ndarray, optional
             a 2D array of the cell areas
+        std :  numpy.ndarray, optional
+            an array of standard deviations of the shape of the data
+
         """
         assert type(data) is type(np.ma.masked_array())
         self.data = data # [monthly means (for now)]
+        self.std  = std
         self.unit = unit
         self.name = name
         self.attributes = {}
@@ -78,7 +82,9 @@ class Variable:
             # etc)
             dt = (time[1:]-time[:-1]).mean()
             if np.allclose(dt,30,atol=3): self.monthly = True
-        
+        if self.std is not None:
+            assert self.data.shape == self.std.shape
+
     def toNetCDF4(self,dataset,attributes={}):
         """Adds the variable to the specified netCDF4 dataset
 
@@ -400,13 +406,31 @@ class Variable:
         region = keywords.get("region","global")
         cmap   = keywords.get("cmap","rainbow")
         if self.temporal and not self.spatial:
-            ax.plot(self.time/365.+1850,self.data,'-',
+            t = self.time/365.+1850
+            if self.std is not None:
+                ax.fill_between(t,self.data-self.std,self.data+self.std,
+                                color=color,alpha=0.5*alpha)
+            ax.plot(t,self.data,'-',
                     color=color,lw=lw,alpha=alpha,label=label)
-        if not self.temporal and self.spatial:
+        elif not self.temporal and self.spatial:
             ax     = post.GlobalPlot(self.lat,self.lon,self.data,ax,
                                      vmin   = vmin  , vmax = vmax,
                                      region = region, cmap = cmap)
         return ax
 
     def annualCycle(self):
-        pass
+        if not self.temporal: raise il.NotTemporalVariable()
+        var = self
+        if self.spatial: var = self.integrateInSpace()
+        vmean,vstd,tmax,tmaxstd = il.AnnualCycleInformation(var.time,var.data)
+        return Variable(vmean,var.unit,name="annual_cycle_of_%s" % self.name,std=vstd,time=np.arange(12)),tmax,tmaxstd
+        
+    def phase(self):
+        if not self.temporal: raise il.NotTemporalVariable()
+        tmax,tmaxstd = il.AnnualMaxTime(self.time,self.data)
+        return Variable(tmax,"month",name="month_of_max_gpp",lat=self.lat,lon=self.lon)
+        
+        
+
+        
+

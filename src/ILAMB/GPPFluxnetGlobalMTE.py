@@ -22,9 +22,6 @@ class GPPFluxnetGlobalMTE():
             msg += "Did you download the data? Have you set the ILAMB_ROOT envronment variable?"
             raise il.MisplacedData(msg)
         self.data = {}
-        self.data["GppMax"    ] = 0
-        self.data["BiasMaxMag"] = 0
-        self.data["obs_spatial_integrated_gpp"] = None
         self.regions = ["global","amazon"]
         self.output_path = "_build/GPPFluxnetGlobalMTE"
         dirs = self.output_path.split("/")
@@ -85,28 +82,36 @@ class GPPFluxnetGlobalMTE():
         # get the model data
         mod_gpp = m.extractTimeSeries("gpp",initial_time=t0,final_time=tf,
                                       output_unit="g m-2 s-1")
+        
+        # ensure that oceans are properly masked
+        mod_gpp.data = np.ma.masked_array(mod_gpp.data,mask=mod_gpp.data.mask+(m.land_fraction<1e-2)[np.newaxis,:,:],copy=False)
 
         # open a netCDF4 dataset for dumping confrontation information
         f = Dataset("%s/%s_%s.nc" % (self.output_path,self.name,m.name),mode="w")
 
         # integrate in time, independent of regions
         if self.data.has_key("timeint_gpp"):
-            obs_timeint_gpp = self.data["timeint_gpp"]
+            obs_timeint_gpp          = self.data["timeint_gpp"]
         else:
-            obs_timeint_gpp = obs_gpp.integrateInTime()
+            obs_timeint_gpp          = obs_gpp.integrateInTime()
             self.data["timeint_gpp"] = obs_timeint_gpp
-        mod_timeint_gpp = mod_gpp.integrateInTime()
+            self.data["GppMax"]      = obs_timeint_gpp.data.max()
+            self.data["BiasMaxMag"]  = 0
+        mod_timeint_gpp      = mod_gpp.integrateInTime()
+        self.data["GppMax"]  = max(self.data["GppMax"],mod_timeint_gpp.data.max())
         cdata["timeint_gpp"] = mod_timeint_gpp
-
-        # dump to file
         mod_timeint_gpp.toNetCDF4(f)
 
         # diff map of the time integrated gpp
         bias = obs_timeint_gpp.spatialDifference(mod_timeint_gpp)
+        self.data["BiasMaxMag"]   = max(self.data["BiasMaxMag"],np.abs(bias.data).max())
+        cdata["timeint_bias_gpp"] = bias
 
         # regional analysis
         cdata    ["spaceint_gpp"] = {}
+        cdata    ["cycle_gpp"   ] = {}
         self.data["spaceint_gpp"] = {}
+        self.data["cycle_gpp"   ] = {}
         for region in self.regions:
             
             # integrate in space
@@ -128,18 +133,45 @@ class GPPFluxnetGlobalMTE():
             # dump to file
             mod_spaceint_gpp.toNetCDF4(f,attributes=metrics)
 
+            # annual cycle
+            if self.data["cycle_gpp"].has_key(region):
+                obs_cycle_gpp = self.data["cycle_gpp"][region]
+            else:
+                obs_cycle_gpp,obs_tmax,obs_tmaxstd = obs_spaceint_gpp.annualCycle()
+                self.data["cycle_gpp"][region] = obs_cycle_gpp 
+            mod_cycle_gpp,mod_tmax,mod_tmaxstd = mod_spaceint_gpp.annualCycle()
+            cdata["cycle_gpp"][region] = mod_cycle_gpp
+
+        # phase
+        if self.data.has_key("phase_gpp"):
+            obs_phase_gpp = self.data["phase_gpp"]
+        else:
+            obs_phase_gpp = obs_gpp.phase()
+            self.data["phase_gpp"] = obs_phase_gpp    
+        mod_phase_gpp = mod_gpp.phase()
+        cdata["phase_gpp"] = mod_phase_gpp
+
         f.close()
         return cdata
 
-    def plot(self,M,path=""):
+    def plot(self,M):
+
+        print self.data["GppMax"],self.data["BiasMaxMag"]
 
         for region in self.regions:            
 
             # benchmark time integrated mean
             fig   = plt.figure(figsize=(6.8,2.8))
             ax    = fig.add_axes([0.06,0.025,0.88,0.965])
-            self.data["timeint_gpp"].plot(ax,region=region,cmap="Greens")
+            self.data["timeint_gpp"].plot(ax,region=region,vmin=0,vmax=self.data["GppMax"],cmap="Greens")
             fig.savefig("%s/%s_Benchmark_%s_timeint.png" % (self.output_path,self.name,region))
+            plt.close()
+
+            # benchmark phase info
+            fig   = plt.figure(figsize=(6.8,2.8))
+            ax    = fig.add_axes([0.06,0.025,0.88,0.965])
+            self.data["phase_gpp"].plot(ax,region=region,cmap="jet")
+            fig.savefig("%s/%s_Benchmark_%s_phase.png" % (self.output_path,self.name,region))
             plt.close()
 
         for m in M:
@@ -150,8 +182,16 @@ class GPPFluxnetGlobalMTE():
                 # model time integrated mean
                 fig   = plt.figure(figsize=(6.8,2.8))
                 ax    = fig.add_axes([0.06,0.025,0.88,0.965])
-                data["timeint_gpp"].plot(ax,region=region,cmap="Greens")
+                data["timeint_gpp"].plot(ax,region=region,vmin=0,vmax=self.data["GppMax"],cmap="Greens")
                 fig.savefig("%s/%s_%s_%s_timeint.png" % (self.output_path,self.name,m.name,region))
+                plt.close()
+
+                # bias of time integrated mean
+                fig   = plt.figure(figsize=(6.8,2.8))
+                ax    = fig.add_axes([0.06,0.025,0.88,0.965])
+                data["timeint_bias_gpp"].plot(ax,region=region,vmin=-self.data["BiasMaxMag"],
+                                              vmax=self.data["BiasMaxMag"],cmap="seismic")
+                fig.savefig("%s/%s_%s_%s_bias.png" % (self.output_path,self.name,m.name,region))
                 plt.close()
 
                 # model space integrated mean compared to benchmark
@@ -167,3 +207,24 @@ class GPPFluxnetGlobalMTE():
                             bbox_extra_artists=(lgd,), bbox_inches='tight')
                 plt.close()
 
+                # model annual cycle compared to benchmark
+                fig = plt.figure(figsize=(6.8,2.8*0.8))
+                ax  = fig.add_axes([0.06,0.025,0.88,0.965])
+                self.data["cycle_gpp"][region].plot(ax,lw=2,alpha=0.25,color='k',label="Obs")
+                data["cycle_gpp"][region].plot(ax,color=m.color,label=m.name)
+                ax.set_xlim(1850.,11./365.+1850)
+                ax.set_xticks(np.arange(12)/365.+1850)
+                ax.set_xticklabels(["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"])
+                ax.set_ylabel(data["cycle_gpp"][region].unit)
+                handles, labels = ax.get_legend_handles_labels()
+                lgd = ax.legend(handles, labels, ncol=2, loc='upper center', bbox_to_anchor=(0.5,1.2))
+                fig.savefig("%s/%s_%s_%s_cycle.png" % (self.output_path,self.name,m.name,region),
+                            bbox_extra_artists=(lgd,), bbox_inches='tight')
+                plt.close()
+
+                # model phase info
+                fig   = plt.figure(figsize=(6.8,2.8))
+                ax    = fig.add_axes([0.06,0.025,0.88,0.965])
+                data["phase_gpp"].plot(ax,region=region,cmap="jet")
+                fig.savefig("%s/%s_%s_%s_phase.png" % (self.output_path,self.name,m.name,region))
+                plt.close()
