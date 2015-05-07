@@ -61,35 +61,21 @@ for c in C:
     dt = time.time()-t0
     print "  Completed in %.1f seconds" % dt
 
-"""
 print "\nPost-processing..."
-
-# Put everything here
-build = "./_build"
-try:
-    os.mkdir(build)
-except:
-    pass
 
 # Postprocess
 for c in C:
 
     print "\n  %s" % c.name
     t0 = time.time()
-    path = "%s/%s" % (build,c.name)
-    try:
-        os.mkdir(path)
-    except:
-        pass
 
     # HTML Google-chart table
-    f = file("%s/%s.html" % (path,c.name),"w")
-    f.write(post.ConfrontationTableGoogle(c,M,regions=c.regions))
-    f.close()
+    #f = file("%s/%s.html" % (path,c.name),"w")
+    #f.write(post.ConfrontationTableGoogle(c,M,regions=c.regions))
+    #f.close()
 
     # generate plots
-    c.plot(M,path=path)
+    c.plot(M)
     
     dt = time.time()-t0
     print "  Completed in %.1f seconds" % dt
-"""

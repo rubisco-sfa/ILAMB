@@ -391,12 +391,17 @@ class Variable:
         cmap : str
             The colormap to be used in plotting the spatial variable
         """
+        lw     = keywords.get("lw",1.0)
+        alpha  = keywords.get("alpha",1.0)
+        color  = keywords.get("color","k")
+        label  = keywords.get("label",None)
         vmin   = keywords.get("vmin",self.data.min())
         vmax   = keywords.get("vmax",self.data.max())
         region = keywords.get("region","global")
         cmap   = keywords.get("cmap","rainbow")
         if self.temporal and not self.spatial:
-            ax.plot(self.time,self.data,'-')
+            ax.plot(self.time/365.+1850,self.data,'-',
+                    color=color,lw=lw,alpha=alpha,label=label)
         if not self.temporal and self.spatial:
             ax     = post.GlobalPlot(self.lat,self.lon,self.data,ax,
                                      vmin   = vmin  , vmax = vmax,
