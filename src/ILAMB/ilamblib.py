@@ -506,7 +506,7 @@ def AnnualMaxTime(t,var):
     """
     begin = np.argmin(t[:11]%365)
     end   = begin+int(t[begin:].size/12.)*12
-    ts    = np.arange(12)
+    ts    = mid_months
     shp   = (-1,12) + var.shape[1:]
     v     = var[begin:end,...].reshape(shp)
     ts    = ts[np.ma.argmax(v,axis=1)]

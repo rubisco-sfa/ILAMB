@@ -257,7 +257,7 @@ def GlobalPlot(lat,lon,var,ax,region="global.large",shift=False,**keywords):
 
     bmap.drawcoastlines(linewidth=0.2,color="darkslategrey")
 
-def ColorBar(var,ax,**keywords):
+def ColorBar(ax,**keywords):
     from matplotlib import colorbar,colors
     vmin  = keywords.get("vmin",None)
     vmax  = keywords.get("vmax",None)
@@ -265,8 +265,6 @@ def ColorBar(var,ax,**keywords):
     ticks = keywords.get("ticks",None)
     ticklabels = keywords.get("ticklabels",None)
     label = keywords.get("label",None)
-    if vmin is None: vmin = np.ma.min(var)
-    if vmax is None: vmax = np.ma.max(var)
     cb = colorbar.ColorbarBase(ax,cmap=cmap,
                                norm=colors.Normalize(vmin=vmin,vmax=vmax),
                                orientation='horizontal')

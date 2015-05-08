@@ -2,7 +2,7 @@ from netCDF4 import Dataset
 import numpy as np
 import pylab as plt
 import ilamblib as il
-from constants import convert,spd
+from constants import convert,spd,mid_months
 import Post as post
 import os
 from Variable import Variable
@@ -181,11 +181,31 @@ class GPPFluxnetGlobalMTE():
             fig.savefig("%s/Benchmark_%s_timeint.png" % (self.output_path,region))
             plt.close()
 
+            # legend
+            fig,ax = plt.subplots(figsize=(6.8,1.0),tight_layout=True)
+            post.ColorBar(ax,vmin=0,vmax=self.data["GppMax"],cmap="Greens",label=self.data["timeint_gpp"].unit)
+            fig.savefig("%s/legend_timeint.png" % (self.output_path))
+            plt.close()
+
             # benchmark phase info
             fig   = plt.figure(figsize=(6.8,2.8))
             ax    = fig.add_axes([0.06,0.025,0.88,0.965])
-            self.data["phase_gpp"].plot(ax,region=region,cmap="jet")
+            self.data["phase_gpp"].plot(ax,vmin=0,vmax=365.,region=region,cmap="jet")
             fig.savefig("%s/Benchmark_%s_phase.png" % (self.output_path,region))
+            plt.close()
+
+            # phase legend
+            fig,ax = plt.subplots(figsize=(6.8,1.0),tight_layout=True)
+            post.ColorBar(ax,vmin=0,vmax=365.,ticks=mid_months,cmap="jet",label="month",
+                          ticklabels=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"])
+            fig.savefig("%s/legend_phase.png" % (self.output_path))
+            plt.close()
+
+            # shift legend
+            fig,ax = plt.subplots(figsize=(6.8,1.0),tight_layout=True)
+            post.ColorBar(ax,vmin=-0.5*365.,vmax=+0.5*365.,region=region,cmap="PRGn",label="month",
+                          ticks=np.linspace(-0.5*365,+0.5*365,13),ticklabels=range(-6,7))
+            fig.savefig("%s/legend_shift.png" % (self.output_path))
             plt.close()
 
         for m in M:
@@ -246,6 +266,6 @@ class GPPFluxnetGlobalMTE():
                 # model shift info
                 fig   = plt.figure(figsize=(6.8,2.8))
                 ax    = fig.add_axes([0.06,0.025,0.88,0.965])
-                data["shift_gpp"].plot(ax,vmin=-6,vmax=+6,region=region,cmap="PRGn")
+                data["shift_gpp"].plot(ax,vmin=-0.5*365.,vmax=+0.5*365.,region=region,cmap="PRGn")
                 fig.savefig("%s/%s_%s_shift.png" % (self.output_path,m.name,region))
                 plt.close()
