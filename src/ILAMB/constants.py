@@ -101,7 +101,8 @@ region_names = {"global":"global",
                 "ceas"  :"Central Asia",
                 "seas"  :"Southeast Asia",
                 "eqas"  :"Equatorial Asia",
-                "aust"  :"Australia"}
+                "aust"  :"Australia",
+                "amazon":"Amazon"}
 
 NCARclrs = asarray([[93,0,135],
                     [196,0,43],

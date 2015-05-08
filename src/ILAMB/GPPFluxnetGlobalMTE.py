@@ -64,6 +64,7 @@ class GPPFluxnetGlobalMTE():
         """
         # We will put confrontation data in this dictionary
         cdata = {}
+        cdata["metrics"]= {}
 
         # If the model data doesn't have both cell areas and land
         # fractions, we can't do area integrations
@@ -125,13 +126,14 @@ class GPPFluxnetGlobalMTE():
 
             # metrics
             metrics = {}
-            metrics["bias"      ] = obs_spaceint_gpp.bias(mod_spaceint_gpp)
-            metrics["bias_score"] = obs_spaceint_gpp.bias(mod_spaceint_gpp,normalize="score")
-            metrics["rmse"      ] = obs_spaceint_gpp.RMSE(mod_spaceint_gpp)
-            metrics["rmse_score"] = obs_spaceint_gpp.RMSE(mod_spaceint_gpp,normalize="score")
+            metrics["Bias"     ] = obs_spaceint_gpp.bias(mod_spaceint_gpp)
+            metrics["BiasScore"] = obs_spaceint_gpp.bias(mod_spaceint_gpp,normalize="score")
+            metrics["RMSE"     ] = obs_spaceint_gpp.RMSE(mod_spaceint_gpp)
+            metrics["RMSEScore"] = obs_spaceint_gpp.RMSE(mod_spaceint_gpp,normalize="score")
+            cdata["metrics"][region] = metrics
 
             # dump to file
-            mod_spaceint_gpp.toNetCDF4(f,attributes=metrics)
+            mod_spaceint_gpp.toNetCDF4(f)
 
             # annual cycle
             if self.data["cycle_gpp"].has_key(region):
@@ -150,13 +152,13 @@ class GPPFluxnetGlobalMTE():
             self.data["phase_gpp"] = obs_phase_gpp    
         mod_phase_gpp = mod_gpp.phase()
         cdata["phase_gpp"] = mod_phase_gpp
-
+        shift = obs_phase_gpp.spatialDifference(mod_phase_gpp)
+        cdata["shift_gpp"] = shift
+        
         f.close()
         return cdata
 
     def plot(self,M):
-
-        print self.data["GppMax"],self.data["BiasMaxMag"]
 
         for region in self.regions:            
 
@@ -227,4 +229,11 @@ class GPPFluxnetGlobalMTE():
                 ax    = fig.add_axes([0.06,0.025,0.88,0.965])
                 data["phase_gpp"].plot(ax,region=region,cmap="jet")
                 fig.savefig("%s/%s_%s_%s_phase.png" % (self.output_path,self.name,m.name,region))
+                plt.close()
+
+                # model shift info
+                fig   = plt.figure(figsize=(6.8,2.8))
+                ax    = fig.add_axes([0.06,0.025,0.88,0.965])
+                data["shift_gpp"].plot(ax,vmin=-6,vmax=+6,region=region,cmap="PRGn")
+                fig.savefig("%s/%s_%s_%s_shift.png" % (self.output_path,self.name,m.name,region))
                 plt.close()

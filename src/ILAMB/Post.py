@@ -1,5 +1,6 @@
 import pylab as plt
 import numpy as np
+from constants import region_names
 
 def UseLatexPltOptions(fsize=18):
     params = {'axes.titlesize':fsize,
@@ -68,30 +69,8 @@ def ConfrontationTableASCII(c,M):
             for h in head: s += ("{0:>%d}" % (len(h)+2)).format("~")
     return s
 
-def ConfrontationTableGoogle(c,M,regions=["global"]):
-    from constants import region_names
-    # determine header info
-    head    = None
-    for m in M:
-        if c.name in m.confrontations.keys():
-            head    = m.confrontations[c.name]["metric"].keys()
-            break
-    if head is None: return ""
 
-    # we need to sort the header, I will use a score based on words I
-    # find the in header text
-    def _columnval(name):
-        val = 1
-        if "Score"       in name: val *= 2**4
-        if "Interannual" in name: val *= 2**3
-        if "RMSE"        in name: val *= 2**2
-        if "Bias"        in name: val *= 2**1
-        return val
-    head   = sorted(head,key=_columnval)
-    metric = m.confrontations[c.name]["metric"]
-
-    s  = """
-<html>
+HEAD1 = r"""<html>
   <head>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel="stylesheet" href="http://code.jquery.com/mobile/1.4.5/jquery.mobile-1.4.5.min.css">
@@ -100,171 +79,99 @@ def ConfrontationTableGoogle(c,M,regions=["global"]):
     <script type="text/javascript" src="https://www.google.com/jsapi"></script>
     <script type="text/javascript">
       google.load("visualization", "1", {packages:["table"]});
-      google.setOnLoadCallback(draw%sTable);
-""" % c.name
-    s += "      function draw%sTable() {\n" % c.name
-    s += "        var data = new google.visualization.DataTable();\n"
-    s += "        data.addColumn('string','Model');\n"
-    for h in head: 
-        unit = metric[h]["unit"].replace(" ",r"&thinsp;").replace("-1",r"<sup>-1</sup>")
-        s += """        data.addColumn('number','<span title="%s">%s [%s]</span>');\n""" % (metric[h]["desc"],h,unit)
-    s += "        data.addRows(%d);\n" % (len(M)+1)   
- 
-    row = 0
-    s   += "        data.setCell(%d,0,'Benchmark');" % (row)
-    col = 0
-    for h in head:
-        col += 1
-        if h in c.metric.keys():
-            s += "data.setCell(%d,%d,%.03f); " % (row,col,c.metric[h]["var"])
-        else:
-            s += "data.setCell(%d,%d,null); " % (row,col)
-    s += "\n"
-    for m in M:
-        row += 1
-        col  = 0
-        s   += "        data.setCell(%d,0,'%s'); " % (row,m.name)
-        if c.name in m.confrontations.keys():
-            for h in head: 
-                col += 1
-                s   += "data.setCell(%d,%d,%.03f); " % (row,col,m.confrontations[c.name]["metric"][h]["var"])
-        else:
-            for h in head:
-                col += 1
-                s   += "data.setCell(%d,%d,null); " % (row,col)
-        s += "\n"
-    s += """  
+      google.setOnLoadCallback(drawTable);
+      function drawTable() {
+        var data = new google.visualization.DataTable();
+"""
+
+HEAD2 = r"""
         var table = new google.visualization.Table(document.getElementById('table_div'));
         table.draw(data, {showRowNumber: false,allowHtml: true});
+      }
+    </script>"""
 
-        function updateImages() {
-          try {
-            var row = table.getSelection()[0].row;
-          }
-          catch(err) {
-            var row = 0;
-          }
-          var reg = document.getElementById("region").options[document.getElementById("region").selectedIndex].value
-          var mod = data.getValue(row, 0)
-          $("#header h1 #htxt").text("GPPFluxnetGlobalMTE / " + mod + " / " + reg);
-          document.getElementById("img"  ).src = mod + "_"      + reg + ".png"
-          document.getElementById("bias" ).src = mod + "_Bias_" + reg + ".png"
-          document.getElementById("mean" ).src = mod + "_Mean.png"
-          document.getElementById("cycle").src = mod + "_Cycle.png"
-          document.getElementById("peak" ).src = mod + "_Peak_" + reg + ".png"
-          document.getElementById("bpeak").src = "Benchmark_Peak_" + reg + ".png"
-          document.getElementById("pstd" ).src = mod + "_Pstd_"  + reg + ".png"
-          document.getElementById("shift").src = mod + "_Shift_"+ reg + ".png"
-        }
+def ConfrontationTableGoogle(c,M):
+    """Write out confrontation data in a HTML format"""
+    def _column_sort(name,priority=["Bias","RMSE","Interannual","Score"]):
+        """a local function to sort columns"""
+        val = 1.
+        for i,pname in enumerate(priority):
+            if pname in name: val += 2**i
+        return val
 
+    # which metrics will we have
+    header = None
+    for m in M:
+        if c.name in m.confrontations.keys():
+            header = m.confrontations[c.name]["metrics"][c.regions[0]].keys()
+            break
+    if header is None: return ""
+    header  = sorted(header,key=_column_sort)
+
+    # write out header of the html
+    s  = HEAD1
+    s += "        data.addColumn('string','Model');\n"
+    for region in c.regions:
+        metrics = m.confrontations[c.name]["metrics"][region]
+        for h in header:
+            metric = metrics[h]
+            unit   = metric.unit.replace(" ",r"&thinsp;").replace("-1",r"<sup>-1</sup>")
+            s += """        data.addColumn('number','<span title="%s">%s [%s]</span>');\n""" % (metric.name,h,unit)
+    s += "        data.addRows([\n"
+    for m in M:
+        s += "          ['%s'" % m.name
+        for region in c.regions:
+            metrics = m.confrontations[c.name]["metrics"][region]
+            for h in header:
+                s += ",%.03f" % metrics[h].data
+        s+= "],\n"
+    s += """        ]);
+        var view  = new google.visualization.DataView(data);
+        var rid   = document.getElementById("region").selectedIndex
+"""
+    lenh = len(header)
+    s += "        view.setColumns([0"
+    for i in range(lenh):
+        s += ",%d*rid+%d" % (lenh,i+1)
+    s += "]);"
+    s += """
+        var table = new google.visualization.Table(document.getElementById('table_div'));
+        table.draw(view, {showRowNumber: false,allowHtml: true});
+    """
+    s += """        function updateImages() {
+            try {
+              var row = table.getSelection()[0].row;
+            }
+            catch(err) {
+              var row = 0;
+            }
+            var rid = document.getElementById("region").selectedIndex
+            var reg = document.getElementById("region").options[rid].value
+            var mod = data.getValue(row, 0)
+            $("#header h1 #htxt").text("%s / " + mod + " / " + reg);
+          }""" % c.name
+
+    s += """
         google.visualization.events.addListener(table, 'select', updateImages);
-
         table.setSelection([{'row': 0}]);
         updateImages();
       }
-    </script>
-    <style>
-      #myH1 {
-        transform: 
-          translate(0px, 140px)
-          rotate(270deg);
-        width: 20px;
-      }
-    </style>
-  </head>
+  </script>
   <body>
     <div data-role="page" id="pageone">
       <div id="header" data-role="header" data-position="fixed" data-tap-toggle="false">
-	<h1><span id="htxt">GPPFluxnetGlobalMTE</span></h1>
+	<h1><span id="htxt">%s</span></h1>
       </div>
-
-      <select id="region" onchange="drawGPPFluxnetGlobalMTETable()">
-"""
-    for region in regions:
-        s += '        <option value="%s">%s (%s)</option>\n' % (region,region_names[region],region)
+      <select id="region" onchange="drawTable()">\n""" % c.name
+    for region in c.regions:
+        s += """        <option value="%s">%s (%s)</option>\n""" % (region,region,region_names[region])
+    s += """      </select>
+    <div id="table_div" align="center"></div>"""
     s += """
-      </select>
-      <div id="table_div" align="center"></div>
-
-      <div data-role="collapsible" data-collapsed="false">
-	<h1>Temporally integrated period mean</h1>
-	<table data-role="table" class="ui-responsive" id="myTable">
-	  <thead>
-            <tr>
-	      <th align="right" width="20"><h1 id="myH1">MEAN</h1></th>
-	      <th align="left"><img src="Benchmark_global.png" id="img" width=680 height=280 alt="Data not available"></img></th>
-	      <th align="right" width="20"><h1 id="myH1">BIAS</h1></th>
-	      <th align="left"><img src="" id="bias" width=680 height=280 alt="Data not available"></img><br></th>
-            </tr>
-	  </thead>
-         <tbody>
-            <tr>
-	      <th width="20"></th>
-	      <th><img src="mean_legend.png" id="leg" width=680 height=102 alt="Data not available"></img></th>
-	      <th width="20"></th>
-	      <th><img src="bias_legend.png" id="leg" width=680 height=102 alt="Data not available"></img></th>
-            </tr>
-          </tbody>
-	</table>
-      </div>
-      <div data-role="collapsible" data-collapsed="false">
-	<h1>Spatially integrated regional mean</h1>
-	<table data-role="table" class="ui-responsive" id="myTable">
-	  <thead>
-            <tr>
-	      <th align="right" width="20"><h1 id="myH1">MEAN</h1></th>
-	      <th align="left"><img src="" id="mean" width=680 height=280 alt="Data not available"></img></th>
-            </tr>
-	  </thead>
-	</table>
-      </div>
-      <div data-role="collapsible" data-collapsed="false">
-	<h1>Annual cycle</h1>
-	<table data-role="table" class="ui-responsive" id="myTable">
-	  <thead>
-            <tr>
-	      <th align="right" width="20"><h1 id="myH1">MEAN</h1></th>
-	      <th align="left"><img src="" id="cycle" width=680 height=280 alt="Data not available"></img></th>
-            </tr>
-	  </thead>
-	</table>
-      </div>
-      <div data-role="collapsible" data-collapsed="false">
-	<h1>Phase</h1>
-	<table data-role="table" class="ui-responsive" id="myTable">
-         <thead>
-            <tr>
-	      <th align="right" width="20"><h1 id="myH1">PEAK</h1></th>
-	      <th align="left"><img src="Benchmark_Peak_global.png" id="peak" width=680 height=280 alt="Data not available"></img></th>
-	      <th align="right" width="20"><h1 id="myH1">OBS</h1></th>
-	      <th align="left"><img src="Benchmark_Peak_global.png" id="bpeak" width=680 height=280 alt="Data not available"></img></th>
-            </tr>
-         </thead>
-         <tbody>
-            <tr>
-	      <th width="20"></th>
-	      <th><img src="peak_legend.png" id="leg" width=680 height=102 alt="Data not available"></img></th>
-	      <th width="20"></th>
-	      <th><img src="peak_legend.png" id="leg" width=680 height=102 alt="Data not available"></img></th>
-            </tr>
-            <tr>
-	      <th align="right" width="20"><h1 id="myH1">STDEV</h1></th>
-	      <th align="left"><img src="" id="pstd" width=680 height=280 alt="Data not available"></img></th>
-	      <th align="right" width="20"><h1 id="myH1">SHIFT</h1></th>
-	      <th align="left"><img src="" id="shift" width=680 height=280 alt="Data not available"></img></th>
-            </tr>
-            <tr>
-	      <th width="20"></th>
-	      <th><img src="pstd_legend.png" id="leg" width=680 height=102 alt="Data not available"></img></th>
-	      <th width="20"></th>
-	      <th><img src="shift_legend.png" id="leg" width=680 height=102 alt="Data not available"></img></th>
-            </tr>
-          </tbody>
-	</table>
-      </div>
-
   </body>
-</html>"""
+</html>
+""" 
+
     return s
 
 def GlobalPlot(lat,lon,var,ax,region="global.large",shift=False,**keywords):

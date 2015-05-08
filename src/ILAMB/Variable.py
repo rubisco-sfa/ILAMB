@@ -346,7 +346,11 @@ class Variable:
         comparable,b,e,vb,ve = self._overlap(var)
         if not comparable: raise il.VarsNotComparable()
         mw = il.MonthlyWeights(self.time[b:e])
-        return il.Bias(self.data[b:e],var.data[vb:ve],normalize=normalize)
+        bias = il.Bias(self.data[b:e],var.data[vb:ve],normalize=normalize)
+        bias = np.ma.masked_array(bias)
+        unit = self.unit
+        if "score" == normalize: unit = "-"
+        return Variable(bias,unit,name="bias_of_%s" % var.name)
 
     def RMSE(self,var,normalize="none"):
         """Computes the RootMeanSquaredError
@@ -371,8 +375,13 @@ class Variable:
         """
         comparable,b,e,vb,ve = self._overlap(var)
         if not comparable: raise il.VarsNotComparable()
-        mw = il.MonthlyWeights(self.time[b:e])
-        return il.RootMeanSquaredError(self.data[b:e],var.data[vb:ve],normalize=normalize)
+        mw   = il.MonthlyWeights(self.time[b:e])
+        rmse = il.RootMeanSquaredError(self.data[b:e],var.data[vb:ve],normalize=normalize)
+        rmse = np.ma.masked_array(rmse)
+        unit = self.unit
+        if "score" == normalize: unit = "-"
+        return Variable(rmse,unit,name="rmse_of_%s" % var.name)
+
 
     def plot(self,ax,**keywords):
         """Plots the variable on the given matplotlib axis
