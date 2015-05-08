@@ -29,6 +29,18 @@ class GPPFluxnetGlobalMTE():
             dname = "/".join(dirs[:(i+1)])
             if not os.path.isdir(dname): os.mkdir(dname)
 
+        self.layout = []
+        self.layout.append({"name":"Temporally integrated period mean",
+                            "plots":{"timeint" :["MEAN",True],
+                                     "bias"    :["BIAS",True]}})
+        self.layout.append({"name":"Spatially integrated period mean",
+                            "plots":{"spaceint":["MEAN",False]}})
+        self.layout.append({"name":"Annual cycle",
+                            "plots":{"cycle"   :["CYCLE",False]}})
+        self.layout.append({"name":"Phase",
+                            "plots":{"phase"   :["PHASE",True],
+                                     "shift"   :["SHIFT",True]}})
+
     def getData(self,output_unit=None):
         """Retrieves the confrontation data in the desired unit.
 
@@ -166,14 +178,14 @@ class GPPFluxnetGlobalMTE():
             fig   = plt.figure(figsize=(6.8,2.8))
             ax    = fig.add_axes([0.06,0.025,0.88,0.965])
             self.data["timeint_gpp"].plot(ax,region=region,vmin=0,vmax=self.data["GppMax"],cmap="Greens")
-            fig.savefig("%s/%s_Benchmark_%s_timeint.png" % (self.output_path,self.name,region))
+            fig.savefig("%s/Benchmark_%s_timeint.png" % (self.output_path,region))
             plt.close()
 
             # benchmark phase info
             fig   = plt.figure(figsize=(6.8,2.8))
             ax    = fig.add_axes([0.06,0.025,0.88,0.965])
             self.data["phase_gpp"].plot(ax,region=region,cmap="jet")
-            fig.savefig("%s/%s_Benchmark_%s_phase.png" % (self.output_path,self.name,region))
+            fig.savefig("%s/Benchmark_%s_phase.png" % (self.output_path,region))
             plt.close()
 
         for m in M:
@@ -185,7 +197,7 @@ class GPPFluxnetGlobalMTE():
                 fig   = plt.figure(figsize=(6.8,2.8))
                 ax    = fig.add_axes([0.06,0.025,0.88,0.965])
                 data["timeint_gpp"].plot(ax,region=region,vmin=0,vmax=self.data["GppMax"],cmap="Greens")
-                fig.savefig("%s/%s_%s_%s_timeint.png" % (self.output_path,self.name,m.name,region))
+                fig.savefig("%s/%s_%s_timeint.png" % (self.output_path,m.name,region))
                 plt.close()
 
                 # bias of time integrated mean
@@ -193,7 +205,7 @@ class GPPFluxnetGlobalMTE():
                 ax    = fig.add_axes([0.06,0.025,0.88,0.965])
                 data["timeint_bias_gpp"].plot(ax,region=region,vmin=-self.data["BiasMaxMag"],
                                               vmax=self.data["BiasMaxMag"],cmap="seismic")
-                fig.savefig("%s/%s_%s_%s_bias.png" % (self.output_path,self.name,m.name,region))
+                fig.savefig("%s/%s_%s_bias.png" % (self.output_path,m.name,region))
                 plt.close()
 
                 # model space integrated mean compared to benchmark
@@ -205,7 +217,7 @@ class GPPFluxnetGlobalMTE():
                 ax.set_ylabel(data["spaceint_gpp"][region].unit)
                 handles, labels = ax.get_legend_handles_labels()
                 lgd = ax.legend(handles, labels, ncol=2, loc='upper center', bbox_to_anchor=(0.5,1.2))
-                fig.savefig("%s/%s_%s_%s_spaceint.png" % (self.output_path,self.name,m.name,region),
+                fig.savefig("%s/%s_%s_spaceint.png" % (self.output_path,m.name,region),
                             bbox_extra_artists=(lgd,), bbox_inches='tight')
                 plt.close()
 
@@ -220,7 +232,7 @@ class GPPFluxnetGlobalMTE():
                 ax.set_ylabel(data["cycle_gpp"][region].unit)
                 handles, labels = ax.get_legend_handles_labels()
                 lgd = ax.legend(handles, labels, ncol=2, loc='upper center', bbox_to_anchor=(0.5,1.2))
-                fig.savefig("%s/%s_%s_%s_cycle.png" % (self.output_path,self.name,m.name,region),
+                fig.savefig("%s/%s_%s_cycle.png" % (self.output_path,m.name,region),
                             bbox_extra_artists=(lgd,), bbox_inches='tight')
                 plt.close()
 
@@ -228,12 +240,12 @@ class GPPFluxnetGlobalMTE():
                 fig   = plt.figure(figsize=(6.8,2.8))
                 ax    = fig.add_axes([0.06,0.025,0.88,0.965])
                 data["phase_gpp"].plot(ax,region=region,cmap="jet")
-                fig.savefig("%s/%s_%s_%s_phase.png" % (self.output_path,self.name,m.name,region))
+                fig.savefig("%s/%s_%s_phase.png" % (self.output_path,m.name,region))
                 plt.close()
 
                 # model shift info
                 fig   = plt.figure(figsize=(6.8,2.8))
                 ax    = fig.add_axes([0.06,0.025,0.88,0.965])
                 data["shift_gpp"].plot(ax,vmin=-6,vmax=+6,region=region,cmap="PRGn")
-                fig.savefig("%s/%s_%s_%s_shift.png" % (self.output_path,self.name,m.name,region))
+                fig.savefig("%s/%s_%s_shift.png" % (self.output_path,m.name,region))
                 plt.close()

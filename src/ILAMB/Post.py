@@ -138,7 +138,7 @@ def ConfrontationTableGoogle(c,M):
         var table = new google.visualization.Table(document.getElementById('table_div'));
         table.draw(view, {showRowNumber: false,allowHtml: true});
     """
-    s += """        function updateImages() {
+    s += """    function updateImages() {
             try {
               var row = table.getSelection()[0].row;
             }
@@ -148,15 +148,30 @@ def ConfrontationTableGoogle(c,M):
             var rid = document.getElementById("region").selectedIndex
             var reg = document.getElementById("region").options[rid].value
             var mod = data.getValue(row, 0)
-            $("#header h1 #htxt").text("%s / " + mod + " / " + reg);
-          }""" % c.name
+            $("#header h1 #htxt").text("%s / " + mod + " / " + reg);\n""" % c.name
 
-    s += """
+    # what images do we have?
+    imgs = []
+    for d in c.layout:
+        for img in d["plots"].keys():
+            imgs.append(img)
+    for img in imgs:
+        s += """            document.getElementById("%s").src = mod + "_" + reg + "_%s.png"\n""" % (img,img)
+
+    s += """        }
         google.visualization.events.addListener(table, 'select', updateImages);
         table.setSelection([{'row': 0}]);
         updateImages();
       }
   </script>
+    <style>
+      #myH1 {
+        transform: 
+          translate(0px, 140px)
+          rotate(270deg);
+        width: 20px;
+      }
+    </style>
   <body>
     <div data-role="page" id="pageone">
       <div id="header" data-role="header" data-position="fixed" data-tap-toggle="false">
@@ -166,7 +181,28 @@ def ConfrontationTableGoogle(c,M):
     for region in c.regions:
         s += """        <option value="%s">%s (%s)</option>\n""" % (region,region,region_names[region])
     s += """      </select>
-    <div id="table_div" align="center"></div>"""
+    <div id="table_div" align="center"></div>\n"""
+
+    for sec in c.layout:
+        s += """      <div data-role="collapsible" data-collapsed="false">
+	<h1>%s</h1>\n""" % sec["name"]
+        for plot in sec["plots"].keys():
+            s += """	<table data-role="table" class="ui-responsive" id="myTable">
+	  <thead>
+            <tr>
+	      <th align="right" width="20"><h1 id="myH1">%s</h1></th>
+	      <th align="left"><img src="Benchmark_global_%s.png" id="%s" width=680 height=280 alt="Data not available"></img></th>
+            </tr>
+	  </thead>\n""" % (sec["plots"][plot][0],plot,plot)
+            if sec["plots"][plot][1]:
+                s += """         <tbody>
+            <tr>
+	      <th width="20"></th>
+	      <th><img src="legend_%s.png" id="leg" width=680 height=102 alt="Data not available"></img></th>
+            </tr>
+          </tbody>\n""" % (plot)
+            s += "</table>\n""" 
+        s += "</div>"
     s += """
   </body>
 </html>
