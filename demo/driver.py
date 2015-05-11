@@ -9,16 +9,22 @@ import ILAMB.Post as post
 import pylab as plt
 import numpy as np
 import os,time
+from mpi4py import MPI
+
+# MPI stuff
+comm = MPI.COMM_WORLD
+size = comm.Get_size()
+rank = comm.Get_rank()
 
 # Some color constants for printing to the terminal
-OKGREEN = '\033[92m'
-FAIL    = '\033[91m'
-ENDC    = '\033[0m'
+OK   = '\033[92m'
+FAIL = '\033[91m'
+ENDC = '\033[0m'
 
 # Initialize the models
 M    = []
 root = "%s/MODELS/CMIP5" % (os.environ["ILAMB_ROOT"])
-print "\nSearching for model results in %s...\n" % root
+if rank == 0: print "\nSearching for model results in %s...\n" % root
 maxML = 0
 for subdir, dirs, files in os.walk(root):
     mname = subdir.replace(root,"")
@@ -27,7 +33,9 @@ for subdir, dirs, files in os.walk(root):
     maxML  = max(maxML,len(mname))
     M.append(ModelResult(subdir,modelname=mname,filter="r1i1p1"))
 M = sorted(M,key=lambda m: m.name.upper())
-for m in M: print ("    {0:<%d}" % (maxML)).format(m.name)
+if rank == 0: 
+    for m in M: 
+        print ("    {0:<%d}" % (maxML)).format(m.name)
 
 # Assign colors
 clrs = il.GenerateDistinctColors(len(M))
@@ -46,26 +54,32 @@ for c in C:
     for m in M:
         W.append([m,c])
 
-print "\nRunning model-confrontation pairs...\n"
-for w in W:
+if rank==0: print "\nRunning model-confrontation pairs...\n"
+
+# Divide work list and go
+wpp   = float(len(W))/size
+begin = int(round( rank   *wpp))
+end   = int(round((rank+1)*wpp))
+for w in W[begin:end]:
     m,c = w
     t0  = time.time()
     try:
-        print ("    {0:>%d} {1:>%d} " % (maxCL,maxML)).format(c.name,m.name),
         m.confrontations[c.name] = c.confront(m)  
         dt = time.time()-t0
-        print ("%sCompleted%s {0:>5.1f} s" % (OKGREEN,ENDC)).format(dt)
+        print ("    {0:>%d} {1:>%d} %sCompleted%s {2:>5.1f} s" % (maxCL,maxML,OK,ENDC)).format(c.name,m.name,dt)
     except il.VarNotInModel:
-        print "%sVarNotInModel%s" % (FAIL,ENDC)
+        print ("    {0:>%d} {1:>%d} %sVarNotInModel%s" % (maxCL,maxML,FAIL,ENDC)).format(c.name,m.name)
         continue
     except il.AreasNotInModel:
-        print "%sAreasNotInModel%s" % (FAIL,ENDC)
+        print ("    {0:>%d} {1:>%d} %sAreasNotInModel%s" % (maxCL,maxML,FAIL,ENDC)).format(c.name,m.name)
         continue
     except il.VarNotMonthly:
-        print "%sVarNotMonthly%s" % (FAIL,ENDC)
+        print ("    {0:>%d} {1:>%d} %sVarNotMonthly%s" % (maxCL,maxML,FAIL,ENDC)).format(c.name,m.name)
         continue
 
-print "\nPost-processing...\n"
+"""
+if rank==0:
+    print "\nPost-processing...\n"
 
 # Postprocess
 for c in C:
@@ -83,3 +97,4 @@ for c in C:
     
     dt = time.time()-t0
     print "  Completed in %.1f seconds" % dt
+"""
