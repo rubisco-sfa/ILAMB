@@ -631,7 +631,7 @@ def SpatiallyIntegratedTimeSeries(var,areas):
     vbar = (var*areas).sum(axis=-1).sum(axis=-1)
     return vbar
             
-def TemporallyIntegratedTimeSeries(t,var):
+def TemporallyIntegratedTimeSeries(t,var,**keywords):
     r"""Integrate a variable over time.
     
     Given a variable :math:`f(\mathbf{x},t)`, the temporally averaged
@@ -644,7 +644,7 @@ def TemporallyIntegratedTimeSeries(t,var):
     Parameters
     ----------
     t : numpy.ndarray
-        a 1D array of times in days since 00:00:00 1/1/1850
+        a 1D array of times
     var : numpy.ndarray
         an array assumed to be a monthly average of a variable with
         the dimensions, (ntimes,latitudes,longitudes)
@@ -654,7 +654,13 @@ def TemporallyIntegratedTimeSeries(t,var):
     vhat : numpy.array
         the temporally integrated variable
     """
-    wgt  = MonthlyWeights(t)*365*24*3600
+    t0        = keywords.get("t0",t.min())
+    tf        = keywords.get("tf",t.max())
+    wgt       = np.zeros(t.shape)
+    wgt[:-1]  = 0.5*(t[1:]-t[:-1])
+    wgt[ 1:] += 0.5*(t[1:]-t[:-1])
+    wgt[ 0]  += t[0]-t0
+    wgt[-1]  += tf-t[-1]
     if var.ndim == 1:
         vhat = np.ma.sum(var*wgt)
         mask = np.zeros(vhat.shape,dtype=int)

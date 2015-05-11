@@ -23,12 +23,15 @@ class GPPFluxnetGlobalMTE():
             raise il.MisplacedData(msg)
         self.data = {}
         self.regions = ["global","amazon"]
+
+        # build output path if not already built
         self.output_path = "_build/GPPFluxnetGlobalMTE"
         dirs = self.output_path.split("/")
         for i,d in enumerate(dirs):
             dname = "/".join(dirs[:(i+1)])
             if not os.path.isdir(dname): os.mkdir(dname)
 
+        # somewhat complicated layout designation for HTML output pages
         self.layout = []
         self.layout.append({"name":"Temporally integrated period mean",
                             "plots":{"timeint" :["MEAN",True],
@@ -91,7 +94,7 @@ class GPPFluxnetGlobalMTE():
         # time limits for this confrontation (with a little padding)
         t0,tf = obs_gpp.time.min()-7,obs_gpp.time.max()+7
         ndays = tf-t0
-
+        
         # get the model data
         mod_gpp = m.extractTimeSeries("gpp",initial_time=t0,final_time=tf,
                                       output_unit="g m-2 s-1")
@@ -106,11 +109,11 @@ class GPPFluxnetGlobalMTE():
         if self.data.has_key("timeint_gpp"):
             obs_timeint_gpp          = self.data["timeint_gpp"]
         else:
-            obs_timeint_gpp          = obs_gpp.integrateInTime()
+            obs_timeint_gpp          = obs_gpp.integrateInTime(mean=True)
             self.data["timeint_gpp"] = obs_timeint_gpp
             self.data["GppMax"]      = obs_timeint_gpp.data.max()
             self.data["BiasMaxMag"]  = 0
-        mod_timeint_gpp      = mod_gpp.integrateInTime()
+        mod_timeint_gpp      = mod_gpp.integrateInTime(mean=True)
         self.data["GppMax"]  = max(self.data["GppMax"],mod_timeint_gpp.data.max())
         cdata["timeint_gpp"] = mod_timeint_gpp
         mod_timeint_gpp.toNetCDF4(f)
@@ -138,10 +141,11 @@ class GPPFluxnetGlobalMTE():
 
             # metrics
             metrics = {}
-            metrics["Bias"     ] = obs_spaceint_gpp.bias(mod_spaceint_gpp)
-            metrics["BiasScore"] = obs_spaceint_gpp.bias(mod_spaceint_gpp,normalize="score")
-            metrics["RMSE"     ] = obs_spaceint_gpp.RMSE(mod_spaceint_gpp)
-            metrics["RMSEScore"] = obs_spaceint_gpp.RMSE(mod_spaceint_gpp,normalize="score")
+            metrics["PeriodMean"] = mod_spaceint_gpp.integrateInTime(mean=True).convert("Pg y-1")
+            metrics["Bias"      ] = obs_spaceint_gpp.bias(mod_spaceint_gpp)
+            metrics["BiasScore" ] = obs_spaceint_gpp.bias(mod_spaceint_gpp,normalize="score")
+            metrics["RMSE"      ] = obs_spaceint_gpp.RMSE(mod_spaceint_gpp)
+            metrics["RMSEScore" ] = obs_spaceint_gpp.RMSE(mod_spaceint_gpp,normalize="score")
             cdata["metrics"][region] = metrics
 
             # dump to file
@@ -170,7 +174,37 @@ class GPPFluxnetGlobalMTE():
         f.close()
         return cdata
 
+    def plotFromFiles(self,path):
+        pass
+
     def plot(self,M):
+
+        # legend
+        fig,ax = plt.subplots(figsize=(6.8,1.0),tight_layout=True)
+        post.ColorBar(ax,vmin=0,vmax=self.data["GppMax"],cmap="Greens",label=self.data["timeint_gpp"].unit)
+        fig.savefig("%s/legend_timeint.png" % (self.output_path))
+        plt.close()
+
+        # legend
+        fig,ax = plt.subplots(figsize=(6.8,1.0),tight_layout=True)
+        post.ColorBar(ax,vmin=-self.data["BiasMaxMag"],vmax=self.data["BiasMaxMag"],
+                      cmap="seismic",label=self.data["timeint_gpp"].unit)
+        fig.savefig("%s/legend_bias.png" % (self.output_path))
+        plt.close()
+
+        # phase legend
+        fig,ax = plt.subplots(figsize=(6.8,1.0),tight_layout=True)
+        post.ColorBar(ax,vmin=0,vmax=365.,ticks=mid_months,cmap="jet",label="month",
+                      ticklabels=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"])
+        fig.savefig("%s/legend_phase.png" % (self.output_path))
+        plt.close()
+        
+        # shift legend
+        fig,ax = plt.subplots(figsize=(6.8,1.0),tight_layout=True)
+        post.ColorBar(ax,vmin=-0.5*365.,vmax=+0.5*365.,cmap="PRGn",label="month",
+                      ticks=np.linspace(-0.5*365,+0.5*365,13),ticklabels=range(-6,7))
+        fig.savefig("%s/legend_shift.png" % (self.output_path))
+        plt.close()
 
         for region in self.regions:            
 
@@ -181,31 +215,11 @@ class GPPFluxnetGlobalMTE():
             fig.savefig("%s/Benchmark_%s_timeint.png" % (self.output_path,region))
             plt.close()
 
-            # legend
-            fig,ax = plt.subplots(figsize=(6.8,1.0),tight_layout=True)
-            post.ColorBar(ax,vmin=0,vmax=self.data["GppMax"],cmap="Greens",label=self.data["timeint_gpp"].unit)
-            fig.savefig("%s/legend_timeint.png" % (self.output_path))
-            plt.close()
-
             # benchmark phase info
             fig   = plt.figure(figsize=(6.8,2.8))
             ax    = fig.add_axes([0.06,0.025,0.88,0.965])
             self.data["phase_gpp"].plot(ax,vmin=0,vmax=365.,region=region,cmap="jet")
             fig.savefig("%s/Benchmark_%s_phase.png" % (self.output_path,region))
-            plt.close()
-
-            # phase legend
-            fig,ax = plt.subplots(figsize=(6.8,1.0),tight_layout=True)
-            post.ColorBar(ax,vmin=0,vmax=365.,ticks=mid_months,cmap="jet",label="month",
-                          ticklabels=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"])
-            fig.savefig("%s/legend_phase.png" % (self.output_path))
-            plt.close()
-
-            # shift legend
-            fig,ax = plt.subplots(figsize=(6.8,1.0),tight_layout=True)
-            post.ColorBar(ax,vmin=-0.5*365.,vmax=+0.5*365.,region=region,cmap="PRGn",label="month",
-                          ticks=np.linspace(-0.5*365,+0.5*365,13),ticklabels=range(-6,7))
-            fig.savefig("%s/legend_shift.png" % (self.output_path))
             plt.close()
 
         for m in M:

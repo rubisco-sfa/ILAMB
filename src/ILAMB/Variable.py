@@ -1,6 +1,6 @@
 import ilamblib as il
 import Post as post
-from constants import spd,spy,convert,regions as ILAMBregions
+from constants import spd,spy,dpy,convert,regions as ILAMBregions
 import numpy as np
 import pylab as plt
 
@@ -50,7 +50,6 @@ class Variable:
             a 2D array of the cell areas
         std :  numpy.ndarray, optional
             an array of standard deviations of the shape of the data
-
         """
         assert type(data) is type(np.ma.masked_array())
         self.data = data # [monthly means (for now)]
@@ -281,40 +280,52 @@ class Variable:
         data = il.NearestNeighborInterpolation(self.lat,self.lon,self.data,lat,lon)
         return Variable(data,self.unit,lat=lat,lon=lon)
 
-    def integrateInTime(self):
+    def integrateInTime(self,**keywords):
         """Integrates the variable over time
 
         Uses nodal integration to integrate the variable over the time domain.
         
         Parameters
         ----------
-        region : str
-            name of the region overwhich you wish to integrate
-        
+        t0 : float, optional
+            initial time in days since 1/1/1850
+        tf : float, optional
+            final time in days since 1/1/1850
+        mean : boolean, optional
+            enable to divide the integral by (tf-t0)
+
         Returns
         -------
         integral : ILAMB.Variable.Variable
             a Variable instace with the integrated value along with the
             appropriate name and unit change.
         """
-
         if not self.temporal: raise il.NotTemporalVariable()
-        integral = il.TemporallyIntegratedTimeSeries(self.time,self.data)
-        if " s-1" in self.unit: 
+        t0   = keywords.get("t0",self.time.min())
+        tf   = keywords.get("tf",self.time.max())
+        mean = keywords.get("mean",False)
+        integral = il.TemporallyIntegratedTimeSeries(self.time,self.data,t0=t0,tf=tf)
+        if " s-1" in self.unit:
             integral *= spd
             unit      = self.unit.replace(" s-1","")
-        if " d-1" in self.unit: 
+        elif " d-1" in self.unit: 
             unit      = self.unit.replace(" d-1","")
-        if " y-1" in self.unit: 
-            integral *= spy
+        elif " y-1" in self.unit: 
+            integral /= dpy["noleap"]
             unit      = self.unit.replace(" y-1","")
+        else:
+            if not mean: unit += " d"
         name = self.name + "_integrated_over_time"
+        if mean: 
+            integral /= (tf-t0)
+            unit     += " d-1"
+            name     += "_and_divided_by_time_period"
         return Variable(integral,unit,lat=self.lat,lon=self.lon,area=self.area,name=name)
 
     def _overlap(self,var):
         """A local function for determining indices of this variable and the
         input variable which represent the beginning and end of the
-        variables' overlap in the time dimension
+        variable's overlap in the time dimension
         """
         mint = max(var.time.min(),self.time.min())
         maxt = min(var.time.max(),self.time.max())
@@ -413,7 +424,7 @@ class Variable:
         vmin   = keywords.get("vmin",self.data.min())
         vmax   = keywords.get("vmax",self.data.max())
         region = keywords.get("region","global")
-        cmap   = keywords.get("cmap","rainbow")
+        cmap   = keywords.get("cmap","jet")
         if self.temporal and not self.spatial:
             t = self.time/365.+1850
             if self.std is not None:
@@ -422,9 +433,9 @@ class Variable:
             ax.plot(t,self.data,'-',
                     color=color,lw=lw,alpha=alpha,label=label)
         elif not self.temporal and self.spatial:
-            ax     = post.GlobalPlot(self.lat,self.lon,self.data,ax,
-                                     vmin   = vmin  , vmax = vmax,
-                                     region = region, cmap = cmap)
+            ax = post.GlobalPlot(self.lat,self.lon,self.data,ax,
+                                 vmin   = vmin  , vmax = vmax,
+                                 region = region, cmap = cmap)
         return ax
 
     def annualCycle(self):

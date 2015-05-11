@@ -18,17 +18,16 @@ ENDC    = '\033[0m'
 # Initialize the models
 M    = []
 root = "%s/MODELS/CMIP5" % (os.environ["ILAMB_ROOT"])
-print "\nSearching for model results in %s..." % root
-maxL = 0
+print "\nSearching for model results in %s...\n" % root
+maxML = 0
 for subdir, dirs, files in os.walk(root):
     mname = subdir.replace(root,"")
     if mname.count("/") != 1: continue
-    mname = mname.replace("/","").upper()
-    #if mname not in ["BCC-CSM1-1","CCSM4"]: continue
-    maxL  = max(maxL,len(mname))
+    mname = mname.replace("/","")
+    maxML  = max(maxML,len(mname))
     M.append(ModelResult(subdir,modelname=mname,filter="r1i1p1"))
 M = sorted(M,key=lambda m: m.name.upper())
-for m in M: print ("    {0:<%d}" % (maxL)).format(m.name)
+for m in M: print ("    {0:<%d}" % (maxML)).format(m.name)
 
 # Assign colors
 clrs = il.GenerateDistinctColors(len(M))
@@ -37,36 +36,41 @@ for m in M:
     m.color = clr
     
 # Confront models
-C = Confrontation()
-print "\n%s" % C
-C = C.list()
+C = Confrontation().list()
 
-print "\nRunning confrontations..."
+# Build work list, ModelResult+Confrontation pairs
+W = []
+maxCL = 0
 for c in C:
-    t0 = time.time()
-    print "\n  %s" % c.name
+    maxCL = max(maxCL,len(c.name))
     for m in M:
-        try:
-            m.confrontations[c.name] = c.confront(m)  
-            print ("    {0:<%d} %sCompleted%s" % (maxL,OKGREEN,ENDC)).format(m.name)
-        except il.VarNotInModel:
-            print ("    {0:<%d} %sVarNotInModel%s" % (maxL,FAIL,ENDC)).format(m.name) 
-            continue
-        except il.AreasNotInModel:
-            print ("    {0:<%d} %sAreasNotInModel%s" % (maxL,FAIL,ENDC)).format(m.name)
-            continue
-        except il.VarNotMonthly:
-            print ("    {0:<%d} %sVarNotMonthly%s" % (maxL,FAIL,ENDC)).format(m.name)
-            continue
-    dt = time.time()-t0
-    print "  Completed in %.1f seconds" % dt
+        W.append([m,c])
 
-print "\nPost-processing..."
+print "\nRunning model-confrontation pairs...\n"
+for w in W:
+    m,c = w
+    t0  = time.time()
+    try:
+        print ("    {0:>%d} {1:>%d} " % (maxCL,maxML)).format(c.name,m.name),
+        m.confrontations[c.name] = c.confront(m)  
+        dt = time.time()-t0
+        print ("%sCompleted%s {0:>5.1f} s" % (OKGREEN,ENDC)).format(dt)
+    except il.VarNotInModel:
+        print "%sVarNotInModel%s" % (FAIL,ENDC)
+        continue
+    except il.AreasNotInModel:
+        print "%sAreasNotInModel%s" % (FAIL,ENDC)
+        continue
+    except il.VarNotMonthly:
+        print "%sVarNotMonthly%s" % (FAIL,ENDC)
+        continue
+
+print "\nPost-processing...\n"
 
 # Postprocess
 for c in C:
 
-    print "\n  %s" % c.name
+    print "  %s\n" % c.name
     t0 = time.time()
 
     # HTML Google-chart table
