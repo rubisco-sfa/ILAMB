@@ -119,6 +119,7 @@ def ConfrontationTableGoogle(c,M):
             s += """        data.addColumn('number','<span title="%s">%s [%s]</span>');\n""" % (metric.name,h,unit)
     s += "        data.addRows([\n"
     for m in M:
+        if not m.confrontations.has_key(c.name): continue
         s += "          ['%s'" % m.name
         for region in c.regions:
             metrics = m.confrontations[c.name]["metrics"][region]
