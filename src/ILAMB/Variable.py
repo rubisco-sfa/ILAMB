@@ -3,15 +3,32 @@ import Post as post
 from constants import spd,spy,dpy,convert,regions as ILAMBregions
 import numpy as np
 import pylab as plt
+from netCDF4 import Dataset
 
-def FromNetCDF4(filename,variable_name,**keywords):
+def FromNetCDF4(filename,variable_name):
     """hack, fix, note: t0 and tf must bracket the data somehow"""
-    t0 = keywords.get("t0",-1e20)
-    tf = keywords.get("tf",+1e20)
-    t,var,unit,lat,lon = il.ExtractTimeSeries(filename,variable_name)
-    begin = np.argmin(np.abs(t-t0))
-    end   = np.argmin(np.abs(t-tf))+1
-    return Variable(var[begin:end,...],unit,name=variable_name,time=t[begin:end],lat=lat,lon=lon)
+    f         = Dataset(filename,mode="r")
+    var       = f.variables[variable_name]
+    time_name = None
+    lat_name  = None
+    lon_name  = None
+    for key in var.dimensions:
+        if "time" in key: time_name = key
+        if "lat"  in key: lat_name  = key
+        if "lon"  in key: lon_name  = key
+    if time_name is None:
+        t = None
+    else:
+        t = f.variables[time][...]
+    if lat_name is None:
+        lat = None
+    else:
+        lat = f.variables[lat_name][...]
+    if lon_name is None:
+        lon = None
+    else:
+        lon = f.variables[lon_name][...]
+    return Variable(var[...],var.units,name=variable_name,time=t,lat=lat,lon=lon)
 
 class Variable:
     """A class for managing variables defined in time and the globe.
@@ -84,7 +101,7 @@ class Variable:
         if self.std is not None:
             assert self.data.shape == self.std.shape
 
-    def toNetCDF4(self,dataset,attributes={}):
+    def toNetCDF4(self,dataset):
         """Adds the variable to the specified netCDF4 dataset
 
         Parameters
@@ -97,53 +114,75 @@ class Variable:
         """
         def _checkTime(t,dataset):
             """A local function for ensuring the time dimension is saved in the dataset."""
-            if "time" in dataset.dimensions.keys():
-                assert t.shape == dataset.variables["time"][...].shape
-                assert np.allclose(t,dataset.variables["time"][...],atol=0.5*self.dt)
-            else:
-                dataset.createDimension("time")
-                T = dataset.createVariable("time","double",("time"))
-                T.setncattr("units","days since 1850-01-01 00:00:00")
-                T.setncattr("calendar","noleap")
-                T.setncattr("axis","T")
-                T.setncattr("long_name","time")
-                T.setncattr("standard_name","time")
-                T[...] = t
-        def _checkSpace(lat,lon,dataset):
-            """A local function for ensuring space dimensions are saved in the dataset."""
-            if "lat" in dataset.dimensions.keys():
-                assert lat.shape == dataset.variables["lat"][...].shape
-                assert np.allclose(lat,dataset.variables["lat"][...])
-                assert lon.shape == dataset.variables["lon"][...].shape
-                assert np.allclose(lon,dataset.variables["lon"][...])
-            else:
-                dataset.createDimension("lon",size=lon.size)
-                X = dataset.createVariable("lon","double",("lon"))
-                X.setncattr("units","degrees_east")
-                X.setncattr("axis","X")
-                X.setncattr("long_name","longitude")
-                X.setncattr("standard_name","longitude")
-                X[...] = lon
-                dataset.createDimension("lat",size=lat.size)
-                Y = dataset.createVariable("lat","double",("lat"))
-                Y.setncattr("units","degrees_north")
-                Y.setncattr("axis","Y")
-                Y.setncattr("long_name","latitude")
-                Y.setncattr("standard_name","latitude")
-                Y[...] = lat
+            time_name = "time"
+            while True:
+                if time_name in dataset.dimensions.keys():
+                    if (t.shape    == dataset.variables[time_name][...].shape and
+                        np.allclose(t,dataset.variables[time_name][...],atol=0.5*self.dt)): 
+                        return time_name
+                    else:
+                        time_name += "_"
+                else:
+                    dataset.createDimension(time_name)
+                    T = dataset.createVariable(time_name,"double",(time_name))
+                    T.setncattr("units","days since 1850-01-01 00:00:00")
+                    T.setncattr("calendar","noleap")
+                    T.setncattr("axis","T")
+                    T.setncattr("long_name","time")
+                    T.setncattr("standard_name","time")
+                    T[...] = t
+                    return time_name
 
-        if self.temporal: _checkTime(self.time,dataset)
-        if self.spatial:  _checkSpace(self.lat,self.lon,dataset)
+        def _checkLat(lat,dataset):
+            """A local function for ensuring the lat dimension is saved in the dataset."""
+            lat_name = "lat"
+            while True:
+                if lat_name in dataset.dimensions.keys():
+                    if (lat.shape == dataset.variables[lat_name][...].shape and
+                        np.allclose(lat,dataset.variables[lat_name][...])): 
+                        return lat_name
+                    else:
+                        lat_name += "_"
+                else:
+                    dataset.createDimension(lat_name,size=lat.size)
+                    Y = dataset.createVariable(lat_name,"double",(lat_name))
+                    Y.setncattr("units","degrees_north")
+                    Y.setncattr("axis","Y")
+                    Y.setncattr("long_name","latitude")
+                    Y.setncattr("standard_name","latitude")
+                    Y[...] = lat
+                    return lat_name
+
+        def _checkLon(lon,dataset):
+            """A local function for ensuring the lon dimension is saved in the dataset."""
+            lon_name = "lon"
+            while True:
+                if lon_name in dataset.dimensions.keys():
+                    if (lon.shape == dataset.variables[lon_name][...].shape and
+                    np.allclose(lon,dataset.variables[lon_name][...])): 
+                        return lon_name
+                    else:
+                        lon_name += "_"
+                else:
+                    dataset.createDimension(lon_name,size=lon.size)
+                    X = dataset.createVariable(lon_name,"double",(lon_name))
+                    X.setncattr("units","degrees_east")
+                    X.setncattr("axis","X")
+                    X.setncattr("long_name","longitude")
+                    X.setncattr("standard_name","longitude")
+                    X[...] = lon
+                    return lon_name
 
         dim = []
-        if self.temporal: 
-            dim.append("time")
-        if self.spatial: 
-            dim.append("lat")
-            dim.append("lon")
+        if self.temporal:
+            dim.append(_checkTime(self.time,dataset))
+        if self.spatial:
+            dim.append(_checkLat(self.lat,dataset))
+            dim.append(_checkLon(self.lon,dataset))
 
         V = dataset.createVariable(self.name,"double",dim)
         V.setncattr("units",self.unit)
+        attributes = {}
         for attr in attributes.keys(): V.setncattr(attr,attributes[attr])
         V[...] = self.data
 
@@ -360,8 +399,11 @@ class Variable:
         bias = il.Bias(self.data[b:e],var.data[vb:ve],normalize=normalize)
         bias = np.ma.masked_array(bias)
         unit = self.unit
-        if "score" == normalize: unit = "-"
-        return Variable(bias,unit,name="bias_of_%s" % var.name)
+        name = "bias"
+        if "score" == normalize: 
+            unit = "-"
+            name = "bias_score"
+        return Variable(bias,unit,name="%s_of_%s" % (name,var.name))
 
     def RMSE(self,var,normalize="none"):
         """Computes the RootMeanSquaredError
@@ -390,8 +432,11 @@ class Variable:
         rmse = il.RootMeanSquaredError(self.data[b:e],var.data[vb:ve],normalize=normalize)
         rmse = np.ma.masked_array(rmse)
         unit = self.unit
-        if "score" == normalize: unit = "-"
-        return Variable(rmse,unit,name="rmse_of_%s" % var.name)
+        name = "rmse"
+        if "score" == normalize: 
+            unit = "-"
+            name = "rmse_score"
+        return Variable(rmse,unit,name="%s_of_%s" % (name,var.name))
 
 
     def plot(self,ax,**keywords):
@@ -433,7 +478,9 @@ class Variable:
             ax.plot(t,self.data,'-',
                     color=color,lw=lw,alpha=alpha,label=label)
         elif not self.temporal and self.spatial:
-            ax = post.GlobalPlot(self.lat,self.lon,self.data,ax,
+            ax = post.GlobalPlot(self.lat.clip(- 89.99, 89.99),
+                                 self.lon.clip(-179.99,179.99),
+                                 self.data,ax,
                                  vmin   = vmin  , vmax = vmax,
                                  region = region, cmap = cmap)
         return ax
@@ -448,7 +495,7 @@ class Variable:
     def phase(self):
         if not self.temporal: raise il.NotTemporalVariable()
         tmax,tmaxstd = il.AnnualMaxTime(self.time,self.data)
-        return Variable(tmax,"month",name="month_of_max_gpp",lat=self.lat,lon=self.lon)
+        return Variable(tmax,"day",name="day_of_max_gpp",lat=self.lat,lon=self.lon)
         
         
 

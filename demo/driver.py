@@ -43,11 +43,9 @@ for m in M:
     clr     = clrs.pop(np.random.randint(0,high=len(clrs)))
     m.color = clr
     
-# Confront models
-C = Confrontation().list()
-
 # Build work list, ModelResult+Confrontation pairs
-W = []
+W     = []
+C     = Confrontation().list()
 maxCL = 0
 for c in C:
     maxCL = max(maxCL,len(c.name))
@@ -55,16 +53,18 @@ for c in C:
         W.append([m,c])
 
 if rank==0: print "\nRunning model-confrontation pairs...\n"
+comm.Barrier()
 
 # Divide work list and go
 wpp   = float(len(W))/size
 begin = int(round( rank   *wpp))
 end   = int(round((rank+1)*wpp))
+T0    = time.time()
 for w in W[begin:end]:
     m,c = w
     t0  = time.time()
     try:
-        m.confrontations[c.name] = c.confront(m)  
+        c.confront(m)  
         dt = time.time()-t0
         print ("    {0:>%d} {1:>%d} %sCompleted%s {2:>5.1f} s" % (maxCL,maxML,OK,ENDC)).format(c.name,m.name,dt)
     except il.VarNotInModel:
@@ -77,24 +77,17 @@ for w in W[begin:end]:
         print ("    {0:>%d} {1:>%d} %sVarNotMonthly%s" % (maxCL,maxML,FAIL,ENDC)).format(c.name,m.name)
         continue
 
-"""
+comm.Barrier()
+
 if rank==0:
-    print "\nPost-processing...\n"
+    for c in C:
+        c.plotFromFiles()
 
-# Postprocess
-for c in C:
+comm.Barrier()
 
-    print "  %s\n" % c.name
-    t0 = time.time()
+if rank==0: print "\nCompleted in {0:>5.1f} s\n".format(time.time()-T0)
 
-    # HTML Google-chart table
-    f = file("%s/%s.html" % (c.output_path,c.name),"w")
-    f.write(post.ConfrontationTableGoogle(c,M))
-    f.close()
 
-    # generate plots
-    c.plot(M)
-    
-    dt = time.time()-t0
-    print "  Completed in %.1f seconds" % dt
-"""
+
+
+

@@ -85,6 +85,7 @@ def ExtractPointTimeSeries(filename,variable,lat,lon,verbose=False):
     -----
     Collapse this function with ExtractTimeSeries.
     """
+
     f = Dataset(filename)
     try:
         if verbose: print "Looking for %s in %s" % (variable,filename)
@@ -92,26 +93,88 @@ def ExtractPointTimeSeries(filename,variable,lat,lon,verbose=False):
     except:
         if verbose: print "%s is not a variable in this netCDF file" % variable
         raise VarNotInFile("%s is not a variable in this netCDF file" % variable)
+    tvar = f.variables["time"]
+    cal  = "noleap"
+    unit = tvar.units
+    data = tvar[:]
+    if "calendar" in tvar.ncattrs(): cal = tvar.calendar
+    if "year" in tvar.units: 
+        data *= 365.
+        unit  = "days since 0-1-1"
+    t    = num2date(data,unit,calendar=cal) # converts data to dates
+    t    = date2num(t,"days since 1850-1-1",calendar="noleap") # convert to numbers but with uniform datum and calendar
 
-    # determine time shift, #netCDF4.num2date()
-    t    = f.variables['time']
-    unit = t.units.split(" since ")
-    assert unit[0] == "days"
-    t0   = datetime(1850,1,1,0,0,0)
-    tf   = datetime.strptime((unit[-1].split())[0],"%Y-%m-%d")
-    dt   = (tf-t0).days
-
-    # extract variable by finding the closest lat,lon if they exist
-    try:
-        lats = f.variables['lat']
-        lons = f.variables['lon']
+    if "lat" in vari.dimensions or "latitude" in vari.dimensions:
+        try:
+            lats = f.variables["lat"][...]
+            lons = f.variables["lon"][...]
+        except:
+            lats = f.variables["latitude"][...]
+            lons = f.variables["longitude"][...]
         ilat = np.argmin(np.abs(lats[...]-lat))
         ilon = np.argmin(np.abs(lons[...]-lon))
+        lons = (lons<=180)*lons+(lons>180)*(lons-360)
         var  = np.ma.masked_values(vari[...,ilon,ilat],vari._FillValue)
-    except:
+    else:
         var  = np.ma.masked_values(vari[...],vari._FillValue)
-    return t[:]+dt,var,vari.units
+    return t,var,vari.units
 
+def _convertCalendar(t):
+    cal  = "noleap"
+    unit = t.units
+    data = t[:]
+    if "calendar" in t.ncattrs(): cal = t.calendar
+    if "year" in t.units: 
+        data *= 365.
+        unit  = "days since 0-1-1"
+    t = num2date(data,unit,calendar=cal) # converts data to dates
+    t = date2num(t,"days since 1850-1-1",calendar="noleap") # convert to numbers but with uniform datum and calendar
+    return t
+
+def ExtractTimeSeries(filename,variable,verbose=False):
+    r"""Extracts the timeseries of a given variable from a netCDF file.
+
+    Parameters
+    ----------
+    filename : string
+        name of the NetCDF file to read
+    variable : string
+        name of the variable to extract
+
+    Returns
+    -------
+    t : numpy.ndarray
+        a 1D array of times in days since 1850-01-01 00:00:00
+    var : numpy.ma.core.MaskedArray
+        an array of the extracted variable
+    unit : string
+        a description of the extracted unit
+
+    Notes
+    -----
+    Collapse this function with ExtractPointTimeSeries.
+    """
+    f = Dataset(filename)
+    try:
+        if verbose: print "Looking for %s in %s" % (variable,filename)
+        vari = f.variables[variable]
+    except:
+        if verbose: print "%s is not a variable in this netCDF file" % variable
+        raise VarNotInFile("%s is not a variable in this netCDF file" % variable)
+    time_name = None
+    lat_name  = None
+    lon_name  = None
+    for key in vari.dimensions:
+        if "time" in key: time_name = key
+        if "lat"  in key: lat_name  = key
+        if "lon"  in key: lon_name  = key
+    t    = _convertCalendar(f.variables[time_name])
+    lat  = f.variables[lat_name][...]
+    lon  = f.variables[lon_name][...]
+    var  = vari[...]
+    if type(var) is type(np.asarray([])):
+        var = np.ma.masked_values(vari[...],vari._FillValue,copy=False)
+    return t,var,vari.units,lat,lon
 
 def MultiModelMean(M,variable,output_unit,spatial_resolution,**keywords):
     r"""
@@ -165,57 +228,6 @@ def MultiModelMean(M,variable,output_unit,spatial_resolution,**keywords):
     np.ma.set_fill_value(mean_data,1e20)
 
     return t,lat,lon,mean_data,num_model,models[:-1]
-
-def ExtractTimeSeries(filename,variable,verbose=False):
-    r"""Extracts the timeseries of a given variable from a netCDF file.
-
-    Parameters
-    ----------
-    filename : string
-        name of the NetCDF file to read
-    variable : string
-        name of the variable to extract
-
-    Returns
-    -------
-    t : numpy.ndarray
-        a 1D array of times in days since 1850-01-01 00:00:00
-    var : numpy.ma.core.MaskedArray
-        an array of the extracted variable
-    unit : string
-        a description of the extracted unit
-
-    Notes
-    -----
-    Collapse this function with ExtractPointTimeSeries.
-    """
-    f = Dataset(filename)
-    try:
-        if verbose: print "Looking for %s in %s" % (variable,filename)
-        vari = f.variables[variable]
-    except:
-        if verbose: print "%s is not a variable in this netCDF file" % variable
-        raise VarNotInFile("%s is not a variable in this netCDF file" % variable)
-    tvar = f.variables["time"]
-    cal  = "noleap"
-    unit = tvar.units
-    data = tvar[:]
-    if "calendar" in tvar.ncattrs(): cal = tvar.calendar
-    if "year" in tvar.units: 
-        data *= 365.
-        unit  = "days since 0-1-1"
-    t    = num2date(data,unit,calendar=cal) # converts data to dates
-    t    = date2num(t,"days since 1850-1-1",calendar="noleap") # convert to numbers but with uniform datum and calendar
-    var  = vari[...]
-    try:
-        lat  = f.variables["lat"][...]
-        lon  = f.variables["lon"][...]
-    except:
-        lat  = f.variables["latitude"][...]
-        lon  = f.variables["longitude"][...]
-    if type(var) is type(np.asarray([])):
-        var = np.ma.masked_values(var,vari._FillValue,copy=False)
-    return t,var,vari.units,lat,lon
 
 def RootMeanSquaredError(reference,prediction,normalize="none",weights=None):
     r"""

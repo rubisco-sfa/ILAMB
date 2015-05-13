@@ -204,8 +204,7 @@ class ModelResult():
                 unit = output_unit
             except:
                 raise il.UnknownUnit("Variable is in units of [%s], you asked for [%s] but I do not know how to convert" % (unit,output_unit))
-        return tc,np.ma.masked_array(varc,mask=masc),unit
-
+        return Variable(np.ma.masked_array(varc,mask=masc),unit,time=tc,name=vname)
         
     def extractTimeSeries(self,variable,alt_vars=[],initial_time=-1e20,final_time=1e20,output_unit=""):
         """Extracts a time series of the given variable from the model

@@ -48,7 +48,8 @@ earth_rad = 6.371e6 # meters
 
 convert = {}
 convert["co2"] = {}
-convert["co2"]["1e-6"] = {"kg"  :co2_ppm_per_kg, "1e-6": 1.}
+convert["co2"]["1e-6"] = {"kg"  :co2_ppm_per_kg, "1e-6": 1., "ppm": 1.}
+convert["co2"]["ppm"] = {"kg"  :co2_ppm_per_kg, "1e-6": 1., "ppm": 1.}
 convert["co2"]["kg"]   = {"1e-6":1./co2_ppm_per_kg, "kg": 1.}
 convert["gpp"] = {}
 convert["gpp"]["kg m-2 s-1"] = {"g m-2 s-1":1e-3,"kg m-2 s-1":1.}
