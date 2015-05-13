@@ -108,6 +108,9 @@ class CO2MaunaLoa():
 
         return cdata
 
+    def plotFromFiles(self):
+        pass
+
     def plot(self,m=None,data=None):
 
         # model space integrated mean compared to benchmark

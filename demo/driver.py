@@ -8,7 +8,7 @@ from ILAMB import ilamblib as il
 import ILAMB.Post as post
 import pylab as plt
 import numpy as np
-import os,time
+import os,time,sys
 from mpi4py import MPI
 
 # MPI stuff
@@ -52,15 +52,18 @@ for c in C:
     for m in M:
         W.append([m,c])
 
+sys.stdout.flush()
 if rank==0: print "\nRunning model-confrontation pairs...\n"
 comm.Barrier()
 
 # Divide work list and go
-wpp   = float(len(W))/size
-begin = int(round( rank   *wpp))
-end   = int(round((rank+1)*wpp))
-T0    = time.time()
-for w in W[begin:end]:
+wpp    = float(len(W))/size
+begin  = int(round( rank   *wpp))
+end    = int(round((rank+1)*wpp))
+localW = W[begin:end]
+
+T0     = time.time()
+for w in localW:
     m,c = w
     t0  = time.time()
     try:
@@ -77,12 +80,31 @@ for w in W[begin:end]:
         print ("    {0:>%d} {1:>%d} %sVarNotMonthly%s" % (maxCL,maxML,FAIL,ENDC)).format(c.name,m.name)
         continue
 
+sys.stdout.flush()
 comm.Barrier()
+if rank==0: print "\nFinishing post-processing which requires collectives...\n"
 
-if rank==0:
-    for c in C:
+for c in C:
+
+    # Do on whichever process has the most of the confrontation
+    sendbuf = np.zeros(size,dtype='int')
+    for w in localW:
+        if c.name == w[1].name: sendbuf[rank] += 1
+    recvbuf = None
+    if rank == 0: recvbuf = np.empty([size, sendbuf.size],dtype='int')
+    comm.Gather(sendbuf,recvbuf,root=0)
+    if rank == 0: 
+        numc = recvbuf.sum(axis=1)
+    else:
+        numc = np.empty(size,dtype='int')
+    comm.Bcast(numc,root=0)
+    if rank == numc.argmax():
+        t0  = time.time()
         c.plotFromFiles()
+        dt = time.time()-t0
+        print ("    {0:>%d} %sCompleted%s {1:>5.1f} s" % (maxCL,OK,ENDC)).format(c.name,dt)
 
+sys.stdout.flush()
 comm.Barrier()
 
 if rank==0: print "\nCompleted in {0:>5.1f} s\n".format(time.time()-T0)

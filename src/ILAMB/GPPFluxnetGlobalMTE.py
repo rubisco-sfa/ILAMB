@@ -176,7 +176,9 @@ class GPPFluxnetGlobalMTE():
         self.plot(m,cdata)
 
     def plotFromFiles(self):
+        """
 
+        """
         gppmax      = self.data["timeint_gpp"].data.max()
         biasmax     = 0
         timeint_gpp = {}
