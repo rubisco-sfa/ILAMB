@@ -19,7 +19,7 @@ def FromNetCDF4(filename,variable_name):
     if time_name is None:
         t = None
     else:
-        t = f.variables[time][...]
+        t = f.variables[time_name][...]
     if lat_name is None:
         lat = None
     else:
@@ -28,7 +28,7 @@ def FromNetCDF4(filename,variable_name):
         lon = None
     else:
         lon = f.variables[lon_name][...]
-    return Variable(var[...],var.units,name=variable_name,time=t,lat=lat,lon=lon)
+    return Variable(np.ma.masked_array(var[...]),var.units,name=variable_name,time=t,lat=lat,lon=lon)
 
 class Variable:
     """A class for managing variables defined in time and the globe.

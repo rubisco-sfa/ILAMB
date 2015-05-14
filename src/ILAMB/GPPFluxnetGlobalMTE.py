@@ -177,8 +177,15 @@ class GPPFluxnetGlobalMTE():
 
     def plotFromFiles(self):
         """
-
+        * composite annual cycle
+        * fix html
         """
+        cycle_gpp  = {}
+        mname = "Benchmark"
+        cycle_gpp[mname] = {}
+        for region in self.regions:
+            cycle_gpp[mname][region] = self.data["cycle_gpp"][region] 
+
         gppmax      = self.data["timeint_gpp"].data.max()
         biasmax     = 0
         timeint_gpp = {}
@@ -193,6 +200,14 @@ class GPPFluxnetGlobalMTE():
 
             bias_gpp[mname] = FromNetCDF4(fname,"bias_of_gpp_integrated_over_time_and_divided_by_time_period")
             biasmax = max(biasmax,np.abs(bias_gpp[mname].data).max())
+
+            cycle_gpp[mname] = {}
+            for region in self.regions:
+                cycle_gpp[mname][region] = FromNetCDF4(fname,"annual_cycle_of_gpp_integrated_over_%s" % region)
+
+        f = file("%s/cycle.html" % self.output_path,"w")
+        f.write(post.CompositeAnnualCycleGoogleChart(cycle_gpp))
+        f.close()
 
         for region in self.regions:
 

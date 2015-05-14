@@ -34,9 +34,7 @@ class Confrontation():
         for cat in self.confrontation.keys():
             for area in self.confrontation[cat].keys():
                 for obs in self.confrontation[cat][area].keys():
-                    try:
-                        C = self.confrontation[cat][area][obs]
-                        c.append(C())
-                    except:
-                        pass
+                    C = self.confrontation[cat][area][obs]
+                    c.append(C())
+
         return c

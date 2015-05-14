@@ -272,3 +272,58 @@ def ColorBar(ax,**keywords):
     cb.set_label(label)
     if ticks is not None: cb.set_ticks(ticks)
     if ticklabels is not None: cb.set_ticklabels(ticklabels)
+
+def CompositeAnnualCycleGoogleChart(data):
+    models  = data.keys()
+    regions = data[models[0]].keys() 
+    s = """<html>
+  <head>
+    <script type="text/javascript"
+          src="https://www.google.com/jsapi?autoload={
+            'modules':[{
+              'name':'visualization',
+              'version':'1',
+              'packages':['corechart']
+            }]
+          }">
+    </script>
+    <script type="text/javascript">
+      google.setOnLoadCallback(drawChart);
+      function drawChart() {
+        var data = new google.visualization.DataTable();
+        data.addColumn('string', 'Month');\n"""
+    for region in regions:
+        for model in models:
+            s += "        data.addColumn('number', '%s');\n" % model
+    s += "        data.addRows([\n"
+    months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]
+    for i in range(12):
+        s += "          ['%s'" % (months[i])
+        for region in regions:
+            for model in models:
+                s += ",%.2f" % data[model][region].data[i]
+        s += "],\n"
+    s += """        ]);
+        var view = new google.visualization.DataView(data);
+        var region_id = 0 \n""" # document.getElementById("region").selectedIndex\n"""
+    s += "        view.setColumns([0"
+    lenM = len(models)
+    lenR = len(regions)
+    for i in range(lenM):
+        s += ",region_id*%d+%d+1" % (lenR,i)
+    s += """]);
+        var options = {
+          title: 'Annual Cycle',
+          curveType: 'none',
+          legend: { position: 'right' }
+        };
+        var chart = new google.visualization.LineChart(document.getElementById('curve_chart'));
+        chart.draw(view, options);
+      }
+    </script>
+  </head>
+  <body>
+    <div id="curve_chart" style="width: 900px; height: 500px"></div>
+  </body>
+</html>"""
+    return s
