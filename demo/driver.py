@@ -40,7 +40,7 @@ if rank == 0:
 # Assign colors
 clrs = il.GenerateDistinctColors(len(M))
 for m in M:
-    clr     = clrs.pop(np.random.randint(0,high=len(clrs)))
+    clr     = clrs.pop(0)
     m.color = clr
     
 # Build work list, ModelResult+Confrontation pairs

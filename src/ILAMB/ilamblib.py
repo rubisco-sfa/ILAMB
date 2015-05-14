@@ -53,7 +53,7 @@ def GenerateDistinctColors(N,saturation=0.67,value=0.67):
        list of N distinct RGB tuples    
     """
     from colorsys import hsv_to_rgb
-    HSV_tuples = [(x/float(N-1), saturation, value) for x in range(N)]
+    HSV_tuples = [(x/float(N), saturation, value) for x in range(N)]
     RGB_tuples = map(lambda x: hsv_to_rgb(*x), HSV_tuples)
     return RGB_tuples
 

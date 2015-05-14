@@ -33,14 +33,15 @@ class GPPFluxnetGlobalMTE():
 
         # somewhat complicated layout designation for HTML output pages
         self.layout = []
-        self.layout.append({"name":"Temporally integrated period mean",
+        self.layout.append({"name" :"Temporally integrated period mean",
                             "plots":{"timeint" :["MEAN",True],
                                      "bias"    :["BIAS",True]}})
-        self.layout.append({"name":"Spatially integrated period mean",
+        self.layout.append({"name" :"Spatially integrated period mean",
                             "plots":{"spaceint":["MEAN",False]}})
-        self.layout.append({"name":"Annual cycle",
-                            "plots":{"cycle"   :["CYCLE",False]}})
-        self.layout.append({"name":"Phase",
+        self.layout.append({"name" :"Annual cycle",
+                            "plots":{"cycle"    :["CYCLE",False],
+                                     "compcycle":["CYCLE",False]}})
+        self.layout.append({"name" :"Phase",
                             "plots":{"phase"   :["PHASE",True],
                                      "shift"   :["SHIFT",True]}})
 
@@ -177,19 +178,22 @@ class GPPFluxnetGlobalMTE():
 
     def plotFromFiles(self):
         """
-        * composite annual cycle
         * fix html
         """
+
+        # Load the cycle data for a composite plot
         cycle_gpp  = {}
         mname = "Benchmark"
         cycle_gpp[mname] = {}
         for region in self.regions:
             cycle_gpp[mname][region] = self.data["cycle_gpp"][region] 
 
+        # Load data and track maxima for plotting limits
         gppmax      = self.data["timeint_gpp"].data.max()
         biasmax     = 0
         timeint_gpp = {}
         bias_gpp    = {}
+        metrics     = {}
         pattern     = "%s/%s*.nc" % (self.output_path,self.name)
         for fname in glob.glob(pattern):
 
@@ -202,16 +206,18 @@ class GPPFluxnetGlobalMTE():
             biasmax = max(biasmax,np.abs(bias_gpp[mname].data).max())
 
             cycle_gpp[mname] = {}
+            metrics  [mname] = {}
             for region in self.regions:
                 cycle_gpp[mname][region] = FromNetCDF4(fname,"annual_cycle_of_gpp_integrated_over_%s" % region)
-
-        f = file("%s/cycle.html" % self.output_path,"w")
-        f.write(post.CompositeAnnualCycleGoogleChart(cycle_gpp))
-        f.close()
+                metrics[mname][region]   = {}
+                metrics[mname][region]["Bias"]      = FromNetCDF4(fname,"bias_of_gpp_integrated_over_%s" % (region))
+                metrics[mname][region]["BiasScore"] = FromNetCDF4(fname,"bias_score_of_gpp_integrated_over_%s" % (region))
+                metrics[mname][region]["RMSE"]      = FromNetCDF4(fname,"rmse_of_gpp_integrated_over_%s" % (region))
+                metrics[mname][region]["RMSEScore"] = FromNetCDF4(fname,"rmse_score_of_gpp_integrated_over_%s" % (region))
 
         for region in self.regions:
 
-            # benchmark time integrated mean
+            # plot benchmark time integrated mean
             fig   = plt.figure(figsize=(6.8,2.8))
             ax    = fig.add_axes([0.06,0.025,0.88,0.965])
             self.data["timeint_gpp"].plot(ax,region=region,vmin=0,vmax=gppmax,cmap="Greens")
@@ -220,19 +226,38 @@ class GPPFluxnetGlobalMTE():
 
             for key in timeint_gpp.keys():
 
-                # model time integrated mean
+                # plot model time integrated mean
                 fig   = plt.figure(figsize=(6.8,2.8))
                 ax    = fig.add_axes([0.06,0.025,0.88,0.965])
                 timeint_gpp[key].plot(ax,region=region,vmin=0,vmax=gppmax,cmap="Greens")
                 fig.savefig("%s/%s_%s_timeint.png" % (self.output_path,key,region))
                 plt.close()
 
-                # bias of time integrated mean
+                # plot bias of time integrated mean
                 fig   = plt.figure(figsize=(6.8,2.8))
                 ax    = fig.add_axes([0.06,0.025,0.88,0.965])
                 bias_gpp[key].plot(ax,region=region,vmin=-biasmax,vmax=+biasmax,cmap="seismic")
                 fig.savefig("%s/%s_%s_bias.png" % (self.output_path,key,region))
                 plt.close()
+
+            # plot composite annual cycle 
+            fig = plt.figure(figsize=(6.8,2.8))
+            ax  = fig.add_axes([0.06,0.025,0.88,0.965])
+            cycle_gpp["Benchmark"][region].std = None
+            cycle_gpp["Benchmark"][region].plot(ax,lw=2,alpha=0.25,color='k',label="Obs")
+            models = cycle_gpp.keys(); models.remove("Benchmark")
+            models = sorted(models,key=lambda key: key.upper())
+            clrs   = il.GenerateDistinctColors(len(models))
+            for key in models: cycle_gpp[key][region].plot(ax,color=clrs.pop(0),label=key)
+            ax.set_xlim(1850.,11./365.+1850)
+            ax.set_xticks(np.arange(12)/365.+1850)
+            ax.set_xticklabels(["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"])
+            ax.set_ylabel(cycle_gpp["Benchmark"][cycle_gpp["Benchmark"].keys()[0]].unit)
+            handles, labels = ax.get_legend_handles_labels()
+            lgd = ax.legend(handles, labels, loc='upper center', bbox_to_anchor=(1.2,1.0))
+            fig.savefig("%s/%s_compcycle.png" % (self.output_path,region),
+                        bbox_extra_artists=(lgd,), bbox_inches='tight')
+            plt.close()
 
         # legend
         fig,ax = plt.subplots(figsize=(6.8,1.0),tight_layout=True)
@@ -246,6 +271,11 @@ class GPPFluxnetGlobalMTE():
                       cmap="seismic",label=bias_gpp[bias_gpp.keys()[0]].unit)
         fig.savefig("%s/legend_bias.png" % (self.output_path))
         plt.close()
+
+        # write the html output file
+        f = file("%s/%s.html" % (self.output_path,self.name),"w")
+        f.write(post.ConfrontationTableGoogle(self,metrics))
+        f.close()
 
     def plot(self,m=None,data=None):
 

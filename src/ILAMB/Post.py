@@ -90,7 +90,7 @@ HEAD2 = r"""
       }
     </script>"""
 
-def ConfrontationTableGoogle(c,M):
+def ConfrontationTableGoogle(c,metrics):
     """Write out confrontation data in a HTML format"""
     def _column_sort(name,priority=["Bias","RMSE","Interannual","Score"]):
         """a local function to sort columns"""
@@ -100,31 +100,25 @@ def ConfrontationTableGoogle(c,M):
         return val
 
     # which metrics will we have
-    header = None
-    for m in M:
-        if c.name in m.confrontations.keys():
-            header = m.confrontations[c.name]["metrics"][c.regions[0]].keys()
-            break
-    if header is None: return ""
+    models  = metrics.keys()
+    regions = metrics[models[0]].keys()
+    header  = metrics[models[0]][regions[0]].keys()
     header  = sorted(header,key=_column_sort)
 
     # write out header of the html
     s  = HEAD1
     s += "        data.addColumn('string','Model');\n"
-    for region in c.regions:
-        metrics = m.confrontations[c.name]["metrics"][region]
+    for region in regions:
         for h in header:
-            metric = metrics[h]
+            metric = metrics[models[0]][region][h]
             unit   = metric.unit.replace(" ",r"&thinsp;").replace("-1",r"<sup>-1</sup>")
             s += """        data.addColumn('number','<span title="%s">%s [%s]</span>');\n""" % (metric.name,h,unit)
     s += "        data.addRows([\n"
-    for m in M:
-        if not m.confrontations.has_key(c.name): continue
-        s += "          ['%s'" % m.name
-        for region in c.regions:
-            metrics = m.confrontations[c.name]["metrics"][region]
+    for model in models:
+        s += "          ['%s'" % model
+        for region in regions:
             for h in header:
-                s += ",%.03f" % metrics[h].data
+                s += ",%.03f" % metrics[model][region][h].data
         s+= "],\n"
     s += """        ]);
         var view  = new google.visualization.DataView(data);
@@ -157,7 +151,11 @@ def ConfrontationTableGoogle(c,M):
         for img in d["plots"].keys():
             imgs.append(img)
     for img in imgs:
-        s += """            document.getElementById("%s").src = mod + "_" + reg + "_%s.png"\n""" % (img,img)
+        if img == "compcycle":
+            s += """            document.getElementById("%s").src = reg + "_%s.png"\n""" % (img,img)
+        else:
+            s += """            document.getElementById("%s").src = mod + "_" + reg + "_%s.png"\n""" % (img,img)
+
 
     s += """        }
         google.visualization.events.addListener(table, 'select', updateImages);
@@ -179,7 +177,7 @@ def ConfrontationTableGoogle(c,M):
 	<h1><span id="htxt">%s</span></h1>
       </div>
       <select id="region" onchange="drawTable()">\n""" % c.name
-    for region in c.regions:
+    for region in regions:
         s += """        <option value="%s">%s (%s)</option>\n""" % (region,region,region_names[region])
     s += """      </select>
     <div id="table_div" align="center"></div>\n"""
@@ -208,7 +206,6 @@ def ConfrontationTableGoogle(c,M):
   </body>
 </html>
 """ 
-
     return s
 
 def GlobalPlot(lat,lon,var,ax,region="global.large",shift=False,**keywords):
