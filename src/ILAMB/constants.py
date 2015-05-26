@@ -17,6 +17,7 @@ dpm_noleap       = asarray([31,28,31,30,31,30,31,31,30,31,30,31],dtype='float') 
 dpm_gregorian    = npcopy(dpm_noleap) ; dpm_gregorian[1] = dpm_gregorian[1] + 0.25
 dpm_360          = ones(mpy)*30.
 mid_months       = asarray([15.5,45.,74.5,105.,135.5,166.,196.5,227.5,258.,288.5,319.,349.5],dtype='float')
+lbl_months       = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]
 
 dpy = {"noleap"    : dpy_noleap,
        "365_day"   : dpy_noleap,
@@ -65,6 +66,9 @@ convert["Pg"] = {"g" :1e+15,"kg":1e+12,"Kg":1e+12,"Pg":1e+0 }
 convert["s"] = {"s":1. ,"d":1./spd,"y":1./spy }
 convert["d"] = {"s":spd,"d":1.    ,"y":spd/spy}
 convert["y"] = {"s":spy,"d":dpy   ,"y":1.     }
+
+# space conversions
+convert["m"] = {"m":1.}
 
 regions = {}
 regions["global.large"] = ((-89.75, 89.75),(-179.75, 179.75))

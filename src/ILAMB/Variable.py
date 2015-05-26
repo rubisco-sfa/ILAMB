@@ -1,6 +1,6 @@
 import ilamblib as il
 import Post as post
-from constants import spd,spy,dpy,convert,regions as ILAMBregions
+from constants import spd,spy,dpy,convert,regions as ILAMBregions,mid_months
 import numpy as np
 import pylab as plt
 from netCDF4 import Dataset
@@ -490,7 +490,7 @@ class Variable:
         var = self
         if self.spatial: var = self.integrateInSpace()
         vmean,vstd,tmax,tmaxstd = il.AnnualCycleInformation(var.time,var.data)
-        return Variable(vmean,var.unit,name="annual_cycle_of_%s" % self.name,std=vstd,time=np.arange(12)),tmax,tmaxstd
+        return Variable(vmean,var.unit,name="annual_cycle_of_%s" % self.name,std=vstd,time=mid_months),tmax,tmaxstd
         
     def phase(self):
         if not self.temporal: raise il.NotTemporalVariable()
