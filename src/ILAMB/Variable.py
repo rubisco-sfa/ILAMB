@@ -84,19 +84,10 @@ class Variable:
         if time is not None: 
             self.temporal = True
             self.dt = (time[1:]-time[:-1]).mean()
-        if lat  is not None: self.spatial  = True
-        if lon  is not None:
-            # convert possible [0,360] to [-180,180]
-            self.lon = (self.lon<=180)*self.lon+(self.lon>180)*(self.lon-360)
-            # plotting routines like the first column of data to
-            # corrospond to the -180 longitude
-            shift     = self.lon.argmin()
-            self.lon  = np.roll(self.lon ,-shift)
-            self.data = np.roll(self.data,-shift,axis=-1)
-        if self.spatial:
-            assert lat is not None
-            assert lon is not None
-            if self.area is None: self.area = il.CellAreas(lat,lon)
+        if (lat is not None) or (lon is not None): self.spatial = True
+        if self.std is not None:
+            assert self.data.shape == self.std.shape
+
         self.monthly = False
         if self.temporal:
             # dt = mean temporal spacing, tells us what kind of
@@ -104,9 +95,25 @@ class Variable:
             # etc)
             dt = (time[1:]-time[:-1]).mean()
             if np.allclose(dt,30,atol=3): self.monthly = True
-        if self.std is not None:
-            assert self.data.shape == self.std.shape
+        if self.spatial:
+            assert lat is not None
+            assert lon is not None
 
+            # convert possible [0,360] to [-180,180]
+            self.lon = (self.lon<=180)*self.lon+(self.lon>180)*(self.lon-360)
+
+            # make sure we have areas
+            if self.area is None: self.area = il.CellAreas(self.lat,self.lon)
+
+            # plotting routines like the first column of data to
+            # corrospond to the -180 longitude
+            shift     = self.lon.argmin()
+            self.lon  = np.roll(self.lon ,-shift)
+            self.data = np.roll(self.data,-shift,axis=-1)
+            self.area = np.roll(self.area,-shift,axis=-1)
+            if self.std is not None:
+                self.std = np.roll(self.std,-shift,axis=-1)
+                
     def toNetCDF4(self,dataset):
         """Adds the variable to the specified netCDF4 dataset
 
@@ -303,8 +310,8 @@ class Variable:
         def _make_bnds(x):
             bnds       = np.zeros(x.size+1)
             bnds[1:-1] = 0.5*(x[1:]+x[:-1])
-            bnds[0]    = x[0] -0.5*(x[ 1]-x[ 0])
-            bnds[-1]   = x[-1]+0.5*(x[-1]-x[-2])
+            bnds[0]    = max(x[0] -0.5*(x[ 1]-x[ 0]),-180)
+            bnds[-1]   = min(x[-1]+0.5*(x[-1]-x[-2]),+180)
             return bnds
         assert var.unit == self.unit
         assert self.temporal == False
@@ -375,7 +382,7 @@ class Variable:
         mint = max(var.time.min(),self.time.min())
         maxt = min(var.time.max(),self.time.max())
         b     = np.argmin(np.abs( var.time-mint)); e     = np.argmin(np.abs( var.time-maxt)) 
-        ref_b = np.argmin(np.abs(self.time-mint)); ref_e = np.argmin(np.abs(self.time-maxt)) 
+        ref_b = np.argmin(np.abs(self.time-mint)); ref_e = np.argmin(np.abs(self.time-maxt))
         comparable = (var.time[b:e].shape == self.time[ref_b:ref_e].shape)
         if comparable:
             comparable = np.allclose(var.time[b:e],self.time[ref_b:ref_e],atol=0.5*self.dt)
@@ -484,9 +491,7 @@ class Variable:
             ax.plot(t,self.data,'-',
                     color=color,lw=lw,alpha=alpha,label=label)
         elif not self.temporal and self.spatial:
-            ax = post.GlobalPlot(self.lat.clip(- 89.99, 89.99),
-                                 self.lon.clip(-179.99,179.99),
-                                 self.data,ax,
+            ax = post.GlobalPlot(self.lat,self.lon,self.data,ax,
                                  vmin   = vmin  , vmax = vmax,
                                  region = region, cmap = cmap)
         return ax

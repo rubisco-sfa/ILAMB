@@ -104,7 +104,7 @@ class GPPFluxnetGlobalMTE():
         
         # ensure that oceans are properly masked
         mod_gpp.data = np.ma.masked_array(mod_gpp.data,
-                                          mask=mod_gpp.data.mask+(m.land_fraction<1e-2)[np.newaxis,:,:],
+                                          mask=mod_gpp.data.mask+(mod_gpp.area<1e-2)[np.newaxis,:,:],
                                           copy=False)
 
         # integrate in time
