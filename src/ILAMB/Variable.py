@@ -86,7 +86,13 @@ class Variable:
             self.dt = (time[1:]-time[:-1]).mean()
         if lat  is not None: self.spatial  = True
         if lon  is not None:
+            # convert possible [0,360] to [-180,180]
             self.lon = (self.lon<=180)*self.lon+(self.lon>180)*(self.lon-360)
+            # plotting routines like the first column of data to
+            # corrospond to the -180 longitude
+            shift     = self.lon.argmin()
+            self.lon  = np.roll(self.lon ,-shift)
+            self.data = np.roll(self.data,-shift,axis=-1)
         if self.spatial:
             assert lat is not None
             assert lon is not None
