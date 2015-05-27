@@ -2,10 +2,25 @@ from netCDF4 import Dataset
 import numpy as np
 import pylab as plt
 import ilamblib as il
-from constants import convert,spd,mid_months
+from constants import convert,spd,mid_months,lbl_months
 import Post as post
 import os,glob
 from Variable import Variable,FromNetCDF4
+
+def _ForrestsTickMarks(ax,per=0.05):
+    yticks = ax.get_yticks()
+    pad    = per*(yticks[-1]-yticks[0])
+    ax.set_ylim(yticks[0]-pad,yticks[-1]+pad)
+    ax.set_yticks(yticks)
+
+def _ShiftYearTicks(ax):
+    xt  = ax.get_xticks()
+    xtl = ["%d" % x for x in xt]
+    xt  = np.asarray(xt)+0.5
+    ax.set_xlim(xt[0]-0.5,xt[1]+0.5)
+    ax.xaxis.set_ticks(np.arange(xt[0],xt[-1]+1),minor=True)
+    ax.xaxis.set_ticks(xt                       ,minor=False)
+    ax.set_xticklabels(xtl)
 
 class GPPFluxnetGlobalMTE():
     """Confront models with the gross primary productivity (GPP) product
@@ -178,7 +193,6 @@ class GPPFluxnetGlobalMTE():
 
     def plotFromFiles(self):
         """
-        * fix html
         """
 
         # Load the cycle data for a composite plot
@@ -241,22 +255,19 @@ class GPPFluxnetGlobalMTE():
                 plt.close()
 
             # plot composite annual cycle 
-            fig = plt.figure(figsize=(6.8,2.8))
-            ax  = fig.add_axes([0.06,0.025,0.88,0.965])
+            fig,ax = plt.subplots(figsize=(6.8,2.8),tight_layout=True)
             cycle_gpp["Benchmark"][region].std = None
             cycle_gpp["Benchmark"][region].plot(ax,lw=2,alpha=0.25,color='k',label="Obs")
             models = cycle_gpp.keys(); models.remove("Benchmark")
             models = sorted(models,key=lambda key: key.upper())
             clrs   = il.GenerateDistinctColors(len(models))
             for key in models: cycle_gpp[key][region].plot(ax,color=clrs.pop(0),label=key)
-            ax.set_xlim(1850.,11./365.+1850)
-            ax.set_xticks(np.arange(12)/365.+1850)
-            ax.set_xticklabels(["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"])
+            ax.set_xlim(1850,1851) 
+            ax.set_xticks(1850+mid_months/365.) 
+            ax.set_xticklabels(lbl_months)
             ax.set_ylabel(cycle_gpp["Benchmark"][cycle_gpp["Benchmark"].keys()[0]].unit)
-            handles, labels = ax.get_legend_handles_labels()
-            lgd = ax.legend(handles, labels, loc='upper center', bbox_to_anchor=(1.2,1.0))
-            fig.savefig("%s/%s_compcycle.png" % (self.output_path,region),
-                        bbox_extra_artists=(lgd,), bbox_inches='tight')
+            _ForrestsTickMarks(ax)
+            fig.savefig("%s/%s_compcycle.png" % (self.output_path,region))
             plt.close()
 
         # legend
@@ -310,31 +321,26 @@ class GPPFluxnetGlobalMTE():
             for region in self.regions:
 
                 # model space integrated mean compared to benchmark
-                fig = plt.figure(figsize=(6.8,2.8*0.8))
-                ax  = fig.add_axes([0.06,0.025,0.88,0.965])
+                fig,ax = plt.subplots(figsize=(6.8,2.8),tight_layout=True)
                 self.data["spaceint_gpp"][region].plot(ax,lw=2,alpha=0.25,color='k',label="Obs")
                 data["spaceint_gpp"][region].plot(ax,color=m.color,label=m.name)
                 ax.set_xlabel("Year")
                 ax.set_ylabel(data["spaceint_gpp"][region].unit)
-                handles, labels = ax.get_legend_handles_labels()
-                lgd = ax.legend(handles, labels, ncol=2, loc='upper center', bbox_to_anchor=(0.5,1.2))
-                fig.savefig("%s/%s_%s_spaceint.png" % (self.output_path,m.name,region),
-                            bbox_extra_artists=(lgd,), bbox_inches='tight')
+                _ShiftYearTicks(ax)
+                _ForrestsTickMarks(ax)
+                fig.savefig("%s/%s_%s_spaceint.png" % (self.output_path,m.name,region))
                 plt.close()
 
                 # model annual cycle compared to benchmark
-                fig = plt.figure(figsize=(6.8,2.8*0.8))
-                ax  = fig.add_axes([0.06,0.025,0.88,0.965])
+                fig,ax = plt.subplots(figsize=(6.8,2.8),tight_layout=True)
                 self.data["cycle_gpp"][region].plot(ax,lw=2,alpha=0.25,color='k',label="Obs")
                 data["cycle_gpp"][region].plot(ax,color=m.color,label=m.name)
-                ax.set_xlim(1850.,11./365.+1850)
-                ax.set_xticks(np.arange(12)/365.+1850)
-                ax.set_xticklabels(["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"])
+                ax.set_xlim(1850,1851) 
+                ax.set_xticks(1850+mid_months/365.) 
+                ax.set_xticklabels(lbl_months)
                 ax.set_ylabel(data["cycle_gpp"][region].unit)
-                handles, labels = ax.get_legend_handles_labels()
-                lgd = ax.legend(handles, labels, ncol=2, loc='upper center', bbox_to_anchor=(0.5,1.2))
-                fig.savefig("%s/%s_%s_cycle.png" % (self.output_path,m.name,region),
-                            bbox_extra_artists=(lgd,), bbox_inches='tight')
+                _ForrestsTickMarks(ax)
+                fig.savefig("%s/%s_%s_cycle.png" % (self.output_path,m.name,region))
                 plt.close()
 
                 # model phase info
