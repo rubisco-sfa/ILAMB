@@ -197,7 +197,7 @@ def ConfrontationTableGoogle(c,metrics):
                 s += """         <tbody>
             <tr>
 	      <th width="20"></th>
-	      <th><img src="legend_%s.png" id="leg" width=680 height=102 alt="Data not available"></img></th>
+	      <th><img src="legend_%s.png" id="leg" width=680 alt="Data not available"></img></th>
             </tr>
           </tbody>\n""" % (plot)
             s += "</table>\n""" 

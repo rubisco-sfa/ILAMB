@@ -4,7 +4,7 @@ import pylab as plt
 import ilamblib as il
 from constants import convert,spd,mid_months,lbl_months
 import Post as post
-import os,glob
+import os,glob,re
 from Variable import Variable,FromNetCDF4
 
 def _ForrestsTickMarks(ax,per=0.05):
@@ -21,6 +21,12 @@ def _ShiftYearTicks(ax):
     ax.xaxis.set_ticks(np.arange(xt[0],xt[-1]+1),minor=True)
     ax.xaxis.set_ticks(xt                       ,minor=False)
     ax.set_xticklabels(xtl)
+
+def _UnitStringToMatplotlib(unit):
+    match = re.findall("(-\d)",unit)
+    for m in match:
+        unit = unit.replace(m,"$^{%s}$" % m)
+    return unit
 
 class GPPFluxnetGlobalMTE():
     """Confront models with the gross primary productivity (GPP) product
@@ -52,7 +58,7 @@ class GPPFluxnetGlobalMTE():
                             "plots":{"timeint" :["MEAN",True],
                                      "bias"    :["BIAS",True]}})
         self.layout.append({"name" :"Spatially integrated period mean",
-                            "plots":{"spaceint":["MEAN",False]}})
+                            "plots":{"spaceint":["MEAN",True]}})
         self.layout.append({"name" :"Annual cycle",
                             "plots":{"cycle"    :["CYCLE",False],
                                      "compcycle":["CYCLE",False]}})
@@ -257,29 +263,36 @@ class GPPFluxnetGlobalMTE():
             # plot composite annual cycle 
             fig,ax = plt.subplots(figsize=(6.8,2.8),tight_layout=True)
             cycle_gpp["Benchmark"][region].std = None
-            cycle_gpp["Benchmark"][region].plot(ax,lw=2,alpha=0.25,color='k',label="Obs")
+            cycle_gpp["Benchmark"][region].plot(ax,lw=3,alpha=0.25,color='k',label="Obs")
             models = cycle_gpp.keys(); models.remove("Benchmark")
             models = sorted(models,key=lambda key: key.upper())
             clrs   = il.GenerateDistinctColors(len(models))
-            for key in models: cycle_gpp[key][region].plot(ax,color=clrs.pop(0),label=key)
+            for key in models: cycle_gpp[key][region].plot(ax,lw=2,color=clrs.pop(0),label=key)
             ax.set_xlim(1850,1851) 
             ax.set_xticks(1850+mid_months/365.) 
             ax.set_xticklabels(lbl_months)
-            ax.set_ylabel(cycle_gpp["Benchmark"][cycle_gpp["Benchmark"].keys()[0]].unit)
+            ax.set_ylabel(_UnitStringToMatplotlib(cycle_gpp["Benchmark"][cycle_gpp["Benchmark"].keys()[0]].unit))
             _ForrestsTickMarks(ax)
             fig.savefig("%s/%s_compcycle.png" % (self.output_path,region))
             plt.close()
 
+        # models legend
+        H,L    = ax.get_legend_handles_labels()
+        fig,ax = plt.subplots(figsize=(6.8,2.8),tight_layout=True)
+        ax.legend(H,L,loc="upper left",ncol=3)
+        ax.axis('off')
+        fig.savefig("%s/legend_spaceint.png" % self.output_path)
+        
         # legend
         fig,ax = plt.subplots(figsize=(6.8,1.0),tight_layout=True)
-        post.ColorBar(ax,vmin=0,vmax=gppmax,cmap="Greens",label=timeint_gpp[timeint_gpp.keys()[0]].unit)
+        post.ColorBar(ax,vmin=0,vmax=gppmax,cmap="Greens",label=_UnitStringToMatplotlib(timeint_gpp[timeint_gpp.keys()[0]].unit))
         fig.savefig("%s/legend_timeint.png" % (self.output_path))
         plt.close()
 
         # legend
         fig,ax = plt.subplots(figsize=(6.8,1.0),tight_layout=True)
         post.ColorBar(ax,vmin=-biasmax,vmax=+biasmax,
-                      cmap="seismic",label=bias_gpp[bias_gpp.keys()[0]].unit)
+                      cmap="seismic",label=_UnitStringToMatplotlib(bias_gpp[bias_gpp.keys()[0]].unit))
         fig.savefig("%s/legend_bias.png" % (self.output_path))
         plt.close()
 
@@ -322,10 +335,10 @@ class GPPFluxnetGlobalMTE():
 
                 # model space integrated mean compared to benchmark
                 fig,ax = plt.subplots(figsize=(6.8,2.8),tight_layout=True)
-                self.data["spaceint_gpp"][region].plot(ax,lw=2,alpha=0.25,color='k',label="Obs")
-                data["spaceint_gpp"][region].plot(ax,color=m.color,label=m.name)
+                self.data["spaceint_gpp"][region].plot(ax,lw=3,alpha=0.25,color='k',label="Obs")
+                data["spaceint_gpp"][region].plot(ax,lw=2,color=m.color,label=m.name)
                 ax.set_xlabel("Year")
-                ax.set_ylabel(data["spaceint_gpp"][region].unit)
+                ax.set_ylabel(_UnitStringToMatplotlib(data["spaceint_gpp"][region].unit))
                 _ShiftYearTicks(ax)
                 _ForrestsTickMarks(ax)
                 fig.savefig("%s/%s_%s_spaceint.png" % (self.output_path,m.name,region))
@@ -333,12 +346,12 @@ class GPPFluxnetGlobalMTE():
 
                 # model annual cycle compared to benchmark
                 fig,ax = plt.subplots(figsize=(6.8,2.8),tight_layout=True)
-                self.data["cycle_gpp"][region].plot(ax,lw=2,alpha=0.25,color='k',label="Obs")
-                data["cycle_gpp"][region].plot(ax,color=m.color,label=m.name)
+                self.data["cycle_gpp"][region].plot(ax,lw=3,alpha=0.25,color='k',label="Obs")
+                data["cycle_gpp"][region].plot(ax,lw=2,color=m.color,label=m.name)
                 ax.set_xlim(1850,1851) 
                 ax.set_xticks(1850+mid_months/365.) 
                 ax.set_xticklabels(lbl_months)
-                ax.set_ylabel(data["cycle_gpp"][region].unit)
+                ax.set_ylabel(_UnitStringToMatplotlib(data["cycle_gpp"][region].unit))
                 _ForrestsTickMarks(ax)
                 fig.savefig("%s/%s_%s_cycle.png" % (self.output_path,m.name,region))
                 plt.close()
