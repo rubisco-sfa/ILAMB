@@ -24,8 +24,9 @@ def _ShiftYearTicks(ax):
 
 def _UnitStringToMatplotlib(unit):
     match = re.findall("(-\d)",unit)
-    for m in match:
-        unit = unit.replace(m,"$^{%s}$" % m)
+    for m in match: unit = unit.replace(m,"$^{%s}$" % m)
+    match = re.findall("(\D*g)",unit)
+    for m in match: unit = unit.replace(m,"%s C " % m)
     return unit
 
 class GPPFluxnetGlobalMTE():
@@ -61,9 +62,9 @@ class GPPFluxnetGlobalMTE():
                             "plots":{"spaceint":["MEAN",True]}})
         self.layout.append({"name" :"Annual cycle",
                             "plots":{"cycle"    :["CYCLE",False],
-                                     "compcycle":["CYCLE",False]}})
+                                     "compcycle":["COMP",False]}})
         self.layout.append({"name" :"Phase",
-                            "plots":{"phase"   :["PHASE",True],
+                            "plots":{"phase"   :["PEAK",True],
                                      "shift"   :["SHIFT",True]}})
 
     def getData(self,output_unit=None):
@@ -147,8 +148,12 @@ class GPPFluxnetGlobalMTE():
         # regional analysis
         self.data["spaceint_gpp"] = {}
         self.data["cycle_gpp"   ] = {}
+        self.data["tmax"        ] = {}
+        self.data["tstd"        ] = {}
         cdata    ["spaceint_gpp"] = {}
         cdata    ["cycle_gpp"   ] = {}
+        cdata    ["tmax"        ] = {}
+        cdata    ["tstd"        ] = {}
         for region in self.regions:
             
             # integrate in space
@@ -169,13 +174,15 @@ class GPPFluxnetGlobalMTE():
             obs_spaceint_gpp.RMSE(mod_spaceint_gpp,normalize="score")    .toNetCDF4(f)
 
             # annual cycle
-            if self.data["cycle_gpp"].has_key(region):
-                obs_cycle_gpp = self.data["cycle_gpp"][region]
-            else:
+            if not self.data["cycle_gpp"].has_key(region):
                 obs_cycle_gpp,obs_tmax,obs_tmaxstd = obs_spaceint_gpp.annualCycle()
                 self.data["cycle_gpp"][region] = obs_cycle_gpp 
+                self.data["tmax"]     [region] = obs_tmax
+                self.data["tstd"]     [region] = obs_tmaxstd
             mod_cycle_gpp,mod_tmax,mod_tmaxstd = mod_spaceint_gpp.annualCycle()
             cdata["cycle_gpp"][region] = mod_cycle_gpp
+            cdata["tmax"]     [region] = mod_tmax
+            cdata["tstd"]     [region] = mod_tmaxstd
             mod_cycle_gpp.toNetCDF4(f)
 
         # phase
@@ -230,10 +237,11 @@ class GPPFluxnetGlobalMTE():
             for region in self.regions:
                 cycle_gpp[mname][region] = FromNetCDF4(fname,"annual_cycle_of_gpp_integrated_over_%s" % region)
                 metrics[mname][region]   = {}
-                metrics[mname][region]["Bias"]      = FromNetCDF4(fname,"bias_of_gpp_integrated_over_%s" % (region))
-                metrics[mname][region]["BiasScore"] = FromNetCDF4(fname,"bias_score_of_gpp_integrated_over_%s" % (region))
-                metrics[mname][region]["RMSE"]      = FromNetCDF4(fname,"rmse_of_gpp_integrated_over_%s" % (region))
-                metrics[mname][region]["RMSEScore"] = FromNetCDF4(fname,"rmse_score_of_gpp_integrated_over_%s" % (region))
+                metrics[mname][region]["PeriodMean"] = FromNetCDF4(fname,"gpp_integrated_over_%s_integrated_over_time_and_divided_by_time_period" % (region))
+                metrics[mname][region]["Bias"]       = FromNetCDF4(fname,"bias_of_gpp_integrated_over_%s" % (region))
+                metrics[mname][region]["BiasScore"]  = FromNetCDF4(fname,"bias_score_of_gpp_integrated_over_%s" % (region))
+                metrics[mname][region]["RMSE"]       = FromNetCDF4(fname,"rmse_of_gpp_integrated_over_%s" % (region))
+                metrics[mname][region]["RMSEScore"]  = FromNetCDF4(fname,"rmse_score_of_gpp_integrated_over_%s" % (region))
 
         for region in self.regions:
 
@@ -276,20 +284,20 @@ class GPPFluxnetGlobalMTE():
             fig.savefig("%s/%s_compcycle.png" % (self.output_path,region))
             plt.close()
 
-        # models legend
+        # spaceint legend
         H,L    = ax.get_legend_handles_labels()
         fig,ax = plt.subplots(figsize=(6.8,2.8),tight_layout=True)
         ax.legend(H,L,loc="upper left",ncol=3)
         ax.axis('off')
         fig.savefig("%s/legend_spaceint.png" % self.output_path)
         
-        # legend
+        # timeint legend
         fig,ax = plt.subplots(figsize=(6.8,1.0),tight_layout=True)
         post.ColorBar(ax,vmin=0,vmax=gppmax,cmap="Greens",label=_UnitStringToMatplotlib(timeint_gpp[timeint_gpp.keys()[0]].unit))
         fig.savefig("%s/legend_timeint.png" % (self.output_path))
         plt.close()
 
-        # legend
+        # bias legend
         fig,ax = plt.subplots(figsize=(6.8,1.0),tight_layout=True)
         post.ColorBar(ax,vmin=-biasmax,vmax=+biasmax,
                       cmap="seismic",label=_UnitStringToMatplotlib(bias_gpp[bias_gpp.keys()[0]].unit))
@@ -346,8 +354,14 @@ class GPPFluxnetGlobalMTE():
 
                 # model annual cycle compared to benchmark
                 fig,ax = plt.subplots(figsize=(6.8,2.8),tight_layout=True)
-                self.data["cycle_gpp"][region].plot(ax,lw=3,alpha=0.25,color='k',label="Obs")
+                self.data["cycle_gpp"][region].plot(ax,lw=2,alpha=0.25,color='k',label="Obs")
+                ax.errorbar(self.data["tmax"][region]/365.+1850,
+                            self.data["cycle_gpp"][region].data.max(),
+                            xerr=self.data["tstd"][region]/365.,fmt='o',color='k',lw=2,alpha=0.25)
                 data["cycle_gpp"][region].plot(ax,lw=2,color=m.color,label=m.name)
+                ax.errorbar(data["tmax"][region]/365.+1850,
+                            data["cycle_gpp"][region].data.max(),
+                            xerr=data["tstd"][region]/365.,fmt='o',color=m.color,lw=2)
                 ax.set_xlim(1850,1851) 
                 ax.set_xticks(1850+mid_months/365.) 
                 ax.set_xticklabels(lbl_months)

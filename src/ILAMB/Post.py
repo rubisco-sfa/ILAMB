@@ -101,13 +101,16 @@ def ConfrontationTableGoogle(c,metrics):
 
     # which metrics will we have
     models  = metrics.keys()
+    models  = sorted(models,key=lambda key: key.upper())
     regions = metrics[models[0]].keys()
+    regions = sorted(regions)
     header  = metrics[models[0]][regions[0]].keys()
     header  = sorted(header,key=_column_sort)
 
     # write out header of the html
     s  = HEAD1
     s += "        data.addColumn('string','Model');\n"
+    s += "        data.addColumn('string','Data');\n"
     for region in regions:
         for h in header:
             metric = metrics[models[0]][region][h]
@@ -116,6 +119,7 @@ def ConfrontationTableGoogle(c,metrics):
     s += "        data.addRows([\n"
     for model in models:
         s += "          ['%s'" % model
+        s += """,'<a href = "%s_%s.nc" download>  [-]</a>'""" % (c.name,model)
         for region in regions:
             for h in header:
                 s += ",%.03f" % metrics[model][region][h].data
@@ -125,21 +129,16 @@ def ConfrontationTableGoogle(c,metrics):
         var rid   = document.getElementById("region").selectedIndex
 """
     lenh = len(header)
-    s += "        view.setColumns([0"
+    s += "        view.setColumns([0,1"
     for i in range(lenh):
-        s += ",%d*rid+%d" % (lenh,i+1)
+        s += ",%d*rid+%d" % (lenh,i+2)
     s += "]);"
     s += """
         var table = new google.visualization.Table(document.getElementById('table_div'));
         table.draw(view, {showRowNumber: false,allowHtml: true});
     """
     s += """    function updateImages() {
-            try {
-              var row = table.getSelection()[0].row;
-            }
-            catch(err) {
-              var row = 0;
-            }
+            var row = table.getSelection()[0].row;
             var rid = document.getElementById("region").selectedIndex
             var reg = document.getElementById("region").options[rid].value
             var mod = data.getValue(row, 0)
@@ -178,7 +177,9 @@ def ConfrontationTableGoogle(c,metrics):
       </div>
       <select id="region" onchange="drawTable()">\n""" % c.name
     for region in regions:
-        s += """        <option value="%s">%s (%s)</option>\n""" % (region,region,region_names[region])
+        slc = ""
+        if region == "global": slc = 'selected = "selected"'
+        s += """        <option value="%s" %s>%s (%s)</option>\n""" % (region,slc,region,region_names[region])
     s += """      </select>
     <div id="table_div" align="center"></div>\n"""
 
