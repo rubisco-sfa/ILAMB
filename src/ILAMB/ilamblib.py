@@ -274,7 +274,7 @@ def RootMeanSquaredError(reference,prediction,normalize="none",weights=None):
     if normalize == "maxmin": rmse /= (reference.max()-reference.min())
     if normalize == "score":
         rmse0 = np.sqrt(np.ma.average(reference**2,weights=weights))
-        rmse  = (1-rmse/rmse0).clip(0)
+        rmse  = np.exp(1-rmse/rmse0)/np.exp(1)
     return rmse
 
 def Bias(reference,prediction,normalize="none",weights=None):
@@ -330,7 +330,7 @@ def Bias(reference,prediction,normalize="none",weights=None):
     rmean = np.ma.average(reference,weights=weights)
     bias  = pmean-rmean
     if normalize == "maxmin": bias /= (reference.max()-reference.min())
-    if normalize == "score" : bias  = (1.-np.abs(bias/rmean)).clip(0,1)
+    if normalize == "score" : bias  = np.exp((1.-np.abs(bias/rmean)))/np.exp(1)
     return bias
 
 def AnnualMean(t,var):
