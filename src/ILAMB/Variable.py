@@ -518,8 +518,6 @@ class Variable:
         ----------
         var : ILAMB.Variable.Variable
             The variable we wish to compare against this variable
-        normalize : str
-            The normalization type as defined in ILAMB.ilamblib.Bias
         
         Returns
         -------

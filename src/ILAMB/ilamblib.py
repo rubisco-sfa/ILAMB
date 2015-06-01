@@ -489,13 +489,19 @@ def AnnualCycleInformation(t,var):
     """
     begin = np.argmin(t[:11]%365)
     end   = begin+int(t[begin:].size/12.)*12
-    ts    = mid_months
+    ts    = np.copy(mid_months)
     shp   = (-1,12) + var.shape[1:]
     v     = var[begin:end,...].reshape(shp)
     vmean = np.ma.mean(v,axis=0)
     vstd  = np.ma.std (v,axis=0)
+
+    # if the maximum is likely to be around the new year, then we need to shift times
+    imax,junk = np.histogram(np.ma.argmax(v,axis=1),np.linspace(-0.5,11.5,13))
+    if imax[[0,1,2,9,10,11]].sum() > imax[[3,4,5,6,7,8]].sum(): ts[:6] += 365.
+
     ts    = ts[np.ma.argmax(v,axis=1)]
     tmax  = np.ma.mean(ts,axis=0)
+    if tmax > 365: tmax -= 365.
     tmstd = np.ma.std (ts,axis=0)
     return vmean,vstd,tmax,tmstd
 

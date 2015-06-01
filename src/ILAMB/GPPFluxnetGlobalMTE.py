@@ -192,7 +192,12 @@ class GPPFluxnetGlobalMTE():
             obs_phase_gpp = obs_gpp.phase()
             self.data["phase_gpp"] = obs_phase_gpp    
         mod_phase_gpp = mod_gpp.phase()
+
+        # the shift can only be on the interval [-6,6] months
         shift = obs_phase_gpp.spatialDifference(mod_phase_gpp)
+        shift.data += (shift.data < -0.5*365)*365.
+        shift.data -= (shift.data > +0.5*365)*365.
+        
         cdata["phase_gpp"] = mod_phase_gpp
         cdata["shift_gpp"] = shift
         mod_phase_gpp.toNetCDF4(f)
