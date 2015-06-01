@@ -406,7 +406,7 @@ class Variable:
         bias : float
             The bias of the two variables relative to this variable
         """
-        comparable,b,e,vb,ve = self._overlap(var)
+        comparable,vb,ve,b,e = self._overlap(var)
         if not comparable: raise il.VarsNotComparable()
         mw = il.MonthlyWeights(self.time[b:e])
         bias = il.Bias(self.data[b:e],var.data[vb:ve],normalize=normalize)
@@ -439,7 +439,7 @@ class Variable:
             The rmse of the two variables relative to this variable
 
         """
-        comparable,b,e,vb,ve = self._overlap(var)
+        comparable,vb,ve,b,e = self._overlap(var)
         if not comparable: raise il.VarsNotComparable()
         mw   = il.MonthlyWeights(self.time[b:e])
         rmse = il.RootMeanSquaredError(self.data[b:e],var.data[vb:ve],normalize=normalize)
@@ -508,7 +508,24 @@ class Variable:
         tmax,tmaxstd = il.AnnualMaxTime(self.time,self.data)
         return Variable(tmax,"day",name="day_of_max_gpp",lat=self.lat,lon=self.lon)
         
+    def corrcoef(self,var):
+        """Computes the correlation
         
+        Uses ILAMB.ilamblib.Bias to compuate the bias between these
+        two variables relative to this variable
 
+        Parameters
+        ----------
+        var : ILAMB.Variable.Variable
+            The variable we wish to compare against this variable
+        normalize : str
+            The normalization type as defined in ILAMB.ilamblib.Bias
         
-
+        Returns
+        -------
+        bias : float
+            The bias of the two variables relative to this variable
+        """
+        comparable,vb,ve,b,e = self._overlap(var)
+        if not comparable: raise il.VarsNotComparable()
+        return np.corrcoef(self.data[b:e],var.data[vb:ve])[0,1]

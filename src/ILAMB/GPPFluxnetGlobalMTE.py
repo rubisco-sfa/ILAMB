@@ -58,10 +58,10 @@ class GPPFluxnetGlobalMTE():
         self.layout.append({"name" :"Temporally integrated period mean",
                             "plots":{"timeint" :["MEAN",True],
                                      "bias"    :["BIAS",True]}})
-        self.layout.append({"name" :"Spatially integrated period mean",
-                            "plots":{"spaceint":["MEAN",True]}})
+        self.layout.append({"name" :"Spatially integrated regional mean",
+                            "plots":{"spaceint":["MEAN",False]}})
         self.layout.append({"name" :"Annual cycle",
-                            "plots":{"cycle"    :["CYCLE",False],
+                            "plots":{"cycle"    :["CYCLE",True],
                                      "compcycle":["COMP",False]}})
         self.layout.append({"name" :"Phase",
                             "plots":{"phase"   :["PEAK",True],
@@ -284,12 +284,12 @@ class GPPFluxnetGlobalMTE():
             fig.savefig("%s/%s_compcycle.png" % (self.output_path,region))
             plt.close()
 
-        # spaceint legend
+        # cycle legend
         H,L    = ax.get_legend_handles_labels()
         fig,ax = plt.subplots(figsize=(6.8,2.8),tight_layout=True)
         ax.legend(H,L,loc="upper left",ncol=3)
         ax.axis('off')
-        fig.savefig("%s/legend_spaceint.png" % self.output_path)
+        fig.savefig("%s/legend_cycle.png" % self.output_path)
         
         # timeint legend
         fig,ax = plt.subplots(figsize=(6.8,1.0),tight_layout=True)
