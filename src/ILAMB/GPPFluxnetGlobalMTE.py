@@ -292,7 +292,7 @@ class GPPFluxnetGlobalMTE():
         # cycle legend
         H,L    = ax.get_legend_handles_labels()
         fig,ax = plt.subplots(figsize=(6.8,2.8),tight_layout=True)
-        ax.legend(H,L,loc="upper left",ncol=3)
+        ax.legend(H,L,loc="upper left",ncol=3,fontsize=10)
         ax.axis('off')
         fig.savefig("%s/legend_cycle.png" % self.output_path)
         
