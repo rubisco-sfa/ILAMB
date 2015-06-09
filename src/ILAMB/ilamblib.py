@@ -524,12 +524,19 @@ def AnnualMaxTime(t,var):
     """
     begin = np.argmin(t[:11]%365)
     end   = begin+int(t[begin:].size/12.)*12
-    ts    = mid_months
+    ts    = np.copy(mid_months)
     shp   = (-1,12) + var.shape[1:]
     v     = var[begin:end,...].reshape(shp)
-    ts    = ts[np.ma.argmax(v,axis=1)]
-    tmax  = np.ma.masked_array(np.ma.mean(ts,axis=0),mask=var[0,...].mask)
-    tmstd = np.ma.masked_array(np.ma.std (ts,axis=0),mask=var[0,...].mask)
+
+    imax  = np.ma.argmax(v,axis=1) # for each year and each lat/lon, which month is the maximum?
+    tmax  = np.zeros(var[0,...].shape)
+    for i in range(imax.shape[1]):
+        for j in range(imax.shape[2]):
+            if var.mask[0,i,j]: continue
+            hist,bins = np.histogram(imax[:,i,j],np.linspace(-0.5,11.5,13))
+            tmax[i,j] = ts[np.argmax(hist)]
+    tmax  = np.ma.masked_array(tmax,mask=var[0,...].mask)
+    tmstd = np.ma.masked_array(np.zeros(tmax.shape))
     return tmax,tmstd
 
 def DecadalMaxTime(t,var):

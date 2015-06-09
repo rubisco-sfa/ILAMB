@@ -92,7 +92,7 @@ HEAD2 = r"""
 
 def ConfrontationTableGoogle(c,metrics):
     """Write out confrontation data in a HTML format"""
-    def _column_sort(name,priority=["Bias","RMSE","Interannual","Score"]):
+    def _column_sort(name,priority=["Bias","RMSE","Phase","Interannual","Score"]):
         """a local function to sort columns"""
         val = 1.
         for i,pname in enumerate(priority):

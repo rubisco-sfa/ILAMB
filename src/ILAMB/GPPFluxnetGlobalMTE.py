@@ -145,6 +145,24 @@ class GPPFluxnetGlobalMTE():
         bias.name = "bias_of_gpp_integrated_over_time_and_divided_by_time_period"
         bias.toNetCDF4(f)
 
+        # phase
+        if self.data.has_key("phase_gpp"):
+            obs_phase_gpp = self.data["phase_gpp"]
+        else:
+            obs_phase_gpp = obs_gpp.phase()
+            self.data["phase_gpp"] = obs_phase_gpp    
+        mod_phase_gpp = mod_gpp.phase()
+
+        # the shift can only be on the interval [-6,6] months
+        shift = obs_phase_gpp.spatialDifference(mod_phase_gpp)
+        shift.data += (shift.data < -0.5*365)*365.
+        shift.data -= (shift.data > +0.5*365)*365.
+        
+        cdata["phase_gpp"] = mod_phase_gpp
+        cdata["shift_gpp"] = shift
+        mod_phase_gpp.toNetCDF4(f)
+        shift.toNetCDF4(f)
+
         # regional analysis
         self.data["spaceint_gpp"] = {}
         self.data["cycle_gpp"   ] = {}
@@ -185,24 +203,9 @@ class GPPFluxnetGlobalMTE():
             cdata["tstd"]     [region] = mod_tmaxstd
             mod_cycle_gpp.toNetCDF4(f)
 
-        # phase
-        if self.data.has_key("phase_gpp"):
-            obs_phase_gpp = self.data["phase_gpp"]
-        else:
-            obs_phase_gpp = obs_gpp.phase()
-            self.data["phase_gpp"] = obs_phase_gpp    
-        mod_phase_gpp = mod_gpp.phase()
-
-        # the shift can only be on the interval [-6,6] months
-        shift = obs_phase_gpp.spatialDifference(mod_phase_gpp)
-        shift.data += (shift.data < -0.5*365)*365.
-        shift.data -= (shift.data > +0.5*365)*365.
-        
-        cdata["phase_gpp"] = mod_phase_gpp
-        cdata["shift_gpp"] = shift
-        mod_phase_gpp.toNetCDF4(f)
-        shift.toNetCDF4(f)
-
+            # shift
+            shift.integrateInSpace(region=region,mean=True).toNetCDF4(f)
+            
         f.close()
 
         # plotting
@@ -242,11 +245,12 @@ class GPPFluxnetGlobalMTE():
             for region in self.regions:
                 cycle_gpp[mname][region] = FromNetCDF4(fname,"annual_cycle_of_gpp_integrated_over_%s" % region)
                 metrics[mname][region]   = {}
-                metrics[mname][region]["PeriodMean"] = FromNetCDF4(fname,"gpp_integrated_over_%s_integrated_over_time_and_divided_by_time_period" % (region))
-                metrics[mname][region]["Bias"]       = FromNetCDF4(fname,"bias_of_gpp_integrated_over_%s" % (region))
-                metrics[mname][region]["BiasScore"]  = FromNetCDF4(fname,"bias_score_of_gpp_integrated_over_%s" % (region))
-                metrics[mname][region]["RMSE"]       = FromNetCDF4(fname,"rmse_of_gpp_integrated_over_%s" % (region))
-                metrics[mname][region]["RMSEScore"]  = FromNetCDF4(fname,"rmse_score_of_gpp_integrated_over_%s" % (region))
+                metrics[mname][region]["PeriodMean"] = FromNetCDF4(fname,"gpp_integrated_over_%s_integrated_over_time_and_divided_by_time_period" % region)
+                metrics[mname][region]["Bias"]       = FromNetCDF4(fname,"bias_of_gpp_integrated_over_%s" % region)
+                metrics[mname][region]["BiasScore"]  = FromNetCDF4(fname,"bias_score_of_gpp_integrated_over_%s" % region)
+                metrics[mname][region]["RMSE"]       = FromNetCDF4(fname,"rmse_of_gpp_integrated_over_%s" % region)
+                metrics[mname][region]["RMSEScore"]  = FromNetCDF4(fname,"rmse_score_of_gpp_integrated_over_%s" % region)
+                metrics[mname][region]["PhaseShift"] = FromNetCDF4(fname,"day_of_max_gpp_minus_day_of_max_gpp_integrated_over_%s" % region)
 
         for region in self.regions:
 

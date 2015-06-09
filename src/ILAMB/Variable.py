@@ -199,7 +199,7 @@ class Variable:
         for attr in attributes.keys(): V.setncattr(attr,attributes[attr])
         V[...] = self.data
 
-    def integrateInSpace(self,region=None):
+    def integrateInSpace(self,region=None,mean=False):
         """Integrates the variable over space
 
         Uses nodal integration to integrate the variable over the
@@ -220,6 +220,7 @@ class Variable:
         if not self.spatial: raise il.NotSpatialVariable()
         if region is None:
             integral = il.SpatiallyIntegratedTimeSeries(self.data,self.area)
+            if mean: integral /= self.area.sum()
             name = self.name + "_integrated_over_space"
         else:
             rem_mask  = np.copy(self.data.mask)
@@ -229,9 +230,12 @@ class Variable:
             self.data.mask += mask
             integral  = il.SpatiallyIntegratedTimeSeries(self.data,self.area)
             self.data.mask = rem_mask
+            if mean:
+                area = np.ma.masked_array(self.area,mask=rem_mask+mask)
+                integral /= area.sum()
             name = self.name + "_integrated_over_%s" % region
         unit = self.unit.replace(" m-2","")
-        return Variable(integral,unit,time=self.time,name=name)
+        return Variable(np.ma.masked_array(integral),unit,time=self.time,name=name)
 
     def convert(self,unit):
         """Incomplete attempt to handle unit conversions
