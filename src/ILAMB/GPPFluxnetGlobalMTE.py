@@ -23,8 +23,10 @@ def _ShiftYearTicks(ax):
     ax.set_xticklabels(xtl)
 
 def _UnitStringToMatplotlib(unit):
+    # raise exponents using Latex
     match = re.findall("(-\d)",unit)
     for m in match: unit = unit.replace(m,"$^{%s}$" % m)
+    # add carbon symbol to all mass units
     match = re.findall("(\D*g)",unit)
     for m in match: unit = unit.replace(m,"%s C " % m)
     return unit
@@ -44,7 +46,7 @@ class GPPFluxnetGlobalMTE():
             msg += "Did you download the data? Have you set the ILAMB_ROOT envronment variable?"
             raise il.MisplacedData(msg)
         self.data = {}
-        self.regions = ["global","amazon"]
+        self.regions = ["global","amazon","bona","tena","ceam","nhsa","shsa"]
 
         # build output path if not already built
         self.output_path = "_build/GPPFluxnetGlobalMTE"
@@ -67,6 +69,11 @@ class GPPFluxnetGlobalMTE():
                             "plots":{"phase"   :["PEAK",True],
                                      "shift"   :["SHIFT",True]}})
 
+        # how do metrics get blended?
+        self.weights = {"RMSEScore"         :2.,
+                        "BiasScore"         :1.,
+                        "SeasonalCycleScore":1.}
+        
     def getData(self,output_unit=None):
         """Retrieves the confrontation data in the desired unit.
 
@@ -205,7 +212,15 @@ class GPPFluxnetGlobalMTE():
 
             # shift
             shift.integrateInSpace(region=region,mean=True).toNetCDF4(f)
-            
+
+            # seasonal cycle phase metric
+            cycle = (1-np.cos(np.abs(shift.data)/365*2*np.pi))*0.5
+            Variable(cycle,"-",
+                     name = "seasonal_cycle_score",
+                     lat  = shift.lat,
+                     lon  = shift.lon,
+                     area = shift.area).integrateInSpace(region=region,mean=True).toNetCDF4(f)
+  
         f.close()
 
         # plotting
@@ -251,7 +266,16 @@ class GPPFluxnetGlobalMTE():
                 metrics[mname][region]["RMSE"]       = FromNetCDF4(fname,"rmse_of_gpp_integrated_over_%s" % region)
                 metrics[mname][region]["RMSEScore"]  = FromNetCDF4(fname,"rmse_score_of_gpp_integrated_over_%s" % region)
                 metrics[mname][region]["PhaseShift"] = FromNetCDF4(fname,"day_of_max_gpp_minus_day_of_max_gpp_integrated_over_%s" % region)
-
+                metrics[mname][region]["SeasonalCycleScore"] = FromNetCDF4(fname,"seasonal_cycle_score_integrated_over_%s" % region)
+                
+                score = 0.
+                sumw  = 0.
+                for key in self.weights.keys():
+                    score += self.weights[key]*metrics[mname][region][key].data
+                    sumw  += self.weights[key]
+                score = np.ma.masked_array(score/sumw)
+                metrics[mname][region]["OverallScore"] = Variable(score,"-",name="overall_score")
+                                                                  
         for region in self.regions:
 
             # plot benchmark time integrated mean
