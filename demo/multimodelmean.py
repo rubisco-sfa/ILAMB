@@ -25,7 +25,7 @@ for subdir, dirs, files in os.walk(root):
 M = sorted(M,key=lambda m: m.name.upper())
 for m in M: print ("    {0:<%d}" % (maxL)).format(m.name)
 
-t,lat,lon,mean_gpp,num_model,models = il.MultiModelMean(M,"gpp","g m-2 s-1",0.5,res_lat=0.9375,res_lon=1.25)
+t,lat,lon,mean_gpp,num_model,models = il.MultiModelMean(M,"gpp",spatial_resolution=1,output_unit="g m-2 s-1")
 
 f = Dataset("gpp_CMIP5_Multimodelmean_historical_r1i1p1_195601-200512.nc",mode="w")
 f.createDimension("time")

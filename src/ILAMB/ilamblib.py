@@ -3,6 +3,8 @@ from netCDF4 import Dataset,num2date,date2num
 import numpy as np
 from constants import dpy,mid_months,regions as ILAMBregions
 
+# Define some ILAMB-specific exceptions
+
 class VarNotInFile(Exception):
     pass
 
@@ -31,12 +33,11 @@ class NotSpatialVariable(Exception):
     pass
 
 def GenerateDistinctColors(N,saturation=0.67,value=0.67):
-    r"""Generates N distinct colors.
+    r"""Generates a series of distinct colors.
 
-    Computes N distinct colors using HSV color space. We hold the
+    Computes N distinct colors using HSV color space, holding the
     saturation and value levels constant and linearly vary the
-    hue. Finally we convert to RGB color space for use with other
-    functions.
+    hue. Colors are returned as a RGB tuple.
 
     Parameters
     ----------
@@ -50,76 +51,31 @@ def GenerateDistinctColors(N,saturation=0.67,value=0.67):
     Returns
     -------
     RGB_tuples : list
-       list of N distinct RGB tuples    
+       list of N distinct RGB tuples
     """
     from colorsys import hsv_to_rgb
     HSV_tuples = [(x/float(N), saturation, value) for x in range(N)]
     RGB_tuples = map(lambda x: hsv_to_rgb(*x), HSV_tuples)
     return RGB_tuples
 
-def ExtractPointTimeSeries(filename,variable,lat,lon,verbose=False):
-    r"""Extracts the timeseries of a given variable at a given point from a
-    netCDF file.
+def _convertCalendar(t):
+    r"""A local function used to convert calendar representations
+
+    This routine converts the representation of time to the ILAMB
+    default: days since 1850-1-1 00:00:00 on a 365-day calendar. This
+    is so we can make comparisons with data from other models and
+    benchmarks.
 
     Parameters
     ----------
-    filename : string
-        name of the NetCDF file to read
-    variable : string
-        name of the variable to extract
-    lat : float
-        latitude in degrees at which to extract field
-    lon : float 
-        longitude in degrees east of the international dateline at which to extract field
+    t : netCDF4 variable
+        the netCDF4 variable which represents time
 
     Returns
     -------
     t : numpy.ndarray
-        a 1D array of times in days since 1850-01-01 00:00:00
-    var : numpy.ma.core.MaskedArray
-        an array of the extracted variable
-    unit : string
-        a description of the extracted unit
-
-    Notes
-    -----
-    Collapse this function with ExtractTimeSeries.
+        a numpy array of the converted times
     """
-
-    f = Dataset(filename)
-    try:
-        if verbose: print "Looking for %s in %s" % (variable,filename)
-        vari = f.variables[variable]
-    except:
-        if verbose: print "%s is not a variable in this netCDF file" % variable
-        raise VarNotInFile("%s is not a variable in this netCDF file" % variable)
-    tvar = f.variables["time"]
-    cal  = "noleap"
-    unit = tvar.units
-    data = tvar[:]
-    if "calendar" in tvar.ncattrs(): cal = tvar.calendar
-    if "year" in tvar.units: 
-        data *= 365.
-        unit  = "days since 0-1-1"
-    t    = num2date(data,unit,calendar=cal) # converts data to dates
-    t    = date2num(t,"days since 1850-1-1",calendar="noleap") # convert to numbers but with uniform datum and calendar
-
-    if "lat" in vari.dimensions or "latitude" in vari.dimensions:
-        try:
-            lats = f.variables["lat"][...]
-            lons = f.variables["lon"][...]
-        except:
-            lats = f.variables["latitude"][...]
-            lons = f.variables["longitude"][...]
-        ilat = np.argmin(np.abs(lats[...]-lat))
-        ilon = np.argmin(np.abs(lons[...]-lon))
-        lons = (lons<=180)*lons+(lons>180)*(lons-360)
-        var  = np.ma.masked_values(vari[...,ilon,ilat],vari._FillValue)
-    else:
-        var  = np.ma.masked_values(vari[...],vari._FillValue)
-    return t,var,vari.units
-
-def _convertCalendar(t):
     cal  = "noleap"
     unit = t.units
     data = t[:]
@@ -131,8 +87,15 @@ def _convertCalendar(t):
     t = date2num(t,"days since 1850-1-1",calendar="noleap") # convert to numbers but with uniform datum and calendar
     return t
 
-def ExtractTimeSeries(filename,variable,verbose=False):
-    r"""Extracts the timeseries of a given variable from a netCDF file.
+def ExtractPointTimeSeries(filename,variable,lat,lon,verbose=False):
+    r"""Extracts the timeseries of a given variable at a given lat,lon
+    point from a netCDF file.
+
+    In addition to extracting the variable, this routine converts the
+    representation of time to the ILAMB default: days since 1850-1-1
+    00:00:00 on a 365-day calendar. This is so we can make comparisons
+    with data from other models and benchmarks. We also adjust the
+    representation of longitudes to be on the interval [-180,180].
 
     Parameters
     ----------
@@ -140,19 +103,79 @@ def ExtractTimeSeries(filename,variable,verbose=False):
         name of the NetCDF file to read
     variable : string
         name of the variable to extract
+    lat : float
+        latitude in degrees at which to extract field
+    lon : float 
+        longitude in degrees on interval [-180,180]
+    verbose : bool, optional
+        enable to print additional information
 
     Returns
     -------
     t : numpy.ndarray
         a 1D array of times in days since 1850-01-01 00:00:00
     var : numpy.ma.core.MaskedArray
-        an array of the extracted variable
+        a masked array of the extracted variable
     unit : string
         a description of the extracted unit
+    """
+    f = Dataset(filename)
+    try:
+        if verbose: print "Looking for %s in %s" % (variable,filename)
+        vari = f.variables[variable]
+    except:
+        if verbose: print "%s is not a variable in this netCDF file" % variable
+        raise VarNotInFile("%s is not a variable in this netCDF file" % variable)
+    time_name = None
+    lat_name  = None
+    lon_name  = None
+    for key in vari.dimensions:
+        if "time" in key: time_name = key
+        if "lat"  in key: lat_name  = key
+        if "lon"  in key: lon_name  = key
+    t    = _convertCalendar(f.variables[time_name])
+    if lat_name is None:
+        v = np.ma.masked_values(vari[...],vari._FillValue)
+    else:
+        lats = f.variables[lat_name][...]
+        lons = f.variables[lon_name][...]
+        lons = (lons<=180)*lons+(lons>180)*(lons-360)
+        ilat = np.argmin(np.abs(lats[...]-lat))
+        ilon = np.argmin(np.abs(lons[...]-lon))
+        v    = np.ma.masked_values(vari[...,ilat,ilon],vari._FillValue)
+    return t,v,vari.units
 
-    Notes
-    -----
-    Collapse this function with ExtractPointTimeSeries.
+def ExtractTimeSeries(filename,variable,verbose=False):
+    r"""Extracts the timeseries of a given variable at a given lat,lon
+    point from a netCDF file.
+
+    In addition to extracting the variable, this routine converts the
+    representation of time to the ILAMB default: days since 1850-1-1
+    00:00:00 on a 365-day calendar. This is so we can make comparisons
+    with data from other models and benchmarks. We also adjust the
+    representation of longitudes to be on the interval [-180,180].
+
+    Parameters
+    ----------
+    filename : string
+        name of the NetCDF file to read
+    variable : string
+        name of the variable to extract
+    verbose : bool, optional
+        enable to print additional information
+
+    Returns
+    -------
+    t : numpy.ndarray
+        a 1D array of times in days since 1850-01-01 00:00:00
+    var : numpy.ma.core.MaskedArray
+        a masked array of the extracted variable
+    unit : string
+        a description of the extracted unit
+    lat : float
+        latitude in degrees
+    lon : float 
+        longitude in degrees on interval [-180,180]
     """
     f = Dataset(filename)
     try:
@@ -176,12 +199,52 @@ def ExtractTimeSeries(filename,variable,verbose=False):
         var = np.ma.masked_values(vari[...],vari._FillValue,copy=False)
     return t,var,vari.units,lat,lon
 
-def MultiModelMean(M,variable,output_unit,spatial_resolution,**keywords):
-    r"""
+def MultiModelMean(M,variable,**keywords):
+    r"""Given a list of models and a variable, compute the mean across models.
     
+    First we create an output grid at the specified spatial resolution
+    and covering the maximum amount of overlap in the temporal
+    dimension. Then we loop over each model and interpolate in space
+    and time using nearest neighbor interpolation.
+
+    Parameter
+    ---------
+    M : list of ILAMB.ModelResults.ModelResults
+        the models to be involved in the average
+    variable : string
+        the variable we desire to average
+    output_unit : string, optional
+        if specified, will try to convert the units of the variable 
+        extract to these units given. (See convert in ILAMB.constants)
+    spatial_resolution : float, optional
+        latitude and longitude resolution in degrees
+    res_lat : float, optional
+        latitude resolution in degrees, overwrites spatial_resolution
+    res_lon : float, optional
+        longitude resolution in degrees, overwrites spatial_resolution
+
+    Returns
+    -------
+    t : numpy.ndarray
+        a 1D array of times in days since 1850-01-01 00:00:00
+    lat : numpy.ndarray
+        latitude in degrees
+    lon : numpy.ndarray
+        longitude in degrees on interval [-180,180]
+    mean_data : numpy.ma.core.MaskedArray
+        a masked array of the averaged variable
+    num_model : numpy.ndarray
+        an integer array of how many models contribute at each 
+        point in space and time 
+    models : string
+        a string containing all the model names involved in the
+        average
     """
-    res_lat   = keywords.get("res_lat",spatial_resolution)
-    res_lon   = keywords.get("res_lon",spatial_resolution)
+    # process keywords
+    output_unit        = keywords.get("output_unit","")
+    spatial_resolution = keywords.get("spatial_resolution",0.5)
+    res_lat            = keywords.get("res_lat",spatial_resolution)
+    res_lon            = keywords.get("res_lon",spatial_resolution)
 
     # grab data from all models
     data   = []
@@ -190,7 +253,9 @@ def MultiModelMean(M,variable,output_unit,spatial_resolution,**keywords):
     for m in M:
         if m.land_areas is None: continue
         try:
-            t,var,unit = m.extractTimeSeries("gpp",output_unit="g m-2 s-1")
+            v   = m.extractTimeSeries(variable,output_unit=output_unit)
+            t   = v.time
+            var = v.data
         except VarNotInModel: continue
         except VarNotMonthly: continue
         data.append((m,t,var))
@@ -204,7 +269,10 @@ def MultiModelMean(M,variable,output_unit,spatial_resolution,**keywords):
     t = t.flatten()
 
     # setup spatial range
-    lat_bnd,lon_bnd,lat,lon = GlobalLatLonGrid(spatial_resolution,from_zero=True,res_lat=res_lat,res_lon=res_lon)
+    lat_bnd,lon_bnd,lat,lon = GlobalLatLonGrid(spatial_resolution,
+                                               from_zero = True,
+                                               res_lat   = res_lat,
+                                               res_lon   = res_lon)
 
     # sum up via interpolation
     mean_data = np.zeros((t.size,lat.size,lon.size))
@@ -213,12 +281,12 @@ def MultiModelMean(M,variable,output_unit,spatial_resolution,**keywords):
         m,tm,vm    = tpl
         rows       = np.apply_along_axis(np.argmin,1,np.abs(lat[:,np.newaxis]-m.lat))
         cols       = np.apply_along_axis(np.argmin,1,np.abs(lon[:,np.newaxis]-m.lon))
-        times      = np.apply_along_axis(np.argmin,1,np.abs(t[:,np.newaxis]-tm))
+        times      = np.apply_along_axis(np.argmin,1,np.abs(t  [:,np.newaxis]-tm))
         data       = vm.data[np.ix_(times,rows,cols)]
         mask       = vm.mask[np.ix_(times,rows,cols)]
         space_mask = (m.land_areas[np.ix_(rows,cols)]<1e-12)        
         time_mask  = (t<tm.min()-2)+(t>tm.max()+2)
-        mask      += time_mask[:,np.newaxis,np.newaxis]+space_mask
+        mask      += time_mask[:,np.newaxis,np.newaxis]+mask
         mean_data += (mask==0)*data
         num_model += (mask==0)
 
