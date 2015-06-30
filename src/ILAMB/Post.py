@@ -150,7 +150,7 @@ def ConfrontationTableGoogle(c,metrics):
         for img in d["plots"].keys():
             imgs.append(img)
     for img in imgs:
-        if img == "compcycle":
+        if img in ["compcycle","spatial_variance"]:
             s += """            document.getElementById("%s").src = reg + "_%s.png"\n""" % (img,img)
         else:
             s += """            document.getElementById("%s").src = mod + "_" + reg + "_%s.png"\n""" % (img,img)

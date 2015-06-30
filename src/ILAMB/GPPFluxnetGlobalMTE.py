@@ -62,6 +62,8 @@ class GPPFluxnetGlobalMTE():
                                      "bias"    :["BIAS",True]}})
         self.layout.append({"name" :"Spatially integrated regional mean",
                             "plots":{"spaceint":["MEAN",False]}})
+        self.layout.append({"name" :"Spatial Distribution",
+                            "plots":{"spatial_variance":["SPACE",False]}})        
         self.layout.append({"name" :"Annual cycle",
                             "plots":{"cycle"    :["CYCLE",True],
                                      "compcycle":["COMP",False]}})
@@ -311,7 +313,7 @@ class GPPFluxnetGlobalMTE():
             clrs   = il.GenerateDistinctColors(len(models))
             post.TaylorDiagram(np.asarray(std[region]),np.asarray(cor[region]),1.0,
                                fig,clrs,normalize=False)
-            fig.savefig("%s/spatial_variance_%s.png" % (self.output_path,region))
+            fig.savefig("%s/%s_spatial_variance.png" % (self.output_path,region))
             plt.close()
 
             for key in timeint_gpp.keys():
