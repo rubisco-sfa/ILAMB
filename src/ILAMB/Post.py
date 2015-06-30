@@ -392,6 +392,6 @@ def TaylorDiagram(stddev,corrcoef,refstd,fig,colors,normalize=True):
 
     # Plot data
     for i in range(len(corrcoef)):
-        ax.plot(np.arccos(corrcoef[i]),stddev[i],'o',color=colors[i],mew=0)
+        ax.plot(np.arccos(corrcoef[i]),stddev[i],'o',color=colors[i],mew=0,ms=10)
 
-    return l
+    return ax

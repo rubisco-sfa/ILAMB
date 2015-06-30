@@ -320,13 +320,20 @@ class Variable:
         assert var.unit == self.unit
         assert self.temporal == False
         if not self.spatial: raise il.NotSpatialVariable("Must be a spatial variabel to compute the difference")
-        lat_bnd1 = _make_bnds(self.lat)
-        lon_bnd1 = _make_bnds(self.lon)
-        lat_bnd2 = _make_bnds( var.lat)
-        lon_bnd2 = _make_bnds( var.lon)
-        lat_bnd,lon_bnd,lat,lon,error = il.TrueError(lat_bnd1,lon_bnd1,self.lat,self.lon,self.data,
-                                                     lat_bnd2,lon_bnd2, var.lat, var.lon, var.data)
-        diff = Variable(error,var.unit,lat=lat,lon=lon,name="%s_minus_%s" % (var.name,self.name))
+        same_grid = False
+        try:
+            same_grid = np.allclose(self.lat,var.lat)*np.allclose(self.lon,var.lon)
+            error     = np.ma.masked_array(var.data-self.data,mask=self.mask+var.mask)
+            diff      = Variable(error,var.unit,lat=var.lat,lon=var.lon,
+                                 name="%s_minus_%s" % (var.name,self.name))
+        except:
+            lat_bnd1 = _make_bnds(self.lat)
+            lon_bnd1 = _make_bnds(self.lon)
+            lat_bnd2 = _make_bnds( var.lat)
+            lon_bnd2 = _make_bnds( var.lon)
+            lat_bnd,lon_bnd,lat,lon,error = il.TrueError(lat_bnd1,lon_bnd1,self.lat,self.lon,self.data,
+                                                         lat_bnd2,lon_bnd2, var.lat, var.lon, var.data)
+            diff = Variable(error,var.unit,lat=lat,lon=lon,name="%s_minus_%s" % (var.name,self.name))
         return diff
 
     def interpolateSpatial(self,lat,lon):
@@ -512,7 +519,7 @@ class Variable:
         tmax,tmaxstd = il.AnnualMaxTime(self.time,self.data)
         return Variable(tmax,"day",name="day_of_max_gpp",lat=self.lat,lon=self.lon)
         
-    def corrcoef(self,var):
+    def corrcoef(self,var,region="global"):
         """Computes the correlation
         
         Uses ILAMB.ilamblib.Bias to compuate the bias between these
@@ -528,6 +535,33 @@ class Variable:
         bias : float
             The bias of the two variables relative to this variable
         """
-        comparable,vb,ve,b,e = self._overlap(var)
-        if not comparable: raise il.VarsNotComparable()
-        return np.corrcoef(self.data[b:e],var.data[vb:ve])[0,1]
+        if self.temporal and not self.spatial:
+            comparable,vb,ve,b,e = self._overlap(var)
+            if not comparable: raise il.VarsNotComparable()
+            return np.corrcoef(self.data[b:e],var.data[vb:ve])[0,1],np.std(self.data[b:e])
+        if self.spatial:
+            lats,lons = ILAMBregions[region]
+            mask      = (np.outer((self.lat>lats[0])*(self.lat<lats[1]),
+                                  (self.lon>lons[0])*(self.lon<lons[1]))==0)
+            mask     += self.data.mask + var.data.mask
+            data1     = self.data[mask==0].flatten()
+            data2     =  var.data[mask==0].flatten()
+            return np.corrcoef(data1,data2)[0,1],np.std(data2)/np.std(data1)
+
+    def composeGrids(self,var):
+        if not self.spatial: il.NotSpatialVariable()
+        def _make_bnds(x):
+            bnds       = np.zeros(x.size+1)
+            bnds[1:-1] = 0.5*(x[1:]+x[:-1])
+            bnds[ 0]   = max(x[ 0]-0.5*(x[ 1]-x[ 0]),-180)
+            bnds[-1]   = min(x[-1]+0.5*(x[-1]-x[-2]),+180)
+            return bnds
+        lat1_bnd = _make_bnds(self.lat)
+        lon1_bnd = _make_bnds(self.lon)
+        lat2_bnd = _make_bnds( var.lat)
+        lon2_bnd = _make_bnds( var.lon)
+        lat_bnd  = np.hstack((lat1_bnd,lat2_bnd)); lat_bnd.sort(); lat_bnd = np.unique(lat_bnd)
+        lon_bnd  = np.hstack((lon1_bnd,lon2_bnd)); lon_bnd.sort(); lon_bnd = np.unique(lon_bnd)
+        lat      = 0.5*(lat_bnd[1:]+lat_bnd[:-1])
+        lon      = 0.5*(lon_bnd[1:]+lon_bnd[:-1])
+        return lat,lon

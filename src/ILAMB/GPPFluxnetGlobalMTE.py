@@ -46,7 +46,7 @@ class GPPFluxnetGlobalMTE():
             msg += "Did you download the data? Have you set the ILAMB_ROOT envronment variable?"
             raise il.MisplacedData(msg)
         self.data = {}
-        self.regions = ["global","amazon","bona","tena","ceam","nhsa","shsa"]
+        self.regions = ["global","amazon"] #,"bona","tena","ceam","nhsa","shsa"]
 
         # build output path if not already built
         self.output_path = "_build/GPPFluxnetGlobalMTE"
@@ -147,8 +147,13 @@ class GPPFluxnetGlobalMTE():
         mod_timeint_gpp = mod_gpp.integrateInTime(mean=True)
         mod_timeint_gpp.toNetCDF4(f)
 
+        # interpolate to a composed grid
+        lat,lon = obs_timeint_gpp.composeGrids(mod_timeint_gpp)
+        I_obs_timeint_gpp = obs_timeint_gpp.interpolateSpatial(lat,lon)
+        I_mod_timeint_gpp = mod_timeint_gpp.interpolateSpatial(lat,lon)
+
         # diff map of the time integrated gpp
-        bias = obs_timeint_gpp.spatialDifference(mod_timeint_gpp)
+        bias = I_obs_timeint_gpp.spatialDifference(I_mod_timeint_gpp)
         bias.name = "bias_of_gpp_integrated_over_time_and_divided_by_time_period"
         bias.toNetCDF4(f)
 
@@ -160,11 +165,10 @@ class GPPFluxnetGlobalMTE():
             self.data["phase_gpp"] = obs_phase_gpp    
         mod_phase_gpp = mod_gpp.phase()
 
-        # the shift can only be on the interval [-6,6] months
+        # shift, the shift can only be on the interval [-6,6] months
         shift = obs_phase_gpp.spatialDifference(mod_phase_gpp)
         shift.data += (shift.data < -0.5*365)*365.
         shift.data -= (shift.data > +0.5*365)*365.
-        
         cdata["phase_gpp"] = mod_phase_gpp
         cdata["shift_gpp"] = shift
         mod_phase_gpp.toNetCDF4(f)
@@ -190,6 +194,11 @@ class GPPFluxnetGlobalMTE():
             mod_spaceint_gpp = mod_gpp.integrateInSpace(region=region).convert("Pg y-1")
             cdata["spaceint_gpp"][region] = mod_spaceint_gpp
             mod_spaceint_gpp.toNetCDF4(f)
+
+            # spatial variation
+            cor,std = I_obs_timeint_gpp.corrcoef(I_mod_timeint_gpp,region=region)
+            Variable(np.ma.masked_array(cor),"-",name="correlation_%s" % region).toNetCDF4(f)
+            Variable(np.ma.masked_array(std),"-",name="std_%s" % region)        .toNetCDF4(f)
 
             # metrics go straight to the output file
             mod_spaceint_gpp.integrateInTime(mean=True).convert("Pg y-1").toNetCDF4(f)
@@ -238,6 +247,13 @@ class GPPFluxnetGlobalMTE():
         for region in self.regions:
             cycle_gpp[mname][region] = self.data["cycle_gpp"][region] 
 
+        cor = {}
+        std = {}
+        # Setup Taylor diagram
+        for region in self.regions:
+            cor[region] = []
+            std[region] = []
+
         # Load data and track maxima for plotting limits
         gppmax      = self.data["timeint_gpp"].data.max()
         biasmax     = 0
@@ -275,7 +291,10 @@ class GPPFluxnetGlobalMTE():
                     sumw  += self.weights[key]
                 score = np.ma.masked_array(score/sumw)
                 metrics[mname][region]["OverallScore"] = Variable(score,"-",name="overall_score")
-                                                                  
+                               
+                cor[region].append(FromNetCDF4(fname,"correlation_%s" % region).data.data)     
+                std[region].append(FromNetCDF4(fname,"std_%s"         % region).data.data)     
+
         for region in self.regions:
 
             # plot benchmark time integrated mean
@@ -283,6 +302,16 @@ class GPPFluxnetGlobalMTE():
             ax    = fig.add_axes([0.06,0.025,0.88,0.965])
             self.data["timeint_gpp"].plot(ax,region=region,vmin=0,vmax=gppmax,cmap="Greens")
             fig.savefig("%s/Benchmark_%s_timeint.png" % (self.output_path,region))
+            plt.close()
+
+            # 
+            fig = plt.figure(figsize=(7.5,7.5))
+            models = cycle_gpp.keys(); models.remove("Benchmark")
+            models = sorted(models,key=lambda key: key.upper())
+            clrs   = il.GenerateDistinctColors(len(models))
+            post.TaylorDiagram(np.asarray(std[region]),np.asarray(cor[region]),1.0,
+                               fig,clrs,normalize=False)
+            fig.savefig("%s/spatial_variance_%s.png" % (self.output_path,region))
             plt.close()
 
             for key in timeint_gpp.keys():
@@ -305,9 +334,6 @@ class GPPFluxnetGlobalMTE():
             fig,ax = plt.subplots(figsize=(6.8,2.8),tight_layout=True)
             cycle_gpp["Benchmark"][region].std = None
             cycle_gpp["Benchmark"][region].plot(ax,lw=3,alpha=0.25,color='k',label="Obs")
-            models = cycle_gpp.keys(); models.remove("Benchmark")
-            models = sorted(models,key=lambda key: key.upper())
-            clrs   = il.GenerateDistinctColors(len(models))
             for key in models: cycle_gpp[key][region].plot(ax,lw=2,color=clrs.pop(0),label=key)
             ax.set_xlim(1850,1851) 
             ax.set_xticks(1850+mid_months/365.) 
