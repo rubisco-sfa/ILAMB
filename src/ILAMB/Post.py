@@ -191,7 +191,7 @@ def ConfrontationTableGoogle(c,metrics):
 	  <thead>
             <tr>
 	      <th align="right" width="20"><h1 id="myH1">%s</h1></th>
-	      <th align="left"><img src="Benchmark_global_%s.png" id="%s" width=680 height=280 alt="Data not available"></img></th>
+	      <th align="left"><img src="Benchmark_global_%s.png" id="%s" width=680 alt="Data not available"></img></th>
             </tr>
 	  </thead>\n""" % (sec["plots"][plot][0],plot,plot)
             if sec["plots"][plot][1]:
