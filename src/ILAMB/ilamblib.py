@@ -140,9 +140,10 @@ def ExtractPointTimeSeries(filename,variable,lat,lon,verbose=False):
         lats = f.variables[lat_name][...]
         lons = f.variables[lon_name][...]
         lons = (lons<=180)*lons+(lons>180)*(lons-360)
-        ilat = np.argmin(np.abs(lats[...]-lat))
-        ilon = np.argmin(np.abs(lons[...]-lon))
-        v    = np.ma.masked_values(vari[...,ilat,ilon],vari._FillValue)
+        ilat = np.apply_along_axis(np.argmin,1,np.abs(lat[:,np.newaxis]-lats))
+        ilon = np.apply_along_axis(np.argmin,1,np.abs(lon[:,np.newaxis]-lons))
+        data = vari[...] # unfortunate data copy because slicing problems in netCDF4
+        v    = np.ma.masked_values(data[...,ilat,ilon],vari._FillValue)
     return t,v,vari.units
 
 def ExtractTimeSeries(filename,variable,verbose=False):

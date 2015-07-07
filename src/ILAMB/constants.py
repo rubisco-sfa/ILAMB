@@ -55,6 +55,10 @@ convert["co2"]["kg"]   = {"1e-6":1./co2_ppm_per_kg, "kg": 1.}
 convert["gpp"] = {}
 convert["gpp"]["kg m-2 s-1"] = {"g m-2 s-1":1e-3,"kg m-2 s-1":1.}
 convert["gpp"]["g m-2 s-1"]  = {"kg m-2 s-1":1e+3,"g m-2 s-1":1.}
+convert["le"] = {}
+convert["le"]["W m-2"]  = {"W m-2":1.}
+convert["hfls"] = {}
+convert["hfls"]["W m-2"]  = {"W m-2":1.}
 
 # mass conversions
 convert["g" ] = {"g" :1e+0 ,"kg":1e-3 ,"Kg":1e-3 ,"Pg":1e-15}

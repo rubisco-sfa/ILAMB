@@ -12,10 +12,12 @@ def FromNetCDF4(filename,variable_name):
     time_name = None
     lat_name  = None
     lon_name  = None
+    data_name = None
     for key in var.dimensions:
         if "time" in key: time_name = key
         if "lat"  in key: lat_name  = key
         if "lon"  in key: lon_name  = key
+        if "data" in key: data_name = key
     if time_name is None:
         t = None
     else:
@@ -69,17 +71,14 @@ class Variable:
             an array of standard deviations of the shape of the data
         """
         assert type(data) is type(np.ma.masked_array())
-        self.data = data # [monthly means (for now)]
+        self.data = data 
         self.std  = std
         self.unit = unit
         self.name = name
         self.attributes = {}
-        self.time = time # [days since 1/1/1850]
-        self.lat  = lat
-        self.lon  = lon
-        self.area = area # [m2]
+
+        self.time = time
         self.temporal = False
-        self.spatial  = False
         self.dt       = 0. 
         if time is not None: 
             self.temporal = True
@@ -95,6 +94,12 @@ class Variable:
             # etc)
             dt = (time[1:]-time[:-1]).mean()
             if np.allclose(dt,30,atol=3): self.monthly = True
+
+        self.spatial  = False
+        self.lat  = lat
+        self.lon  = lon
+        self.area = area # [m2]
+
         if self.spatial:
             assert lat is not None
             assert lon is not None
