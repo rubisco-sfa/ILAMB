@@ -2,6 +2,7 @@ from datetime import datetime
 from netCDF4 import Dataset,num2date,date2num
 import numpy as np
 from constants import dpy,mid_months,regions as ILAMBregions
+from scipy.stats.mstats import mode
 
 # Define some ILAMB-specific exceptions
 
@@ -563,7 +564,7 @@ def AnnualCycleInformation(t,var):
     v     = var[begin:end,...].reshape(shp)
     vmean = np.ma.mean(v,axis=0)
     vstd  = np.ma.std (v,axis=0)
-
+    
     # if the maximum is likely to be around the new year, then we need to shift times
     imax,junk = np.histogram(np.ma.argmax(v,axis=1),np.linspace(-0.5,11.5,13))
     if imax[[0,1,2,9,10,11]].sum() > imax[[3,4,5,6,7,8]].sum(): ts[:6] += 365.
@@ -596,15 +597,24 @@ def AnnualMaxTime(t,var):
     ts    = np.copy(mid_months)
     shp   = (-1,12) + var.shape[1:]
     v     = var[begin:end,...].reshape(shp)
-
-    imax  = np.ma.argmax(v,axis=1) # for each year and each lat/lon, which month is the maximum?
-    tmax  = np.zeros(var[0,...].shape)
-    for i in range(imax.shape[1]):
-        for j in range(imax.shape[2]):
-            if var.mask[0,i,j]: continue
-            hist,bins = np.histogram(imax[:,i,j],np.linspace(-0.5,11.5,13))
-            tmax[i,j] = ts[np.argmax(hist)]
-    tmax  = np.ma.masked_array(tmax,mask=var[0,...].mask)
+    if v.shape == 3:
+        imax  = np.ma.argmax(v,axis=1) # for each year and each lat/lon, which month is the maximum?
+        tmax  = np.zeros(var[0,...].shape)
+        for i in range(imax.shape[1]):
+            for j in range(imax.shape[2]):
+                if var.mask[0,i,j]: continue
+                hist,bins = np.histogram(imax[:,i,j],np.linspace(-0.5,11.5,13))
+                tmax[i,j] = ts[np.argmax(hist)]
+        mask = var[0,...].mask
+    else:
+        imax  = np.ma.argmax(v,axis=1) # for each year and each lat/lon, which month is the maximum?
+        tmax  = np.zeros(var[0,...].shape)
+        for i in range(imax.shape[1]):
+            if var.mask[0,i]: continue
+            hist,bins = np.histogram(imax[:,i],np.linspace(-0.5,11.5,13))
+            tmax[i] = ts[np.argmax(hist)]
+        mask = False
+    tmax  = np.ma.masked_array(tmax,mask=mask)
     tmstd = np.ma.masked_array(np.zeros(tmax.shape))
     return tmax,tmstd
 
@@ -755,12 +765,9 @@ def TemporallyIntegratedTimeSeries(t,var,**keywords):
     wgt[ 1:] += 0.5*(t[1:]-t[:-1])
     wgt[ 0]  += t[0]-t0
     wgt[-1]  += tf-t[-1]
-    if var.ndim == 1:
-        vhat = np.ma.sum(var*wgt)
-        mask = np.zeros(vhat.shape,dtype=int)
-    else:
-        vhat = np.ma.sum(var*wgt[:,np.newaxis,np.newaxis],axis=0)
-        mask = var[0,...].mask
+    for i in range(var.ndim-1): wgt = np.expand_dims(wgt,axis=-1)
+    vhat = (var*wgt).sum(axis=0)
+    mask = var[0,...].mask
     return np.ma.masked_array(vhat,mask=mask,copy=False)
 
 def CellAreas(lat,lon):
@@ -898,103 +905,40 @@ def TrueError(lat1_bnd,lon1_bnd,lat1,lon1,data1,lat2_bnd,lon2_bnd,lat2,lon2,data
     error = d2-d1
     return lat_bnd,lon_bnd,lat,lon,error
 
-def AnalysisSpatiallyIntegrated(t,var,lat,lon,areas,units,
-                                ref_t,ref_var,ref_lat,ref_lon,ref_areas,
-                                regions=["global.large"],
-                                space_integrated_ref_var=None,divide_by_area=False):
-    r"""Performs a generic analysis by integrating an input variable over regions.
+def MaxMonthMode(t,var):
+    r"""For each cell/site, return the month where the maximum of var is most frequently realized.
 
     Parameters
     ----------
     t : numpy.ndarray
-        a 1D array of times
-    var : numpy.ndarray
-        an array containing the analysis variable
-    lat,lon : numpy.ndarray
-        1D arrays of latitudes and longitudes
-    areas : numpy.ndarray
-        a 2D array containing the areas of each land cell
-    units : string
-        units of the input variable (currently unused)
-    ref_t : numpy.ndarray
-        a 1D array of times
-    ref_var : numpy.ndarray
-        an array containing the analysis variable
-    ref_lat,ref_lon : numpy.ndarray
-        1D arrays of latitudes and longitudes
-    ref_areas : numpy.ndarray
-        a 2D array containing the areas of each land cell
-    regions : list
-        optionally specify regions over which you would like to perform the analysis
-    space_integrated_ref_var : dict
-        if None, the reference variable will be integrated. Pass in
-        the dictionary to avoid recalculating
-
+        a 1D array of times in days since 1850-01-01 00:00:00
+    var : numpy.ma.core.MaskedArray
+        a masked array representing a global gridded data of shape (time,lat,lon) 
+        or site data of shape (time,site) or even a scalar time series of shape (time).
+    
     Returns
     -------
-    space_integrated_var : dict
-        a dictionary of numpy.ndarrays representing the spatial
-        integral of the input variable over all regions specified. They
-        keys are the region names.
-    metrics : dict
-        a dictionary of metrics over each region. First key is region,
-        second key is the metric name.
+    mode : numpy.ma.core.MaskedArray
+        a masked array of the Julian day of the year representing the middle of the
+        month where the input variable is most often at its maximum. Masked values 
+        reflect where no data is given at all for a specific cell/site.
+
+    Notes
+    -----
+    This routine can be generalized to extract any kind of cycle information. Perhaps an
+    option for the user to specify a cycle time and we compute the rest from that.
     """
-    def _integrateOverRegions(var,lat,lon,areas,regions):
-        """A local function to keep from repeating code"""
-
-        # We will be modifying the variable mask to integrate over
-        # regions, so we need to store what it was so we can restore the
-        # var as it was passed in
-        rem_mask = np.copy(var.mask)
-
-        # Longitude conventions are often different, map to (-180,180)
-        tlon = (lon<=180)*lon+(lon>180)*(lon-360)
-        
-        # Integrate the input dataset over regions
-        space_integrated_var = {}
-        for region in regions:
-            lats,lons = ILAMBregions[region]
-            mask      = (np.outer(( lat>lats[0])*( lat<lats[1]),
-                                  (tlon>lons[0])*(tlon<lons[1]))==0)
-            var.mask  = rem_mask+mask
-            space_integrated_var[region] = SpatiallyIntegratedTimeSeries(var,areas)
-            
-        # Restore original mask
-        var.mask = rem_mask
-        return space_integrated_var
-
-    # If needed integrate the reference dataset 
-    if space_integrated_ref_var is None:
-        space_integrated_ref_var = _integrateOverRegions(ref_var,ref_lat,ref_lon,ref_areas,regions)
-
-    # Integrate the input dataset
-    space_integrated_var = _integrateOverRegions(var,lat,lon,areas,regions)
-
-    # Find maximum overlapping region for comparisons
-    mint = max(t.min(),ref_t.min())
-    maxt = min(t.max(),ref_t.max())
-    b     = np.argmin(np.abs(    t-mint)); e     = np.argmin(np.abs(    t-maxt)); 
-    ref_b = np.argmin(np.abs(ref_t-mint)); ref_e = np.argmin(np.abs(ref_t-maxt)); 
-
-    # Make sure these time series are discretely comparable
-    assert t[b:e].shape == ref_t[ref_b:ref_e].shape
-    assert np.allclose(t[b:e],ref_t[ref_b:ref_e],atol=15) # +- half a month
-
-    # Bias and RMSE needs to be weighted by days per month
-    mw = MonthlyWeights(t[b:e])
-
-    # Compute bias and RMSE
-    RMSE    = RootMeanSquaredError
-    metrics = {}
-    for region in regions:
-        # Convenience renaming to make this next part more readable
-        x          = space_integrated_ref_var[region][ref_b:ref_e]
-        y          = space_integrated_var    [region][    b:    e]
-        metrics[region] = {}
-        metrics[region]["bias"      ] = Bias(x,y,weights=mw)
-        metrics[region]["bias_score"] = Bias(x,y,weights=mw,normalize="score")
-        metrics[region]["rmse"      ] = RMSE(x,y,weights=mw)
-        metrics[region]["rmse_score"] = RMSE(x,y,weights=mw,normalize="score")
-
-    return space_integrated_var,space_integrated_ref_var,metrics
+    assert t.ndim == 1
+    assert t.size == var.shape[0]
+    assert np.allclose((t[1:]-t[:-1]).mean(),30,atol=3) # only for monthly means
+    begin = np.argmin(t[:11]%365)
+    end   = begin+int(t[begin:].size/12.)*12
+    ts    = mid_months
+    shp   = (-1,12) + var.shape[1:]
+    v     = var[begin:end,...].reshape(shp)
+    mask  = v.mask
+    if v.mask.size > 1: mask = np.apply_along_axis(np.all,1,v.mask) # masks years where no data exists
+    maxmonth = np.ma.masked_array(np.argmax(v,axis=1),mask=mask,dtype=int)
+    imode,nmode = mode(maxmonth)
+    if mask.size > 1: mask = np.apply_along_axis(np.all,0,mask) # masks cells where no data exists
+    return np.ma.masked_array(ts[np.asarray(imode,dtype='int')],mask=mask)

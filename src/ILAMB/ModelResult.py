@@ -205,8 +205,11 @@ class ModelResult():
                 unit = output_unit
             except:
                 raise il.UnknownUnit("Variable is in units of [%s], you asked for [%s] but I do not know how to convert" % (unit,output_unit))
-        return Variable(np.ma.masked_array(varc,mask=masc),unit,time=tc,lat=self.lat,lon=self.lon,area=self.land_areas,name=vname)
-
+        if lat is None:
+            return Variable(np.ma.masked_array(varc,mask=masc),unit,time=tc,lat=self.lat,lon=self.lon,area=self.land_areas,name=vname)
+        else:
+            return Variable(np.ma.masked_array(varc,mask=masc),unit,time=tc,lat=lat,lon=lon,name=vname)
+            
     def globalPlot(self,var,region="global",ax=None):
         from mpl_toolkits.basemap import Basemap
         from pylab import cm

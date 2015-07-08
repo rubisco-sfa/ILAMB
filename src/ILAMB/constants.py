@@ -56,15 +56,23 @@ convert["gpp"] = {}
 convert["gpp"]["kg m-2 s-1"] = {"g m-2 s-1":1e-3,"kg m-2 s-1":1.}
 convert["gpp"]["g m-2 s-1"]  = {"kg m-2 s-1":1e+3,"g m-2 s-1":1.}
 convert["le"] = {}
-convert["le"]["W m-2"]  = {"W m-2":1.}
+convert["le"]["W m-2"]      = {"W m-2":1., "J m-2 s-1":1.}
+convert["le"]["J m-2 s-1"]  = {"W m-2":1., "J m-2 s-1":1.}
 convert["hfls"] = {}
-convert["hfls"]["W m-2"]  = {"W m-2":1.}
+convert["hfls"]["W m-2"]      = {"W m-2":1., "J m-2 s-1":1.}
+convert["hfls"]["J m-2 s-1"]  = {"W m-2":1., "J m-2 s-1":1.}
 
 # mass conversions
 convert["g" ] = {"g" :1e+0 ,"kg":1e-3 ,"Kg":1e-3 ,"Pg":1e-15}
 convert["kg"] = {"g" :1e+3 ,"kg":1e+0 ,"Kg":1e+0 ,"Pg":1e-12}
 convert["Kg"] = {"g" :1e+3 ,"kg":1e+0 ,"Kg":1e+0 ,"Pg":1e-12}
 convert["Pg"] = {"g" :1e+15,"kg":1e+12,"Kg":1e+12,"Pg":1e+0 }
+
+# energy conversions
+convert["J" ] = {"J" :1e+0 ,"kJ":1e-3 ,"KJ":1e-3 ,"PJ":1e-15}
+convert["kJ"] = {"J" :1e+3 ,"kJ":1e+0 ,"KJ":1e+0 ,"PJ":1e-12}
+convert["KJ"] = {"J" :1e+3 ,"kJ":1e+0 ,"KJ":1e+0 ,"PJ":1e-12}
+convert["PJ"] = {"J" :1e+15,"kJ":1e+12,"KJ":1e+12,"PJ":1e+0 }
 
 # time conversions
 convert["s"] = {"s":1. ,"d":1./spd,"y":1./spy }

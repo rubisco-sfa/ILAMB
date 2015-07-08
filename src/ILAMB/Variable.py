@@ -72,52 +72,45 @@ class Variable:
         """
         assert type(data) is type(np.ma.masked_array())
         self.data = data 
-        self.std  = std
         self.unit = unit
         self.name = name
-        self.attributes = {}
-
-        self.time = time
-        self.temporal = False
-        self.dt       = 0. 
-        if time is not None: 
-            self.temporal = True
-            self.dt = (time[1:]-time[:-1]).mean()
-        if (lat is not None) or (lon is not None): self.spatial = True
+        self.std  = std
         if self.std is not None:
             assert self.data.shape == self.std.shape
 
-        self.monthly = False
-        if self.temporal:
-            # dt = mean temporal spacing, tells us what kind of
-            # analysis is appropriate (annual cycle, diurnal cycle,
-            # etc)
-            dt = (time[1:]-time[:-1]).mean()
-            if np.allclose(dt,30,atol=3): self.monthly = True
+        # Handle time data
+        self.time     = time   # time data
+        self.temporal = False  # flag for temporal data
+        self.dt       = 0.     # mean temporal spacing
+        if time is not None: 
+            self.temporal = True
+            self.dt = (time[1:]-time[:-1]).mean()
+            if np.allclose(self.dt,30,atol=3): self.monthly = True
 
-        self.spatial  = False
-        self.lat  = lat
-        self.lon  = lon
-        self.area = area # [m2]
-
-        if self.spatial:
-            assert lat is not None
-            assert lon is not None
-
-            # convert possible [0,360] to [-180,180]
-            self.lon = (self.lon<=180)*self.lon+(self.lon>180)*(self.lon-360)
-
-            # make sure we have areas
+        # Handle space or multimember data
+        self.spatial = False
+        self.lat     = lat
+        self.lon     = lon
+        self.area    = area
+        self.ndata   = 1
+        if ((lat is     None) and (lon is     None)): return
+        if ((lat is     None) and (lon is not None) or
+            (lat is not None) and (lon is     None)):
+            raise ValueError("If one of lat or lon is specified, they both must specified")
+        self.lon = (self.lon<=180)*self.lon+(self.lon>180)*(self.lon-360)
+        if (data.shape[-1] == lat.size and data.shape[-1] == lon.size):
+            self.ndata = data.shape[-1]
+        elif (data.shape[-2] == lat.size and data.shape[-1] == lon.size):
+            self.spatial = True
             if self.area is None: self.area = il.CellAreas(self.lat,self.lon)
-
-            # plotting routines like the first column of data to
-            # corrospond to the -180 longitude
             shift     = self.lon.argmin()
             self.lon  = np.roll(self.lon ,-shift)
             self.data = np.roll(self.data,-shift,axis=-1)
             self.area = np.roll(self.area,-shift,axis=-1)
             if self.std is not None:
                 self.std = np.roll(self.std,-shift,axis=-1)
+        else:
+            raise ValueError("Unanticipated data/lat/lon combination")
                 
     def toNetCDF4(self,dataset):
         """Adds the variable to the specified netCDF4 dataset
@@ -191,17 +184,32 @@ class Variable:
                     X[...] = lon
                     return lon_name
 
+        def _checkData(ndata,dataset):
+            """A local function for ensuring the data dimension is saved in the dataset."""
+            data_name = "data"
+            while True:
+                if data_name in dataset.dimensions.keys():
+                    if (ndata == len(dataset.dimensions[data_name])): 
+                        return data_name
+                    else:
+                        data_name += "_"
+                else:
+                    dataset.createDimension(data_name,size=ndata)
+                    return data_name
+
         dim = []
         if self.temporal:
             dim.append(_checkTime(self.time,dataset))
+        if self.ndata > 1:
+            dim.append(_checkData(self.ndata,dataset))
+            dlat = _checkLat(self.lat,dataset)
+            dlon = _checkLon(self.lon,dataset)
         if self.spatial:
             dim.append(_checkLat(self.lat,dataset))
             dim.append(_checkLon(self.lon,dataset))
 
         V = dataset.createVariable(self.name,"double",dim)
         V.setncattr("units",self.unit)
-        attributes = {}
-        for attr in attributes.keys(): V.setncattr(attr,attributes[attr])
         V[...] = self.data
 
     def integrateInSpace(self,region=None,mean=False):
@@ -373,6 +381,7 @@ class Variable:
         tf   = keywords.get("tf",self.time.max())
         mean = keywords.get("mean",False)
         integral = il.TemporallyIntegratedTimeSeries(self.time,self.data,t0=t0,tf=tf)
+        
         if " s-1" in self.unit:
             integral *= spd
             unit      = self.unit.replace(" s-1","")
@@ -422,10 +431,14 @@ class Variable:
         bias : float
             The bias of the two variables relative to this variable
         """
-        comparable,vb,ve,b,e = self._overlap(var)
-        if not comparable: raise il.VarsNotComparable()
-        mw = il.MonthlyWeights(self.time[b:e])
-        bias = il.Bias(self.data[b:e],var.data[vb:ve],normalize=normalize)
+        if self.temporal:
+            comparable,vb,ve,b,e = self._overlap(var)
+            if not comparable: raise il.VarsNotComparable()
+            mw = il.MonthlyWeights(self.time[b:e])
+            bias = il.Bias(self.data[b:e],var.data[vb:ve],normalize=normalize)
+        else:
+            assert self.data.shape == var.data.shape
+            bias = il.Bias(self.data,var.data,normalize=normalize)
         bias = np.ma.masked_array(bias)
         unit = self.unit
         name = "bias"
@@ -455,10 +468,14 @@ class Variable:
             The rmse of the two variables relative to this variable
 
         """
-        comparable,vb,ve,b,e = self._overlap(var)
-        if not comparable: raise il.VarsNotComparable()
-        mw   = il.MonthlyWeights(self.time[b:e])
-        rmse = il.RootMeanSquaredError(self.data[b:e],var.data[vb:ve],normalize=normalize)
+        if self.temporal:
+            comparable,vb,ve,b,e = self._overlap(var)
+            if not comparable: raise il.VarsNotComparable()
+            mw   = il.MonthlyWeights(self.time[b:e])
+            rmse = il.RootMeanSquaredError(self.data[b:e],var.data[vb:ve],normalize=normalize)
+        else:
+            assert self.data.shape == var.data.shape
+            rmse = il.RootMeanSquaredError(self.data,var.data,normalize=normalize)
         rmse = np.ma.masked_array(rmse)
         unit = self.unit
         name = "rmse"
@@ -521,8 +538,8 @@ class Variable:
         
     def phase(self):
         if not self.temporal: raise il.NotTemporalVariable()
-        tmax,tmaxstd = il.AnnualMaxTime(self.time,self.data)
-        return Variable(tmax,"day",name="day_of_max_gpp",lat=self.lat,lon=self.lon)
+        tmax = il.MaxMonthMode(self.time,self.data)
+        return Variable(tmax,"d",name="day_of_max_%s" % self.name,lat=self.lat,lon=self.lon,area=self.area)
         
     def corrcoef(self,var,region="global"):
         """Computes the correlation
@@ -543,7 +560,10 @@ class Variable:
         if self.temporal and not self.spatial:
             comparable,vb,ve,b,e = self._overlap(var)
             if not comparable: raise il.VarsNotComparable()
-            return np.corrcoef(self.data[b:e],var.data[vb:ve])[0,1],np.std(self.data[b:e])
+            mask  = self.data.mask + var.data.mask
+            data1 = self.data[mask==0].flatten()
+            data2 =  var.data[mask==0].flatten()
+            return np.corrcoef(data1,data2)[0,1],np.std(data2)/np.std(data1)
         if self.spatial:
             lats,lons = ILAMBregions[region]
             mask      = (np.outer((self.lat>lats[0])*(self.lat<lats[1]),

@@ -11,12 +11,15 @@ class Confrontation():
 
         # categories of confrontations
         c["EcosystemAndCarbonCycle"] = {}
+        #c["EcosystemAndCarbonCycle"]["CO2"] = {"CO2MaunaLoa":CO2MaunaLoa}
+        c["EcosystemAndCarbonCycle"]["GPP"] = {"GPPFluxnetGlobalMTE":GPPFluxnetGlobalMTE}
+
         c["HydrologyCycle"]          = {}
-        c["RadiationAndEnergyCycle"] = {}
-        c["Forcings"]                = {}
-        c["EcosystemAndCarbonCycle"]["CO2"] = {} #{"CO2MaunaLoa":CO2MaunaLoa}
-        c["EcosystemAndCarbonCycle"]["GPP"] = {} #{"GPPFluxnetGlobalMTE":GPPFluxnetGlobalMTE}
         c["HydrologyCycle"]["LE"]    = {"LEFluxnetSites":LEFluxnetSites}
+
+        c["RadiationAndEnergyCycle"] = {}
+
+        c["Forcings"]                = {}
         self.confrontation = c
 
     def __str__(self):
