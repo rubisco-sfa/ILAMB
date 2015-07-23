@@ -385,7 +385,7 @@ class Variable:
         if " s-1" in self.unit:
             integral *= spd
             unit      = self.unit.replace(" s-1","")
-        elif " d-1" in self.unit: 
+        elif " d-1" in self.unit:
             unit      = self.unit.replace(" d-1","")
         elif " y-1" in self.unit: 
             integral /= dpy["noleap"]
@@ -393,8 +393,9 @@ class Variable:
         else:
             if not mean: unit += " d"
         name = self.name + "_integrated_over_time"
-        if mean: 
-            integral /= (tf-t0)
+        if mean:
+            # divide thru by the non-masked amount of time
+            integral /= (tf-t0) # not true
             unit     += " d-1"
             name     += "_and_divided_by_time_period"
         return Variable(integral,unit,lat=self.lat,lon=self.lon,area=self.area,name=name)
