@@ -395,6 +395,12 @@ class Variable:
         name = self.name + "_integrated_over_time"
         if mean:
             # divide thru by the non-masked amount of time
+            dt        = np.zeros(self.time.shape)
+            dt[1:-1]  = 0.5*(self.time[2:]-self.time[:-2])
+            dt[0]     = 0.5*(self.time[1] -self.time[0])  + self.time[0]-t0
+            dt[-1]    = 0.5*(self.time[-1]-self.time[-2]) + tf-self.time[-1]
+            dt        = dt[:,np.newaxis]*(self.data.mask==0)
+            print dt[:,1]
             integral /= (tf-t0) # not true
             unit     += " d-1"
             name     += "_and_divided_by_time_period"
