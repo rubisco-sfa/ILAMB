@@ -1,10 +1,11 @@
 from mpl_toolkits.basemap import Basemap
 import matplotlib.colors as colors
-from Variable import Variable
+from Variable import Variable,FromNetCDF4
 from netCDF4 import Dataset
+from Post import ColorBar,TaylorDiagram
 import pylab as plt
 import numpy as np
-import os
+import os,glob
 
 class LEFluxnetSites():
     """Confront models with the latent heat (LE) product from Fluxnet.
@@ -74,11 +75,8 @@ class LEFluxnetSites():
 
     def confront(self,m):
         
-        # write confrontation result file
-        f = Dataset("%s/%s_%s.nc" % (self.output_path,self.name,m.name),mode="w")
-
         # some data we will store to send to plot routine
-        cdata = {}
+        cdata  = {}
         scores = {}
 
         # get the observational data
@@ -99,31 +97,22 @@ class LEFluxnetSites():
                                      lats=obs_le.lat,lons=obs_le.lon,
                                      initial_time=t0,final_time=tf,
                                      output_unit="J m-2 s-1")
-
-        clr = ['r','g','b']
-        for i in range(3):
-            plt.plot(obs_le.time,obs_le.data[:,i],'-',label="(%.2f %.2f)" % (obs_le.lat[i],obs_le.lon[i]),color=clr[i])
-        #plt.plot(mod_le.time,mod_le.data[:,4],'-',label="(%.2f %.2f)" % (mod_le.lat[4],mod_le.lon[4]))
-        #plt.legend()
-        
-        
         cdata["le"] = mod_le
-
+        
+        # write confrontation result file
+        f = Dataset("%s/%s_%s.nc" % (self.output_path,self.name,m.name),mode="w")
+        
+        # the observational site data has many holes, mask the model
+        # data so we are comparing apples to apples
+        mod_le.data.mask += obs_le.data.mask
+        
         # integrate over the time period
         obs_le_timeint = obs_le.integrateInTime(mean=True).convert("J m-2 s-1")
-        print obs_le_timeint.data
-        
-        for i in range(3):
-            plt.plot(55500,obs_le_timeint.data[i],'o',color=clr[i])
-        
-        
-        plt.savefig("%s.png" % m.name)
-        plt.close()
-
         mod_le_timeint = mod_le.integrateInTime(mean=True).convert("J m-2 s-1")
         obs_le_timeint.unit = "W m-2"
-        self.data["timeint_le"] = obs_le_timeint
         mod_le_timeint.unit = "W m-2"
+        self.data["timeint_le"] = obs_le_timeint
+        cdata    ["timeint_le"] = mod_le_timeint
         mod_le_timeint.toNetCDF4(f)
         bias = obs_le_timeint.bias(mod_le_timeint)
         bias.name = "bias_of_le_integrated_over_time_and_divided_by_time_period"
@@ -193,8 +182,95 @@ class LEFluxnetSites():
         self.plot(m,cdata)
 
     def plotFromFiles(self):
-        pass
+        
+        def _UnitStringToMatplotlib(unit):
+            import re
+            # raise exponents using Latex
+            match = re.findall("(-\d)",unit)
+            for m in match: unit = unit.replace(m,"$^{%s}$" % m)
+            return unit
 
+        # Load data
+        timeint = {}
+        bias    = {}
+        timeint["Benchmark"] = self.data["timeint_le"]
+        pattern = "%s/%s*.nc" % (self.output_path,self.name)
+        minLE   = timeint["Benchmark"].data.min() 
+        maxLE   = timeint["Benchmark"].data.max()
+        maxBias = 0.
+        models  = []
+        cor     = []
+        std     = []
+        for fname in glob.glob(pattern):
+            mname = fname[:-3].split("_")[-1]
+            models.append(mname)
+            timeint[mname] = FromNetCDF4(fname,"hfls_integrated_over_time_and_divided_by_time_period")
+            bias   [mname] = timeint[mname].data-timeint["Benchmark"].data
+            minLE   = min(minLE  ,timeint[mname].data.min())
+            maxLE   = max(maxLE  ,timeint[mname].data.max())
+            maxBias = max(maxBias,(np.abs(bias[mname])).max())
+            cor.append(FromNetCDF4(fname,"correlation").data)
+            std.append(FromNetCDF4(fname,"std"        ).data)
+            
+        # timeint
+        minLE -= 0.05*(maxLE-minLE)
+        maxLE += 0.05*(maxLE-minLE)
+        for mname in timeint.keys():
+            fig,ax = plt.subplots(figsize=(6.8,3.8),tight_layout=True)
+            bmap   = Basemap(projection='robin',lon_0=0,ax=ax)
+            mle    = timeint[mname]
+            x,y    = bmap(timeint["Benchmark"].lon,timeint["Benchmark"].lat)
+            mle    = mle.data
+            norm   = colors.Normalize(minLE,maxLE)
+            norm   = norm(mle)
+            cmap   = plt.get_cmap('YlOrRd')
+            clrs   = cmap(norm)
+            size   = norm*30+20
+            bmap.scatter(x,y,s=size,color=clrs,ax=ax,linewidths=0,cmap=cmap)
+            bmap.drawcoastlines(linewidth=0.2,color="darkslategrey")
+            fig.savefig("%s/timeint_%s.png" % (self.output_path,mname))
+            plt.close()
+        fig,ax = plt.subplots(figsize=(6.8,1.0),tight_layout=True)
+        ColorBar(ax,
+                 vmin=minLE,
+                 vmax=maxLE,
+                 cmap="YlOrRd",
+                 label=_UnitStringToMatplotlib(timeint[timeint.keys()[0]].unit))
+        fig.savefig("%s/legend_timeint.png" % (self.output_path))
+        plt.close()
+
+        # bias
+        maxBias *= 1.05
+        minBias  = -maxBias
+        for mname in bias.keys():
+            fig,ax = plt.subplots(figsize=(6.8,3.8),tight_layout=True)
+            bmap   = Basemap(projection='robin',lon_0=0,ax=ax)
+            mle    = bias[mname]
+            x,y    = bmap(timeint["Benchmark"].lon,timeint["Benchmark"].lat)
+            norm   = colors.Normalize(minBias,maxBias)
+            norm   = norm(mle)
+            cmap   = plt.get_cmap('seismic')
+            clrs   = cmap(norm)
+            size   = norm*30+20
+            bmap.scatter(x,y,s=size,color=clrs,ax=ax,linewidths=0,cmap=cmap)
+            bmap.drawcoastlines(linewidth=0.2,color="darkslategrey")
+            fig.savefig("%s/bias_%s.png" % (self.output_path,mname))
+            plt.close()
+        fig,ax = plt.subplots(figsize=(6.8,1.0),tight_layout=True)
+        ColorBar(ax,
+                 vmin=minBias,
+                 vmax=maxBias,
+                 cmap="seismic",
+                 label=_UnitStringToMatplotlib(timeint["Benchmark"].unit))
+        fig.savefig("%s/legend_bias.png" % (self.output_path))
+        plt.close()
+
+        fig = plt.figure(figsize=(6.8,6.8))
+        TaylorDiagram(np.asarray(std),np.asarray(cor),1.0,
+                      fig,['k']*len(std),normalize=False)
+        fig.savefig("%s/spatial_variance.png" % (self.output_path))
+        plt.close()
+            
     def plot(self,m=None,data=None):
         
         # Correlation plot
@@ -214,26 +290,3 @@ class LEFluxnetSites():
         fig.savefig("%s/correlation_%s.png" % (self.output_path,m.name))
         plt.close()
         
-        # Basemap plot of mean observational data (should happen once)
-        fig,ax = plt.subplots(figsize=(6.8,2.8))
-        bmap   = Basemap(projection='robin',lon_0=0,ax=ax)
-        mle    = self.data["timeint_le"]
-        print "mle lat/lon/unit:",mle.lat[4],mle.lon[4],mle.unit
-        x,y    = bmap(mle.lon,mle.lat)
-        mle    = mle.data
-        print mle[4],obs.data[:,4].mean(),obs.unit
-        print obs.data[:,4].mask.sum(),obs.data.shape[0]
-        
-        dmle   = mle.max()-mle.min()
-        norm   = colors.Normalize(mle.min()-0.05*dmle,mle.max()+0.05*dmle)
-        norm   = norm(mle)
-        cmap   = plt.get_cmap('YlOrRd')
-        clrs   = cmap(norm)
-        size   = norm*30+20
-        bmap.scatter(x,y,s=size,color=clrs,ax=ax,linewidths=0,cmap=cmap)
-        bmap.drawcoastlines(linewidth=0.2,color="darkslategrey")
-        fig.savefig("%s/timeint_Benchmark.png" % (self.output_path))
-        plt.close()
-
-
-

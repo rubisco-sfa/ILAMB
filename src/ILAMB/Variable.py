@@ -399,9 +399,9 @@ class Variable:
             dt[1:-1]  = 0.5*(self.time[2:]-self.time[:-2])
             dt[0]     = 0.5*(self.time[1] -self.time[0])  + self.time[0]-t0
             dt[-1]    = 0.5*(self.time[-1]-self.time[-2]) + tf-self.time[-1]
-            dt        = dt[:,np.newaxis]*(self.data.mask==0)
-            print dt[:,1]
-            integral /= (tf-t0) # not true
+            dt       *= (self.time>=t0)*(self.time<=tf)
+            dt        = (dt[:,np.newaxis]*(self.data.mask==0)).sum(axis=0)
+            integral /= dt
             unit     += " d-1"
             name     += "_and_divided_by_time_period"
         return Variable(integral,unit,lat=self.lat,lon=self.lon,area=self.area,name=name)
