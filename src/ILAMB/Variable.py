@@ -400,7 +400,8 @@ class Variable:
             dt[0]     = 0.5*(self.time[1] -self.time[0])  + self.time[0]-t0
             dt[-1]    = 0.5*(self.time[-1]-self.time[-2]) + tf-self.time[-1]
             dt       *= (self.time>=t0)*(self.time<=tf)
-            dt        = (dt[:,np.newaxis]*(self.data.mask==0)).sum(axis=0)
+            for i in range(self.data.ndim-1): dt = np.expand_dims(dt,axis=-1)
+            dt        = (dt*(self.data.mask==0)).sum(axis=0)
             integral /= dt
             unit     += " d-1"
             name     += "_and_divided_by_time_period"
@@ -543,9 +544,12 @@ class Variable:
         vmean,vstd,tmax,tmaxstd = il.AnnualCycleInformation(var.time,var.data)
         return Variable(vmean,var.unit,name="annual_cycle_of_%s" % self.name,std=vstd,time=mid_months),tmax,tmaxstd
         
-    def phase(self):
+    def phase(self): 
         if not self.temporal: raise il.NotTemporalVariable()
-        tmax = il.MaxMonthMode(self.time,self.data)
+        if self.spatial is False:
+            tmax = il.MaxMonthMode(self.time,self.data)
+        else:
+            tmax = np.ma.masked_array(np.zeros((self.lat.size,self.lon.size)))
         return Variable(tmax,"d",name="day_of_max_%s" % self.name,lat=self.lat,lon=self.lon,area=self.area)
         
     def corrcoef(self,var,region="global"):

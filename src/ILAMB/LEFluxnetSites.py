@@ -3,6 +3,7 @@ import matplotlib.colors as colors
 from Variable import Variable,FromNetCDF4
 from netCDF4 import Dataset
 from Post import ColorBar,TaylorDiagram
+from ilamblib import VarNotOnTimeScale
 import pylab as plt
 import numpy as np
 import os,glob
@@ -99,12 +100,16 @@ class LEFluxnetSites():
                                      output_unit="J m-2 s-1")
         cdata["le"] = mod_le
         
-        # write confrontation result file
-        f = Dataset("%s/%s_%s.nc" % (self.output_path,self.name,m.name),mode="w")
-        
         # the observational site data has many holes, mask the model
         # data so we are comparing apples to apples
-        mod_le.data.mask += obs_le.data.mask
+        try:
+            mod_le.data.mask += obs_le.data.mask
+        except:
+            raise VarNotOnTimeScale("Model has %d time points and observations have %d" % (mod_le.data.shape[0],obs_le.data.shape[0]))
+        
+        # write confrontation result file
+        f = Dataset("%s/%s_%s.nc" % (self.output_path,self.name,m.name),mode="w")
+        f.setncatts({"name":m.name,"color":m.color})
         
         # integrate over the time period
         obs_le_timeint = obs_le.integrateInTime(mean=True).convert("J m-2 s-1")
@@ -199,11 +204,15 @@ class LEFluxnetSites():
         maxLE   = timeint["Benchmark"].data.max()
         maxBias = 0.
         models  = []
+        clr     = []
         cor     = []
         std     = []
         for fname in glob.glob(pattern):
-            mname = fname[:-3].split("_")[-1]
+            f     = Dataset(fname)
+            mname = f.getncattr("name")
             models.append(mname)
+            clr.append(f.getncattr("color"))
+            f.close()
             timeint[mname] = FromNetCDF4(fname,"hfls_integrated_over_time_and_divided_by_time_period")
             bias   [mname] = timeint[mname].data-timeint["Benchmark"].data
             minLE   = min(minLE  ,timeint[mname].data.min())
@@ -265,9 +274,10 @@ class LEFluxnetSites():
         fig.savefig("%s/legend_bias.png" % (self.output_path))
         plt.close()
 
+        # spatial variation
         fig = plt.figure(figsize=(6.8,6.8))
         TaylorDiagram(np.asarray(std),np.asarray(cor),1.0,
-                      fig,['k']*len(std),normalize=False)
+                      fig,clr,normalize=False)
         fig.savefig("%s/spatial_variance.png" % (self.output_path))
         plt.close()
             

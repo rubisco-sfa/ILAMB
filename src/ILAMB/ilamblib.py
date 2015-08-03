@@ -18,6 +18,9 @@ class VarNotInModel(Exception):
 class VarsNotComparable(Exception):
     pass
 
+class VarNotOnTimeScale(Exception):
+    pass
+
 class UnknownUnit(Exception):
     pass
 
@@ -925,8 +928,10 @@ def MaxMonthMode(t,var):
 
     Notes
     -----
-    This routine can be generalized to extract any kind of cycle information. Perhaps an
-    option for the user to specify a cycle time and we compute the rest from that.
+    This routine can be generalized to extract any kind of cycle
+    information. Perhaps an option for the user to specify a cycle
+    time and we compute the rest from that. Also, it appears to be
+    quite slow. It could be the mode function from scipy.mstats
     """
     assert t.ndim == 1
     assert t.size == var.shape[0]
