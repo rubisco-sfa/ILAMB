@@ -470,7 +470,7 @@ class HtmlLayout():
         line = str(range(2,len(data)+2))[1:]
         if regions[0] == '':
             code += """
-        view.setColumns([0, 1, %s]);""" % line
+        view.setColumns([0, 1, %s);""" % line
         else:
             line  = line.replace(", ",", %d*rid+" % len(data))
             line  = "%d*rid+2" % len(data) + line[1:]
