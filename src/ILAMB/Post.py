@@ -395,3 +395,167 @@ def TaylorDiagram(stddev,corrcoef,refstd,fig,colors,normalize=True):
         ax.plot(np.arccos(corrcoef[i]),stddev[i],'o',color=colors[i],mew=0,ms=10)
 
     return ax
+
+
+class HtmlLayout():
+    
+    def __init__(self,c,metrics,regions=None):
+        
+        self.c       = c
+        self.metrics = metrics
+        self.regions = regions
+        self.header  = "CNAME"
+
+    def setHeader(self,header):
+        self.header = header
+
+    def generateMetricTable(self):
+
+        # Local function to find how deep the metric dictionary goes
+        def _findDictDepth(metrics):
+            tmp   = metrics
+            depth = 0
+            while True:
+                if type(tmp) is type({}):
+                    tmp    = tmp[tmp.keys()[0]]
+                    depth += 1
+                else:
+                    return depth
+
+        # Convenience redefinition
+        c       = self.c
+        metrics = self.metrics
+        
+        # Grab the data
+        models  = metrics.keys()
+        if _findDictDepth(metrics) == 2:
+            regions = ['']
+            data    = metrics[models[0]].keys()
+        else:
+            regions = metrics[models[0]].keys()
+            data    = metrics[models[0]][regions[0]].keys()
+
+        # Generate the Google DataTable Javascript code
+        code = """
+    <script type="text/javascript" src="https://www.google.com/jsapi"></script>
+    <script type="text/javascript">
+      google.load("visualization", "1", {packages:["table"]});
+      google.setOnLoadCallback(drawTable);
+      function drawTable() {
+        var data = new google.visualization.DataTable();
+        data.addColumn('string','Model');
+        data.addColumn('string','Data');"""
+        for region in regions:
+            for header in data:
+                code += """
+        data.addColumn('number','%s');""" % header
+        code += """
+        data.addRows(["""
+        for model in models:
+            code += """
+          ['%s','<a href="%s_%s.nc" download>[-]</a>'""" % (model,c.name,model)
+            for region in regions:
+                for header in data:
+                    if region == '':
+                        code += ",%f" % metrics[model][header]
+                    else:
+                        code += ",%f" % metrics[model][region][header]
+            code += "],"
+        code += """
+        ]);"""
+
+        # Setup the view
+        code += """
+        var view  = new google.visualization.DataView(data);"""
+        line = str(range(2,len(data)+2))[1:]
+        if regions[0] == '':
+            code += """
+        view.setColumns([0, 1, %s]);""" % line
+        else:
+            line  = line.replace(", ",", %d*rid+" % len(data))
+            line  = "%d*rid+2" % len(data) + line[1:]
+            code += """
+        var rid = document.getElementById("region").selectedIndex
+        view.setColumns([0, 1, %s);""" % line
+
+        # Draw the table
+        code += """
+        var table = new google.visualization.Table(document.getElementById('table_div'));
+        table.draw(view, {showRowNumber: false,allowHtml: true});"""
+
+        # clickRow feedback function
+        code += """
+        function clickRow() {
+          var header = "%s";
+          header     = header.replace("CNAME","%s");"""  % (self.header,self.c.name)
+        if regions[0] is not '':
+            code += """
+          var rid    = document.getElementById("region").selectedIndex;
+          var RNAME  = document.getElementById("region").options[rid].value;
+          header     = header.replace("RNAME",RNAME);"""
+        code += """
+          var row    = 0
+          var select = table.getSelection()
+          if(select.length > 0){
+            row = select[0].row;
+          }
+          var MNAME  = data.getValue(row,0);
+          header     = header.replace("MNAME",MNAME);"""
+        code += """
+          $("#header h1 #header_txt").text(header);
+        }
+        google.visualization.events.addListener(table, 'select', clickRow);
+        table.setSelection([{'row': 0}]);
+        clickRow();
+      }
+    </script>"""
+    
+        return code
+
+    def __str__(self):
+
+        # Open the html and head
+        code = """<html>
+  <head>"""
+
+        # Add needed Javascript sources
+        code += """
+    <link rel="stylesheet" href="http://code.jquery.com/mobile/1.4.5/jquery.mobile-1.4.5.min.css">
+    <script src="http://code.jquery.com/jquery-1.11.2.min.js"></script>
+    <script src="http://code.jquery.com/mobile/1.4.5/jquery.mobile-1.4.5.min.js"></script>"""
+
+        # Add Google table of metrics
+        code += self.generateMetricTable()
+        
+        # Head finished, open body and a first page
+        code += """
+  </head>
+  <body>
+    <div data-role="page" id="pageone">"""
+
+        # Page header
+        code += """
+      <div id="header" data-role="header" data-position="fixed" data-tap-toggle="false">
+	<h1><span id="header_txt"></span></h1>
+      </div>"""
+
+        # Add optional regions pulldown
+        if self.regions is not None:
+            code += """
+      <select id="region" onchange="drawTable()">"""
+            for r in self.regions:
+                code += """
+        <option value="%s">%s</option>""" % (r,r)
+            code += """
+      </select>"""
+
+        # Add the table div
+        code += """
+      <div id="table_div" align="center"></div>"""
+            
+        # End the first and html page
+        code += """
+    </div>
+  </body>
+</html>""" 
+        return code
