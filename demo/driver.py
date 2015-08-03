@@ -21,6 +21,14 @@ OK   = '\033[92m'
 FAIL = '\033[91m'
 ENDC = '\033[0m'
 
+import argparse
+parser = argparse.ArgumentParser(description='')
+parser.add_argument('--models', dest="models", metavar='m', type=str, nargs='+',
+                    help='specify which models to run, list model names with no quotes and only separated by a space.')
+parser.add_argument('--confrontations', dest="confront", metavar='c', type=str, nargs='+',
+                    help='specify which confrontations to run, list confrontation names with no quotes and only separated by a space.')
+args = parser.parse_args()
+
 # Initialize the models
 M    = []
 root = "%s/MODELS/CMIP5" % (os.environ["ILAMB_ROOT"])
@@ -30,12 +38,15 @@ for subdir, dirs, files in os.walk(root):
     mname = subdir.replace(root,"")
     if mname.count("/") != 1: continue
     mname = mname.replace("/","")
+    if args.models is not None:
+        if mname not in args.models: continue
     maxML  = max(maxML,len(mname))
     M.append(ModelResult(subdir,modelname=mname,filter="r1i1p1"))
 M = sorted(M,key=lambda m: m.name.upper())
 if rank == 0: 
     for m in M: 
         print ("    {0:<%d}" % (maxML)).format(m.name)
+if len(M) == 0: sys.exit(0)
 
 # Assign colors
 clrs = il.GenerateDistinctColors(len(M))
@@ -46,6 +57,10 @@ for m in M:
 # Build work list, ModelResult+Confrontation pairs
 W     = []
 C     = Confrontation().list()
+if args.confront is not None:
+    C = [c for c in C if c.name in args.confront]
+if len(C) == 0: sys.exit(0)
+
 maxCL = 0
 for c in C:
     maxCL = max(maxCL,len(c.name))
@@ -78,6 +93,9 @@ for w in localW:
         continue
     except il.VarNotMonthly:
         print ("    {0:>%d} {1:>%d} %sVarNotMonthly%s" % (maxCL,maxML,FAIL,ENDC)).format(c.name,m.name)
+        continue
+    except il.VarNotOnTimeScale:
+        print ("    {0:>%d} {1:>%d} %sVarNotOnTimeScale%s" % (maxCL,maxML,FAIL,ENDC)).format(c.name,m.name)
         continue
 
 sys.stdout.flush()
