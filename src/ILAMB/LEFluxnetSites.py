@@ -2,7 +2,7 @@ from mpl_toolkits.basemap import Basemap
 import matplotlib.colors as colors
 from Variable import Variable,FromNetCDF4
 from netCDF4 import Dataset
-from Post import ColorBar,TaylorDiagram
+from Post import ColorBar,TaylorDiagram,HtmlLayout
 from ilamblib import VarNotOnTimeScale
 import pylab as plt
 import numpy as np
@@ -31,6 +31,15 @@ class LEFluxnetSites():
             dname = "/".join(dirs[:(i+1)])
             if not os.path.isdir(dname): os.mkdir(dname)
 
+        self.layout = HtmlLayout(self)
+        self.layout.setHeader("CNAME / MNAME")
+        self.layout.setSections(["Temporally integrated period mean",
+                                 "Correlation"])
+        self.layout.addFigure("Temporally integrated period mean" ,"timeint","timeint_MNAME.png",side="MEAN",legend=True)
+        self.layout.addFigure("Temporally integrated period mean" ,"bias"   ,"bias_MNAME.png"   ,side="BIAS",legend=True)
+        self.layout.addFigure("Correlation","correlation","correlation_MNAME.png",side="MEAN",legend=False)
+        self.layout.addFigure("Correlation","spatial_variance","spatial_variance.png",side="SPACE",legend=False)
+            
         self.weights = {"RMSEScore"                  :2.,
                         "BiasScore"                  :1.,
                         "SeasonalCycleScore"         :1.,
@@ -207,6 +216,7 @@ class LEFluxnetSites():
         clr     = []
         cor     = []
         std     = []
+        metrics = {}
         for fname in glob.glob(pattern):
             f     = Dataset(fname)
             mname = f.getncattr("name")
@@ -220,6 +230,15 @@ class LEFluxnetSites():
             maxBias = max(maxBias,(np.abs(bias[mname])).max())
             cor.append(FromNetCDF4(fname,"correlation").data)
             std.append(FromNetCDF4(fname,"std"        ).data)
+            metrics[mname] = {}
+            metrics[mname]["Bias"]      = FromNetCDF4(fname,"bias_of_le_integrated_over_time_and_divided_by_time_period")
+            metrics[mname]["RMSE"]      = FromNetCDF4(fname,"rmse_of_le_integrated_over_time_and_divided_by_time_period")
+            metrics[mname]["BiasScore"] = FromNetCDF4(fname,"bias_score_of_le_integrated_over_time_and_divided_by_time_period")
+            metrics[mname]["RMSEScore"] = FromNetCDF4(fname,"rmse_score_of_le_integrated_over_time_and_divided_by_time_period")
+            metrics[mname]["PhaseShift"] = FromNetCDF4(fname,"mean_phase_shift")
+            metrics[mname]["SeasonalCycleScore"] = FromNetCDF4(fname,"spatial_distribution_score")
+            metrics[mname]["InterannualVariabilityScore"] = FromNetCDF4(fname,"interannual_variability_score")
+            metrics[mname]["OverallScore"] = FromNetCDF4(fname,"overall_score")
             
         # timeint
         minLE -= 0.05*(maxLE-minLE)
@@ -280,7 +299,13 @@ class LEFluxnetSites():
                       fig,clr,normalize=False)
         fig.savefig("%s/spatial_variance.png" % (self.output_path))
         plt.close()
-            
+
+        # write the html output file
+        f = file("%s/%s.html" % (self.output_path,self.name),"w")
+        self.layout.setMetrics(metrics)
+        f.write("%s" % self.layout)
+        f.close()
+        
     def plot(self,m=None,data=None):
         
         # Correlation plot

@@ -56,21 +56,23 @@ class GPPFluxnetGlobalMTE():
             if not os.path.isdir(dname): os.mkdir(dname)
 
         # somewhat complicated layout designation for HTML output pages
-        self.layout = []
-        self.layout.append({"name" :"Temporally integrated period mean",
-                            "plots":{"timeint" :["MEAN",True],
-                                     "bias"    :["BIAS",True]}})
-        self.layout.append({"name" :"Spatially integrated regional mean",
-                            "plots":{"spaceint":["MEAN",False]}})
-        self.layout.append({"name" :"Spatial Distribution",
-                            "plots":{"spatial_variance":["SPACE",False]}})        
-        self.layout.append({"name" :"Annual cycle",
-                            "plots":{"cycle"    :["CYCLE",True],
-                                     "compcycle":["COMP",False]}})
-        self.layout.append({"name" :"Phase",
-                            "plots":{"phase"   :["PEAK",True],
-                                     "shift"   :["SHIFT",True]}})
-
+        
+        self.layout = post.HtmlLayout(self,regions=self.regions)
+        self.layout.setHeader("CNAME / RNAME / MNAME")
+        self.layout.setSections(["Temporally integrated period mean",
+                                 "Spatially integrated regional mean",
+                                 "Spatial distribution",
+                                 "Annual cycle",
+                                 "Phase"])
+        self.layout.addFigure("Temporally integrated period mean" ,"timeint","MNAME_RNAME_timeint.png",side="MEAN",legend=True)
+        self.layout.addFigure("Temporally integrated period mean" ,"bias"   ,"MNAME_RNAME_bias.png"   ,side="BIAS",legend=True)
+        self.layout.addFigure("Spatially integrated regional mean","spaceint","MNAME_RNAME_spaceint.png",side="MEAN",legend=False)
+        self.layout.addFigure("Spatial distribution","spatial_variance","RNAME_spatial_variance.png",side="SPACE",legend=False)
+        self.layout.addFigure("Annual cycle","cycle","MNAME_RNAME_cycle.png",side="CYCLE",legend=False)
+        self.layout.addFigure("Annual cycle","compcycle","RNAME_compcycle.png",side="COMP",legend=True)
+        self.layout.addFigure("Phase","phase","MNAME_RNAME_phase.png",side="PEAK",legend=True)
+        self.layout.addFigure("Phase","shift","MNAME_RNAME_shift.png",side="SHIFT",legend=True)
+        
         # how do metrics get blended?
         self.weights = {"RMSEScore"         :2.,
                         "BiasScore"         :1.,
@@ -367,7 +369,8 @@ class GPPFluxnetGlobalMTE():
 
         # write the html output file
         f = file("%s/%s.html" % (self.output_path,self.name),"w")
-        f.write(post.ConfrontationTableGoogle(self,metrics))
+        self.layout.setMetrics(metrics)
+        f.write("%s" % self.layout)
         f.close()
 
     def plot(self,m=None,data=None):
