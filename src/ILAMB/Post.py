@@ -251,6 +251,7 @@ class HtmlLayout():
         self.c        = c
         self.metrics  = None
         self.regions  = regions
+        if self.regions is not None: self.regions.sort()
         self.header   = "CNAME"
         self.figures  = {}
         self.sections = None
@@ -309,6 +310,7 @@ class HtmlLayout():
 
         # Sorts
         models.sort()
+        regions.sort()
         data.sort(key=_sortMetrics)
             
         # Generate the Google DataTable Javascript code
@@ -323,8 +325,13 @@ class HtmlLayout():
         data.addColumn('string','Data');"""
         for region in regions:
             for header in data:
+                if region == '':
+                    metric = metrics[models[0]][header]
+                else:
+                    metric = metrics[models[0]][region][header]
+                unit  = metric.unit.replace(" ",r"&thinsp;").replace("-1",r"<sup>-1</sup>")
                 code += """
-        data.addColumn('number','%s');""" % header
+        data.addColumn('number','<span title="%s">%s [%s]</span>');""" % (metric.name,header,unit)
         code += """
         data.addRows(["""
         for model in models:
