@@ -68,8 +68,8 @@ class GPPFluxnetGlobalMTE():
         self.layout.addFigure("Temporally integrated period mean" ,"bias"   ,"MNAME_RNAME_bias.png"   ,side="BIAS",legend=True)
         self.layout.addFigure("Spatially integrated regional mean","spaceint","MNAME_RNAME_spaceint.png",side="MEAN",legend=False)
         self.layout.addFigure("Spatial distribution","spatial_variance","RNAME_spatial_variance.png",side="SPACE",legend=False)
-        self.layout.addFigure("Annual cycle","cycle","MNAME_RNAME_cycle.png",side="CYCLE",legend=False)
-        self.layout.addFigure("Annual cycle","compcycle","RNAME_compcycle.png",side="COMP",legend=True)
+        self.layout.addFigure("Annual cycle","compcycle","RNAME_compcycle.png",side="COMP",legend=False)
+        self.layout.addFigure("Annual cycle","cycle","MNAME_RNAME_cycle.png",side="CYCLE",legend=True)
         self.layout.addFigure("Phase","phase","MNAME_RNAME_phase.png",side="PEAK",legend=True)
         self.layout.addFigure("Phase","shift","MNAME_RNAME_shift.png",side="SHIFT",legend=True)
         
@@ -134,7 +134,7 @@ class GPPFluxnetGlobalMTE():
         # get the model data
         mod_gpp = m.extractTimeSeries("gpp",initial_time=t0,final_time=tf,
                                       output_unit="g m-2 s-1")
-        
+
         # ensure that oceans are properly masked
         mod_gpp.data = np.ma.masked_array(mod_gpp.data,
                                           mask=mod_gpp.data.mask+(mod_gpp.area<1e-2)[np.newaxis,:,:],

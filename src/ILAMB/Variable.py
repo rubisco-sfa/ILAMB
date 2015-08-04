@@ -111,7 +111,8 @@ class Variable:
                 self.std = np.roll(self.std,-shift,axis=-1)
         else:
             raise ValueError("Unanticipated data/lat/lon combination")
-                
+
+        
     def toNetCDF4(self,dataset):
         """Adds the variable to the specified netCDF4 dataset
 
