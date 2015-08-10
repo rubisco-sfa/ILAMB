@@ -209,7 +209,7 @@ class ModelResult():
         if lats is None:
             return Variable(np.ma.masked_array(varc,mask=masc),unit,time=tc,lat=self.lat,lon=self.lon,area=self.land_areas,name=vname)
         else:
-            return Variable(np.ma.masked_array(varc,mask=masc),unit,time=tc,lat=lat,lon=lon,name=vname)
+            return Variable(np.ma.masked_array(varc,mask=masc),unit,time=tc,lat=lat,lon=lon,name=vname,ndata=lat.size)
             
     def globalPlot(self,var,region="global",ax=None):
         from mpl_toolkits.basemap import Basemap

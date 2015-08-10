@@ -30,7 +30,17 @@ def FromNetCDF4(filename,variable_name):
         lon = None
     else:
         lon = f.variables[lon_name][...]
-    return Variable(np.ma.masked_array(var[...]),var.units,name=variable_name,time=t,lat=lat,lon=lon)
+    if data_name is None:
+        data = None
+    else:
+        data = len(f.dimensions[data_name])
+    return Variable(np.ma.masked_array(var[...]),
+                    var.units,
+                    name=variable_name,
+                    time=t,
+                    lat=lat,
+                    lon=lon,
+                    ndata=data)
 
 class Variable:
     """A class for managing variables defined in time and the globe.
@@ -44,7 +54,7 @@ class Variable:
     pseudocolor plot if the variable is spatial.
     """
 
-    def __init__(self,data,unit,name="unnamed",time=None,lat=None,lon=None,area=None,std=None):
+    def __init__(self,data,unit,name="unnamed",time=None,lat=None,lon=None,area=None,std=None,ndata=None):
         """Constructor for the variable class
 
         Parameter
@@ -67,14 +77,17 @@ class Variable:
             a 1D array of longitudes of cell centroids
         area : numpy.ndarray, optional
             a 2D array of the cell areas
-        std :  numpy.ndarray, optional
+        std : numpy.ndarray, optional
             an array of standard deviations of the shape of the data
+        ndata : int, optional
+            number of data sites this data represents
         """
         assert type(data) is type(np.ma.masked_array())
-        self.data = data 
-        self.unit = unit
-        self.name = name
-        self.std  = std
+        self.data  = data 
+        self.ndata = ndata
+        self.unit  = unit
+        self.name  = name
+        self.std   = std
         if self.std is not None:
             assert self.data.shape == self.std.shape
 
@@ -92,15 +105,13 @@ class Variable:
         self.lat     = lat
         self.lon     = lon
         self.area    = area
-        self.ndata   = 1
         if ((lat is     None) and (lon is     None)): return
         if ((lat is     None) and (lon is not None) or
             (lat is not None) and (lon is     None)):
             raise ValueError("If one of lat or lon is specified, they both must specified")
         self.lon = (self.lon<=180)*self.lon+(self.lon>180)*(self.lon-360)
-        if (data.shape[-1] == lat.size and data.shape[-1] == lon.size):
-            self.ndata = data.shape[-1]
-        elif (data.shape[-2] == lat.size and data.shape[-1] == lon.size):
+        if data.ndim < 2: return
+        if (data.shape[-2] == lat.size and data.shape[-1] == lon.size):
             self.spatial = True
             if self.area is None: self.area = il.CellAreas(self.lat,self.lon)
             shift     = self.lon.argmin()
@@ -109,9 +120,6 @@ class Variable:
             self.area = np.roll(self.area,-shift,axis=-1)
             if self.std is not None:
                 self.std = np.roll(self.std,-shift,axis=-1)
-        else:
-            raise ValueError("Unanticipated data/lat/lon combination")
-
         
     def toNetCDF4(self,dataset):
         """Adds the variable to the specified netCDF4 dataset
@@ -201,14 +209,14 @@ class Variable:
         dim = []
         if self.temporal:
             dim.append(_checkTime(self.time,dataset))
-        if self.ndata > 1:
+        if self.ndata is not None:
             dim.append(_checkData(self.ndata,dataset))
             dlat = _checkLat(self.lat,dataset)
             dlon = _checkLon(self.lon,dataset)
         if self.spatial:
             dim.append(_checkLat(self.lat,dataset))
             dim.append(_checkLon(self.lon,dataset))
-
+            
         V = dataset.createVariable(self.name,"double",dim)
         V.setncattr("units",self.unit)
         V[...] = self.data
@@ -406,7 +414,7 @@ class Variable:
             integral /= dt
             unit     += " d-1"
             name     += "_and_divided_by_time_period"
-        return Variable(integral,unit,lat=self.lat,lon=self.lon,area=self.area,name=name)
+        return Variable(integral,unit,lat=self.lat,lon=self.lon,area=self.area,name=name,ndata=self.ndata)
 
     def _overlap(self,var):
         """A local function for determining indices of this variable and the
@@ -551,7 +559,7 @@ class Variable:
             tmax = il.MaxMonthMode(self.time,self.data)
         else:
             tmax = np.ma.masked_array(np.zeros((self.lat.size,self.lon.size)))
-        return Variable(tmax,"d",name="day_of_max_%s" % self.name,lat=self.lat,lon=self.lon,area=self.area)
+        return Variable(tmax,"d",name="day_of_max_%s" % self.name,lat=self.lat,lon=self.lon,area=self.area,ndata=self.ndata)
         
     def corrcoef(self,var,region="global"):
         """Computes the correlation

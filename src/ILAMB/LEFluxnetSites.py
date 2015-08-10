@@ -78,7 +78,7 @@ class LEFluxnetSites():
                 msg  = "The le variable is in units of [%s]. " % unit
                 msg += "You asked for units of [%s] but I do not know how to convert" % output_unit
                 raise il.UnknownUnit(msg)
-        v = Variable(var,unit,time=t,lat=lat,lon=lon,name="le")
+        v = Variable(var,unit,time=t,lat=lat,lon=lon,name="le",ndata=var.shape[1])
         v.spatial = False # individual site data does not constitute areas
 
         return v
@@ -160,7 +160,7 @@ class LEFluxnetSites():
         shift -= (shift > +0.5*365.)*365.
         shift += (shift < -0.5*365.)*365.
         shift  = Variable(shift,"d",name="phase_shift_of_hfls",
-                         lat=mod_le.lat,lon=mod_le.lon)
+                          lat=mod_le.lat,lon=mod_le.lon,ndata=mod_phase.ndata)
         shift.toNetCDF4(f)
         cdata["shift"] = shift
         Variable(np.ma.masked_array(shift.data.mean()),"d",name="mean_phase_shift").toNetCDF4(f)
