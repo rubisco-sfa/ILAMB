@@ -219,29 +219,20 @@ class HtmlFigure():
     def __str__(self):
 
         code = """
-        <table data-role="table" class="ui-responsive" id="%s_table">
-	  <thead>
-            <tr>""" % (self.name)
+        <div class="outer" id="%s_div">""" % (self.name)
         if self.side is not None:
             code += """
-	      <th align="right" width="20"><h1 id="myH1">%s</h1></th>""" % (self.side)
+	      <div class="inner rotate">%s</div>""" % (self.side.replace(" ","&nbsp;"))
         code += """
-	      <th align="left"><img src="" id="%s" width=680 alt="Data not available"></img></th>
-            </tr>
-	  </thead>""" % (self.name)
+	      <div class="second"><img src="" id="%s" width=680 alt="Data not available"></img></div>""" % (self.name)
         if self.legend:
-            code += """
-          <tbody>
-            <tr>"""
             if self.side is not None:
                 code += """
-	      <th width="20"></th>"""
+	      <div class="inner rotate"> </div>"""
             code += """
-	      <th><img src="legend_%s.png" id="leg" width=680 alt="Data not available"></img></th>
-            </tr>
-          </tbody>""" % (self.name)
+	      <div class="second"><img src="legend_%s.png" id="leg" width=680 alt="Data not available"></img></div>""" % (self.name)
         code += """
-        </table>"""
+        </div><br>"""
         return code
 
 class HtmlLayout():
@@ -309,10 +300,10 @@ class HtmlLayout():
             data    = metrics[models[0]][regions[0]].keys()
 
         # Sorts
-        models.sort()
+        models.sort(key=lambda key: key.upper())
         regions.sort()
         data.sort(key=_sortMetrics)
-            
+        
         # Generate the Google DataTable Javascript code
         code = """
     <script type="text/javascript" src="https://www.google.com/jsapi"></script>
@@ -420,12 +411,30 @@ class HtmlLayout():
         
         # Add a CSS style I will use for vertical labels
         code += """
-    <style>
-      #myH1 {
-        transform: 
-          translate(0px, 140px)
-          rotate(270deg);
-        width: 20px;
+    <style type="text/css">
+      .outer {
+             width: 40px;
+          position: relative;
+           display: inline-block;
+            margin: 0 15px;
+      }
+      .inner {
+         font-size: 20px;
+       font-weight: bold;
+          position: absolute;
+               top: 50%;
+              left: 50%;
+      }
+            .second {
+         font-size: 20px;
+       font-weight: bold;
+          position: relative;
+              left: 40px;
+      }
+      .rotate {
+           -moz-transform: translateX(-50%) translateY(-50%) rotate(-90deg);
+        -webkit-transform: translateX(-50%) translateY(-50%) rotate(-90deg);
+                transform: translateX(-50%) translateY(-50%) rotate(-90deg);
       }
     </style>"""
 

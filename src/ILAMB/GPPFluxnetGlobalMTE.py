@@ -46,7 +46,7 @@ class GPPFluxnetGlobalMTE():
             msg += "Did you download the data? Have you set the ILAMB_ROOT envronment variable?"
             raise il.MisplacedData(msg)
         self.data = {}
-        self.regions = ["global","amazon"] #,"bona","tena","ceam","nhsa","shsa"]
+        self.regions = ["global","amazon"]
 
         # build output path if not already built
         self.output_path = "_build/GPPFluxnetGlobalMTE"
@@ -60,18 +60,19 @@ class GPPFluxnetGlobalMTE():
         self.layout = post.HtmlLayout(self,regions=self.regions)
         self.layout.setHeader("CNAME / RNAME / MNAME")
         self.layout.setSections(["Temporally integrated period mean",
-                                 "Spatially integrated regional mean",
-                                 "Spatial distribution",
-                                 "Annual cycle",
-                                 "Phase"])
-        self.layout.addFigure("Temporally integrated period mean" ,"timeint","MNAME_RNAME_timeint.png",side="MEAN",legend=True)
-        self.layout.addFigure("Temporally integrated period mean" ,"bias"   ,"MNAME_RNAME_bias.png"   ,side="BIAS",legend=True)
+                                 "Spatially integrated regional mean"])
+        
+        self.layout.addFigure("Temporally integrated period mean","btimeint","Benchmark_RNAME_timeint.png",side="BENCHMARK MEAN",legend=False)
+        self.layout.addFigure("Temporally integrated period mean","timeint","MNAME_RNAME_timeint.png",side="MODEL MEAN",legend=True)
+        self.layout.addFigure("Temporally integrated period mean","bias"   ,"MNAME_RNAME_bias.png"   ,side="BIAS",legend=True)
+        self.layout.addFigure("Temporally integrated period mean","spatial_variance","RNAME_spatial_variance.png",side="SPATIAL DISTRIBUTION",legend=True)
+        self.layout.addFigure("Temporally integrated period mean","bphase","Benchmark_RNAME_phase.png",side="BENCHMARK MAX MONTH",legend=False)
+        self.layout.addFigure("Temporally integrated period mean","phase","MNAME_RNAME_phase.png",side="MODEL MAX MONTH",legend=True)
+        self.layout.addFigure("Temporally integrated period mean","shift","MNAME_RNAME_shift.png",side="SHIFT",legend=True)
+
         self.layout.addFigure("Spatially integrated regional mean","spaceint","MNAME_RNAME_spaceint.png",side="MEAN",legend=False)
-        self.layout.addFigure("Spatial distribution","spatial_variance","RNAME_spatial_variance.png",side="SPACE",legend=False)
-        self.layout.addFigure("Annual cycle","compcycle","RNAME_compcycle.png",side="COMP",legend=False)
-        self.layout.addFigure("Annual cycle","cycle","MNAME_RNAME_cycle.png",side="CYCLE",legend=True)
-        self.layout.addFigure("Phase","phase","MNAME_RNAME_phase.png",side="PEAK",legend=True)
-        self.layout.addFigure("Phase","shift","MNAME_RNAME_shift.png",side="SHIFT",legend=True)
+        self.layout.addFigure("Spatially integrated regional mean","cycle","MNAME_RNAME_cycle.png",side="CYCLE",legend=False)
+        self.layout.addFigure("Spatially integrated regional mean","compcycle","RNAME_compcycle.png",side="CYCLES",legend=True)
         
         # how do metrics get blended?
         self.weights = {"RMSEScore"         :2.,
@@ -301,14 +302,14 @@ class GPPFluxnetGlobalMTE():
 
         for region in self.regions:
 
-            # plot benchmark time integrated mean
+            # benchmark time integrated mean
             fig   = plt.figure(figsize=(6.8,2.8))
             ax    = fig.add_axes([0.06,0.025,0.88,0.965])
             self.data["timeint_gpp"].plot(ax,region=region,vmin=0,vmax=gppmax,cmap="Greens")
             fig.savefig("%s/Benchmark_%s_timeint.png" % (self.output_path,region))
             plt.close()
 
-            # 
+            # spatial distribution
             fig = plt.figure(figsize=(7.5,7.5))
             models = cycle_gpp.keys(); models.remove("Benchmark")
             models = sorted(models,key=lambda key: key.upper())
@@ -347,12 +348,13 @@ class GPPFluxnetGlobalMTE():
             fig.savefig("%s/%s_compcycle.png" % (self.output_path,region))
             plt.close()
 
-        # cycle legend
+        # composite models legend
         H,L    = ax.get_legend_handles_labels()
         fig,ax = plt.subplots(figsize=(6.8,2.8),tight_layout=True)
         ax.legend(H,L,loc="upper left",ncol=3,fontsize=10)
         ax.axis('off')
-        fig.savefig("%s/legend_cycle.png" % self.output_path)
+        fig.savefig("%s/legend_compcycle.png" % self.output_path)
+        fig.savefig("%s/legend_spatial_variance.png" % self.output_path)
         
         # timeint legend
         fig,ax = plt.subplots(figsize=(6.8,1.0),tight_layout=True)

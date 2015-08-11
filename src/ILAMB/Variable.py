@@ -553,19 +553,20 @@ class Variable:
         vmean,vstd,tmax,tmaxstd = il.AnnualCycleInformation(var.time,var.data)
         return Variable(vmean,var.unit,name="annual_cycle_of_%s" % self.name,std=vstd,time=mid_months),tmax,tmaxstd
         
-    def phase(self): 
+    def phase(self):
         if not self.temporal: raise il.NotTemporalVariable()
         if self.spatial is False:
             tmax = il.MaxMonthMode(self.time,self.data)
         else:
-            tmax = np.ma.masked_array(np.zeros((self.lat.size,self.lon.size)))
+            tmax = il.MaxMonthMode(self.time,self.data) #np.ma.masked_array(np.zeros((self.lat.size,self.lon.size)))
         return Variable(tmax,"d",name="day_of_max_%s" % self.name,lat=self.lat,lon=self.lon,area=self.area,ndata=self.ndata)
         
     def corrcoef(self,var,region="global"):
-        """Computes the correlation
+        """Computes the correlation and normalized standard deviation between two variables
         
-        Uses ILAMB.ilamblib.Bias to compuate the bias between these
-        two variables relative to this variable
+        Uses numpy.corrcoef and numpy.std to compute the correlation
+        and normalized standard deviation. The intent is to use this
+        routine to compute parameters needed for Taylor diagrams.
 
         Parameters
         ----------
@@ -574,8 +575,10 @@ class Variable:
         
         Returns
         -------
-        bias : float
-            The bias of the two variables relative to this variable
+        corrcoef : float
+            The correlation coefficient
+        std : float
+            The standard deviation of the input variable relative to this variable
         """
         if self.temporal and not self.spatial:
             comparable,vb,ve,b,e = self._overlap(var)
@@ -594,6 +597,25 @@ class Variable:
             return np.corrcoef(data1,data2)[0,1],np.std(data2)/np.std(data1)
 
     def composeGrids(self,var):
+        """Creates a grid which conforms to both this and the specified variable
+
+        This routine takes the union of the latitude and longitude
+        cell boundaries of both grids and returns a new set of
+        latitudes and longitudes which represent cell centers of the
+        new grid.
+
+        Parameters
+        ----------
+        var : ILAMB.Variable.Variable
+            The variable with which we wish to create a composed grid
+        
+        Returns
+        -------
+        lat : numpy.ndarray
+            a 1D array of latitudes of cell centroids
+        lon : numpy.ndarray
+            a 1D array of longitudes of cell centroids
+        """
         if not self.spatial: il.NotSpatialVariable()
         def _make_bnds(x):
             bnds       = np.zeros(x.size+1)

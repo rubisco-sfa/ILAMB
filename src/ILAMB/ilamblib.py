@@ -942,8 +942,9 @@ def MaxMonthMode(t,var):
     shp   = (-1,12) + var.shape[1:]
     v     = var[begin:end,...].reshape(shp)
     mask  = v.mask
-    if v.mask.size > 1: mask = np.apply_along_axis(np.all,1,v.mask) # masks years where no data exists
+    if mask.size > 1: mask = np.apply_along_axis(np.all,1,v.mask) # masks years where no data exists
     maxmonth = np.ma.masked_array(np.argmax(v,axis=1),mask=mask,dtype=int)
+    print maxmonth.shape
     imode,nmode = mode(maxmonth)
     if mask.size > 1: mask = np.apply_along_axis(np.all,0,mask) # masks cells where no data exists
     return np.ma.masked_array(ts[np.asarray(imode,dtype='int')],mask=mask)
