@@ -403,7 +403,7 @@ class Variable:
         try:
             same_grid = np.allclose(self.lat,var.lat)*np.allclose(self.lon,var.lon)
             error     = np.ma.masked_array(var.data-self.data,mask=self.mask+var.mask)
-            diff      = Variable(error,var.unit,lat=var.lat,lon=var.lon,
+            diff      = Variable(data=error,unit=var.unit,lat=var.lat,lon=var.lon,
                                  name="%s_minus_%s" % (var.name,self.name))
         except:
             lat_bnd1 = _make_bnds(self.lat)
@@ -412,7 +412,7 @@ class Variable:
             lon_bnd2 = _make_bnds( var.lon)
             lat_bnd,lon_bnd,lat,lon,error = il.TrueError(lat_bnd1,lon_bnd1,self.lat,self.lon,self.data,
                                                          lat_bnd2,lon_bnd2, var.lat, var.lon, var.data)
-            diff = Variable(error,var.unit,lat=lat,lon=lon,name="%s_minus_%s" % (var.name,self.name))
+            diff = Variable(data=error,unit=var.unit,lat=lat,lon=lon,name="%s_minus_%s" % (var.name,self.name))
         return diff
 
     def convert(self,unit):
@@ -673,10 +673,37 @@ class Variable:
                         area = output_area,
                         time = output_time)
 
-    def phaseShift(self,var):
+    def phaseShift(self,var,method="max_of_annual_cycle"):
+        """Compute the phase shift between a variable and this variable.
+        
+        Finds the phase shift as the time between extrema of the
+        annual cycles of the variables. Note that if this var and/or
+        the given variable are not already annual cycles, they will be
+        computed but not returned. The shift will then be returned as 
+
+        Parameters
+        ----------
+        var : ILAMB.Variable.Variable
+            The variable with which we will measure phase shift
+        method : str, optional
+            The name of the method used to compute the phase shift
+
         """
-        """
-        pass
+        if not self.temporal or not var.temporal: raise il.NotTemporalVariable
+        assert method in ["max_of_annual_cycle","min_of_annual_cycle"]
+        v1 = self; v2 = var
+        if self.time.size != 12: v1,junk,junk,junk = self.annualCycle()
+        if  var.time.size != 12: v2,junk,junk,junk = var .annualCycle()
+        e1 = v1.timeOfExtrema(etype=method[:3])
+        e2 = v2.timeOfExtrema(etype=method[:3])
+        if e1.spatial:
+            shift = e1.spatialDifference(e2)
+        else:
+            data  = e2.data      - e1.data
+            mask  = e1.data.mask + e2.data.mask
+            shift = Variable(data=data,unit=e1.unit,ndata=e1.ndata,lat=e1.lat,lon=e1.lon)
+        shift.name = "phase_shift_of_%s" % e1.name
+        return shift
     
     def correlation(self,var,ctype,region=None):
         """

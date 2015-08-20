@@ -78,6 +78,21 @@ def test_interpolate(variables):
         for key in vdict.keys():
             if "interp" in key: print vdict[key]
 
+def test_phaseShift(variables):
+    head = "\n--- Testing phaseShift() "
+    print "%s%s\n" % (head,"-"*(120-len(head)))
+    for vdict in variables:
+        var = vdict["var"]
+        try:
+            vdict["shift"] = var.phaseShift(var)
+            vdict["shift_min"] = var.phaseShift(var,method="min_of_annual_cycle")
+            print vdict["shift"]
+            print vdict["shift_min"]
+            if vdict.has_key("cycle"):
+                vdict["shift_fast"] = vdict["cycle"].phaseShift(vdict["cycle"])
+                print vdict["shift_fast"]
+        except il.NotTemporalVariable:
+            pass
             
 # Setup different types of variables
 gpp = {}
@@ -100,11 +115,12 @@ head = "\n--- Found the following variables for testing "
 print "%s%s\n" % (head,"-"*(120-len(head)))
 for vdict in variables:
     print vdict["var"]
-    
+
 test_integrateInTime(variables)
 test_integrateInSpace(variables)
 test_annualCycle(variables)
 test_timeOfExtrema(variables)
 test_interpolate(variables)
+test_phaseShift(variables)
 
     
