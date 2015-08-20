@@ -81,7 +81,7 @@ def _convertCalendar(t):
         a numpy array of the converted times
     """
     cal  = "noleap"
-    unit = t.units
+    unit = t.units.replace("No. of ","")
     data = t[:]
     if "calendar" in t.ncattrs(): cal = t.calendar
     if "year" in t.units: 
@@ -770,7 +770,9 @@ def TemporallyIntegratedTimeSeries(t,var,**keywords):
     wgt[-1]  += tf-t[-1]
     for i in range(var.ndim-1): wgt = np.expand_dims(wgt,axis=-1)
     vhat = (var*wgt).sum(axis=0)
-    mask = np.apply_along_axis(np.all,0,var.mask) # only mask where mask applies for all time
+    mask = False
+    if var.ndim > 1:
+        mask = np.apply_along_axis(np.all,0,var.mask) # only mask where mask applies for all time
     return np.ma.masked_array(vhat,mask=mask,copy=False)
 
 def CellAreas(lat,lon):
