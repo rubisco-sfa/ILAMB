@@ -93,7 +93,26 @@ def test_phaseShift(variables):
                 print vdict["shift_fast"]
         except il.NotTemporalVariable:
             pass
-            
+
+def test_correlation(variables):
+    head = "\n--- Testing correlation() "
+    print "%s%s\n" % (head,"-"*(120-len(head)))
+    for vdict in variables:
+        var = vdict["var"]
+        try:
+            if var.spatial or var.ndata:
+                vdict["corr_spatial"]  = var.correlation(var,"spatial")
+                print vdict["corr_spatial"]
+            if var.temporal:
+                vdict["corr_temporal"] = var.correlation(var,"temporal")
+                print vdict["corr_temporal"]
+            if var.spatial and var.temporal:
+                vdict["corr_both"] = var.correlation(var,"spatiotemporal")
+                print vdict["corr_both"]
+
+        except il.NotTemporalVariable:
+            pass
+        
 # Setup different types of variables
 gpp = {}
 gpp["var"] = Variable(filename = os.environ["ILAMB_ROOT"]+"/DATA/gpp/FLUXNET-MTE/derived/gpp.nc",
@@ -122,5 +141,6 @@ test_annualCycle(variables)
 test_timeOfExtrema(variables)
 test_interpolate(variables)
 test_phaseShift(variables)
+test_correlation(variables)
 
     

@@ -703,10 +703,12 @@ class Variable:
             mask  = e1.data.mask + e2.data.mask
             shift = Variable(data=data,unit=e1.unit,ndata=e1.ndata,lat=e1.lat,lon=e1.lon)
         shift.name = "phase_shift_of_%s" % e1.name
+        shift.data += (shift.data < -0.5*365.)*365.
+        shift.data -= (shift.data > +0.5*365.)*365.
         return shift
     
     def correlation(self,var,ctype,region=None):
-        """
+        """Compute the correlation between two variables.
 
         Parameters
         ----------
@@ -716,9 +718,58 @@ class Variable:
             The correlation type, one of {"spatial","temporal","spatiotemporal"}
         region : str, optional
             The region over which to perform a spatial correlation
-        """
-        pass
 
+        Notes
+        -----
+        Need to better think about what correlation means when data
+        are masked. The sums ignore the data but then the number of
+        items `n' is not constant and should be reduced for masked
+        values.
+
+        """
+        def _correlation(x,y,axes=None):
+            if axes is None: axes = range(x.ndim)
+            if type(axes) == int: axes = (int(axes),)
+            axes = tuple(axes)
+            n    = 1
+            for ax in axes: n *= x.shape[ax]
+            xbar = x.sum(axis=axes)/n # because np.mean() doesn't take axes which are tuples
+            ybar = y.sum(axis=axes)/n
+            xy   = (x*y).sum(axis=axes)
+            x2   = (x*x).sum(axis=axes)
+            y2   = (y*y).sum(axis=axes)
+            return = (xy-n*xbar*ybar)/(np.sqrt(x2-n*xbar*xbar)*np.sqrt(y2-n*ybar*ybar))
+
+        # checks on data consistency
+        assert region is None
+        assert self.data.shape == var.data.shape
+        assert ctype in ["spatial","temporal","spatiotemporal"]
+
+        # determine arguments for functions
+        axes      = None
+        out_time  = None
+        out_lat   = None
+        out_lon   = None
+        out_area  = None
+        out_ndata = None
+        if ctype == "temporal":
+            axes = 0
+            if self.spatial:
+                out_lat   = self.lat
+                out_lon   = self.lon
+                out_area  = self.area
+            elif self.ndata:
+                out_ndata = self.ndata
+        elif ctype == "spatial":
+            if self.spatial:  axes     = range(self.data.ndim)[-2:]
+            if self.ndata:    axes     = self.data.ndim-1
+            if self.temporal: out_time = self.time
+        r = _correlation(self.data,var.data,axes=axes)
+        return Variable(data=r,unit="-",
+                        name="%s_correlation_of_%s" % (ctype,self.name),
+                        time=out_time,ndata=out_ndata,
+                        lat=out_lat,lon=out_lon,area=out_area)
+    
     def bias(self,var):
         """
         """
