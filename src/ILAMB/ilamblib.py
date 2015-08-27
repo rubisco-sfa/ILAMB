@@ -771,7 +771,7 @@ def TemporallyIntegratedTimeSeries(t,var,**keywords):
     for i in range(var.ndim-1): wgt = np.expand_dims(wgt,axis=-1)
     vhat = (var*wgt).sum(axis=0)
     mask = False
-    if var.ndim > 1:
+    if var.ndim > 1 and var.mask.size > 1:
         mask = np.apply_along_axis(np.all,0,var.mask) # only mask where mask applies for all time
     return np.ma.masked_array(vhat,mask=mask,copy=False)
 

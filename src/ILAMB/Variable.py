@@ -377,9 +377,33 @@ class Variable:
         return Variable(data=data,unit="d",name="time_of_%s_%s" % (etype,self.name),
                         lat=self.lat,lon=self.lon,area=self.area,ndata=self.ndata)
 
+    def extractDatasites(self,lat,lon):
+        """
+        UNTESTED
+        """
+        assert lat.size == lon.size
+        if not self.spatial: raise il.NotSpatialVariable()
+        ilat = np.apply_along_axis(np.argmin,1,np.abs(lat[:,np.newaxis]-self.lat))
+        ilon = np.apply_along_axis(np.argmin,1,np.abs(lon[:,np.newaxis]-self.lon))
+        time = self.time
+        if self.data.ndim == 2:
+            data  = self.data[    ilat,ilon]
+            ndata = 1
+        else:
+            data  = self.data[...,ilat,ilon]
+            ndata = lat.size
+        return Variable(data=data,unit=self.unit,name=self.name,lat=lat,lon=lon,ndata=ndata,time=time)
+        
     def spatialDifference(self,var):
         """Computes the point-wise difference of two spatially defined variables.
         
+        If the variable is spatial or site data and is defined on the
+        same grid, this routine will simply compute the difference in
+        the data arrays. If the variables are spatial but defined on
+        separate grids, the routine will interpolate both variables to
+        a composed grid via nearest-neighbor interpolation and then
+        return the difference.
+
         Parameters
         ----------
         var : ILAMB.Variable.Variable
@@ -389,6 +413,8 @@ class Variable:
         -------
         diff : ILAMB.Variable.Variable
             A new variable object representing the difference
+
+        UNTESTED: data sites difference
         """
         def _make_bnds(x):
             bnds       = np.zeros(x.size+1)
@@ -398,14 +424,21 @@ class Variable:
             return bnds
         assert var.unit == self.unit
         assert self.temporal == False
-        if not self.spatial: raise il.NotSpatialVariable()
+        assert self.ndata    == var.ndata
+        # Perform a check on the spatial grid. If it is the exact same
+        # grid, there is no need to interpolate.
         same_grid = False
         try:
             same_grid = np.allclose(self.lat,var.lat)*np.allclose(self.lon,var.lon)
-            error     = np.ma.masked_array(var.data-self.data,mask=self.mask+var.mask)
-            diff      = Variable(data=error,unit=var.unit,lat=var.lat,lon=var.lon,
-                                 name="%s_minus_%s" % (var.name,self.name))
         except:
+            pass
+        
+        if same_grid:
+            error     = np.ma.masked_array(var.data-self.data,mask=self.data.mask+var.data.mask)
+            diff      = Variable(data=error,unit=var.unit,lat=var.lat,lon=var.lon,ndata=var.ndata,
+                                 name="%s_minus_%s" % (var.name,self.name))
+        else:
+            if not self.spatial: raise il.NotSpatialVariable()
             lat_bnd1 = _make_bnds(self.lat)
             lon_bnd1 = _make_bnds(self.lon)
             lat_bnd2 = _make_bnds( var.lat)
@@ -689,13 +722,26 @@ class Variable:
             The name of the method used to compute the phase shift
 
         """
-        if not self.temporal or not var.temporal: raise il.NotTemporalVariable
         assert method in ["max_of_annual_cycle","min_of_annual_cycle"]
+        assert self.temporal == var.temporal
         v1 = self; v2 = var
-        if self.time.size != 12: v1,junk,junk,junk = self.annualCycle()
-        if  var.time.size != 12: v2,junk,junk,junk = var .annualCycle()
-        e1 = v1.timeOfExtrema(etype=method[:3])
-        e2 = v2.timeOfExtrema(etype=method[:3])
+        if not self.temporal:
+            # If the data is not temporal, then the user may have
+            # already found the extrema. If the units of the input
+            # variable are days, then set the extrema to this data.
+            if not (self.unit == "d" and var.unit == "d"): raise il.NotTemporalVariable
+            e1 = v1
+            e2 = v2
+        else:
+            # While temporal, the user may have passed in the mean
+            # annual cycle as the variable. So if the leading
+            # dimension is 12 we assume the variables are already the
+            # annual cycles. If not, we compute the cycles and then
+            # compute the extrema.
+            if self.time.size != 12: v1,junk,junk,junk = self.annualCycle()
+            if  var.time.size != 12: v2,junk,junk,junk = var .annualCycle()
+            e1 = v1.timeOfExtrema(etype=method[:3])
+            e2 = v2.timeOfExtrema(etype=method[:3])
         if e1.spatial:
             shift = e1.spatialDifference(e2)
         else:
@@ -738,7 +784,7 @@ class Variable:
             xy   = (x*y).sum(axis=axes)
             x2   = (x*x).sum(axis=axes)
             y2   = (y*y).sum(axis=axes)
-            return = (xy-n*xbar*ybar)/(np.sqrt(x2-n*xbar*xbar)*np.sqrt(y2-n*ybar*ybar))
+            return (xy-n*xbar*ybar)/(np.sqrt(x2-n*xbar*xbar)*np.sqrt(y2-n*ybar*ybar))
 
         # checks on data consistency
         assert region is None
@@ -794,3 +840,126 @@ class Variable:
         """
         """
         pass
+
+def ComposeSpatialGrids(var1,var2):
+    """Creates a grid which conforms the boundaries of both variables.
+    
+    This routine takes the union of the latitude and longitude
+    cell boundaries of both grids and returns a new set of
+    latitudes and longitudes which represent cell centers of the
+    new grid.
+    
+    Parameters
+    ----------
+    var1,var2 : ILAMB.Variable.Variable
+        The two variables for which we wish to find a common grid
+    
+    Returns
+    -------
+    lat : numpy.ndarray
+        a 1D array of latitudes of cell centroids
+    lon : numpy.ndarray
+        a 1D array of longitudes of cell centroids
+    """
+    if not var1.spatial: il.NotSpatialVariable()
+    if not var2.spatial: il.NotSpatialVariable()
+    def _make_bnds(x):
+        bnds       = np.zeros(x.size+1)
+        bnds[1:-1] = 0.5*(x[1:]+x[:-1])
+        bnds[ 0]   = max(x[ 0]-0.5*(x[ 1]-x[ 0]),-180)
+        bnds[-1]   = min(x[-1]+0.5*(x[-1]-x[-2]),+180)
+        return bnds
+    lat1_bnd = _make_bnds(var1.lat)
+    lon1_bnd = _make_bnds(var1.lon)
+    lat2_bnd = _make_bnds(var2.lat)
+    lon2_bnd = _make_bnds(var2.lon)
+    lat_bnd  = np.hstack((lat1_bnd,lat2_bnd)); lat_bnd.sort(); lat_bnd = np.unique(lat_bnd)
+    lon_bnd  = np.hstack((lon1_bnd,lon2_bnd)); lon_bnd.sort(); lon_bnd = np.unique(lon_bnd)
+    lat      = 0.5*(lat_bnd[1:]+lat_bnd[:-1])
+    lon      = 0.5*(lon_bnd[1:]+lon_bnd[:-1])
+    return lat,lon
+
+def ScoreSeasonalCycle(phase_shift):
+    """
+
+    """
+    return Variable(data  = (1+np.cos(np.abs(phase_shift.data)/365*2*np.pi))*0.5,
+                    unit  = "-",
+                    name  = phase_shift.name.replace("phase_shift","phase_shift_score"),
+                    ndata = phase_shift.ndata,
+                    lat   = phase_shift.lat,
+                    lon   = phase_shift.lon,
+                    area  = phase_shift.area)
+    
+def AnalysisFluxrate(obs,mod,regions=None,dataset=None):
+    """
+    
+    """
+    # checks on data types
+    if obs.ndata is not None:
+        if mod.ndata is not None:
+            assert obs.ndata == mod.ndata
+        else:
+            mod = mod.extractDatasites(obs.lat,obs.lon)
+            
+    # check time intervals
+    t0 = max(obs.time.min(),mod.time.min())
+    tf = min(obs.time.max(),mod.time.max())
+    for var in [obs,mod]:
+        begin = np.argmin(np.abs(var.time-t0))
+        end   = np.argmin(np.abs(var.time-tf))+1
+        var.time = var.time[begin:end]
+        var.data = var.data[begin:end,...]
+    assert obs.time.shape == mod.time.shape
+    assert np.allclose(obs.time,mod.time,atol=14)
+
+    # integrate in time
+    obs_timeint = obs.integrateInTime(mean=True)
+    mod_timeint = mod.integrateInTime(mean=True)
+    
+    # interpolate to common grid
+    if obs_timeint.spatial:
+        lat,lon         = ComposeSpatialGrids(obs,mod)
+        obs_timeint_int = obs_timeint.interpolate(lat=lat,lon=lon)
+        mod_timeint_int = mod_timeint.interpolate(lat=lat,lon=lon)
+    else:
+        obs_timeint_int = obs_timeint
+        mod_timeint_int = mod_timeint
+
+    # compute bias map
+    bias = obs_timeint_int.spatialDifference(mod_timeint_int)
+    bias.name = "bias_of_%s" % obs_timeint.name
+
+    # annual cycle
+    obs_cycle,junk,junk,junk = obs.annualCycle()
+    mod_cycle,junk,junk,junk = mod.annualCycle()
+
+    # phase shift
+    obs_maxt = obs_cycle.timeOfExtrema(etype="max")
+    mod_maxt = mod_cycle.timeOfExtrema(etype="max")
+    shift    = obs_maxt.phaseShift(mod_maxt)
+
+    # seasonal cycle score
+    cycle = ScoreSeasonalCycle(shift)
+
+    # optionally dump results to a NetCDF file
+    if dataset is not None:
+        for var in [mod_timeint,bias,mod_maxt,shift,cycle]: var.toNetCDF4(dataset)
+        
+if __name__ == "__main__":
+    import os
+
+    obs = Variable(filename = os.environ["ILAMB_ROOT"]+"/DATA/gpp/FLUXNET-MTE/derived/gpp.nc",
+                   variable_name = "gpp")
+    mod = Variable(filename = os.environ["ILAMB_ROOT"]+"/MODELS/CMIP5/inmcm4/gpp/gpp_Lmon_inmcm4_historical_r1i1p1_185001-200512.nc",
+                   variable_name = "gpp")
+    dataset = Dataset("gpp.nc",mode="w")
+    AnalysisFluxrate(obs,mod,dataset=dataset)
+
+    obs = Variable(filename = os.environ["ILAMB_ROOT"]+"/DATA/le/FLUXNET/derived/le.nc",
+                   variable_name = "le"); obs.name = "hfls"
+    mod = Variable(filename = os.environ["ILAMB_ROOT"]+"/MODELS/CMIP5/inmcm4/hfls/hfls_Amon_inmcm4_historical_r1i1p1_185001-200512.nc",
+                   variable_name = "hfls")
+    dataset = Dataset("hfls.nc",mode="w")
+    AnalysisFluxrate(obs,mod,dataset=dataset)
+    
