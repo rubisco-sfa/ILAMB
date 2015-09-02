@@ -836,14 +836,32 @@ class Variable:
                         lat=out_lat,lon=out_lon,area=out_area)
     
     def bias(self,var):
-        """
-        """
-        pass
+        """UNTESTED
 
+        if not temporal data is passed in, assume that these are the
+        means and simply return the difference.
+
+        """
+        if not self.temporal or not var.temporal: raise il.NotTemporalVariable
+        assert self.ndata == var.ndata
+        if self.ndata:
+            data = var.data.data-self.data.data
+            mask = var.data.mask+self.data.mask
+            data = np.ma.masked_array(data,mask=mask)
+            data = data.mean(axis=-1)
+            mask = np.all(mask,axis=-1)
+            data = np.ma.masked_array(data,mask=mask)
+        return Variable(data=data,
+                        name="bias_of_%s" % self.name,unit=self.unit,
+                        ndata=self.ndata,lat=self.lat,lon=self.lon,area=self.area)
+    
     def rmse(self,var):
         """
+        UNTESTED
         """
-        pass
+        if not self.temporal or not var.temporal: raise il.NotTemporalVariable
+        assert self.ndata == var.ndata
+
 
     def spatialDistribution(self,var):
         """
@@ -917,12 +935,6 @@ def ScoreSeasonalCycle(phase_shift):
                     lon   = phase_shift.lon,
                     area  = phase_shift.area)
 
-def MaskByLatLonBounds(lat,lon,minlat=-90.0,maxlat=90.0,minlon=-180.0,maxlon=180.0):
-    pass
-
-def MaskByLatitudeRange():
-    pass
-
 def AnalysisFluxrate(obs,mod,regions=['global.large'],dataset=None):
     """
     
@@ -953,8 +965,9 @@ def AnalysisFluxrate(obs,mod,regions=['global.large'],dataset=None):
     assert obs.time.shape == mod.time.shape
     assert np.allclose(obs.time,mod.time,atol=14)
 
-    # Integrate in time and divide through by the time period. We also
-    # will need the global/site mean.
+    # Integrate in time and divide through by the time period. We need
+    # these maps/sites for plotting. We also need the period mean
+    # across all space/sites for computing scores in other metrics.
     obs_timeint = obs.integrateInTime(mean=True)
     mod_timeint = mod.integrateInTime(mean=True)
     if spatial:
@@ -962,56 +975,26 @@ def AnalysisFluxrate(obs,mod,regions=['global.large'],dataset=None):
     else:
         period_mean,junk = obs_timeint.siteStats()
         
-    # Interpolate to common grid. We will want a map of the bias, so
-    # we need to take a difference of the two temporally integrated
-    # means.
-    if spatial:
-        lat,lon         = ComposeSpatialGrids(obs,mod)
-        obs_timeint_int = obs_timeint.interpolate(lat=lat,lon=lon)
-        mod_timeint_int = mod_timeint.interpolate(lat=lat,lon=lon)
-    else:
-        obs_timeint_int = obs_timeint
-        mod_timeint_int = mod_timeint
-
-    # Compute the bias and bias score
-    bias       = obs_timeint_int.spatialDifference(mod_timeint_int)
-    bias.name  = "bias_of_%s" % obs_timeint.name
-    bias_score = BiasScore(bias,period_mean)
+    # Compute maps of the bias and rmse. We will use these variables
+    # later in the regional analysis to obtain means over individual
+    # regions. Note that since we have already taken a temporal
+    # average of the variables, the bias() function can reuse this
+    # data and avoid extra averaging.
+    bias = obs_timeint.bias(mod_timeint)
+    rmse = obs        .rmse(mod)
     
-    # annual cycle
-    obs_cycle,junk,junk,junk = obs.annualCycle()
-    mod_cycle,junk,junk,junk = mod.annualCycle()
-
-    # phase shift
-    obs_maxt = obs_cycle.timeOfExtrema(etype="max")
-    mod_maxt = mod_cycle.timeOfExtrema(etype="max")
-    shift    = obs_maxt.phaseShift(mod_maxt) 
-
-    # seasonal cycle score 
-    cycle = ScoreSeasonalCycle(shift)
-
     # regional analysis dumps variables into dictionaries
-    obs_periodmean = {}; obs_spaceint = {}; obs_sitemean = {}; obs_sitestd  = {}
-    mod_periodmean = {}; mod_spaceint = {}; mod_sitemean = {}; mod_sitestd  = {}
-    meanbias = {}; meanbias_score = {};
     for region in regions:
 
         if spatial:
 
-            # scalar period mean
+            # 
             obs_periodmean[region] = obs_timeint.integrateInSpace(region=region)
             mod_periodmean[region] = mod_timeint.integrateInSpace(region=region)
 
             # scalar mean bias
             meanbias[region]       = bias.integrateInSpace(region=region,mean=True)
             
-            # spatial integral over regions (for each region, scalar var vs time)
-            obs_spaceint[region] = obs.integrateInSpace(region=region)
-            mod_spaceint[region] = mod.integrateInSpace(region=region)
-            
-            # period mean over regions
-            obs_periodmean[region] = obs_timeint.integrateInSpace(region=region)
-            mod_periodmean[region] = mod_timeint.integrateInSpace(region=region)
             
         else:
             
@@ -1021,12 +1004,12 @@ def AnalysisFluxrate(obs,mod,regions=['global.large'],dataset=None):
 
             meanbias[region],junk = bias.siteStats(region=region)
 
-        print meanbias[region]
+
             
             
     # optionally dump results to a NetCDF file
     if dataset is not None:
-        for var in [mod_timeint,bias,bias_score]:
+        for var in []:
             if type(var) == type({}):
                 for key in var.keys(): var[key].toNetCDF4(dataset)
             else:
