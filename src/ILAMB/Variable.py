@@ -316,6 +316,25 @@ class Variable:
             unit  = unit.replace(" m-2","")
         return Variable(data=np.ma.masked_array(integral),unit=unit,time=self.time,name=name)
 
+    def siteStats(self,region=None):
+        """
+        UNTESTED, What to do when no sites are in a region?
+        """
+        if self.ndata is None: raise il.NotDatasiteVariable()
+        rem_mask = np.copy(self.data.mask)
+        rname = ""
+        if region is not None:
+            lats,lons = ILAMBregions[region]
+            mask      = ((self.lat>lats[0])*(self.lat<lats[1])*(self.lon>lons[0])*(self.lon<lons[1]))==False
+            self.data.mask += mask
+            rname = "_over_%s" % region
+        mean = self.data.mean(axis=-1)
+        std  = self.data.std (axis=-1)
+        self.data.mask = rem_mask
+        mean = Variable(data=mean,unit=self.unit,time=self.time,name="mean_%s%s" % (self.name,rname))
+        std  = Variable(data=std ,unit=self.unit,time=self.time,name="std_%s%s"  % (self.name,rname))
+        return mean,std
+    
     def annualCycle(self):
         """Returns annual cycle information for the variable.
         
@@ -841,6 +860,13 @@ class Variable:
         """
         pass
 
+def BiasScore(bias,period_mean):
+    from copy import deepcopy
+    score = deepcopy(bias)
+    score.data = np.exp(-np.abs(score.data/period_mean.data))
+    score.name = score.name.replace("bias","bias_score")
+    return score
+
 def ComposeSpatialGrids(var1,var2):
     """Creates a grid which conforms the boundaries of both variables.
     
@@ -890,19 +916,33 @@ def ScoreSeasonalCycle(phase_shift):
                     lat   = phase_shift.lat,
                     lon   = phase_shift.lon,
                     area  = phase_shift.area)
-    
-def AnalysisFluxrate(obs,mod,regions=None,dataset=None):
+
+def MaskByLatLonBounds(lat,lon,minlat=-90.0,maxlat=90.0,minlon=-180.0,maxlon=180.0):
+    pass
+
+def MaskByLatitudeRange():
+    pass
+
+def AnalysisFluxrate(obs,mod,regions=['global.large'],dataset=None):
     """
     
     """
-    # checks on data types
+    # Check the data types. If the variables are datasites, make sure
+    # they have the same number of datasites. If the observational
+    # data are datasites and the model is globally gridded data,
+    # extract the datasites. We will also capture whether or not the
+    # data is spatially defined.
     if obs.ndata is not None:
         if mod.ndata is not None:
             assert obs.ndata == mod.ndata
         else:
             mod = mod.extractDatasites(obs.lat,obs.lon)
-            
-    # check time intervals
+    spatial = obs.spatial
+    
+    # Check time intervals. The data from the observations and models
+    # might not be on the same timeframe. So we compute the maximum
+    # overlap and ensure that we have the right data shape and that
+    # the data represent monthly means.
     t0 = max(obs.time.min(),mod.time.min())
     tf = min(obs.time.max(),mod.time.max())
     for var in [obs,mod]:
@@ -913,12 +953,19 @@ def AnalysisFluxrate(obs,mod,regions=None,dataset=None):
     assert obs.time.shape == mod.time.shape
     assert np.allclose(obs.time,mod.time,atol=14)
 
-    # integrate in time
+    # Integrate in time and divide through by the time period. We also
+    # will need the global/site mean.
     obs_timeint = obs.integrateInTime(mean=True)
     mod_timeint = mod.integrateInTime(mean=True)
-    
-    # interpolate to common grid
-    if obs_timeint.spatial:
+    if spatial:
+        period_mean      = obs_timeint.integrateInSpace(mean=True)
+    else:
+        period_mean,junk = obs_timeint.siteStats()
+        
+    # Interpolate to common grid. We will want a map of the bias, so
+    # we need to take a difference of the two temporally integrated
+    # means.
+    if spatial:
         lat,lon         = ComposeSpatialGrids(obs,mod)
         obs_timeint_int = obs_timeint.interpolate(lat=lat,lon=lon)
         mod_timeint_int = mod_timeint.interpolate(lat=lat,lon=lon)
@@ -926,10 +973,11 @@ def AnalysisFluxrate(obs,mod,regions=None,dataset=None):
         obs_timeint_int = obs_timeint
         mod_timeint_int = mod_timeint
 
-    # compute bias map
-    bias = obs_timeint_int.spatialDifference(mod_timeint_int)
-    bias.name = "bias_of_%s" % obs_timeint.name
-
+    # Compute the bias and bias score
+    bias       = obs_timeint_int.spatialDifference(mod_timeint_int)
+    bias.name  = "bias_of_%s" % obs_timeint.name
+    bias_score = BiasScore(bias,period_mean)
+    
     # annual cycle
     obs_cycle,junk,junk,junk = obs.annualCycle()
     mod_cycle,junk,junk,junk = mod.annualCycle()
@@ -937,15 +985,53 @@ def AnalysisFluxrate(obs,mod,regions=None,dataset=None):
     # phase shift
     obs_maxt = obs_cycle.timeOfExtrema(etype="max")
     mod_maxt = mod_cycle.timeOfExtrema(etype="max")
-    shift    = obs_maxt.phaseShift(mod_maxt)
+    shift    = obs_maxt.phaseShift(mod_maxt) 
 
-    # seasonal cycle score
+    # seasonal cycle score 
     cycle = ScoreSeasonalCycle(shift)
 
+    # regional analysis dumps variables into dictionaries
+    obs_periodmean = {}; obs_spaceint = {}; obs_sitemean = {}; obs_sitestd  = {}
+    mod_periodmean = {}; mod_spaceint = {}; mod_sitemean = {}; mod_sitestd  = {}
+    meanbias = {}; meanbias_score = {};
+    for region in regions:
+
+        if spatial:
+
+            # scalar period mean
+            obs_periodmean[region] = obs_timeint.integrateInSpace(region=region)
+            mod_periodmean[region] = mod_timeint.integrateInSpace(region=region)
+
+            # scalar mean bias
+            meanbias[region]       = bias.integrateInSpace(region=region,mean=True)
+            
+            # spatial integral over regions (for each region, scalar var vs time)
+            obs_spaceint[region] = obs.integrateInSpace(region=region)
+            mod_spaceint[region] = mod.integrateInSpace(region=region)
+            
+            # period mean over regions
+            obs_periodmean[region] = obs_timeint.integrateInSpace(region=region)
+            mod_periodmean[region] = mod_timeint.integrateInSpace(region=region)
+            
+        else:
+            
+            # scalar period mean
+            obs_periodmean[region],obs_sitestd[region] = obs_timeint.siteStats(region=region)
+            mod_periodmean[region],mod_sitestd[region] = mod_timeint.siteStats(region=region)
+
+            meanbias[region],junk = bias.siteStats(region=region)
+
+        print meanbias[region]
+            
+            
     # optionally dump results to a NetCDF file
     if dataset is not None:
-        for var in [mod_timeint,bias,mod_maxt,shift,cycle]: var.toNetCDF4(dataset)
-        
+        for var in [mod_timeint,bias,bias_score]:
+            if type(var) == type({}):
+                for key in var.keys(): var[key].toNetCDF4(dataset)
+            else:
+                var.toNetCDF4(dataset)
+                
 if __name__ == "__main__":
     import os
 
@@ -954,12 +1040,12 @@ if __name__ == "__main__":
     mod = Variable(filename = os.environ["ILAMB_ROOT"]+"/MODELS/CMIP5/inmcm4/gpp/gpp_Lmon_inmcm4_historical_r1i1p1_185001-200512.nc",
                    variable_name = "gpp")
     dataset = Dataset("gpp.nc",mode="w")
-    AnalysisFluxrate(obs,mod,dataset=dataset)
+    AnalysisFluxrate(obs,mod,regions=['global.large','amazon'],dataset=dataset)
 
     obs = Variable(filename = os.environ["ILAMB_ROOT"]+"/DATA/le/FLUXNET/derived/le.nc",
                    variable_name = "le"); obs.name = "hfls"
     mod = Variable(filename = os.environ["ILAMB_ROOT"]+"/MODELS/CMIP5/inmcm4/hfls/hfls_Amon_inmcm4_historical_r1i1p1_185001-200512.nc",
                    variable_name = "hfls")
     dataset = Dataset("hfls.nc",mode="w")
-    AnalysisFluxrate(obs,mod,dataset=dataset)
+    AnalysisFluxrate(obs,mod,regions=['global.large','amazon'],dataset=dataset)
     
