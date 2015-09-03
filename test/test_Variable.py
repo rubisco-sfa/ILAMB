@@ -113,6 +113,17 @@ def test_correlation(variables):
         except il.NotTemporalVariable:
             pass
         
+def test_bias(variables):
+    head = "\n--- Testing bias() "
+    print "%s%s\n" % (head,"-"*(120-len(head)))
+    for vdict in variables:
+        var = vdict["var"]
+        try:
+            vdict["bias"] = var.bias(var)
+            print vdict["bias"]
+        except il.NotSpatialVariable:
+            pass
+        
 # Setup different types of variables
 gpp = {}
 gpp["var"] = Variable(filename = os.environ["ILAMB_ROOT"]+"/DATA/gpp/FLUXNET-MTE/derived/gpp.nc",
@@ -135,6 +146,7 @@ print "%s%s\n" % (head,"-"*(120-len(head)))
 for vdict in variables:
     print vdict["var"]
 
+"""
 test_integrateInTime(variables)
 test_integrateInSpace(variables)
 test_annualCycle(variables)
@@ -142,5 +154,6 @@ test_timeOfExtrema(variables)
 test_interpolate(variables)
 test_phaseShift(variables)
 test_correlation(variables)
-
+"""
+test_bias(variables)
     
