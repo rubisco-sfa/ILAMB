@@ -5,7 +5,7 @@ from constants import spd,dpy,mid_months,convert,regions as ILAMBregions
 import Post as post
 from copy import deepcopy
 
-def FromNetCDF4(filename,variable_name):
+def FromNetCDF4(filename,variable_name,alternate_vars=[]):
     """Extracts data from a netCDF4 datafile for use in a Variable object.
     
     Intended to be used inside of the Variable constructor. Some of
@@ -14,10 +14,12 @@ def FromNetCDF4(filename,variable_name):
 
     Parameters
     ----------
-    filename : str, optional
+    filename : str
         Name of the netCDF4 file from which to extract a variable
-    variable_name : str, optional
+    variable_name : str
         Name of the variable to extract from the netCDF4 file
+    alternate_vars : list of str, optional
+        A list of possible alternate variable names to find
 
     Returns
     -------
@@ -40,7 +42,16 @@ def FromNetCDF4(filename,variable_name):
 
     """
     f         = Dataset(filename,mode="r")
-    var       = f.variables[variable_name]
+    found     = False
+    if variable_name in f.variables.keys():
+        found = True
+        var   = f.variables[variable_name]
+    else:
+        for var_name in alternate_vars:
+            if var_name in f.variables.keys():
+                found = True
+                var   = f.variables[var_name]
+    assert found == True
     time_name = None
     lat_name  = None
     lon_name  = None
@@ -118,10 +129,13 @@ class Variable:
             a 2D array of the cell areas
         ndata : int, optional
             number of data sites this data represents
+        alternate_vars : list of str, optional
+            A list of alternate acceptable variable names
         """
         # See if the user specified a netCDF4 file and variable
-        filename      = keywords.get("filename"     ,None)
-        variable_name = keywords.get("variable_name",None)
+        filename       = keywords.get("filename"     ,None)
+        variable_name  = keywords.get("variable_name",None)
+        alternate_vars = keywords.get("alternate_vars",[])
         if filename is None: # if not pull data from other arguments
             data  = keywords.get("data" ,None)
             unit  = keywords.get("unit" ,None)
@@ -134,7 +148,7 @@ class Variable:
             assert unit is not None
         else:
             assert variable_name is not None
-            data,unit,name,time,lat,lon,ndata = FromNetCDF4(filename,variable_name)
+            data,unit,name,time,lat,lon,ndata = FromNetCDF4(filename,variable_name,alternate_vars)
         area = keywords.get("area",None)
 
         if not np.ma.isMaskedArray(data): data = np.ma.masked_array(data)
@@ -958,8 +972,12 @@ class Variable:
 
         # Put together scores
         R0     = 1.0
-        std   /= std0
-        score  = 4.0*(1.0+R.data)/((std +1.0/std)**2 *(1.0+R0))
+        if std0 > 1e-14:
+            std   /= std0
+            score  = 4.0*(1.0+R.data)/((std +1.0/std)**2 *(1.0+R0))
+        else:
+            std    = 0.
+            score  = 0.
         std    = Variable(data=std  ,name="normalized_spatial_std_of_%s_over_%s" % (self.name,region),unit="-")
         score  = Variable(data=score,name="spatial_distribution_score_of_%s_over_%s" % (self.name,region),unit="-")
         return std,R,score
@@ -1030,32 +1048,8 @@ def AnalysisFluxrate(obs,mod,regions=['global.large'],dataset=None):
     """
     UNTESTED
     """
-    # Check the data types. If the variables are datasites, make sure
-    # they have the same number of datasites. If the observational
-    # data are datasites and the model is globally gridded data,
-    # extract the datasites. We will also capture whether or not the
-    # data is spatially defined.
-    if obs.ndata is not None:
-        if mod.ndata is not None:
-            assert obs.ndata == mod.ndata
-        else:
-            mod = mod.extractDatasites(obs.lat,obs.lon)
     spatial = obs.spatial
     
-    # Check time intervals. The data from the observations and models
-    # might not be on the same timeframe. So we compute the maximum
-    # overlap and ensure that we have the right data shape and that
-    # the data represent monthly means.
-    t0 = max(obs.time.min(),mod.time.min())
-    tf = min(obs.time.max(),mod.time.max())
-    for var in [obs,mod]:
-        begin = np.argmin(np.abs(var.time-t0))
-        end   = np.argmin(np.abs(var.time-tf))+1
-        var.time = var.time[begin:end]
-        var.data = var.data[begin:end,...]
-    assert obs.time.shape == mod.time.shape
-    assert np.allclose(obs.time,mod.time,atol=14)
-
     # Integrate in time and divide through by the time period. We need
     # these maps/sites for plotting.
     obs_timeint = obs.integrateInTime(mean=True)
@@ -1126,7 +1120,7 @@ def AnalysisFluxrate(obs,mod,regions=['global.large'],dataset=None):
             shift          [region] = shift_map      .integrateInSpace(region=region,mean=True)
             shift_score    [region] = shift_score_map.integrateInSpace(region=region,mean=True)
             iav_score      [region] = iav_score_map  .integrateInSpace(region=region,mean=True)
-            
+
         else:
 
             # We need to check if there are datasites in this
@@ -1139,23 +1133,33 @@ def AnalysisFluxrate(obs,mod,regions=['global.large'],dataset=None):
             mod_period_mean[region],junk = mod_timeint    .siteStats(region=region)
             bias           [region],junk = bias_map       .siteStats(region=region)
             rmse           [region],junk = rmse_map       .siteStats(region=region)
+            bias_score     [region],junk = bias_score_map .siteStats(region=region)
+            rmse_score     [region],junk = rmse_score_map .siteStats(region=region)
             shift          [region],junk = shift_map      .siteStats(region=region)
             shift_score    [region],junk = shift_score_map.siteStats(region=region)
             iav_score      [region],junk = iav_score_map  .siteStats(region=region)
 
         # Compute the spatial variability.
         std[region],R[region],sd_score[region] = obs_timeint.spatialDistribution(mod_timeint,region=region)
-            
+        
+        # Change variable names to make things easier to parse.
+        bias       [region].name = "bias_of_%s_over_%s"        % (obs.name,region)
+        rmse       [region].name = "rmse_of_%s_over_%s"        % (obs.name,region)
+        shift      [region].name = "shift_of_%s_over_%s"       % (obs.name,region)
+        bias_score [region].name = "bias_score_of_%s_over_%s"  % (obs.name,region)
+        rmse_score [region].name = "rmse_score_of_%s_over_%s"  % (obs.name,region)
+        shift_score[region].name = "shift_score_of_%s_over_%s" % (obs.name,region)
+        iav_score  [region].name = "iav_score_of_%s_over_%s"   % (obs.name,region)
+        sd_score   [region].name = "sd_score_of_%s_over_%s"    % (obs.name,region)
+        
     # optionally dump results to a NetCDF file
     if dataset is not None:
-        for var in [bias,  bias_score, bias_map, bias_score_map,
-                    rmse,  rmse_score, rmse_map, rmse_score_map,
-                    shift,shift_score,shift_map,shift_score_map]:
+        for var in [bias,rmse,shift,bias_score,rmse_score,shift_score,iav_score,sd_score]:
             if type(var) == type({}):
                 for key in var.keys(): var[key].toNetCDF4(dataset)
             else:
                 var.toNetCDF4(dataset)
-                
+
 if __name__ == "__main__":
     import os
 

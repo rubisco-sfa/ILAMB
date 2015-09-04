@@ -121,6 +121,10 @@ region_names = {"global":"global",
                 "aust"  :"Australia",
                 "amazon":"Amazon"}
 
+four_code_regions = []
+for key in regions.keys():
+    if len(key) == 4 or key == "global.large": four_code_regions.append(key)
+    
 NCARclrs = asarray([[93,0,135],
                     [196,0,43],
                     [255,35,0],
