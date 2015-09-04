@@ -5,6 +5,8 @@ from constants import spd,dpy,mid_months,convert,regions as ILAMBregions
 import Post as post
 from copy import deepcopy
 
+import pylab as plt ### FIX: only import what I need
+
 def FromNetCDF4(filename,variable_name,alternate_vars=[]):
     """Extracts data from a netCDF4 datafile for use in a Variable object.
     
@@ -688,7 +690,7 @@ class Variable:
             norm = norm(self.data)
             clmp = plt.get_cmap(cmap)
             clrs = clmp(norm)
-            size = norm*30+20
+            size = 35
             ax   = bmap.scatter(x,y,s=size,color=clrs,ax=ax,linewidths=0,cmap=cmap)
             bmap.drawcoastlines(linewidth=0.2,color="darkslategrey")
         return ax
@@ -906,14 +908,16 @@ class Variable:
             # If the data are at sites, then take the difference
             data = (var.data.data-self.data.data)**2
             mask = var.data.mask+self.data.mask
+            lat,lon = var.lat,var.lon
         else:
             raise il.NotSpatialVariable("Cannot take rmse of scalars")
         # Finally we return the temporal mean of the difference squared
-        return Variable(data=np.ma.masked_array(data,mask=mask),
+        rmse = Variable(data=np.ma.masked_array(data,mask=mask),
                         name="rmse_of_%s" % self.name,time=self.time,
                         unit=self.unit,ndata=self.ndata,
-                        lat=self.lat,lon=self.lon,area=self.area).integrateInTime(mean=True)
+                        lat=lat,lon=lon).integrateInTime(mean=True)
         rmse.name = rmse.name.replace("_integrated_over_time_and_divided_by_time_period","")
+        rmse.data = np.sqrt(rmse.data)
         return rmse
     
     def interannualVariability(self):
@@ -970,16 +974,16 @@ class Variable:
         self.data.mask = rem_mask0
         var.data.mask  = rem_mask
 
-        # Put together scores
-        R0     = 1.0
-        if std0 > 1e-14:
-            std   /= std0
-            score  = 4.0*(1.0+R.data)/((std +1.0/std)**2 *(1.0+R0))
-        else:
-            std    = 0.
-            score  = 0.
-        std    = Variable(data=std  ,name="normalized_spatial_std_of_%s_over_%s" % (self.name,region),unit="-")
-        score  = Variable(data=score,name="spatial_distribution_score_of_%s_over_%s" % (self.name,region),unit="-")
+        # Put together scores, we clip the standard deviation of both
+        # variables at the same small amount, meant to avoid division
+        # by zero errors.
+        R0    = 1.0
+        std0  = std0.clip(1e-12)
+        std   = std .clip(1e-12)
+        std  /= std0
+        score = 4.0*(1.0+R.data)/((std+1.0/std)**2 *(1.0+R0))
+        std   = Variable(data=std  ,name="normalized_spatial_std_of_%s_over_%s" % (self.name,region),unit="-")
+        score = Variable(data=score,name="spatial_distribution_score_of_%s_over_%s" % (self.name,region),unit="-")
         return std,R,score
         
 def Score(var,normalizer):
@@ -1142,19 +1146,21 @@ def AnalysisFluxrate(obs,mod,regions=['global.large'],dataset=None):
         # Compute the spatial variability.
         std[region],R[region],sd_score[region] = obs_timeint.spatialDistribution(mod_timeint,region=region)
         
-        # Change variable names to make things easier to parse.
-        bias       [region].name = "bias_of_%s_over_%s"        % (obs.name,region)
-        rmse       [region].name = "rmse_of_%s_over_%s"        % (obs.name,region)
-        shift      [region].name = "shift_of_%s_over_%s"       % (obs.name,region)
-        bias_score [region].name = "bias_score_of_%s_over_%s"  % (obs.name,region)
-        rmse_score [region].name = "rmse_score_of_%s_over_%s"  % (obs.name,region)
-        shift_score[region].name = "shift_score_of_%s_over_%s" % (obs.name,region)
-        iav_score  [region].name = "iav_score_of_%s_over_%s"   % (obs.name,region)
-        sd_score   [region].name = "sd_score_of_%s_over_%s"    % (obs.name,region)
+        # Change variable names to make things easier to parse later.
+        mod_period_mean[region].name = "period_mean_of_%s_over_%s" % (obs.name,region)
+        bias           [region].name = "bias_of_%s_over_%s"        % (obs.name,region)
+        rmse           [region].name = "rmse_of_%s_over_%s"        % (obs.name,region)
+        shift          [region].name = "shift_of_%s_over_%s"       % (obs.name,region)
+        bias_score     [region].name = "bias_score_of_%s_over_%s"  % (obs.name,region)
+        rmse_score     [region].name = "rmse_score_of_%s_over_%s"  % (obs.name,region)
+        shift_score    [region].name = "shift_score_of_%s_over_%s" % (obs.name,region)
+        iav_score      [region].name = "iav_score_of_%s_over_%s"   % (obs.name,region)
+        sd_score       [region].name = "sd_score_of_%s_over_%s"    % (obs.name,region)
         
     # optionally dump results to a NetCDF file
     if dataset is not None:
-        for var in [bias,rmse,shift,bias_score,rmse_score,shift_score,iav_score,sd_score]:
+        for var in [mod_period_mean,bias,rmse,shift,bias_score,rmse_score,shift_score,iav_score,sd_score,
+                    bias_map,shift_map]:
             if type(var) == type({}):
                 for key in var.keys(): var[key].toNetCDF4(dataset)
             else:

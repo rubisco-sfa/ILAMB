@@ -73,61 +73,6 @@ def ColorBar(ax,**keywords):
     if ticks is not None: cb.set_ticks(ticks)
     if ticklabels is not None: cb.set_ticklabels(ticklabels)
 
-def CompositeAnnualCycleGoogleChart(data):
-    models  = data.keys()
-    regions = data[models[0]].keys() 
-    s = """<html>
-  <head>
-    <script type="text/javascript"
-          src="https://www.google.com/jsapi?autoload={
-            'modules':[{
-              'name':'visualization',
-              'version':'1',
-              'packages':['corechart']
-            }]
-          }">
-    </script>
-    <script type="text/javascript">
-      google.setOnLoadCallback(drawChart);
-      function drawChart() {
-        var data = new google.visualization.DataTable();
-        data.addColumn('string', 'Month');\n"""
-    for region in regions:
-        for model in models:
-            s += "        data.addColumn('number', '%s');\n" % model
-    s += "        data.addRows([\n"
-    months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]
-    for i in range(12):
-        s += "          ['%s'" % (months[i])
-        for region in regions:
-            for model in models:
-                s += ",%.2f" % data[model][region].data[i]
-        s += "],\n"
-    s += """        ]);
-        var view = new google.visualization.DataView(data);
-        var region_id = 0 \n""" # document.getElementById("region").selectedIndex\n"""
-    s += "        view.setColumns([0"
-    lenM = len(models)
-    lenR = len(regions)
-    for i in range(lenM):
-        s += ",region_id*%d+%d+1" % (lenR,i)
-    s += """]);
-        var options = {
-          title: 'Annual Cycle',
-          curveType: 'none',
-          legend: { position: 'right' }
-        };
-        var chart = new google.visualization.LineChart(document.getElementById('curve_chart'));
-        chart.draw(view, options);
-      }
-    </script>
-  </head>
-  <body>
-    <div id="curve_chart" style="width: 900px; height: 500px"></div>
-  </body>
-</html>"""
-    return s
-
 def TaylorDiagram(stddev,corrcoef,refstd,fig,colors,normalize=True):
     """
     """
@@ -280,7 +225,7 @@ class HtmlLayout():
                     return depth
 
         # Sorting function
-        def _sortMetrics(name,priority=["Bias","RMSE","Phase","Seasonal","Interannual","Score","Overall"]):
+        def _sortMetrics(name,priority=["Bias","RMSE","Phase","Seasonal","Interannual","Spatial","Score","Overall"]):
             val = 1.
             for i,pname in enumerate(priority):
                 if pname in name: val += 2**i
@@ -292,12 +237,17 @@ class HtmlLayout():
         
         # Grab the data
         models  = metrics.keys()
-        if _findDictDepth(metrics) == 2:
-            regions = ['']
-            data    = metrics[models[0]].keys()
-        else:
-            regions = metrics[models[0]].keys()
-            data    = metrics[models[0]][regions[0]].keys()
+        regions = self.regions
+        if regions is None: regions = ['']
+        data = []
+        for model in models:            
+            if _findDictDepth(metrics) == 2:
+                for key in metrics[model].keys():
+                    if data.count(key) == 0: data.append(key)
+            else:
+                for region in regions:
+                    for key in metrics[model][region].keys():
+                        if data.count(key) == 0: data.append(key)
 
         # Sorts
         models.sort(key=lambda key: key.upper())
@@ -316,13 +266,21 @@ class HtmlLayout():
         data.addColumn('string','Data');"""
         for region in regions:
             for header in data:
+                metric = None
                 if region == '':
-                    metric = metrics[models[0]][header]
+                    if header in metrics[models[0]]:
+                        metric = metrics[models[0]][header]
                 else:
-                    metric = metrics[models[0]][region][header]
-                unit  = metric.unit.replace(" ",r"&thinsp;").replace("-1",r"<sup>-1</sup>")
+                    if header in metrics[models[0]][region]:              
+                        metric = metrics[models[0]][region][header]
+                if metric is None:
+                    metric_name = ""
+                    metric_unit = ""
+                else:
+                    metric_name = metric.name
+                    metric_unit = metric.unit.replace(" ",r"&thinsp;").replace("-1",r"<sup>-1</sup>")
                 code += """
-        data.addColumn('number','<span title="%s">%s [%s]</span>');""" % (metric.name,header,unit)
+        data.addColumn('number','<span title="%s">%s [%s]</span>');""" % (metric_name,header,metric_unit)
         code += """
         data.addRows(["""
         for model in models:
@@ -330,10 +288,14 @@ class HtmlLayout():
           ['%s','<a href="%s_%s.nc" download>[-]</a>'""" % (model,c.name,model)
             for region in regions:
                 for header in data:
+                    value = ", "
                     if region == '':
-                        code += ",%.03f" % metrics[model][header].data
+                        if header in metrics[models[0]]:
+                            value = ",%.03f" % metrics[model][header].data
                     else:
-                        code += ",%.03f" % metrics[model][region][header].data
+                        if header in metrics[models[0]][region]:  
+                            value = ",%.03f" % metrics[model][region][header].data
+                    code += value
             code += "],"
         code += """
         ]);"""
@@ -455,8 +417,12 @@ class HtmlLayout():
             code += """
       <select id="region" onchange="drawTable()">"""
             for r in self.regions:
+                if "global" in r:
+                    opt = 'selected="selected"'
+                else:
+                    opt = ''
                 code += """
-        <option value="%s">%s</option>""" % (r,r)
+        <option value="%s" %s>%s</option>""" % (r,opt,r)
             code += """
       </select>"""
 

@@ -2,7 +2,7 @@
 structures may be used to run the benchmark on the model results
 cateloged in Mingquan's ftp site.
 """
-from ILAMB.Confrontation import Confrontation
+from ILAMB.GenericConfrontation import GenericConfrontation
 from ILAMB.ModelResult import ModelResult
 from ILAMB import ilamblib as il
 import ILAMB.Post as post
@@ -56,7 +56,13 @@ for m in M:
     
 # Build work list, ModelResult+Confrontation pairs
 W     = []
-C     = Confrontation().list()
+C     = []
+C.append(GenericConfrontation("GPPFluxnetGlobalMTE",
+                               os.environ["ILAMB_ROOT"]+"/DATA/gpp/FLUXNET-MTE/derived/gpp.nc",
+                               "gpp"))
+C.append(GenericConfrontation("LEFluxnetSites",os.environ["ILAMB_ROOT"]+"/DATA/le/FLUXNET/derived/le.nc",
+                                "hfls",
+                                alternate_vars=["le"]))
 if args.confront is not None:
     C = [c for c in C if c.name in args.confront]
 if len(C) == 0: sys.exit(0)
@@ -118,7 +124,7 @@ for c in C:
     comm.Bcast(numc,root=0)
     if rank == numc.argmax():
         t0  = time.time()
-        c.plotFromFiles()
+        c.postProcessFromFiles()
         dt = time.time()-t0
         print ("    {0:>%d} %sCompleted%s {1:>5.1f} s" % (maxCL,OK,ENDC)).format(c.name,dt)
 
