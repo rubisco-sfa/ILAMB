@@ -137,3 +137,50 @@ NCARclrs = asarray([[93,0,135],
                     [0,144,255],
                     [0,0,255]],dtype=float)/255.
 
+
+# Spatial plots and their default options
+space_opts = {}
+space_opts["timeint"] = { "cmap"      :"choose",
+                          "sym"       :False,
+                          "legend"    :False,
+                          "ticks"     :None,
+                          "ticklabels":None,
+                          "label"     :"unit",
+                          "section"   :"Temporally integrated period mean",
+                          "pattern"   :"MNAME_RNAME_timeint.png",
+                          "sidelbl"   :"MODEL MEAN",
+                          "haslegend" :True }
+
+space_opts["bias"]    = { "cmap"      :"seismic",
+                          "sym"       :True,
+                          "legend"    :False,
+                          "ticks"     :None,
+                          "ticklabels":None,
+                          "label"     :"unit" ,
+                          "section"   :"Temporally integrated period mean",
+                          "pattern"   :"MNAME_RNAME_bias.png",
+                          "sidelbl"   :"BIAS",
+                          "haslegend" :True }
+
+space_opts["shift"]   = { "cmap"      :"PRGn",
+                          "sym"       :True,
+                          "legend"    :False,
+                          "ticks"     :None,
+                          "ticklabels":None,
+                          "label"     :"d" ,
+                          "section"   :"Temporally integrated period mean",
+                          "pattern"   :"MNAME_RNAME_shift.png",
+                          "sidelbl"   :"SHIFT",
+                          "haslegend" :True }
+
+space_opts["phase"]   = { "cmap"      :"jet",
+                          "sym"       :False,
+                          "legend"    :False,
+                          "ticks"     :mid_months,
+                          "ticklabels":lbl_months,
+                          "label"     :"",
+                          "section"   :"Temporally integrated period mean",
+                          "pattern"   :"MNAME_RNAME_phase.png",
+                          "sidelbl"   :"MODEL MAX MONTH",
+                          "haslegend" :True  }
+

@@ -201,6 +201,8 @@ class HtmlLayout():
     def addFigure(self,section,name,pattern,side=None,legend=False):
         
         assert section in self.sections
+        for fig in self.figures[section]:
+            if fig.name == name: return
         self.figures[section].append(HtmlFigure(name,pattern,side=side,legend=legend))
         
     def setHeader(self,header):
@@ -230,7 +232,7 @@ class HtmlLayout():
             for i,pname in enumerate(priority):
                 if pname in name: val += 2**i
             return val
-                
+
         # Convenience redefinition
         c       = self.c
         metrics = self.metrics
@@ -358,6 +360,12 @@ class HtmlLayout():
 
     def __str__(self):
 
+        def _sortFigures(figure,priority=["timeint","bias","phase","shift"]):
+            val = 1.
+            for i,pname in enumerate(priority):
+                if pname in figure.name: val += 2**i
+            return val
+        
         # Open the html and head
         code = """<html>
   <head>"""
@@ -433,6 +441,8 @@ class HtmlLayout():
         # Build user-defined sections
         if self.sections is not None:
             for section in self.sections:
+                if len(self.figures[section]) == 0: continue
+                self.figures[section].sort(key=_sortFigures)
                 code += """
       <div data-role="collapsible" data-collapsed="false"><h1>%s</h1>""" % section
                 for figure in self.figures[section]:

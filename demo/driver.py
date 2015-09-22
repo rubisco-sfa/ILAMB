@@ -27,7 +27,11 @@ parser.add_argument('--models', dest="models", metavar='m', type=str, nargs='+',
                     help='specify which models to run, list model names with no quotes and only separated by a space.')
 parser.add_argument('--confrontations', dest="confront", metavar='c', type=str, nargs='+',
                     help='specify which confrontations to run, list confrontation names with no quotes and only separated by a space.')
+parser.add_argument('--regions', dest="regions", metavar='m', type=str, nargs='+',
+                    help='specify which regions to compute over')
 args = parser.parse_args()
+
+if args.regions is None: args.regions = ['global.large']
 
 # Initialize the models
 M    = []
@@ -57,12 +61,25 @@ for m in M:
 # Build work list, ModelResult+Confrontation pairs
 W     = []
 C     = []
+root  = os.environ["ILAMB_ROOT"]+"/DATA"
 C.append(GenericConfrontation("GPPFluxnetGlobalMTE",
-                               os.environ["ILAMB_ROOT"]+"/DATA/gpp/FLUXNET-MTE/derived/gpp.nc",
-                               "gpp"))
-C.append(GenericConfrontation("LEFluxnetSites",os.environ["ILAMB_ROOT"]+"/DATA/le/FLUXNET/derived/le.nc",
-                                "hfls",
-                                alternate_vars=["le"]))
+                              root + "/gpp/FLUXNET-MTE/derived/gpp.nc",
+                              "gpp",
+                              regions=args.regions,
+                              cmap="Greens"))
+C.append(GenericConfrontation("PRGPCP2",
+                              root + "/pr/GPCP2/derived/pr.nc",
+                              "pr",
+                              regions=args.regions,
+                              cmap="Blues",
+                              land=True))
+C.append(GenericConfrontation("LEFluxnetSites",
+                              root + "/le/FLUXNET/derived/le.nc",
+                              "hfls",
+                              alternate_vars=["le"],
+                              regions=args.regions,
+                              cmap="Oranges"))
+
 if args.confront is not None:
     C = [c for c in C if c.name in args.confront]
 if len(C) == 0: sys.exit(0)
@@ -132,8 +149,3 @@ sys.stdout.flush()
 comm.Barrier()
 
 if rank==0: print "\nCompleted in {0:>5.1f} s\n".format(time.time()-T0)
-
-
-
-
-

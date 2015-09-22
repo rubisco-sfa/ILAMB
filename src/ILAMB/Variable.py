@@ -88,7 +88,17 @@ def FromNetCDF4(filename,variable_name,alternate_vars=[]):
         if lon_name is not None: lon = f.variables[lon_name][...]
         if lat.size != data: lat = None
         if lon.size != data: lon = None
-    return np.ma.masked_array(var[...]),var.units,variable_name,t,lat,lon,data
+
+    # handle incorrect or absent masking of arrays
+    if type(var[...]) == type(np.ma.empty([])):
+        v    = var[...]
+    else:
+        v    = var[...]
+        mask = np.zeros(v.shape,dtype=int)
+        if "_FillValue"    in var.ncattrs(): mask += (np.abs(v-var._FillValue   )<1e-12)
+        if "missing_value" in var.ncattrs(): mask += (np.abs(v-var.missing_value)<1e-12)
+        v    = np.ma.masked_array(v,mask=mask,copy=False)
+    return v,var.units,variable_name,t,lat,lon,data
 
 class Variable:
     """A class for managing variables and their analysis.
@@ -151,7 +161,6 @@ class Variable:
         else:
             assert variable_name is not None
             data,unit,name,time,lat,lon,ndata = FromNetCDF4(filename,variable_name,alternate_vars)
-        area = keywords.get("area",None)
 
         if not np.ma.isMaskedArray(data): data = np.ma.masked_array(data)
         self.data  = data 
@@ -173,7 +182,7 @@ class Variable:
         self.spatial = False
         self.lat     = lat
         self.lon     = lon
-        self.area    = area
+        self.area    = keywords.get("area",None)
         if ((lat is     None) and (lon is     None)): return
         if ((lat is     None) and (lon is not None) or
             (lat is not None) and (lon is     None)):
@@ -1156,11 +1165,17 @@ def AnalysisFluxrate(obs,mod,regions=['global.large'],dataset=None):
         shift_score    [region].name = "shift_score_of_%s_over_%s" % (obs.name,region)
         iav_score      [region].name = "iav_score_of_%s_over_%s"   % (obs.name,region)
         sd_score       [region].name = "sd_score_of_%s_over_%s"    % (obs.name,region)
-        
+
+    # More variable name changes
+    mod_timeint.name  = "timeint_of_%s"   % obs.name
+    bias_map.name     = "bias_map_of_%s"  % obs.name
+    mod_maxt_map.name = "phase_map_of_%s" % obs.name
+    shift_map.name    = "shift_map_of_%s" % obs.name
+    
     # optionally dump results to a NetCDF file
     if dataset is not None:
         for var in [mod_period_mean,bias,rmse,shift,bias_score,rmse_score,shift_score,iav_score,sd_score,
-                    bias_map,shift_map]:
+                    mod_timeint,bias_map,mod_maxt_map,shift_map]:
             if type(var) == type({}):
                 for key in var.keys(): var[key].toNetCDF4(dataset)
             else:

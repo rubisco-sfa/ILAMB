@@ -129,87 +129,53 @@ class ModelResult():
             a description of the extracted unit
 
         """
+        # prepend the target variable to the list of possible variables
         altvars = list(alt_vars)
         altvars.insert(0,variable)
 
-        # create a list of data which has a non-null intersection over the desired time range
-        data   = []
-        ntimes = 0
+        # create a list of datafiles which have a non-null intersection
+        # over the desired time range
+        data = []
         for subdir, dirs, files in os.walk(self.path):
-            for f in files:
-                if ".nc"       not in f: continue
-                if self.filter not in f: continue
-                fname = "%s/%s" % (subdir,f)
-                found = False
-                for vname in altvars:
-                    try:
-                        if lats is None and lons is None:
-                            t,var,unit,lat,lon = il.ExtractTimeSeries(fname,vname)
-                        else:
-                            lat = lats
-                            lon = lons
-                            t,var,unit = il.ExtractPointTimeSeries(fname,vname,lat,lon)
-                        nt      = ((t>=initial_time)*(t<=final_time)).sum()
-                        ntimes += nt
-                        if nt == 0: continue
-                        data.append((t,var,vname,nt))
-                    except il.VarNotInFile: 
-                        continue
-        if ntimes == 0: 
-            raise il.VarNotInModel("These variable(s) do not exist in this model on that time frame: %s" % (",".join(altvars)))
-            
-        # a model might have the variable and its alternates, only use the highest preference variable present
-        thin   = []
-        for vname in altvars:
-            for d in data:
-                if d[2] == vname: thin.append(d)
-            if len(thin) > 0: break
-        data = thin
+            for fileName in files:
+                if ".nc"       not in fileName: continue
+                if self.filter not in fileName: continue
+                pathName  = "%s/%s" % (subdir,fileName)
+                dataset   = Dataset(pathName)
+                variables = dataset.variables.keys()
+                intersect = [v for v in altvars if v in variables]
+                if len(intersect) == 0: continue
+                time      = dataset.variables["time"]
+                if (time[0] > final_time or time[-1] < initial_time): continue
+                data.append(pathName)
 
-        # now check again that data exists on this time frame
-        ntimes = 0
-        for d in data: ntimes += d[3]
-        if ntimes == 0: 
-            raise il.VarNotInModel("These variable(s) do not exist in this model on that time frame: %s" % (",".join(altvars)))
+        # some data are marked "-derived", check for these and give preference
+        derived = [f for f in data if "-derived" in f]
+        for f in derived:
+            f = f.replace("-derived","")
+            if f in data: data.remove(f)
 
-        # sort the list by the first time, create a composite array
-        data = sorted(data,key=lambda entry: entry[0][0])
-        mono = np.asarray([entry[0][-1] for entry in data])
-        mono = mono[:-1]>mono[1:]
-        if mono.sum() > 0: # there seems to be some overlapping data so I will remove it
-            for i in range(mono.shape[0]): 
-                if mono[i]: 
-                    tmp     = data.pop(i)
-                    ntimes -= ((tmp[0]>=initial_time)*(tmp[0]<=final_time)).sum()
-        shp  = [ntimes]; shp.extend(data[0][1].shape[1:])
-        tc   = np.zeros(ntimes)
-        varc = np.zeros(shp)
-        masc = np.zeros(shp,dtype=bool)
-        begin = 0
-        for d in data:
-            t,var,vname,nt = d
-            mask = (t>=initial_time)*(t<=final_time)
-            n = mask.sum(); end = begin+n
-            tc  [begin:end] =        t[mask]
-            varc[begin:end] = var.data[mask]
-            if var.mask.size == 1: # whole array is either completely masked or not
-                masc[begin:end] = var.mask
+        if len(data) == 1:
+            if lats is None:
+                v = Variable(filename       = data[0],
+                             variable_name  = variable,
+                             alternate_vars = altvars[1:],
+                             area           = self.land_areas)
             else:
-                masc[begin:end] = var.mask[mask]
-            begin = end
-
-        # if you asked for a specific unit, try to convert
-        if output_unit is not "":
-            try:
-                varc *= convert[variable][output_unit][unit]
-                unit = output_unit
-            except:
-                raise il.UnknownUnit("Variable is in units of [%s], you asked for [%s] but I do not know how to convert" % (unit,output_unit))
-
-        if lats is None:
-            return Variable(data=np.ma.masked_array(varc,mask=masc),unit=unit,time=tc,lat=self.lat,lon=self.lon,area=self.land_areas,name=vname)
+                v = Variable(filename       = data[0],
+                             variable_name  = variable,
+                             alternate_vars = altvars[1:],
+                             area           = self.land_areas).extractDatasites(lats,lons)
+                
         else:
-            return Variable(data=np.ma.masked_array(varc,mask=masc),unit=unit,time=tc,lat=lat,lon=lon,name=vname,ndata=lat.size)
+            raise il.VarNotInModel()
+
+        # adjust the time range
+        begin  = np.argmin(np.abs(v.time-initial_time))
+        end    = np.argmin(np.abs(v.time-final_time))+1
+        v.time = v.time[begin:end]
+        v.data = v.data[begin:end,...]
+        return v
             
     def globalPlot(self,var,region="global",ax=None):
         from mpl_toolkits.basemap import Basemap

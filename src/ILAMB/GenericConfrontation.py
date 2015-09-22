@@ -1,12 +1,13 @@
 import ilamblib as il
 from Variable import *
-from constants import four_code_regions
-import os,glob
+from constants import four_code_regions,space_opts
+import os,glob,re
 from netCDF4 import Dataset
 import Post as post
 import pylab as plt
 
 class GenericConfrontation:
+    
     def __init__(self,name,srcdata,variable_name,**keywords):
 
         # Initialize 
@@ -16,7 +17,10 @@ class GenericConfrontation:
         self.output_path    = keywords.get("output_path","_build/%s/" % self.name)
         self.alternate_vars = keywords.get("alternate_vars",[])
         self.regions        = keywords.get("regions",four_code_regions)
-
+        self.data           = None
+        self.cmap           = keywords.get("cmap","jet")
+        self.land           = keywords.get("land",False)
+        
         # Make sure the source data exists
         try:
             os.stat(self.srcdata)
@@ -36,7 +40,9 @@ class GenericConfrontation:
         # Setup a html layout for generating web views of the results
         self.layout = post.HtmlLayout(self,regions=self.regions)
         self.layout.setHeader("CNAME / RNAME / MNAME")
-
+        self.layout.setSections(["Temporally integrated period mean",
+                                 "Spatially integrated regional mean"])
+        
         # Define relative weights of each score in the overall score
         # (FIX: need some way for the user to modify this)
         self.weight = {"Bias Score"                    :1.,
@@ -44,18 +50,17 @@ class GenericConfrontation:
                        "Seasonal Cycle Score"          :1.,
                        "Interannual Variability Score" :1.,
                        "Spatial Distribution Score"    :1.}
-        
-    def confront(self,m):
-        r"""Confronts the input model with the observational data.
 
-        Parameters
-        ----------
-        m : ILAMB.ModelResult.ModelResult
-            the model results
+    def stageData(self,m):
+        """
         """
         # Read in the data, and perform consistency checks depending
         # on the data types found
-        obs = Variable(filename=self.srcdata,variable_name=self.variable_name,alternate_vars=self.alternate_vars)
+        if self.data is None:
+            obs = Variable(filename=self.srcdata,variable_name=self.variable_name,alternate_vars=self.alternate_vars)
+            self.data = obs
+        else:
+            obs = self.data
         if obs.spatial:
             mod = m.extractTimeSeries(self.variable_name,
                                       initial_time = obs.time[ 0],
@@ -76,6 +81,22 @@ class GenericConfrontation:
         assert obs.time.shape == mod.time.shape       # same number of times
         assert np.allclose(obs.time,mod.time,atol=14) # same times +- two weeks
         assert obs.ndata == mod.ndata                 # same number of datasites
+        if self.land and mod.spatial:
+            mod.data = np.ma.masked_array(mod.data,
+                                          mask=mod.data.mask+(mod.area<1e-2)[np.newaxis,:,:],
+                                          copy=False)
+        return obs,mod
+        
+    def confront(self,m):
+        r"""Confronts the input model with the observational data.
+
+        Parameters
+        ----------
+        m : ILAMB.ModelResult.ModelResult
+            the model results
+        """
+        # Grab the data
+        obs,mod = self.stageData(m)
 
         # Open a dataset for recording the results of this confrontation
         results = Dataset("%s/%s.nc" % (self.output_path,m.name),mode="w")
@@ -84,6 +105,15 @@ class GenericConfrontation:
     def postProcessFromFiles(self):
         """
         """
+        def _UnitStringToMatplotlib(unit):
+            # raise exponents using Latex
+            match = re.findall("(-\d)",unit)
+            for m in match: unit = unit.replace(m,"$^{%s}$" % m)
+            # add carbon symbol to all mass units
+            match = re.findall("(\D*g)",unit)
+            for m in match: unit = unit.replace(m,"%s C " % m)
+            return unit
+
         # if LEFT is in the file, then store a metric called RIGHT
         name_map = {"period_mean":"Period Mean",
                     "bias_of"    :"Bias",
@@ -134,6 +164,7 @@ class GenericConfrontation:
                         plots[var.name]["min"] =  1e20
                         plots[var.name]["max"] = -1e20
                         plots[var.name]["colorbar"] = True
+                        plots[var.name]["legend"]   = False
                     plots[var.name]["min"] = min(plots[var.name]["min"],var.data.min())
                     plots[var.name]["max"] = max(plots[var.name]["max"],var.data.max())
                     plots[var.name][mname] = var
@@ -150,32 +181,39 @@ class GenericConfrontation:
                 overall_score /= max(sum_of_weights,1e-12)
                 metrics[model][region]["Overall Score"] = Variable(data=overall_score,name="overall_score",unit="-")
                 
-        space_opts = {
-            "timeint"  : { "cmap":"Greens" , "sym":False },
-            "bias"     : { "cmap":"seismic", "sym":True  },
-            "phase"    : { "cmap":"jet"    , "sym":False },  
-            "shift"    : { "cmap":"PRGn"   , "sym":True  },
-        }
-        
-        # 
+        # Generate plots and html page
         for pname in plots.keys():
             plot   = plots[pname]
-            models = plots[pname].keys();
-            models.remove("max"); models.remove("min"); models.remove("colorbar")
+            models = plots[pname].keys()
+            models.remove("max"); models.remove("min"); models.remove("colorbar"); models.remove("legend")
             for model in models:
                 var  = plot[model]
                 name = var.name.split("_")[0]
                 if (var.spatial or var.ndata is not None) and name in space_opts.keys():
                     vmin = plot["min"]
                     vmax = plot["max"]
-                    if space_opts[name]["sym"]:
+                    opts = space_opts[name]
+                    cmap = self.cmap
+                    if opts["cmap"] != "choose": cmap = opts["cmap"]
+                    self.layout.addFigure(opts["section"],name,opts["pattern"],
+                                          side=opts["sidelbl"],legend=opts["haslegend"])
+                    if opts["sym"]:
                         vabs =  max(abs(plot["min"]),abs(plot["max"]))
                         vmin = -vabs
                         vmax =  vabs
+                    if not plot["legend"] and opts["haslegend"]:
+                        plot["legend"] = True
+                        fig,ax = plt.subplots(figsize=(6.8,1.0),tight_layout=True)
+                        label = opts["label"]
+                        if label == "unit": label =_UnitStringToMatplotlib(var.unit)
+                        post.ColorBar(ax,vmin=vmin,vmax=vmax,cmap=cmap,ticks=opts["ticks"],
+                                      ticklabels=opts["ticklabels"],label=label)
+                        fig.savefig("%s/legend_%s.png" % (self.output_path,name))
+                        plt.close()
                     for region in self.regions:
                         fig = plt.figure(figsize=(6.8,2.8))
                         ax  = fig.add_axes([0.06,0.025,0.88,0.965])
-                        var.plot(ax,region=region,vmin=vmin,vmax=vmax,cmap=space_opts[name]["cmap"])
+                        var.plot(ax,region=region,vmin=vmin,vmax=vmax,cmap=cmap)
                         fig.savefig("%s/%s_%s_%s.png" % (self.output_path,model,region,name))
                         plt.close()
                 
@@ -193,12 +231,14 @@ if __name__ == "__main__":
 
     gpp = GenericConfrontation("GPPFluxnetGlobalMTE",
                                os.environ["ILAMB_ROOT"]+"/DATA/gpp/FLUXNET-MTE/derived/gpp.nc",
-                               "gpp")
+                               "gpp",
+                               regions = ['global.large','amazon'])
     gpp.confront(m)
     gpp.postProcessFromFiles()
     
     hfls = GenericConfrontation("LEFluxnetSites",os.environ["ILAMB_ROOT"]+"/DATA/le/FLUXNET/derived/le.nc",
                                 "hfls",
-                                alternate_vars=["le"])
+                                alternate_vars = ["le"],
+                                regions = ['global.large','amazon'])
     hfls.confront(m)
     hfls.postProcessFromFiles()
