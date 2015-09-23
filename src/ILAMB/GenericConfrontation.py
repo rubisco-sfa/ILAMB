@@ -100,7 +100,7 @@ class GenericConfrontation:
         obs,mod = self.stageData(m)
 
         # Open a dataset for recording the results of this confrontation
-        results = Dataset("%s/%s.nc" % (self.output_path,m.name),mode="w")
+        results = Dataset("%s/%s_%s.nc" % (self.output_path,self.name,m.name),mode="w")
         results.setncatts({"name" :m.name,
                            "color":m.color})
         AnalysisFluxrate(obs,mod,dataset=results,regions=self.regions)
