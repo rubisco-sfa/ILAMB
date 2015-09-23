@@ -134,12 +134,10 @@ class GenericConfrontation:
         # Loop over all result files from all models
         for fname in glob.glob("%s/*.nc" % self.output_path):
 
-            # Extract the model name from the filename
-            mname     = (fname.split("/")[-1])[:-3]
-            
             # Grab a list of variables which are part of this result file
             f         = Dataset(fname)
             variables = [v for v in f.variables.keys() if v not in f.dimensions.keys()]
+            mname         = f.getncattr("name")
             colors[mname] = f.getncattr("color")
             f.close()
 
@@ -225,12 +223,19 @@ class GenericConfrontation:
                         plt.close()
 
                 # temporal plotting
-                #if var.temporal and name in time_opts.keys():
-                #    for region in self.regions:
-                #        fig,ax = plt.subplots(figsize=(6.8,2.8),tight_layout=True)
-                #        var.plot(ax,lw=2,color=colors[model],label=model)
-                #        fig.savefig("%s/%s_%s_%s.png" % (self.output_path,model,region,name))
-                #        plt.close()
+                if var.temporal and name in time_opts.keys():
+                    opts = time_opts[name]
+                    self.layout.addFigure(opts["section"],name,opts["pattern"],
+                                          side=opts["sidelbl"],legend=opts["haslegend"])
+                    for region in self.regions:
+                        fig,ax = plt.subplots(figsize=(6.8,2.8),tight_layout=True)
+                        var.plot(ax,lw=2,color=colors[model],label=model,ticks=opts["ticks"],
+                                 ticklabels=opts["ticklabels"])
+                        ylbl = opts["ylabel"]
+                        if ylbl == "unit": ylbl = _UnitStringToMatplotlib(var.unit)
+                        ax.set_ylabel(ylbl)
+                        fig.savefig("%s/%s_%s_%s.png" % (self.output_path,model,region,name))
+                        plt.close()
                     
                     
         # Write the html page

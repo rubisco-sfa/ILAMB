@@ -683,9 +683,13 @@ class Variable:
         region = keywords.get("region","global")
         cmap   = keywords.get("cmap","jet")
         if self.temporal and not self.spatial:
+            ticks      = keywords.get("ticks",None)
+            ticklabels = keywords.get("ticklabels",None)
             t = self.time/365.+1850
             ax.plot(t,self.data,'-',
                     color=color,lw=lw,alpha=alpha,label=label)
+            if ticks      is not None: ax.set_xticks(ticks)
+            if ticklabels is not None: ax.set_xticklabels(ticklabels)
         elif not self.temporal and self.spatial:
             ax = post.GlobalPlot(self.lat,self.lon,self.data,ax,
                                  vmin   = vmin  , vmax = vmax,

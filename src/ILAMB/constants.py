@@ -142,7 +142,6 @@ NCARclrs = asarray([[93,0,135],
 space_opts = {}
 space_opts["timeint"] = { "cmap"      :"choose",
                           "sym"       :False,
-                          "legend"    :False,
                           "ticks"     :None,
                           "ticklabels":None,
                           "label"     :"unit",
@@ -153,7 +152,6 @@ space_opts["timeint"] = { "cmap"      :"choose",
 
 space_opts["bias"]    = { "cmap"      :"seismic",
                           "sym"       :True,
-                          "legend"    :False,
                           "ticks"     :None,
                           "ticklabels":None,
                           "label"     :"unit" ,
@@ -164,7 +162,6 @@ space_opts["bias"]    = { "cmap"      :"seismic",
 
 space_opts["shift"]   = { "cmap"      :"PRGn",
                           "sym"       :True,
-                          "legend"    :False,
                           "ticks"     :None,
                           "ticklabels":None,
                           "label"     :"d" ,
@@ -175,7 +172,6 @@ space_opts["shift"]   = { "cmap"      :"PRGn",
 
 space_opts["phase"]   = { "cmap"      :"jet",
                           "sym"       :False,
-                          "legend"    :False,
                           "ticks"     :mid_months,
                           "ticklabels":lbl_months,
                           "label"     :"",
@@ -186,5 +182,19 @@ space_opts["phase"]   = { "cmap"      :"jet",
 
 
 time_opts = {}
-time_opts["spaceint"] = {}
-time_opts["cycle"]    = {}
+time_opts["spaceint"] = { "section"    : "Spatially integrated regional mean",
+                          "haslegend"  : False,
+                          "pattern"    : "MNAME_RNAME_spaceint.png",
+                          "sidelbl"    : "MEAN",
+                          "ticks"      : None,
+                          "ticklabels" : None,
+                          "ylabel"     : "unit"}
+
+time_opts["cycle"]    = { "section"    : "Spatially integrated regional mean",
+                          "haslegend"  : False,
+                          "pattern"    : "MNAME_RNAME_cycle.png",
+                          "sidelbl"    : "CYCLE",
+                          "ticks"      : mid_months/365.+1850.,
+                          "ticklabels" : lbl_months,
+                          "ylabel"     : "unit"}
+
