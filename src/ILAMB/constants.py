@@ -73,6 +73,7 @@ convert["J" ] = {"J" :1e+0 ,"kJ":1e-3 ,"KJ":1e-3 ,"PJ":1e-15}
 convert["kJ"] = {"J" :1e+3 ,"kJ":1e+0 ,"KJ":1e+0 ,"PJ":1e-12}
 convert["KJ"] = {"J" :1e+3 ,"kJ":1e+0 ,"KJ":1e+0 ,"PJ":1e-12}
 convert["PJ"] = {"J" :1e+15,"kJ":1e+12,"KJ":1e+12,"PJ":1e+0 }
+convert["W" ] = {"W" :1e+0}
 
 # time conversions
 convert["s"] = {"s":1. ,"d":1./spd,"y":1./spy }
@@ -137,7 +138,6 @@ NCARclrs = asarray([[93,0,135],
                     [0,144,255],
                     [0,0,255]],dtype=float)/255.
 
-
 # Spatial plots and their default options
 space_opts = {}
 space_opts["timeint"] = { "cmap"      :"choose",
@@ -184,3 +184,7 @@ space_opts["phase"]   = { "cmap"      :"jet",
                           "sidelbl"   :"MODEL MAX MONTH",
                           "haslegend" :True  }
 
+
+time_opts = {}
+time_opts["spaceint"] = {}
+time_opts["cycle"]    = {}

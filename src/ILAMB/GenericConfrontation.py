@@ -1,6 +1,6 @@
 import ilamblib as il
 from Variable import *
-from constants import four_code_regions,space_opts
+from constants import four_code_regions,space_opts,time_opts
 import os,glob,re
 from netCDF4 import Dataset
 import Post as post
@@ -85,6 +85,7 @@ class GenericConfrontation:
             mod.data = np.ma.masked_array(mod.data,
                                           mask=mod.data.mask+(mod.area<1e-2)[np.newaxis,:,:],
                                           copy=False)
+        mod.convert(obs.unit)
         return obs,mod
         
     def confront(self,m):
@@ -100,6 +101,8 @@ class GenericConfrontation:
 
         # Open a dataset for recording the results of this confrontation
         results = Dataset("%s/%s.nc" % (self.output_path,m.name),mode="w")
+        results.setncatts({"name" :m.name,
+                           "color":m.color})
         AnalysisFluxrate(obs,mod,dataset=results,regions=self.regions)
 
     def postProcessFromFiles(self):
@@ -126,16 +129,18 @@ class GenericConfrontation:
                     "sd_score"   :"Spatial Distribution Score"}
         metrics = {}
         plots   = {}
+        colors  = {}
         
         # Loop over all result files from all models
         for fname in glob.glob("%s/*.nc" % self.output_path):
 
             # Extract the model name from the filename
             mname     = (fname.split("/")[-1])[:-3]
-
+            
             # Grab a list of variables which are part of this result file
             f         = Dataset(fname)
             variables = [v for v in f.variables.keys() if v not in f.dimensions.keys()]
+            colors[mname] = f.getncattr("color")
             f.close()
 
             # Loop over all variables. If a scalar is found, add it to
@@ -189,6 +194,8 @@ class GenericConfrontation:
             for model in models:
                 var  = plot[model]
                 name = var.name.split("_")[0]
+
+                # spatial plotting
                 if (var.spatial or var.ndata is not None) and name in space_opts.keys():
                     vmin = plot["min"]
                     vmax = plot["max"]
@@ -216,7 +223,16 @@ class GenericConfrontation:
                         var.plot(ax,region=region,vmin=vmin,vmax=vmax,cmap=cmap)
                         fig.savefig("%s/%s_%s_%s.png" % (self.output_path,model,region,name))
                         plt.close()
-                
+
+                # temporal plotting
+                #if var.temporal and name in time_opts.keys():
+                #    for region in self.regions:
+                #        fig,ax = plt.subplots(figsize=(6.8,2.8),tight_layout=True)
+                #        var.plot(ax,lw=2,color=colors[model],label=model)
+                #        fig.savefig("%s/%s_%s_%s.png" % (self.output_path,model,region,name))
+                #        plt.close()
+                    
+                    
         # Write the html page
         f = file("%s/%s.html" % (self.output_path,self.name),"w")
         self.layout.setMetrics(metrics)
