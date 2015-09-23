@@ -32,7 +32,7 @@ def CombineVariables(V):
     assert (tf[1:]-tf[:-1]).min() >= 0
     assert (t0[1:]-tf[:-1]).min() >= 0
 
-    # assemble the data
+    # Assemble the data
     shp  = (nt.sum(),)+V[0].data.shape[1:]
     time = np.zeros(shp[0])
     data = np.zeros(shp)

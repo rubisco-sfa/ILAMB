@@ -79,6 +79,13 @@ C.append(GenericConfrontation("LEFluxnetSites",
                               alternate_vars=["le"],
                               regions=args.regions,
                               cmap="Oranges"))
+C.append(GenericConfrontation("LEFluxnetGlobalMTE",
+                              root + "/le/FLUXNET-MTE/derived/le.nc",
+                              "hfls",
+                              alternate_vars=["le"],
+                              regions=args.regions,
+                              cmap="Oranges",
+                              land=True))
 
 if args.confront is not None:
     C = [c for c in C if c.name in args.confront]
