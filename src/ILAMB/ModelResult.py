@@ -6,6 +6,51 @@ from netCDF4 import Dataset
 import os
 from Variable import Variable
 
+def CombineVariables(V):
+    # checks on data
+    assert type(V) == type([])
+    for v in V: assert v.temporal
+    if len(V) == 1: return V[0]
+    
+    # Put list in order by initial time
+    V.sort(key=lambda v: v.time[0])
+
+    # Check the beginning and ends times for monotonicity
+    nV  = len(V)
+    t0  = np.zeros(nV)
+    tf  = np.zeros(nV)
+    nt  = np.zeros(nV,dtype=int)
+    ind = [0]
+    for i,v in enumerate(V):
+        t0[i] = v.time[ 0]
+        tf[i] = v.time[-1]
+        nt[i] = v.time.size
+        ind.append(nt[:(i+1)].sum())
+        
+    # Checks on monotonicity
+    assert (t0[1:]-t0[:-1]).min() >= 0
+    assert (tf[1:]-tf[:-1]).min() >= 0
+    assert (t0[1:]-tf[:-1]).min() >= 0
+
+    # assemble the data
+    shp  = (nt.sum(),)+V[0].data.shape[1:]
+    time = np.zeros(shp[0])
+    data = np.zeros(shp)
+    mask = np.zeros(shp,dtype=bool)
+    for i,v in enumerate(V):
+        time[ind[i]:ind[i+1]]     = v.time
+        data[ind[i]:ind[i+1],...] = v.data
+        mask[ind[i]:ind[i+1],...] = v.data.mask
+    v = V[0]
+    return Variable(data  = np.ma.masked_array(data,mask=mask),
+                    unit  = v.unit,
+                    name  = v.name,
+                    time  = time,
+                    lat   = v.lat,
+                    lon   = v.lon,
+                    area  = v.area,
+                    ndata = v.ndata)
+
 class ModelResult():
     """A class for exploring model results.
     """
@@ -65,28 +110,6 @@ class ModelResult():
             self.land_areas = self.cell_areas*self.land_fraction
         self.land_area = np.ma.sum(self.land_areas)
         return
-
-    def diagnose(self):
-        print "Diagnosing the %s model..." % self.name
-        if self.land_areas is not None:
-            from pylab import subplots
-            from Post import GlobalPlot
-            fig,ax = subplots(nrows=3,figsize=(12,18))
-            GlobalPlot(self.lat,self.lon,self.cell_areas,shift=True,ax=ax[0],region="global.large")
-            GlobalPlot(self.lat,self.lon,self.land_fraction,shift=True,ax=ax[1],region="global.large")
-            GlobalPlot(self.lat,self.lon,self.land_areas,shift=True,ax=ax[2],region="global.large")
-            ax[0].set_title("areacella")
-            ax[1].set_title("sftlf")
-            ax[2].set_title("areacella*sftlf")
-            fig.savefig("land_areas_%s.png" % self.name)
-        return
-
-    def __str__(self):
-        out  = "Model Result\n"
-        out += "------------\n"
-        out += "  Name: %s\n" % self.name
-        out += "\n"
-        return out
                 
     def extractTimeSeries(self,variable,lats=None,lons=None,alt_vars=[],initial_time=-1e20,final_time=1e20,output_unit=""):
         """Extracts a time series of the given variable from the model
@@ -145,30 +168,33 @@ class ModelResult():
                 variables = dataset.variables.keys()
                 intersect = [v for v in altvars if v in variables]
                 if len(intersect) == 0: continue
-                time      = dataset.variables["time"]
+                time      = il._convertCalendar(dataset.variables["time"])
                 if (time[0] > final_time or time[-1] < initial_time): continue
                 data.append(pathName)
-
+        
         # some data are marked "-derived", check for these and give preference
         derived = [f for f in data if "-derived" in f]
         for f in derived:
             f = f.replace("-derived","")
             if f in data: data.remove(f)
 
-        if len(data) == 1:
-            if lats is None:
-                v = Variable(filename       = data[0],
-                             variable_name  = variable,
-                             alternate_vars = altvars[1:],
-                             area           = self.land_areas)
-            else:
-                v = Variable(filename       = data[0],
-                             variable_name  = variable,
-                             alternate_vars = altvars[1:],
-                             area           = self.land_areas).extractDatasites(lats,lons)
-                
-        else:
+        # build variable and merge if in separate files
+        if len(data) == 0:
             raise il.VarNotInModel()
+        else:
+            V = []
+            for pathName in data:
+                if lats is None:
+                    V.append(Variable(filename       = pathName,
+                                      variable_name  = variable,
+                                      alternate_vars = altvars[1:],
+                                      area           = self.land_areas))
+                else:
+                    V.append(Variable(filename       = pathName,
+                                      variable_name  = variable,
+                                      alternate_vars = altvars[1:],
+                                      area           = self.land_areas).extractDatasites(lats,lons))
+        v = CombineVariables(V)
 
         # adjust the time range
         begin  = np.argmin(np.abs(v.time-initial_time))
@@ -177,34 +203,3 @@ class ModelResult():
         v.data = v.data[begin:end,...]
         return v
             
-    def globalPlot(self,var,region="global",ax=None):
-        from mpl_toolkits.basemap import Basemap
-        from pylab import cm
-        from matplotlib.colors import from_levels_and_colors
-        from constants import regions
-        lats,lons = regions[region]
-        bmap = Basemap(projection='cyl',
-                       llcrnrlon=lons[ 0],llcrnrlat=lats[ 0],
-                       urcrnrlon=lons[-1],urcrnrlat=lats[-1],
-                       resolution='c',ax=ax)
-        nroll = np.argmin(np.abs(self.lon-180))
-        lon   = np.roll(self.lon,nroll); lon[:nroll] -= 360
-        x,y   = bmap(lon,self.lat)
-        cmap,norm = from_levels_and_colors([0,0.075,0.15,0.25,0.75,1.5,3.5,7.5,12.5,17.5,22.0],
-                                           ['deepskyblue',
-                                            'cyan',
-                                            'green',
-                                            'greenyellow',
-                                            'yellow',
-                                            'sandybrown',
-                                            'darkorange',
-                                            'r',
-                                            'firebrick',
-                                            'indigo'])
-        ax    = bmap.pcolormesh(x,y,np.roll(var,nroll,axis=1),zorder=2) #,cmap=cmap,norm=norm)
-        bmap.drawmeridians(np.arange(-150,151,30),labels=[0,0,0,1],zorder=1,dashes=[1000000,1],linewidth=0.5)
-        bmap.drawparallels(np.arange( -90, 91,30),labels=[1,0,0,0],zorder=1,dashes=[1000000,1],linewidth=0.5)
-        bmap.drawcoastlines(linewidth=0.5)
-        bmap.colorbar(ax) #,ticks=[0.05,0.1,0.2,0.5,1,2,5,10,15,20])
-        return ax
-
