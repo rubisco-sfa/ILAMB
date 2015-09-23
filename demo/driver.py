@@ -2,11 +2,9 @@
 structures may be used to run the benchmark on the model results
 cateloged in Mingquan's ftp site.
 """
-from ILAMB.GenericConfrontation import GenericConfrontation
+from ILAMB.Confrontation import Confrontation
 from ILAMB.ModelResult import ModelResult
 from ILAMB import ilamblib as il
-import ILAMB.Post as post
-import pylab as plt
 import numpy as np
 import os,time,sys
 from mpi4py import MPI
@@ -57,36 +55,13 @@ clrs = il.GenerateDistinctColors(len(M))
 for m in M:
     clr     = clrs.pop(0)
     m.color = clr
+
+# Get confrontations
+Conf = Confrontation()
     
 # Build work list, ModelResult+Confrontation pairs
 W     = []
-C     = []
-root  = os.environ["ILAMB_ROOT"]+"/DATA"
-C.append(GenericConfrontation("GPPFluxnetGlobalMTE",
-                              root + "/gpp/FLUXNET-MTE/derived/gpp.nc",
-                              "gpp",
-                              regions=args.regions,
-                              cmap="Greens"))
-C.append(GenericConfrontation("PRGPCP2",
-                              root + "/pr/GPCP2/derived/pr.nc",
-                              "pr",
-                              regions=args.regions,
-                              cmap="Blues",
-                              land=True))
-C.append(GenericConfrontation("LEFluxnetSites",
-                              root + "/le/FLUXNET/derived/le.nc",
-                              "hfls",
-                              alternate_vars=["le"],
-                              regions=args.regions,
-                              cmap="Oranges"))
-C.append(GenericConfrontation("LEFluxnetGlobalMTE",
-                              root + "/le/FLUXNET-MTE/derived/le.nc",
-                              "hfls",
-                              alternate_vars=["le"],
-                              regions=args.regions,
-                              cmap="Oranges",
-                              land=True))
-
+C     = Conf.list()
 if args.confront is not None:
     C = [c for c in C if c.name in args.confront]
 if len(C) == 0: sys.exit(0)
@@ -96,6 +71,11 @@ for c in C:
     maxCL = max(maxCL,len(c.name))
     for m in M:
         W.append([m,c])
+
+if rank == 0:
+    print "\nSearching for confrontations...\n"
+    for c in C: 
+        print ("    {0:<%d}" % (maxCL)).format(c.name)
 
 sys.stdout.flush()
 if rank==0: print "\nRunning model-confrontation pairs...\n"
