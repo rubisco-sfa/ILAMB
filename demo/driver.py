@@ -25,8 +25,10 @@ parser.add_argument('--models', dest="models", metavar='m', type=str, nargs='+',
                     help='specify which models to run, list model names with no quotes and only separated by a space.')
 parser.add_argument('--confrontations', dest="confront", metavar='c', type=str, nargs='+',
                     help='specify which confrontations to run, list confrontation names with no quotes and only separated by a space.')
-parser.add_argument('--regions', dest="regions", metavar='m', type=str, nargs='+',
+parser.add_argument('--regions', dest="regions", metavar='r', type=str, nargs='+',
                     help='specify which regions to compute over')
+parser.add_argument('--clean', dest="clean", metavar='c', type=bool, nargs=1, default=False,
+                    help='enable to remove analysis files and recompute')
 args = parser.parse_args()
 
 if args.regions is None: args.regions = ['global.large']
@@ -91,6 +93,9 @@ T0     = time.time()
 for w in localW:
     m,c = w
     t0  = time.time()
+    if os.path.isfile("_build/%s/%s_%s.nc" % (c.name,c.name,m.name)) and args.clean == False:
+        print ("    {0:>%d} {1:>%d} %sUsingCachedData%s " % (maxCL,maxML,OK,ENDC)).format(c.name,m.name)
+        continue
     try:
         c.confront(m)  
         dt = time.time()-t0
