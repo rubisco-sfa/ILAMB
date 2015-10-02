@@ -3,7 +3,7 @@ import os,re
 from netCDF4 import Dataset
 import numpy as np
 
-global_print_node_string = ""
+global_print_node_string  = ""
 global_confrontation_list = []
 
 class Node(object):
@@ -42,7 +42,7 @@ class Node(object):
         self.children.append(node)
 
     def getDepth(self):
-        depth = 0
+        depth  = 0
         parent = self.parent
         while parent is not None:
             depth += 1
@@ -286,59 +286,66 @@ class Confrontation():
         html += """
   </head>
 
-  <body>
-    <h1>Results</h1>
+  <body>"""
 
-    <table>
-      <tbody>
-        <tr class="header">
-          <th style="width:160px"> </th>"""
-        for m in M:
-            html += '\n          <th style="width:80px">%s</th>' % m.name
+        for tree in self.tree.children:
+            html += """
+    <h1>%s</h1>""" % tree.name
+            html += GenerateTable(tree,M)
         html += """
-          <th style="width:20px"></th>
-        </tr>"""
-
-        for cat in self.confrontation.keys():
-            for area in self.confrontation[cat].keys():
-                html += """
-
-        <tr class="parent">
-          <td>%s</td>""" % area
-                for m in M:
-                    html += '\n          <td>1</td>'   # Actually read/compute the overall score somehow
-                html += """
-          <td><div class="arrow"></div></td>
-        </tr>"""
-                for obs in self.confrontation[cat][area]:
-                    html += """
-
-        <tr class="child">
-          <td>&nbsp;&nbsp;&nbsp;<a href="./%s/%s.html">%s</a></td>""" % (obs.name,obs.name,obs.name)
-                    for m in M:
-                        fname = "./_build/%s/%s_%s.nc" % (obs.name,obs.name,m.name)
-                        score = "~"
-                        if os.path.isfile(fname):
-                            data = Dataset(fname)
-                            if "rmse_score_of_hfls_over_global.large" in data.variables.keys():
-                                score = "%0.2f" % data.variables["rmse_score_of_hfls_over_global.large"][...]
-                        html += '\n          <td>%s</td>' % score  
-                    html += """
-          <td></td>
-        </tr>"""
-                    
-        html += """
-      </tbody>
-    </table>
 
 </body>
 </html>"""
 
 
         file(filename,"w").write(html)
+
+def GenerateTable(tree,M):
+
+    categories = tree.children
+    
+    html = """
+    <table>
+      <tr class="header">
+        <th style="width:160px"> </th>"""
+    for m in M:
+        html += '\n        <th style="width:80px">%s</th>' % m.name
+    html += """
+        <th style="width:20px"></th>
+      </tr>"""
+
+    for cat in categories:
+        html += """
+
+      <tr class="parent">
+        <td>%s</td>""" % cat.name
+        for m in M:
+            html += '\n        <td>1</td>'   # Actually read/compute the overall score somehow
+        html += """
+        <td><div class="arrow"></div></td>
+      </tr>"""
+        for obs in cat.children:
+            html += """
+
+      <tr class="child">
+        <td>&nbsp;&nbsp;&nbsp;<a href="./%s/%s.html">%s</a></td>""" % (obs.name,obs.name,obs.name)
+            for m in M:
+                fname = "./_build/%s/%s_%s.nc" % (obs.name,obs.name,m.name)
+                score = "~"
+                if os.path.isfile(fname):
+                    data = Dataset(fname)
+                    if "rmse_score_of_hfls_over_global.large" in data.variables.keys():
+                        score = "%0.2f" % data.variables["rmse_score_of_hfls_over_global.large"][...]
+                html += '\n        <td>%s</td>' % score  
+            html += """
+        <td></td>
+      </tr>"""
+                    
+    html += """
+    </table>"""
+    return html
         
 if __name__ == "__main__":
     C = Confrontation("../../demo/sample.cfg")
-    print C
-    for c in C.list():
-        print c.name
+    
+    print GenerateTable(C.tree.children[0],['a','b','c'])

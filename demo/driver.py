@@ -59,8 +59,8 @@ for m in M:
     m.color = clr
 
 # Get confrontations
-Conf = Confrontation()
-print Conf
+Conf = Confrontation("sample.cfg")
+#print Conf
 
 # Build work list, ModelResult+Confrontation pairs
 W     = []
@@ -94,6 +94,7 @@ T0     = time.time()
 for w in localW:
     m,c = w
     t0  = time.time()
+    continue
     if os.path.isfile("_build/%s/%s_%s.nc" % (c.name,c.name,m.name)) and args.clean == False:
         print ("    {0:>%d} {1:>%d} %sUsingCachedData%s " % (maxCL,maxML,OK,ENDC)).format(c.name,m.name)
         continue
@@ -119,9 +120,9 @@ comm.Barrier()
 if rank==0: print "\nFinishing post-processing which requires collectives...\n"
 
 if rank == 0:
-    Conf.compositeScores(M)
+    #Conf.compositeScores(M)
     Conf.createHtml(M)
-
+sys.exit(1)
 
 for c in C:
 
