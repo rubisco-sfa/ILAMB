@@ -60,7 +60,8 @@ for m in M:
 
 # Get confrontations
 Conf = Confrontation()
-    
+print Conf
+
 # Build work list, ModelResult+Confrontation pairs
 W     = []
 C     = Conf.list()
@@ -117,6 +118,11 @@ sys.stdout.flush()
 comm.Barrier()
 if rank==0: print "\nFinishing post-processing which requires collectives...\n"
 
+if rank == 0:
+    Conf.compositeScores(M)
+    Conf.createHtml(M)
+
+
 for c in C:
 
     # Do on whichever process has the most of the confrontation
@@ -136,7 +142,7 @@ for c in C:
         c.postProcessFromFiles()
         dt = time.time()-t0
         print ("    {0:>%d} %sCompleted%s {1:>5.1f} s" % (maxCL,OK,ENDC)).format(c.name,dt)
-
+        
 sys.stdout.flush()
 comm.Barrier()
 

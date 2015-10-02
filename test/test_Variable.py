@@ -146,7 +146,6 @@ print "%s%s\n" % (head,"-"*(120-len(head)))
 for vdict in variables:
     print vdict["var"]
 
-"""
 test_integrateInTime(variables)
 test_integrateInSpace(variables)
 test_annualCycle(variables)
@@ -154,6 +153,5 @@ test_timeOfExtrema(variables)
 test_interpolate(variables)
 test_phaseShift(variables)
 test_correlation(variables)
-"""
 test_bias(variables)
     

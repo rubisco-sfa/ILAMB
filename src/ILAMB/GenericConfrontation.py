@@ -20,7 +20,9 @@ class GenericConfrontation:
         self.data           = None
         self.cmap           = keywords.get("cmap","jet")
         self.land           = keywords.get("land",False)
-        
+        self.contribution   = keywords.get("contribution",1.0)
+        self.normalized_contribution = 0
+
         # Make sure the source data exists
         try:
             os.stat(self.srcdata)
@@ -32,10 +34,10 @@ class GenericConfrontation:
         
         # Build the output directory (fix for parallel somehow,
         # perhaps a keyword to make this the master?)
-        dirs = self.output_path.split("/")
-        for i,d in enumerate(dirs):
-            dname = "/".join(dirs[:(i+1)])
-            if not os.path.isdir(dname): os.mkdir(dname)
+        #dirs = self.output_path.split("/")
+        #for i,d in enumerate(dirs):
+            #dname = "/".join(dirs[:(i+1)])
+            #if not os.path.isdir(dname): os.mkdir(dname)
 
         # Setup a html layout for generating web views of the results
         self.layout = post.HtmlLayout(self,regions=self.regions)
