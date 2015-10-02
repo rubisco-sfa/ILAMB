@@ -331,7 +331,7 @@ def GenerateTable(tree,M):
             html += """
 
       <tr class="child">
-        <td>&nbsp;&nbsp;&nbsp;<a href="%s/%s.html">%s</a></td>""" % (obs.path.replace("_build/",""),obs.name,obs.name)
+        <td>&nbsp;&nbsp;&nbsp;<a href="%s/%s.html">%s</a>&nbsp;(%.1f%%)</td>""" % (obs.path.replace("_build/",""),obs.name,obs.name,np.round(100.0*obs.normalize_weight,1))
             for m in M:
                 fname = "./_build/%s/%s_%s.nc" % (obs.name,obs.name,m.name)
                 score = "~"
