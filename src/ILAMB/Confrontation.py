@@ -355,7 +355,7 @@ def GenerateTable(tree,M):
     global_html = """
     <table>
       <tr class="header">
-        <th style="width:160px"> </th>"""
+        <th style="width:300px"> </th>"""
     for m in global_model_list:
         global_html += '\n        <th style="width:80px">%s</th>' % m.name
     global_html += """
