@@ -94,7 +94,6 @@ T0     = time.time()
 for w in localW:
     m,c = w
     t0  = time.time()
-    continue
     if os.path.isfile("_build/%s/%s_%s.nc" % (c.name,c.name,m.name)) and args.clean == False:
         print ("    {0:>%d} {1:>%d} %sUsingCachedData%s " % (maxCL,maxML,OK,ENDC)).format(c.name,m.name)
         continue
@@ -120,10 +119,15 @@ comm.Barrier()
 if rank==0: print "\nFinishing post-processing which requires collectives...\n"
 
 if rank == 0:
+    pass
     #Conf.compositeScores(M)
-    Conf.createHtml(M)
-sys.exit(1)
-
+    #Conf.createHtml(M)
+#sys.exit(1)
+for w in localW:
+    m,c = w
+    c.determinePlotLimits()
+    
+"""    
 for c in C:
 
     # Do on whichever process has the most of the confrontation
@@ -143,7 +147,7 @@ for c in C:
         c.postProcessFromFiles()
         dt = time.time()-t0
         print ("    {0:>%d} %sCompleted%s {1:>5.1f} s" % (maxCL,OK,ENDC)).format(c.name,dt)
-        
+"""        
 sys.stdout.flush()
 comm.Barrier()
 

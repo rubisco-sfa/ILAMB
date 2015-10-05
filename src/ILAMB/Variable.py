@@ -641,6 +641,8 @@ class Variable:
             
         V = dataset.createVariable(self.name,"double",dim)
         V.setncattr("units",self.unit)
+        V.setncattr("max",self.data.max())
+        V.setncattr("min",self.data.min())
         V[...] = self.data
 
     def plot(self,ax,**keywords):
@@ -1195,6 +1197,8 @@ def AnalysisFluxrate(obs,mod,regions=['global.large'],dataset=None):
             else:
                 var.toNetCDF4(dataset)
 
+
+                
 if __name__ == "__main__":
     import os
 

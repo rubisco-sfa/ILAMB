@@ -102,12 +102,40 @@ class GenericConfrontation:
         obs,mod = self.stageData(m)
 
         # Open a dataset for recording the results of this confrontation
+        print "%s/%s_%s.nc" % (self.output_path,self.name,m.name)
         results = Dataset("%s/%s_%s.nc" % (self.output_path,self.name,m.name),mode="w")
         results.setncatts({"name" :m.name,
                            "color":m.color})
         AnalysisFluxrate(obs,mod,dataset=results,regions=self.regions)
 
-    def postProcessFromFiles(self):
+
+    def determinePlotLimits(self):
+        """
+        """
+        limits   = {}
+        name_map = {"period_mean":"Period Mean",
+                    "bias_of"    :"Bias",
+                    "rmse_of"    :"RMSE",
+                    "shift_of"   :"Phase Difference",
+                    "bias_score" :"Bias Score",
+                    "rmse_score" :"RMSE Score",
+                    "shift_score":"Seasonal Cycle Score",
+                    "iav_score"  :"Interannual Variability Score",
+                    "sd_score"   :"Spatial Distribution Score"}
+        for fname in glob.glob("%s/*.nc" % self.output_path):
+            dataset   = Dataset(fname)
+            variables = [v for v in dataset.variables.keys() if v not in dataset.dimensions.keys()]
+            for vname in variables:
+                var   = dataset.variables[vname]
+                if not limits.has_key(vname):
+                    limits[vname] = {}
+                    limits[vname]["min"] =  1e20
+                    limits[vname]["max"] = -1e20
+                limits[vname]["min"] = min(limits[vname]["min"],var.getncattr("min"))
+                limits[vname]["max"] = max(limits[vname]["max"],var.getncattr("max"))
+        print limits
+            
+    def postProcessFromFiles(self,m):
         """
         """
         def _UnitStringToMatplotlib(unit):
@@ -119,23 +147,21 @@ class GenericConfrontation:
             for m in match: unit = unit.replace(m,"%s C " % m)
             return unit
 
-        # if LEFT is in the file, then store a metric called RIGHT
-        name_map = {"period_mean":"Period Mean",
-                    "bias_of"    :"Bias",
-                    "rmse_of"    :"RMSE",
-                    "shift_of"   :"Phase Difference",
-                    "bias_score" :"Bias Score",
-                    "rmse_score" :"RMSE Score",
-                    "shift_score":"Seasonal Cycle Score",
-                    "iav_score"  :"Interannual Variability Score",
-                    "sd_score"   :"Spatial Distribution Score"}
+        # If LEFT is in the file, then store a metric called RIGHT
         metrics = {}
-        plots   = {}
         colors  = {}
-        
+
+            
+
+        """
         # Loop over all result files from all models
         for fname in glob.glob("%s/*.nc" % self.output_path):
-
+            f         = Dataset(fname)
+            variables = [v for v in f.variables.keys() if v not in f.dimensions.keys()]
+            for vname in variables:
+                var = Variable(filename=fname,variable_name=vname)
+                
+            
             # Grab a list of variables which are part of this result file
             f         = Dataset(fname)
             variables = [v for v in f.variables.keys() if v not in f.dimensions.keys()]
@@ -185,6 +211,7 @@ class GenericConfrontation:
                     sum_of_weights += self.weight[score]
                 overall_score /= max(sum_of_weights,1e-12)
                 metrics[model][region]["Overall Score"] = Variable(data=overall_score,name="overall_score",unit="-")
+                # save overall score and possibly rewrite it
                 
         # Generate plots and html page
         for pname in plots.keys():
@@ -239,13 +266,13 @@ class GenericConfrontation:
                         fig.savefig("%s/%s_%s_%s.png" % (self.output_path,model,region,name))
                         plt.close()
                     
-                    
+                  
         # Write the html page
         f = file("%s/%s.html" % (self.output_path,self.name),"w")
         self.layout.setMetrics(metrics)
         f.write("%s" % self.layout)
         f.close()
-
+        """
         
 if __name__ == "__main__":
     import os
