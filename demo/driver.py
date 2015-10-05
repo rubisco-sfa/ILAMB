@@ -94,7 +94,7 @@ T0     = time.time()
 for w in localW:
     m,c = w
     t0  = time.time()
-    if os.path.isfile("_build/%s/%s_%s.nc" % (c.name,c.name,m.name)) and args.clean == False:
+    if os.path.isfile("%s/%s_%s.nc" % (c.output_path,c.name,m.name)) and args.clean == False:
         print ("    {0:>%d} {1:>%d} %sUsingCachedData%s " % (maxCL,maxML,OK,ENDC)).format(c.name,m.name)
         continue
     try:

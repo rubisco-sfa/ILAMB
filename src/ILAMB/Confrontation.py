@@ -22,6 +22,7 @@ class Node(object):
         self.alternate_variable = None
         self.land     = False
         self.confrontation = None
+        self.path     = None
         
     def __str__(self):
         if self.parent is None: return ""
@@ -147,11 +148,10 @@ class Confrontation():
                                                           node.variable,
                                                           alternate_vars=[node.alternate_variable],
                                                           regions=regions,
-                                                          cmap=node.colormap)
+                                                          cmap=node.colormap,
+                                                          output_path=node.path)
             except Exception,e:
                 pass
-
-        TraversePreorder(self.tree,_initConfrontation)
 
         def _buildDirectories(node):
             if node.name is None: return
@@ -162,8 +162,11 @@ class Confrontation():
                 parent = parent.parent
             path = "./_build/%s" % path
             if not os.path.isdir(path): os.mkdir(path)
-        if not os.path.isdir("./_build"): os.mkdir("./_build")
+            node.path = path
+            
+        if not os.path.isdir("./_build"): os.mkdir("./_build")        
         TraversePreorder(self.tree,_buildDirectories)
+        TraversePreorder(self.tree,_initConfrontation)
         
     def __str__(self):
         global global_print_node_string
@@ -328,7 +331,7 @@ def GenerateTable(tree,M):
             html += """
 
       <tr class="child">
-        <td>&nbsp;&nbsp;&nbsp;<a href="./%s/%s.html">%s</a></td>""" % (obs.name,obs.name,obs.name)
+        <td>&nbsp;&nbsp;&nbsp;<a href="%s/%s.html">%s</a>&nbsp;(%.1f%%)</td>""" % (obs.path.replace("_build/",""),obs.name,obs.name,np.round(100.0*obs.normalize_weight,1))
             for m in M:
                 fname = "./_build/%s/%s_%s.nc" % (obs.name,obs.name,m.name)
                 score = "~"
