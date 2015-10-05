@@ -1,6 +1,7 @@
 import pylab as plt
 import numpy as np
 from constants import region_names
+import re
 
 def UseLatexPltOptions(fsize=18):
     params = {'axes.titlesize':fsize,
@@ -10,6 +11,16 @@ def UseLatexPltOptions(fsize=18):
               'xtick.labelsize':fsize,
               'ytick.labelsize':fsize}
     plt.rcParams.update(params)
+    
+def UnitStringToMatplotlib(unit,add_carbon=False):
+    # raise exponents using Latex
+    match = re.findall("(-\d)",unit)
+    for m in match: unit = unit.replace(m,"$^{%s}$" % m)
+    # add carbon symbol to all mass units
+    if add_carbon:
+        match = re.findall("(\D*g)",unit)
+        for m in match: unit = unit.replace(m,"%s C " % m)
+    return unit
 
 def GlobalPlot(lat,lon,var,ax,region="global.large",shift=False,**keywords):
     """

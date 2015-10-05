@@ -5,6 +5,7 @@ import numpy as np
 
 global_print_node_string  = ""
 global_confrontation_list = []
+global_model_list         = []
 
 class Node(object):
     
@@ -16,6 +17,7 @@ class Node(object):
         self.sum_weight_children = 0
         self.normalize_weight    = 0
         self.overall_weight      = 0
+        self.score    = 0
         self.source   = None
         self.colormap = "jet"
         self.variable = None
@@ -65,7 +67,8 @@ def PrintNode(node):
 def ConvertTypes(node):
     if node.weight is None: return
     node.weight = float(node.weight)
-        
+    node.land   = bool(node.land)
+    
 def SumWeightChildren(node):
     for child in node.children:
         if child.weight is None:
@@ -183,33 +186,6 @@ class Confrontation():
         global_confrontation_list = []
         TraversePreorder(self.tree,_hasConfrontation)
         return global_confrontation_list
-
-    def compositeScores(self,M):
-
-        scores = {}
-        
-        for cat in self.confrontation.keys():
-            scores[cat] = {}
-            for area in self.confrontation[cat].keys():
-                scores[cat][area] = {}
-                for obs in self.confrontation[cat][area]:
-                    data = np.zeros(len(M))
-                    mask = np.ones (len(M),dtype=bool)
-                    for ind,m in enumerate(M):
-                        fname = "./_build/%s/%s_%s.nc" % (obs.name,obs.name,m.name)
-                        if os.path.isfile(fname):
-                            dset = Dataset(fname)
-                            var  = [v for v in dset.variables.keys() if
-                                    "rmse_score" in v and
-                                    "global.large" in v]
-                            if len(var) == 1:
-                                data[ind] = dset.variables[var[0]][0]
-                                mask[ind] = 0
-                            else:
-                                data[ind] = -999.
-                                mask[ind] = 1
-                    scores[cat][area][obs.name] = np.ma.masked_array(data,mask=mask)
-        
         
     def createHtml(self,M,filename="./_build/index.html"):
         html = r"""
@@ -303,52 +279,91 @@ class Confrontation():
 
         file(filename,"w").write(html)
 
-def GenerateTable(tree,M):
+def CompositeScores(tree,M):
+    global global_model_list
+    global_model_list = M
+    def _loadScores(node):
+        if node.isLeaf():
+            if node.confrontation is None: return
+            data = np.zeros(len(global_model_list))
+            mask = np.ones (len(global_model_list),dtype=bool)
+            for ind,m in enumerate(global_model_list):
+                fname = "%s/%s_%s.nc" % (node.confrontation.output_path,node.confrontation.name,m.name)
+                if os.path.isfile(fname):
+                    dataset = Dataset(fname)
+                    if dataset.variables.has_key("overall_score_over_global"):
+                        data[ind] = dataset.variables["overall_score_over_global"][0]
+                        mask[ind] = 0
+                    else:
+                        data[ind] = -999.
+                        mask[ind] = 1
+                    node.score = np.ma.masked_array(data,mask=mask)
+        else:
+            node.score  = 0
+            sum_weights = 0
+            for child in node.children:
+                node.score  += child.score*child.weight
+                sum_weights += child.weight
+            node.score /= sum_weights
+    TraversePostorder(tree,_loadScores)
 
-    categories = tree.children
+
+global_html = ""
+
+def BuildHTMLTable(tree,M):
+    global global_model_list
+    global_model_list = M
+    def _genHTML(node):
+        global global_html
+        if node.isLeaf():
+            weight = np.round(100.0*node.normalize_weight,1)
+            if node.confrontation is None:
+                global_html += """
+      <tr class="child">
+        <td>&nbsp;&nbsp;&nbsp;%s&nbsp;(%.1f%%)</td>""" % (node.name,weight)
+                for m in global_model_list: global_html += '\n        <td>~</td>'
+            else:
+                c = node.confrontation
+                global_html += """
+      <tr class="child">
+        <td>&nbsp;&nbsp;&nbsp;<a href="%s/%s.html">%s</a>&nbsp;(%.1f%%)</td>""" % (c.output_path.replace("_build/",""),
+                                                                                   c.name,c.name,weight)
+                for ind in range(node.score.size):
+                    global_html += '\n        <td>%.2f</td>' % (node.score[ind])  
+            global_html += """
+        <td></td>
+      </tr>"""
+        else:
+            global_html += """
+      <tr class="parent">
+        <td>%s</td>""" % node.name
+            for ind,m in enumerate(global_model_list):
+                try:
+                    global_html += '\n        <td>%.2f</td>' % (node.score[ind])
+                except:
+                    global_html += '\n        <td>~</td>' 
+            global_html += """
+        <td><div class="arrow"></div></td>
+      </tr>"""
+    TraversePreorder(tree,_genHTML)
     
-    html = """
+def GenerateTable(tree,M):
+    global global_html
+    global global_model_list
+    CompositeScores(tree,M)
+    global_model_list = M
+    global_html = """
     <table>
       <tr class="header">
         <th style="width:160px"> </th>"""
-    for m in M:
-        html += '\n        <th style="width:80px">%s</th>' % m.name
-    html += """
+    for m in global_model_list:
+        global_html += '\n        <th style="width:80px">%s</th>' % m.name
+    global_html += """
         <th style="width:20px"></th>
       </tr>"""
-
-    for cat in categories:
-        html += """
-
-      <tr class="parent">
-        <td>%s</td>""" % cat.name
-        for m in M:
-            html += '\n        <td>1</td>'   # Actually read/compute the overall score somehow
-        html += """
-        <td><div class="arrow"></div></td>
-      </tr>"""
-        for obs in cat.children:
-            html += """
-
-      <tr class="child">
-        <td>&nbsp;&nbsp;&nbsp;<a href="%s/%s.html">%s</a>&nbsp;(%.1f%%)</td>""" % (obs.path.replace("_build/",""),obs.name,obs.name,np.round(100.0*obs.normalize_weight,1))
-            for m in M:
-                fname = "./_build/%s/%s_%s.nc" % (obs.name,obs.name,m.name)
-                score = "~"
-                if os.path.isfile(fname):
-                    data = Dataset(fname)
-                    if "rmse_score_of_hfls_over_global.large" in data.variables.keys():
-                        score = "%0.2f" % data.variables["rmse_score_of_hfls_over_global.large"][...]
-                html += '\n        <td>%s</td>' % score  
-            html += """
-        <td></td>
-      </tr>"""
-                    
-    html += """
+    for cat in tree.children: BuildHTMLTable(cat,M)
+    global_html += """
     </table>"""
-    return html
-        
-if __name__ == "__main__":
-    C = Confrontation("../../demo/sample.cfg")
-    
-    print GenerateTable(C.tree.children[0],['a','b','c'])
+    return global_html
+
+

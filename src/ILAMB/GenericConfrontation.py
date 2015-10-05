@@ -10,7 +10,8 @@ class GenericConfrontation:
     
     def __init__(self,name,srcdata,variable_name,**keywords):
 
-        # Initialize 
+        # Initialize
+        self.master         = False
         self.name           = name
         self.srcdata        = srcdata
         self.variable_name  = variable_name
@@ -20,9 +21,11 @@ class GenericConfrontation:
         self.data           = None
         self.cmap           = keywords.get("cmap","jet")
         self.land           = keywords.get("land",False)
-        self.contribution   = keywords.get("contribution",1.0)
-        self.normalized_contribution = 0
-
+        self.limits         = None
+        self.longname       = self.output_path
+        self.longname       = self.longname.replace("//","/").replace("./","").replace("_build/","")
+        if self.longname[-1] == "/": self.longname = self.longname[:-1]
+        
         # Make sure the source data exists
         try:
             os.stat(self.srcdata)
@@ -47,11 +50,11 @@ class GenericConfrontation:
         
         # Define relative weights of each score in the overall score
         # (FIX: need some way for the user to modify this)
-        self.weight = {"Bias Score"                    :1.,
-                       "RMSE Score"                    :2.,
-                       "Seasonal Cycle Score"          :1.,
-                       "Interannual Variability Score" :1.,
-                       "Spatial Distribution Score"    :1.}
+        self.weight = {"bias_score" :1.,
+                       "rmse_score" :2.,
+                       "shift_score":1.,
+                       "iav_score"  :1.,
+                       "sd_score"   :1.}
 
     def stageData(self,m):
         """
@@ -102,57 +105,106 @@ class GenericConfrontation:
         obs,mod = self.stageData(m)
 
         # Open a dataset for recording the results of this confrontation
-        print "%s/%s_%s.nc" % (self.output_path,self.name,m.name)
         results = Dataset("%s/%s_%s.nc" % (self.output_path,self.name,m.name),mode="w")
-        results.setncatts({"name" :m.name,
-                           "color":m.color})
+        results.setncatts({"name" :m.name, "color":m.color})
         AnalysisFluxrate(obs,mod,dataset=results,regions=self.regions)
-
-
+        
     def determinePlotLimits(self):
         """
+        This is essentially the reduction via datafile
         """
-        limits   = {}
-        name_map = {"period_mean":"Period Mean",
-                    "bias_of"    :"Bias",
-                    "rmse_of"    :"RMSE",
-                    "shift_of"   :"Phase Difference",
-                    "bias_score" :"Bias Score",
-                    "rmse_score" :"RMSE Score",
-                    "shift_score":"Seasonal Cycle Score",
-                    "iav_score"  :"Interannual Variability Score",
-                    "sd_score"   :"Spatial Distribution Score"}
+        limits = {}
         for fname in glob.glob("%s/*.nc" % self.output_path):
             dataset   = Dataset(fname)
             variables = [v for v in dataset.variables.keys() if v not in dataset.dimensions.keys()]
             for vname in variables:
                 var   = dataset.variables[vname]
+                pname = "_".join(vname.split("_")[:2])
+                if var[...].size <= 1: continue
                 if not limits.has_key(vname):
                     limits[vname] = {}
-                    limits[vname]["min"] =  1e20
+                    limits[vname]["min"] = +1e20
                     limits[vname]["max"] = -1e20
                 limits[vname]["min"] = min(limits[vname]["min"],var.getncattr("min"))
                 limits[vname]["max"] = max(limits[vname]["max"],var.getncattr("max"))
-        print limits
-            
+            dataset.close()
+        self.limits = limits
+
+    def computeOverallScore(self,m):
+        """
+        """
+        fname     = "%s/%s_%s.nc" % (self.output_path,self.name,m.name)
+        dataset   = Dataset(fname,mode="r+")
+        variables = [v for v in dataset.variables.keys() if "score" in v and "overall" not in v]
+        scores    = []
+        for v in variables:
+            s = "_".join(v.split("_")[:2])
+            if s not in scores: scores.append(s)
+        for region in self.regions:
+            for v in variables:
+                if region not in v: continue
+                overall_score  = 0.
+                sum_of_weights = 0.    
+                for score in scores:
+                    overall_score  += self.weight[score]*dataset.variables[v][...]
+                    sum_of_weights += self.weight[score]
+                overall_score /= max(sum_of_weights,1e-12)
+            name = "overall_score_over_%s" % region
+            if name in dataset.variables.keys():
+                dataset.variables[name][0] = overall_score
+            else:
+                Variable(data=overall_score,name=name,unit="-").toNetCDF4(dataset)
+        dataset.close()
+        
     def postProcessFromFiles(self,m):
         """
         """
-        def _UnitStringToMatplotlib(unit):
-            # raise exponents using Latex
-            match = re.findall("(-\d)",unit)
-            for m in match: unit = unit.replace(m,"$^{%s}$" % m)
-            # add carbon symbol to all mass units
-            match = re.findall("(\D*g)",unit)
-            for m in match: unit = unit.replace(m,"%s C " % m)
-            return unit
+        fname     = "%s/%s_%s.nc" % (self.output_path,self.name,m.name)
+        dataset   = Dataset(fname)
+        variables = [v for v in dataset.variables.keys() if v not in dataset.dimensions.keys()]
+        color     = dataset.getncattr("color")
+        for vname in variables:
+            
+            # is this a variable we need to plot?
+            pname = vname.split("_")[0]
+            if vname not in self.limits.keys(): continue
+            var = Variable(filename=fname,variable_name=vname)
+            
+            if var.spatial and not var.temporal:
+            
+                # determine plot limits and colormap
+                vmin = self.limits[vname]["min"]
+                vmax = self.limits[vname]["max"]
+                cmap = space_opts[pname]["cmap"]
+                if space_opts[pname]["sym"]:
+                    vabs =  max(abs(vmin),abs(vmax))
+                    vmin = -vabs
+                    vmax =  vabs
+                if cmap == "choose": cmap = self.cmap
+                
+                # plot variable
+                for region in self.regions:
+                    fig = plt.figure(figsize=(6.8,2.8))
+                    ax  = fig.add_axes([0.06,0.025,0.88,0.965])
+                    var.plot(ax,region=region,vmin=vmin,vmax=vmax,cmap=cmap)
+                    fig.savefig("%s/%s_%s_%s.png" % (self.output_path,m.name,region,pname))
+                    plt.close()
 
-        # If LEFT is in the file, then store a metric called RIGHT
-        metrics = {}
-        colors  = {}
+            if not var.spatial and var.temporal:
+
+                # plot variable
+                for region in self.regions:
+                    fig,ax = plt.subplots(figsize=(6.8,2.8),tight_layout=True)
+                    var.plot(ax,lw=2,color=color,label=m.name,
+                             ticks     =time_opts[pname]["ticks"],
+                             ticklabels=time_opts[pname]["ticklabels"])
+                    ylbl = time_opts[pname]["ylabel"]
+                    if ylbl == "unit": ylbl = post.UnitStringToMatplotlib(var.unit)
+                    ax.set_ylabel(ylbl)
+                    fig.savefig("%s/%s_%s_%s.png" % (self.output_path,m.name,region,pname))
+                    plt.close()
 
             
-
         """
         # Loop over all result files from all models
         for fname in glob.glob("%s/*.nc" % self.output_path):
