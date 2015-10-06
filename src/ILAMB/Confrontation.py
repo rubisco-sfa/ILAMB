@@ -25,6 +25,7 @@ class Node(object):
         self.land     = False
         self.confrontation = None
         self.path     = None
+        self.tablecolor = None
         
     def __str__(self):
         if self.parent is None: return ""
@@ -188,6 +189,44 @@ class Confrontation():
         return global_confrontation_list
         
     def createHtml(self,M,filename="./_build/index.html"):
+        
+        from pylab import imsave
+        def _createGradient(c1,c2):
+            if c1.max()>1.: c1/=256.
+            if c2.max()>1.: c2/=256.
+            A = np.zeros((30,1,4))
+            A[ :2,0,:] = c1
+            A[-4:,0,:] = c2
+            for i in range(2,26):
+                a = float(i-2)/23.
+                A[i,0,:] = (1.-a)*c1+a*c2
+            return A
+        path = "/".join(filename.split("/")[:-1]) + "/"
+        image = _createGradient(np.asarray([  0.,105.,181.,256.]),
+                                np.asarray([124.,184.,226.,256.]))
+        imsave(path + "blue_header_bkg.png",image)
+        image = _createGradient(np.asarray([256.,256.,256.,256.]),
+                                np.asarray([200.,222.,239.,256.]))
+        imsave(path + "blue_row_bkg.png",image)
+        image = _createGradient(np.asarray([ 11.,145.,  0.,256.]),
+                                np.asarray([133.,226.,124.,256.]))
+        imsave(path + "green_header_bkg.png",image)
+        image = _createGradient(np.asarray([256.,256.,256.,256.]),
+                                np.asarray([201.,239.,200.,256.]))
+        imsave(path + "green_row_bkg.png",image)         
+        image = _createGradient(np.asarray([181.,  0.,  0.,256.]),
+                                np.asarray([226.,124.,124.,256.]))
+        imsave(path + "red_header_bkg.png",image) 
+        image = _createGradient(np.asarray([256.,256.,256.,256.]),
+                                np.asarray([239.,200.,200.,256.]))
+        imsave(path + "red_row_bkg.png",image) 
+        image = _createGradient(np.asarray([ 90., 90., 90.,256.]),
+                                np.asarray([168.,168.,168.,256.]))
+        imsave(path + "grey_header_bkg.png",image) 
+        image = _createGradient(np.asarray([256.,256.,256.,256.]),
+                                np.asarray([200.,200.,200.,256.]))
+        imsave(path + "grey_row_bkg.png",image) 
+        
         html = r"""
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 <html>
@@ -244,21 +283,58 @@ class Confrontation():
 
       .header {
         border-collapse:collapse;
-        background:#7CB8E2 url(header_bkg.png) repeat-x scroll center left;
         color:#fff;
         padding:7px 15px;
         text-align:left;
       }
       
       .child {
-        background:#C7DDEE none repeat-x scroll center left;
         color:#000;
         padding:7px 15px;
       }
 
       .parent {
-        background:#fff url(row_bkg.png) repeat-x scroll center left;
         cursor:pointer;
+      }
+
+      .hgreen {
+        background:#0B9100 url(green_header_bkg.png) repeat-x scroll center left;
+      }
+      .cgreen {
+        background:#CAEEC7 none repeat-x scroll center left;
+      }
+      .pgreen {
+        background:#fff url(green_row_bkg.png) repeat-x scroll center left;
+      }
+
+      .hblue {
+        background:#0069B5 url(blue_header_bkg.png) repeat-x scroll center left;
+      }
+      .cblue {
+        background:#C7DDEE none repeat-x scroll center left;
+      }
+      .pblue {
+        background:#fff url(blue_row_bkg.png) repeat-x scroll center left;
+      }
+
+      .hred {
+        background:#B50000 url(red_header_bkg.png) repeat-x scroll center left;
+      }
+      .cred {
+        background:#EFC8C8 none repeat-x scroll center left;
+      }
+      .pred {
+        background:#fff url(red_row_bkg.png) repeat-x scroll center left;
+      }
+
+      .hgrey {
+        background:#5A5A5A url(grey_header_bkg.png) repeat-x scroll center left;
+      }
+      .cgrey {
+        background:#C8C8C8 none repeat-x scroll center left;
+      }
+      .pgrey {
+        background:#fff url(grey_row_bkg.png) repeat-x scroll center left;
       }
 
     </style>"""
@@ -309,24 +385,27 @@ def CompositeScores(tree,M):
 
 
 global_html = ""
+global_table_color = ""
 
 def BuildHTMLTable(tree,M):
     global global_model_list
     global_model_list = M
     def _genHTML(node):
         global global_html
+        global global_table_color
         if node.isLeaf():
             weight = np.round(100.0*node.normalize_weight,1)
             if node.confrontation is None:
                 global_html += """
-      <tr class="child">
-        <td>&nbsp;&nbsp;&nbsp;%s&nbsp;(%.1f%%)</td>""" % (node.name,weight)
+      <tr class="child c%s">
+        <td>&nbsp;&nbsp;&nbsp;%s&nbsp;(%.1f%%)</td>""" % (global_table_color,node.name,weight)
                 for m in global_model_list: global_html += '\n        <td>~</td>'
             else:
                 c = node.confrontation
                 global_html += """
-      <tr class="child">
-        <td>&nbsp;&nbsp;&nbsp;<a href="%s/%s.html">%s</a>&nbsp;(%.1f%%)</td>""" % (c.output_path.replace("_build/",""),
+      <tr class="child c%s">
+        <td>&nbsp;&nbsp;&nbsp;<a href="%s/%s.html">%s</a>&nbsp;(%.1f%%)</td>""" % (global_table_color,
+                                                                                   c.output_path.replace("_build/",""),
                                                                                    c.name,c.name,weight)
                 for ind in range(node.score.size):
                     global_html += '\n        <td>%.2f</td>' % (node.score[ind])  
@@ -335,8 +414,8 @@ def BuildHTMLTable(tree,M):
       </tr>"""
         else:
             global_html += """
-      <tr class="parent">
-        <td>%s</td>""" % node.name
+      <tr class="parent p%s">
+        <td>%s</td>""" % (global_table_color,node.name)
             for ind,m in enumerate(global_model_list):
                 try:
                     global_html += '\n        <td>%.2f</td>' % (node.score[ind])
@@ -350,12 +429,14 @@ def BuildHTMLTable(tree,M):
 def GenerateTable(tree,M):
     global global_html
     global global_model_list
+    global global_table_color
     CompositeScores(tree,M)
     global_model_list = M
+    global_table_color = tree.tablecolor
     global_html = """
     <table>
-      <tr class="header">
-        <th style="width:300px"> </th>"""
+      <tr class="header h%s">
+        <th style="width:300px"> </th>""" % (global_table_color)
     for m in global_model_list:
         global_html += '\n        <th style="width:80px">%s</th>' % m.name
     global_html += """
