@@ -226,6 +226,11 @@ class Confrontation():
         image = _createGradient(np.asarray([256.,256.,256.,256.]),
                                 np.asarray([200.,200.,200.,256.]))
         imsave(path + "grey_row_bkg.png",image) 
+        arrows = np.zeros((32,16,4))
+        for i in range(7):
+            arrows[ 4+i,(7-i):(7+i+1),3] = 1
+            arrows[27-i,(7-i):(7+i+1),3] = 1
+        imsave(path + "arrows.png",arrows)
         
         html = r"""
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
