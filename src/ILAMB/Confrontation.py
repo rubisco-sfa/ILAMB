@@ -189,7 +189,8 @@ class Confrontation():
         return global_confrontation_list
         
     def createHtml(self,M,filename="./_build/index.html"):
-        
+
+        # Create html assets
         from pylab import imsave
         def _createGradient(c1,c2):
             if c1.max()>1.: c1/=256.
@@ -303,7 +304,8 @@ class Confrontation():
       }
 
       .hgreen {
-        background:#0B9100 url(green_header_bkg.png) repeat-x scroll center left;
+        background:#C9EFC8 url(green_header_bkg.png) repeat-x scroll center left;
+        background-size: auto 100%;
       }
       .cgreen {
         background:#CAEEC7 none repeat-x scroll center left;
@@ -313,7 +315,8 @@ class Confrontation():
       }
 
       .hblue {
-        background:#0069B5 url(blue_header_bkg.png) repeat-x scroll center left;
+        background:#7CB8E2 url(blue_header_bkg.png) repeat-x scroll center left;
+        background-size: auto 100%;
       }
       .cblue {
         background:#C7DDEE none repeat-x scroll center left;
@@ -323,7 +326,8 @@ class Confrontation():
       }
 
       .hred {
-        background:#B50000 url(red_header_bkg.png) repeat-x scroll center left;
+        background:#EFC8C8 url(red_header_bkg.png) repeat-x scroll center left;
+        background-size: auto 100%;
       }
       .cred {
         background:#EFC8C8 none repeat-x scroll center left;
@@ -333,7 +337,8 @@ class Confrontation():
       }
 
       .hgrey {
-        background:#5A5A5A url(grey_header_bkg.png) repeat-x scroll center left;
+        background:#C8C8C8 url(grey_header_bkg.png) repeat-x scroll center left;
+        background-size: auto 100%;
       }
       .cgrey {
         background:#C8C8C8 none repeat-x scroll center left;
