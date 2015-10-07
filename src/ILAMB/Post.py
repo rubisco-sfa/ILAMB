@@ -337,7 +337,7 @@ class HtmlLayout():
         function clickRow() {
           var header = "%s";
           var CNAME  = "%s";
-          header     = header.replace("CNAME",CNAME);"""  % (self.header,self.c.name)
+          header     = header.replace("CNAME",CNAME);"""  % (self.header,self.c.longname.replace("/"," / "))
         if regions[0] is not '':
             code += """
           var rid    = document.getElementById("region").selectedIndex;

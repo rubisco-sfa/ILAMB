@@ -84,13 +84,32 @@ sys.stdout.flush()
 if rank==0: print "\nRunning model-confrontation pairs...\n"
 comm.Barrier()
 
-# Divide work list and go
+# Divide work list 
 wpp    = float(len(W))/size
 begin  = int(round( rank   *wpp))
 end    = int(round((rank+1)*wpp))
 localW = W[begin:end]
 
-T0     = time.time()
+# Determine who is the master of each confrontation
+for c in C:
+    sendbuf = np.zeros(size,dtype='int')
+    for w in localW:
+        if c is w[1]: sendbuf[rank] += 1
+    recvbuf = None
+    if rank == 0: recvbuf = np.empty([size, sendbuf.size],dtype='int')
+    comm.Gather(sendbuf,recvbuf,root=0)
+    if rank == 0: 
+        numc = recvbuf.sum(axis=1)
+    else:
+        numc = np.empty(size,dtype='int')
+    comm.Bcast(numc,root=0)
+    if rank == numc.argmax():
+        c.master = True
+    else:
+        c.master = False
+
+# Run analysis on your local work model-confrontation pairs
+T0 = time.time()
 for w in localW:
     m,c = w
     t0  = time.time()
@@ -124,13 +143,17 @@ for w in localW:
     t0  = time.time()
     c.determinePlotLimits()
     c.computeOverallScore(m)
-    #c.postProcessFromFiles(m)
+    c.postProcessFromFiles(m)
     dt = time.time()-t0
     print ("    {0:>%d} {1:>%d} %sCompleted%s {2:>5.1f} s" % (maxCL,maxML,OK,ENDC)).format(c.longname,m.name,dt)
     
-"""    
-for c in C:
+sys.stdout.flush()
+comm.Barrier()
 
+for c in C:
+    c.generateHtml()
+ 
+"""
     # Do on whichever process has the most of the confrontation
     sendbuf = np.zeros(size,dtype='int')
     for w in localW:

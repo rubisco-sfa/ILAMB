@@ -63,16 +63,22 @@ convert["hfls"]["W m-2"]      = {"W m-2":1., "J m-2 s-1":1.}
 convert["hfls"]["J m-2 s-1"]  = {"W m-2":1., "J m-2 s-1":1.}
 
 # mass conversions
-convert["g" ] = {"g" :1e+0 ,"kg":1e-3 ,"Kg":1e-3 ,"Pg":1e-15}
-convert["kg"] = {"g" :1e+3 ,"kg":1e+0 ,"Kg":1e+0 ,"Pg":1e-12}
-convert["Kg"] = {"g" :1e+3 ,"kg":1e+0 ,"Kg":1e+0 ,"Pg":1e-12}
-convert["Pg"] = {"g" :1e+15,"kg":1e+12,"Kg":1e+12,"Pg":1e+0 }
+convert["g" ] = {"g" :1e+0 ,"kg":1e-3 ,"Kg":1e-3 ,"Mg":1e-6 ,"Gg":1e-9 ,"Tg": 1e-12,"Pg":1e-15}
+convert["kg"] = {"g" :1e+3 ,"kg":1e+0 ,"Kg":1e+0 ,"Mg":1e-3 ,"Gg":1e-6 ,"Tg": 1e-9, "Pg":1e-12}
+convert["Kg"] = {"g" :1e+3 ,"kg":1e+0 ,"Kg":1e+0 ,"Mg":1e-3 ,"Gg":1e-6 ,"Tg": 1e-9, "Pg":1e-12}
+convert["Mg"] = {"g" :1e+6 ,"kg":1e+3 ,"Kg":1e+3 ,"Mg":1e+0 ,"Gg":1e-3 ,"Tg": 1e-6, "Pg":1e-9 }
+convert["Gg"] = {"g" :1e+9 ,"kg":1e+6 ,"Kg":1e+6 ,"Mg":1e+3 ,"Gg":1e+0 ,"Tg": 1e-3, "Pg":1e-6 }
+convert["Tg"] = {"g" :1e+12,"kg":1e+9 ,"Kg":1e+9 ,"Mg":1e+6 ,"Gg":1e+3 ,"Tg": 1e+0, "Pg":1e-3 }
+convert["Pg"] = {"g" :1e+15,"kg":1e+12,"Kg":1e+12,"Mg":1e+9 ,"Gg":1e+6 ,"Tg": 1e+3, "Pg":1e+0 }
 
 # energy conversions
-convert["J" ] = {"J" :1e+0 ,"kJ":1e-3 ,"KJ":1e-3 ,"PJ":1e-15}
-convert["kJ"] = {"J" :1e+3 ,"kJ":1e+0 ,"KJ":1e+0 ,"PJ":1e-12}
-convert["KJ"] = {"J" :1e+3 ,"kJ":1e+0 ,"KJ":1e+0 ,"PJ":1e-12}
-convert["PJ"] = {"J" :1e+15,"kJ":1e+12,"KJ":1e+12,"PJ":1e+0 }
+convert["J" ] = {"J" :1e+0 ,"kJ":1e-3 ,"KJ":1e-3 ,"MJ":1e-6 ,"JJ":1e-9 ,"TJ": 1e-12,"PJ":1e-15}
+convert["kJ"] = {"J" :1e+3 ,"kJ":1e+0 ,"KJ":1e+0 ,"MJ":1e-3 ,"JJ":1e-6 ,"TJ": 1e-9, "PJ":1e-12}
+convert["KJ"] = {"J" :1e+3 ,"kJ":1e+0 ,"KJ":1e+0 ,"MJ":1e-3 ,"JJ":1e-6 ,"TJ": 1e-9, "PJ":1e-12}
+convert["MJ"] = {"J" :1e+6 ,"kJ":1e+3 ,"KJ":1e+3 ,"MJ":1e+0 ,"JJ":1e-3 ,"TJ": 1e-6, "PJ":1e-9 }
+convert["JJ"] = {"J" :1e+9 ,"kJ":1e+6 ,"KJ":1e+6 ,"MJ":1e+3 ,"JJ":1e+0 ,"TJ": 1e-3, "PJ":1e-6 }
+convert["TJ"] = {"J" :1e+12,"kJ":1e+9 ,"KJ":1e+9 ,"MJ":1e+6 ,"JJ":1e+3 ,"TJ": 1e+0, "PJ":1e-3 }
+convert["PJ"] = {"J" :1e+15,"kJ":1e+12,"KJ":1e+12,"MJ":1e+9 ,"JJ":1e+6 ,"TJ": 1e+3, "PJ":1e+0 }
 convert["W" ] = {"W" :1e+0}
 
 # time conversions

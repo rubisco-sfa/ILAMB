@@ -11,7 +11,7 @@ class GenericConfrontation:
     def __init__(self,name,srcdata,variable_name,**keywords):
 
         # Initialize
-        self.master         = False
+        self.master         = True
         self.name           = name
         self.srcdata        = srcdata
         self.variable_name  = variable_name
@@ -25,6 +25,7 @@ class GenericConfrontation:
         self.longname       = self.output_path
         self.longname       = self.longname.replace("//","/").replace("./","").replace("_build/","")
         if self.longname[-1] == "/": self.longname = self.longname[:-1]
+        self.longname       = "/".join(self.longname.split("/")[1:])
         
         # Make sure the source data exists
         try:
@@ -34,13 +35,6 @@ class GenericConfrontation:
             msg += "%s\n\nbut I cannot find it. " % self.srcdata
             msg += "Did you download the data? Have you set the ILAMB_ROOT envronment variable?\n"
             raise il.MisplacedData(msg)
-        
-        # Build the output directory (fix for parallel somehow,
-        # perhaps a keyword to make this the master?)
-        #dirs = self.output_path.split("/")
-        #for i,d in enumerate(dirs):
-            #dname = "/".join(dirs[:(i+1)])
-            #if not os.path.isdir(dname): os.mkdir(dname)
 
         # Setup a html layout for generating web views of the results
         self.layout = post.HtmlLayout(self,regions=self.regions)
@@ -111,7 +105,7 @@ class GenericConfrontation:
         
     def determinePlotLimits(self):
         """
-        This is essentially the reduction via datafile
+        This is essentially the reduction via datafile. 
         """
         limits = {}
         for fname in glob.glob("%s/*.nc" % self.output_path):
@@ -132,6 +126,7 @@ class GenericConfrontation:
 
     def computeOverallScore(self,m):
         """
+        Done outside analysis such that weights can be changed and analysis need not be rerun
         """
         fname     = "%s/%s_%s.nc" % (self.output_path,self.name,m.name)
         dataset   = Dataset(fname,mode="r+")
@@ -158,25 +153,41 @@ class GenericConfrontation:
         
     def postProcessFromFiles(self,m):
         """
+        Call determinePlotLimits first
+        Html layout gets built in here
         """
         fname     = "%s/%s_%s.nc" % (self.output_path,self.name,m.name)
+        #if self.master and "Primary" not in self.longname: print fname
         dataset   = Dataset(fname)
+        #if self.master and "Primary" not in self.longname: print dataset.variables.keys()
         variables = [v for v in dataset.variables.keys() if v not in dataset.dimensions.keys()]
         color     = dataset.getncattr("color")
         for vname in variables:
+
+            #if self.master and "Primary" not in self.longname: print self.longname,vname
             
             # is this a variable we need to plot?
             pname = vname.split("_")[0]
             if vname not in self.limits.keys(): continue
             var = Variable(filename=fname,variable_name=vname)
             
-            if var.spatial and not var.temporal:
-            
+            if (var.spatial or (var.ndata is not None)) and not var.temporal:
+
+                # grab plotting options
+                opts = space_opts[pname]
+                
+                # add to html layout
+                self.layout.addFigure(opts["section"],
+                                      pname,
+                                      opts["pattern"],
+                                      side   = opts["sidelbl"],
+                                      legend = opts["haslegend"])
+                
                 # determine plot limits and colormap
                 vmin = self.limits[vname]["min"]
                 vmax = self.limits[vname]["max"]
-                cmap = space_opts[pname]["cmap"]
-                if space_opts[pname]["sym"]:
+                cmap = opts["cmap"]
+                if opts["sym"]:
                     vabs =  max(abs(vmin),abs(vmax))
                     vmin = -vabs
                     vmax =  vabs
@@ -190,80 +201,70 @@ class GenericConfrontation:
                     fig.savefig("%s/%s_%s_%s.png" % (self.output_path,m.name,region,pname))
                     plt.close()
 
-            if not var.spatial and var.temporal:
+            if not (var.spatial or (var.ndata is not None)) and var.temporal:
 
+                # grab plotting options
+                opts = time_opts[pname]
+
+                # add to html layout
+                self.layout.addFigure(opts["section"],
+                                      pname,
+                                      opts["pattern"],
+                                      side   = opts["sidelbl"],
+                                      legend = opts["haslegend"])
+                
                 # plot variable
                 for region in self.regions:
                     fig,ax = plt.subplots(figsize=(6.8,2.8),tight_layout=True)
                     var.plot(ax,lw=2,color=color,label=m.name,
-                             ticks     =time_opts[pname]["ticks"],
-                             ticklabels=time_opts[pname]["ticklabels"])
-                    ylbl = time_opts[pname]["ylabel"]
+                             ticks     =opts["ticks"],
+                             ticklabels=opts["ticklabels"])
+                    ylbl = opts["ylabel"]
                     if ylbl == "unit": ylbl = post.UnitStringToMatplotlib(var.unit)
                     ax.set_ylabel(ylbl)
                     fig.savefig("%s/%s_%s_%s.png" % (self.output_path,m.name,region,pname))
                     plt.close()
 
-            
+    def generateHtml(self):
         """
-        # Loop over all result files from all models
+        """
+        # only the master processor needs to do this
+        if not self.master: return
+        #print self.longname,self.layout.figures
+        # build the metric dictionary
+        metrics      = {}
+        metric_names = { "period_mean"   : "Period Mean",
+                         "bias_of"       : "Bias",
+                         "rmse_of"       : "RMSE",
+                         "shift_of"      : "Phase Shift",
+                         "bias_score"    : "Bias Score",
+                         "rmse_score"    : "RMSE Score",
+                         "shift_score"   : "Phase Score",
+                         "iav_score"     : "Interannual Variability Score",
+                         "sd_score"      : "Spatial Distribution Score",
+                         "overall_score" : "Overall Score" }
         for fname in glob.glob("%s/*.nc" % self.output_path):
-            f         = Dataset(fname)
-            variables = [v for v in f.variables.keys() if v not in f.dimensions.keys()]
-            for vname in variables:
-                var = Variable(filename=fname,variable_name=vname)
-                
-            
-            # Grab a list of variables which are part of this result file
-            f         = Dataset(fname)
-            variables = [v for v in f.variables.keys() if v not in f.dimensions.keys()]
-            mname         = f.getncattr("name")
-            colors[mname] = f.getncattr("color")
-            f.close()
-
-            # Loop over all variables. If a scalar is found, add it to
-            # the metrics dictionary for placement in the HTML Google
-            # table we will build. If temporal/spatial/site data is
-            # found, store references to these variables and
-            # compute/store plotting limits.
+            dataset   = Dataset(fname)
+            variables = [v for v in dataset.variables.keys() if v not in dataset.dimensions.keys()]
+            mname     = dataset.getncattr("name")
             metrics[mname] = {}
             for vname in variables:
-                var = Variable(filename=fname,variable_name=vname)
+                if dataset.variables[vname][...].size > 1: continue
+                var  = Variable(filename=fname,variable_name=vname)
+                name = "_".join(var.name.split("_")[:2])
+                if not metric_names.has_key(name): continue
+                metname = metric_names[name]
+                for region in self.regions:
+                    if region not in metrics[mname].keys(): metrics[mname][region] = {}
+                    if region in var.name: metrics[mname][region][metname] = var
 
-                if var.data.size == 1:
-                    # This is a scalar variable and might be something
-                    # we need to put in the metrics dictionary
-                    name = "_".join(var.name.split("_")[:2])
-                    for region in self.regions:
-                        if region not in metrics[mname].keys(): metrics[mname][region] = {}
-                        if region in var.name and var.data.size ==1 and name in name_map.keys():
-                            metrics[mname][region][name_map[name]] = var
-                else:
-                    # This is not a scalar and thus we should make a
-                    # plot. But we need to track the limits across all
-                    # models.
-                    if not plots.has_key(var.name):
-                        plots[var.name] = {}
-                        plots[var.name]["min"] =  1e20
-                        plots[var.name]["max"] = -1e20
-                        plots[var.name]["colorbar"] = True
-                        plots[var.name]["legend"]   = False
-                    plots[var.name]["min"] = min(plots[var.name]["min"],var.data.min())
-                    plots[var.name]["max"] = max(plots[var.name]["max"],var.data.max())
-                    plots[var.name][mname] = var
-
-        # Walk through the metrics dictionary computing the weighted overall scores
-        for model in metrics.keys():
-            for region in metrics[model].keys():
-                overall_score  = 0.
-                sum_of_weights = 0.
-                scores = [s for s in metrics[model][region].keys() if s in self.weight.keys()]
-                for score in scores:
-                    overall_score  += self.weight[score]*metrics[model][region][score].data
-                    sum_of_weights += self.weight[score]
-                overall_score /= max(sum_of_weights,1e-12)
-                metrics[model][region]["Overall Score"] = Variable(data=overall_score,name="overall_score",unit="-")
-                # save overall score and possibly rewrite it
+        # write the HTML page
+        f = file("%s/%s.html" % (self.output_path,self.name),"w")
+        self.layout.setMetrics(metrics)
+        f.write("%s" % self.layout)
+        f.close()      
+            
+        """
                 
         # Generate plots and html page
         for pname in plots.keys():
