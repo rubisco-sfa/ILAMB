@@ -66,9 +66,8 @@ def PrintNode(node):
     global_print_node_string += "%s\n" % (node)
     
 def ConvertTypes(node):
-    if node.weight is None: return
-    node.weight = float(node.weight)
-    node.land   = bool(node.land)
+    if node.weight is not None: node.weight = float(node.weight)
+    node.land = bool(node.land)
     
 def SumWeightChildren(node):
     for child in node.children:
@@ -153,7 +152,8 @@ class Confrontation():
                                                           alternate_vars=[node.alternate_variable],
                                                           regions=regions,
                                                           cmap=node.colormap,
-                                                          output_path=node.path)
+                                                          output_path=node.path,
+                                                          land=node.land)
             except Exception,e:
                 pass
 

@@ -60,7 +60,6 @@ for m in M:
 
 # Get confrontations
 Conf = Confrontation("sample.cfg",regions=args.regions)
-#print Conf
 
 # Build work list, ModelResult+Confrontation pairs
 W     = []
