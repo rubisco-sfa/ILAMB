@@ -945,7 +945,7 @@ class Variable:
                         unit=self.unit,ndata=self.ndata,
                         lat=self.lat,lon=self.lon,area=self.area)
 
-    def spatialDistribution(self,var,region="global.large"):
+    def spatialDistribution(self,var,region="global"):
         """
         UNTESTED
         """
@@ -1063,7 +1063,7 @@ def ScoreSeasonalCycle(phase_shift):
                     lon   = phase_shift.lon,
                     area  = phase_shift.area)
 
-def AnalysisFluxrate(obs,mod,regions=['global.large'],dataset=None):
+def AnalysisFluxrate(obs,mod,regions=['global'],dataset=None):
     """
     UNTESTED
     """
@@ -1202,7 +1202,7 @@ def AnalysisFluxrate(obs,mod,regions=['global.large'],dataset=None):
 if __name__ == "__main__":
     import os
 
-    regions = ['global.large','nhaf']
+    regions = ['global','nhaf']
     
     obs = Variable(filename = os.environ["ILAMB_ROOT"]+"/DATA/gpp/FLUXNET-MTE/derived/gpp.nc",
                    variable_name = "gpp")

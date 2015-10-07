@@ -140,7 +140,7 @@ class Confrontation():
     """
     A class for managing confrontations
     """
-    def __init__(self,filename,regions=["global.large"]):
+    def __init__(self,filename,regions=["global"]):
         
         self.tree = ParseConfrontationConfigureFile(filename)
 

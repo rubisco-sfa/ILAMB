@@ -335,13 +335,13 @@ if __name__ == "__main__":
     gpp = GenericConfrontation("GPPFluxnetGlobalMTE",
                                os.environ["ILAMB_ROOT"]+"/DATA/gpp/FLUXNET-MTE/derived/gpp.nc",
                                "gpp",
-                               regions = ['global.large','amazon'])
+                               regions = ['global','amazon'])
     gpp.confront(m)
     gpp.postProcessFromFiles()
     
     hfls = GenericConfrontation("LEFluxnetSites",os.environ["ILAMB_ROOT"]+"/DATA/le/FLUXNET/derived/le.nc",
                                 "hfls",
                                 alternate_vars = ["le"],
-                                regions = ['global.large','amazon'])
+                                regions = ['global','amazon'])
     hfls.confront(m)
     hfls.postProcessFromFiles()

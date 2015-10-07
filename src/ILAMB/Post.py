@@ -22,7 +22,7 @@ def UnitStringToMatplotlib(unit,add_carbon=False):
         for m in match: unit = unit.replace(m,"%s C " % m)
     return unit
 
-def GlobalPlot(lat,lon,var,ax,region="global.large",shift=False,**keywords):
+def GlobalPlot(lat,lon,var,ax,region="global",shift=False,**keywords):
     """
 
     """

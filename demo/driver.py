@@ -31,7 +31,7 @@ parser.add_argument('--clean', dest="clean", metavar='c', type=bool, nargs=1, de
                     help='enable to remove analysis files and recompute')
 args = parser.parse_args()
 
-if args.regions is None: args.regions = ['global.large']
+if args.regions is None: args.regions = ['global']
 
 # Initialize the models
 M    = []

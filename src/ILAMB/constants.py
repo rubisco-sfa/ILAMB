@@ -90,8 +90,7 @@ convert["y"] = {"s":spy,"d":dpy   ,"y":1.     }
 convert["m"] = {"m":1.}
 
 regions = {}
-regions["global.large"] = ((-89.75, 89.75),(-179.75, 179.75))
-regions["global"]       = ((-60.25, 80.25),(-179.75, 179.75))
+regions["global"]       = ((-89.75, 89.75),(-179.75, 179.75))
 regions["amazon"]       = ((-12.25,  6.75),(- 75.25,- 50.25))
 regions["alaska"]       = (( 50.25, 75.25),(-170.25,-130.25))
 regions["australia"]    = ((-50.25,-10.25),( 100.25, 160.25))
@@ -130,7 +129,7 @@ region_names = {"global":"global",
 
 four_code_regions = []
 for key in regions.keys():
-    if len(key) == 4 or key == "global.large": four_code_regions.append(key)
+    if len(key) == 4 or key == "global": four_code_regions.append(key)
     
 NCARclrs = asarray([[93,0,135],
                     [196,0,43],
