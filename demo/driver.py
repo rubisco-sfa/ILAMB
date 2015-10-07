@@ -106,7 +106,7 @@ for c in C:
         c.master = True
     else:
         c.master = False
-
+        
 # Run analysis on your local work model-confrontation pairs
 T0 = time.time()
 for w in localW:
@@ -137,10 +137,14 @@ comm.Barrier()
 
 if rank==0: print "\nFinishing post-processing which requires collectives...\n"
 
+sys.stdout.flush()
+comm.Barrier()
+
+for c in C: c.determinePlotLimits() # only confrontations on my processor
+
 for w in localW:
     m,c = w
     t0  = time.time()
-    c.determinePlotLimits()
     c.computeOverallScore(m)
     c.postProcessFromFiles(m)
     dt = time.time()-t0
@@ -149,28 +153,8 @@ for w in localW:
 sys.stdout.flush()
 comm.Barrier()
 
-for c in C:
-    c.generateHtml()
+for c in C: c.generateHtml()
  
-"""
-    # Do on whichever process has the most of the confrontation
-    sendbuf = np.zeros(size,dtype='int')
-    for w in localW:
-        if c.name == w[1].name: sendbuf[rank] += 1
-    recvbuf = None
-    if rank == 0: recvbuf = np.empty([size, sendbuf.size],dtype='int')
-    comm.Gather(sendbuf,recvbuf,root=0)
-    if rank == 0: 
-        numc = recvbuf.sum(axis=1)
-    else:
-        numc = np.empty(size,dtype='int')
-    comm.Bcast(numc,root=0)
-    if rank == numc.argmax():
-        t0  = time.time()
-        c.postProcessFromFiles()
-        dt = time.time()-t0
-        print ("    {0:>%d} %sCompleted%s {1:>5.1f} s" % (maxCL,OK,ENDC)).format(c.name,dt)
-"""        
 sys.stdout.flush()
 comm.Barrier()
 

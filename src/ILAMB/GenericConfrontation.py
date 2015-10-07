@@ -106,24 +106,57 @@ class GenericConfrontation:
     def determinePlotLimits(self):
         """
         This is essentially the reduction via datafile. 
+        Plot legends.
         """
-        limits = {}
+
+        # Determine the min/max of variables over all models
+        limits      = {}
         for fname in glob.glob("%s/*.nc" % self.output_path):
             dataset   = Dataset(fname)
             variables = [v for v in dataset.variables.keys() if v not in dataset.dimensions.keys()]
             for vname in variables:
                 var   = dataset.variables[vname]
-                pname = "_".join(vname.split("_")[:2])
+                pname = vname.split("_")[0]
                 if var[...].size <= 1: continue
-                if not limits.has_key(vname):
-                    limits[vname] = {}
-                    limits[vname]["min"] = +1e20
-                    limits[vname]["max"] = -1e20
-                limits[vname]["min"] = min(limits[vname]["min"],var.getncattr("min"))
-                limits[vname]["max"] = max(limits[vname]["max"],var.getncattr("max"))
+                if not space_opts.has_key(pname): continue
+                if not limits.has_key(pname):
+                    limits[pname] = {}
+                    limits[pname]["min"]  = +1e20
+                    limits[pname]["max"]  = -1e20
+                    limits[pname]["unit"] = post.UnitStringToMatplotlib(var.getncattr("units"))
+                limits[pname]["min"] = min(limits[pname]["min"],var.getncattr("min"))
+                limits[pname]["max"] = max(limits[pname]["max"],var.getncattr("max"))
             dataset.close()
-        self.limits = limits
 
+        # Second pass to plot legends
+        for pname in limits.keys():
+            opts = space_opts[pname]
+
+            # Determine plot limits and colormap
+            if opts["sym"]:
+                vabs =  max(abs(limits[pname]["min"]),abs(limits[pname]["min"]))
+                limits[pname]["min"] = -vabs
+                limits[pname]["max"] =  vabs
+            limits[pname]["cmap"] = opts["cmap"]
+            if limits[pname]["cmap"] == "choose": limits[pname]["cmap"] = self.cmap
+
+            # Plot a legend for each key
+            if opts["haslegend"]:
+                fig,ax = plt.subplots(figsize=(6.8,1.0),tight_layout=True)
+                label  = opts["label"]
+                if label == "unit": label = limits[pname]["unit"]
+                post.ColorBar(ax,
+                              vmin = limits[pname]["min"],
+                              vmax = limits[pname]["max"],
+                              cmap = limits[pname]["cmap"],
+                              ticks = opts["ticks"],
+                              ticklabels = opts["ticklabels"],
+                              label = label)
+                fig.savefig("%s/legend_%s.png" % (self.output_path,pname))
+                plt.close()
+        
+        self.limits = limits
+        
     def computeOverallScore(self,m):
         """
         Done outside analysis such that weights can be changed and analysis need not be rerun
@@ -157,18 +190,14 @@ class GenericConfrontation:
         Html layout gets built in here
         """
         fname     = "%s/%s_%s.nc" % (self.output_path,self.name,m.name)
-        #if self.master and "Primary" not in self.longname: print fname
         dataset   = Dataset(fname)
-        #if self.master and "Primary" not in self.longname: print dataset.variables.keys()
         variables = [v for v in dataset.variables.keys() if v not in dataset.dimensions.keys()]
         color     = dataset.getncattr("color")
         for vname in variables:
-
-            #if self.master and "Primary" not in self.longname: print self.longname,vname
             
             # is this a variable we need to plot?
             pname = vname.split("_")[0]
-            if vname not in self.limits.keys(): continue
+            if pname not in self.limits.keys(): continue
             var = Variable(filename=fname,variable_name=vname)
             
             if (var.spatial or (var.ndata is not None)) and not var.temporal:
@@ -183,21 +212,16 @@ class GenericConfrontation:
                                       side   = opts["sidelbl"],
                                       legend = opts["haslegend"])
                 
-                # determine plot limits and colormap
-                vmin = self.limits[vname]["min"]
-                vmax = self.limits[vname]["max"]
-                cmap = opts["cmap"]
-                if opts["sym"]:
-                    vabs =  max(abs(vmin),abs(vmax))
-                    vmin = -vabs
-                    vmax =  vabs
-                if cmap == "choose": cmap = self.cmap
                 
                 # plot variable
                 for region in self.regions:
                     fig = plt.figure(figsize=(6.8,2.8))
                     ax  = fig.add_axes([0.06,0.025,0.88,0.965])
-                    var.plot(ax,region=region,vmin=vmin,vmax=vmax,cmap=cmap)
+                    var.plot(ax,
+                             region = region,
+                             vmin   = self.limits[pname]["min"],
+                             vmax   = self.limits[pname]["max"],
+                             cmap   = self.limits[pname]["cmap"])
                     fig.savefig("%s/%s_%s_%s.png" % (self.output_path,m.name,region,pname))
                     plt.close()
 
@@ -230,7 +254,7 @@ class GenericConfrontation:
         """
         # only the master processor needs to do this
         if not self.master: return
-        #print self.longname,self.layout.figures
+        
         # build the metric dictionary
         metrics      = {}
         metric_names = { "period_mean"   : "Period Mean",
@@ -263,70 +287,7 @@ class GenericConfrontation:
         self.layout.setMetrics(metrics)
         f.write("%s" % self.layout)
         f.close()      
-            
-        """
-                
-        # Generate plots and html page
-        for pname in plots.keys():
-            plot   = plots[pname]
-            models = plots[pname].keys()
-            models.remove("max"); models.remove("min"); models.remove("colorbar"); models.remove("legend")
-            for model in models:
-                var  = plot[model]
-                name = var.name.split("_")[0]
-
-                # spatial plotting
-                if (var.spatial or var.ndata is not None) and name in space_opts.keys():
-                    vmin = plot["min"]
-                    vmax = plot["max"]
-                    opts = space_opts[name]
-                    cmap = self.cmap
-                    if opts["cmap"] != "choose": cmap = opts["cmap"]
-                    self.layout.addFigure(opts["section"],name,opts["pattern"],
-                                          side=opts["sidelbl"],legend=opts["haslegend"])
-                    if opts["sym"]:
-                        vabs =  max(abs(plot["min"]),abs(plot["max"]))
-                        vmin = -vabs
-                        vmax =  vabs
-                    if not plot["legend"] and opts["haslegend"]:
-                        plot["legend"] = True
-                        fig,ax = plt.subplots(figsize=(6.8,1.0),tight_layout=True)
-                        label = opts["label"]
-                        if label == "unit": label =_UnitStringToMatplotlib(var.unit)
-                        post.ColorBar(ax,vmin=vmin,vmax=vmax,cmap=cmap,ticks=opts["ticks"],
-                                      ticklabels=opts["ticklabels"],label=label)
-                        fig.savefig("%s/legend_%s.png" % (self.output_path,name))
-                        plt.close()
-                    for region in self.regions:
-                        fig = plt.figure(figsize=(6.8,2.8))
-                        ax  = fig.add_axes([0.06,0.025,0.88,0.965])
-                        var.plot(ax,region=region,vmin=vmin,vmax=vmax,cmap=cmap)
-                        fig.savefig("%s/%s_%s_%s.png" % (self.output_path,model,region,name))
-                        plt.close()
-
-                # temporal plotting
-                if var.temporal and name in time_opts.keys():
-                    opts = time_opts[name]
-                    self.layout.addFigure(opts["section"],name,opts["pattern"],
-                                          side=opts["sidelbl"],legend=opts["haslegend"])
-                    for region in self.regions:
-                        fig,ax = plt.subplots(figsize=(6.8,2.8),tight_layout=True)
-                        var.plot(ax,lw=2,color=colors[model],label=model,ticks=opts["ticks"],
-                                 ticklabels=opts["ticklabels"])
-                        ylbl = opts["ylabel"]
-                        if ylbl == "unit": ylbl = _UnitStringToMatplotlib(var.unit)
-                        ax.set_ylabel(ylbl)
-                        fig.savefig("%s/%s_%s_%s.png" % (self.output_path,model,region,name))
-                        plt.close()
-                    
-                  
-        # Write the html page
-        f = file("%s/%s.html" % (self.output_path,self.name),"w")
-        self.layout.setMetrics(metrics)
-        f.write("%s" % self.layout)
-        f.close()
-        """
-        
+           
 if __name__ == "__main__":
     import os
     from ModelResult import ModelResult
