@@ -153,7 +153,9 @@ for w in localW:
 sys.stdout.flush()
 comm.Barrier()
 
-for c in C: c.generateHtml()
+for c in C:
+    c.generateHtml()
+    sys.stdout.flush()
  
 sys.stdout.flush()
 comm.Barrier()

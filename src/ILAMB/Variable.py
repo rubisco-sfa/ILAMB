@@ -1063,7 +1063,7 @@ def ScoreSeasonalCycle(phase_shift):
                     lon   = phase_shift.lon,
                     area  = phase_shift.area)
 
-def AnalysisFluxrate(obs,mod,regions=['global'],dataset=None):
+def AnalysisFluxrate(obs,mod,regions=['global'],dataset=None,benchmark_dataset=None):
     """
     UNTESTED
     """
@@ -1118,6 +1118,8 @@ def AnalysisFluxrate(obs,mod,regions=['global'],dataset=None):
     # Perform analysis over regions. We will store these in
     # dictionaries of variables where the keys are the region names.
     obs_period_mean = {}
+    obs_mean_cycle  = {}
+    obs_spaceint    = {}
     mod_period_mean = {}
     mod_mean_cycle  = {}
     mod_spaceint    = {}
@@ -1132,6 +1134,8 @@ def AnalysisFluxrate(obs,mod,regions=['global'],dataset=None):
 
             # Compute the scalar integral over the specified region.
             obs_period_mean[region] = obs_timeint    .integrateInSpace(region=region)
+            obs_mean_cycle [region] = obs_cycle      .integrateInSpace(region=region,mean=True)
+            obs_spaceint   [region] = obs            .integrateInSpace(region=region,mean=True)
             mod_period_mean[region] = mod_timeint    .integrateInSpace(region=region)
             
             # Compute the scalar means over the specified region.
@@ -1154,6 +1158,8 @@ def AnalysisFluxrate(obs,mod,regions=['global'],dataset=None):
             
             # Compute the scalar period mean over sites in the specified region.
             obs_period_mean[region],junk = obs_timeint    .siteStats(region=region)
+            obs_mean_cycle [region],junk = obs_cycle      .siteStats(region=region)
+            obs_spaceint   [region],junk = obs            .siteStats(region=region)
             mod_period_mean[region],junk = mod_timeint    .siteStats(region=region)
             bias           [region],junk = bias_map       .siteStats(region=region)
             rmse           [region],junk = rmse_map       .siteStats(region=region)
@@ -1169,6 +1175,9 @@ def AnalysisFluxrate(obs,mod,regions=['global'],dataset=None):
         std[region],R[region],sd_score[region] = obs_timeint.spatialDistribution(mod_timeint,region=region)
         
         # Change variable names to make things easier to parse later.
+        obs_period_mean[region].name = "period_mean_of_%s_over_%s" % (obs.name,region)
+        obs_mean_cycle [region].name = "cycle_of_%s_over_%s"       % (obs.name,region)
+        obs_spaceint   [region].name = "spaceint_of_%s_over_%s"    % (obs.name,region)
         mod_period_mean[region].name = "period_mean_of_%s_over_%s" % (obs.name,region)
         bias           [region].name = "bias_of_%s_over_%s"        % (obs.name,region)
         rmse           [region].name = "rmse_of_%s_over_%s"        % (obs.name,region)
@@ -1182,8 +1191,10 @@ def AnalysisFluxrate(obs,mod,regions=['global'],dataset=None):
         mod_spaceint   [region].name = "spaceint_of_%s_over_%s"    % (obs.name,region)
         
     # More variable name changes
+    obs_timeint.name  = "timeint_of_%s"   % obs.name
     mod_timeint.name  = "timeint_of_%s"   % obs.name
     bias_map.name     = "bias_map_of_%s"  % obs.name
+    obs_maxt_map.name = "phase_map_of_%s" % obs.name
     mod_maxt_map.name = "phase_map_of_%s" % obs.name
     shift_map.name    = "shift_map_of_%s" % obs.name
     
@@ -1196,8 +1207,14 @@ def AnalysisFluxrate(obs,mod,regions=['global'],dataset=None):
                 for key in var.keys(): var[key].toNetCDF4(dataset)
             else:
                 var.toNetCDF4(dataset)
+    if benchmark_dataset is not None:
+        for var in [obs_period_mean,obs_timeint,obs_maxt_map,obs_mean_cycle,obs_spaceint]:
+            if type(var) == type({}):
+                for key in var.keys(): var[key].toNetCDF4(benchmark_dataset)
+            else:
+                var.toNetCDF4(benchmark_dataset)
 
-
+    
                 
 if __name__ == "__main__":
     import os

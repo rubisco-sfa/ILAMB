@@ -11,7 +11,7 @@ def UseLatexPltOptions(fsize=18):
               'xtick.labelsize':fsize,
               'ytick.labelsize':fsize}
     plt.rcParams.update(params)
-    
+
 def UnitStringToMatplotlib(unit,add_carbon=False):
     # raise exponents using Latex
     match = re.findall("(-\d)",unit)
@@ -93,7 +93,7 @@ def TaylorDiagram(stddev,corrcoef,refstd,fig,colors,normalize=True):
 
     # define transform
     tr = PolarAxes.PolarTransform()
-    
+
     # correlation labels
     rlocs = np.concatenate((np.arange(10)/10.,[0.95,0.99]))
     tlocs = np.arccos(rlocs)
@@ -120,7 +120,7 @@ def TaylorDiagram(stddev,corrcoef,refstd,fig,colors,normalize=True):
     ax.axis["top"].toggle(ticklabels=True,label=True)
     ax.axis["top"].major_ticklabels.set_axis_direction("top")
     ax.axis["top"].label.set_axis_direction("top")
-    ax.axis["top"].label.set_text("Correlation")    
+    ax.axis["top"].label.set_text("Correlation")
     ax.axis["left"].set_axis_direction("bottom")
     if normalize:
         ax.axis["left"].label.set_text("Normalized standard deviation")
@@ -160,7 +160,7 @@ class HtmlFigure():
         self.pattern = pattern
         self.side    = side
         self.legend  = legend
-
+        
     def generateClickRow(self):
         name = self.pattern
         for token in ['CNAME','MNAME','RNAME']:
@@ -171,30 +171,30 @@ class HtmlFigure():
         code = """
           document.getElementById('%s').src =  %s""" % (self.name,name)
         return code
-        
+
     def __str__(self):
 
         code = """
         <div class="outer" id="%s_div">""" % (self.name)
         if self.side is not None:
             code += """
-	      <div class="inner rotate">%s</div>""" % (self.side.replace(" ","&nbsp;"))
+              <div class="inner rotate">%s</div>""" % (self.side.replace(" ","&nbsp;"))
         code += """
-	      <div class="second"><img src="" id="%s" width=680 alt="Data not available"></img></div>""" % (self.name)
+              <div class="second"><img src="" id="%s" width=680 alt="Data not available"></img></div>""" % (self.name)
         if self.legend:
             if self.side is not None:
                 code += """
-	      <div class="inner rotate"> </div>"""
+              <div class="inner rotate"> </div>"""
             code += """
-	      <div class="second"><img src="legend_%s.png" id="leg" width=680 alt="Data not available"></img></div>""" % (self.name)
+              <div class="second"><img src="legend_%s.png" id="leg" width=680 alt="Data not available"></img></div>""" % (self.name)
         code += """
         </div><br>"""
         return code
 
 class HtmlLayout():
-    
+
     def __init__(self,c,regions=None):
-        
+
         self.c        = c
         self.metrics  = None
         self.regions  = regions
@@ -202,28 +202,28 @@ class HtmlLayout():
         self.header   = "CNAME"
         self.figures  = {}
         self.sections = None
-
-    def setSections(self,sections):
         
+    def setSections(self,sections):
+
         assert type(sections) == type([])
         self.sections = sections
         for section in sections: self.figures[section] = []
-        
+
     def addFigure(self,section,name,pattern,side=None,legend=False):
-        
+
         assert section in self.sections
         for fig in self.figures[section]:
             if fig.name == name: return
         self.figures[section].append(HtmlFigure(name,pattern,side=side,legend=legend))
-        
+
     def setHeader(self,header):
-        
+
         self.header = header
 
     def setMetrics(self,metrics):
 
         self.metrics = metrics
-        
+
     def generateMetricTable(self):
 
         # Local function to find how deep the metric dictionary goes
@@ -247,26 +247,31 @@ class HtmlLayout():
         # Convenience redefinition
         c       = self.c
         metrics = self.metrics
-        
+
         # Grab the data
         models  = metrics.keys()
         regions = self.regions
         if regions is None: regions = ['']
         data = []
-        for model in models:            
+        for model in models:
             if _findDictDepth(metrics) == 2:
                 for key in metrics[model].keys():
                     if data.count(key) == 0: data.append(key)
             else:
                 for region in regions:
+                    if not metrics[model].has_key(region): continue
                     for key in metrics[model][region].keys():
                         if data.count(key) == 0: data.append(key)
 
         # Sorts
         models.sort(key=lambda key: key.upper())
+        try:
+            models.insert(0,models.pop(models.index("Benchmark")))
+        except:
+            pass
         regions.sort()
         data.sort(key=_sortMetrics)
-        
+
         # Generate the Google DataTable Javascript code
         code = """
     <script type="text/javascript" src="https://www.google.com/jsapi"></script>
@@ -281,11 +286,11 @@ class HtmlLayout():
             for header in data:
                 metric = None
                 if region == '':
-                    if header in metrics[models[0]]:
-                        metric = metrics[models[0]][header]
+                    if header in metrics[models[1]]:
+                        metric = metrics[models[1]][header]
                 else:
-                    if header in metrics[models[0]][region]:              
-                        metric = metrics[models[0]][region][header]
+                    if header in metrics[models[1]][region]:
+                        metric = metrics[models[1]][region][header]
                 if metric is None:
                     metric_name = ""
                     metric_unit = ""
@@ -301,13 +306,13 @@ class HtmlLayout():
           ['%s','<a href="%s_%s.nc" download>[-]</a>'""" % (model,c.name,model)
             for region in regions:
                 for header in data:
-                    value = ", "
+                    value = ", null"
                     if region == '':
-                        if header in metrics[models[0]]:
-                            value = ",%.03f" % metrics[model][header].data
+                        assert False
                     else:
-                        if header in metrics[models[0]][region]:  
-                            value = ",%.03f" % metrics[model][region][header].data
+                        if metrics[model].has_key(region):
+                            if header in metrics[model][region]:
+                                value = ",%.03f" % metrics[model][region][header].data
                     code += value
             code += "],"
         code += """
@@ -358,7 +363,7 @@ class HtmlLayout():
             for section in self.sections:
                 for figure in self.figures[section]:
                     code += figure.generateClickRow()
-        
+
         code += """
         }
         google.visualization.events.addListener(table, 'select', clickRow);
@@ -366,17 +371,17 @@ class HtmlLayout():
         clickRow();
       }
     </script>"""
-    
+
         return code
 
     def __str__(self):
-
+        
         def _sortFigures(figure,priority=["timeint","bias","phase","shift"]):
             val = 1.
             for i,pname in enumerate(priority):
                 if pname in figure.name: val += 2**i
             return val
-        
+
         # Open the html and head
         code = """<html>
   <head>"""
@@ -396,7 +401,7 @@ class HtmlLayout():
 
         # Add Google table of metrics
         code += self.generateMetricTable()
-        
+
         # Add a CSS style I will use for vertical labels
         code += """
     <style type="text/css">
@@ -435,7 +440,7 @@ class HtmlLayout():
         # Page header
         code += """
       <div id="header" data-role="header" data-position="fixed" data-tap-toggle="false">
-	<h1><span id="header_txt"></span></h1>
+        <h1><span id="header_txt"></span></h1>
       </div>"""
 
         # Add optional regions pulldown
@@ -467,10 +472,10 @@ class HtmlLayout():
                     code += "%s" % (figure)
                 code += """
       </div>"""
-                
+
         # End the first and html page
         code += """
     </div>
   </body>
-</html>""" 
+</html>"""
         return code

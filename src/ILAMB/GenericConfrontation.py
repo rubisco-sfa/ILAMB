@@ -7,7 +7,7 @@ import Post as post
 import pylab as plt
 
 class GenericConfrontation:
-    
+
     def __init__(self,name,srcdata,variable_name,**keywords):
 
         # Initialize
@@ -26,7 +26,7 @@ class GenericConfrontation:
         self.longname       = self.longname.replace("//","/").replace("./","").replace("_build/","")
         if self.longname[-1] == "/": self.longname = self.longname[:-1]
         self.longname       = "/".join(self.longname.split("/")[1:])
-        
+
         # Make sure the source data exists
         try:
             os.stat(self.srcdata)
@@ -41,7 +41,7 @@ class GenericConfrontation:
         self.layout.setHeader("CNAME / RNAME / MNAME")
         self.layout.setSections(["Temporally integrated period mean",
                                  "Spatially integrated regional mean"])
-        
+
         # Define relative weights of each score in the overall score
         # (FIX: need some way for the user to modify this)
         self.weight = {"bias_score" :1.,
@@ -86,7 +86,7 @@ class GenericConfrontation:
                                           copy=False)
         mod.convert(obs.unit)
         return obs,mod
-        
+
     def confront(self,m):
         r"""Confronts the input model with the observational data.
 
@@ -101,11 +101,16 @@ class GenericConfrontation:
         # Open a dataset for recording the results of this confrontation
         results = Dataset("%s/%s_%s.nc" % (self.output_path,self.name,m.name),mode="w")
         results.setncatts({"name" :m.name, "color":m.color})
-        AnalysisFluxrate(obs,mod,dataset=results,regions=self.regions)
-        
+        benchmark_results = None
+        fname = "%s/%s_Benchmark.nc" % (self.output_path,self.name)
+        if self.master and not os.path.isfile(fname):
+            benchmark_results = Dataset(fname,mode="w")
+            benchmark_results.setncatts({"name" :"Benchmark", "color":np.asarray([0.5,0.5,0.5])})
+        AnalysisFluxrate(obs,mod,dataset=results,regions=self.regions,benchmark_dataset=benchmark_results)
+
     def determinePlotLimits(self):
         """
-        This is essentially the reduction via datafile. 
+        This is essentially the reduction via datafile.
         Plot legends.
         """
 
@@ -154,9 +159,9 @@ class GenericConfrontation:
                               label = label)
                 fig.savefig("%s/legend_%s.png" % (self.output_path,pname))
                 plt.close()
-        
+
         self.limits = limits
-        
+
     def computeOverallScore(self,m):
         """
         Done outside analysis such that weights can be changed and analysis need not be rerun
@@ -172,7 +177,7 @@ class GenericConfrontation:
             for v in variables:
                 if region not in v: continue
                 overall_score  = 0.
-                sum_of_weights = 0.    
+                sum_of_weights = 0.
                 for score in scores:
                     overall_score  += self.weight[score]*dataset.variables[v][...]
                     sum_of_weights += self.weight[score]
@@ -183,7 +188,7 @@ class GenericConfrontation:
             else:
                 Variable(data=overall_score,name=name,unit="-").toNetCDF4(dataset)
         dataset.close()
-        
+
     def postProcessFromFiles(self,m):
         """
         Call determinePlotLimits first
@@ -194,25 +199,25 @@ class GenericConfrontation:
         variables = [v for v in dataset.variables.keys() if v not in dataset.dimensions.keys()]
         color     = dataset.getncattr("color")
         for vname in variables:
-            
+
             # is this a variable we need to plot?
             pname = vname.split("_")[0]
             if pname not in self.limits.keys(): continue
             var = Variable(filename=fname,variable_name=vname)
-            
+
             if (var.spatial or (var.ndata is not None)) and not var.temporal:
 
                 # grab plotting options
                 opts = space_opts[pname]
-                
+
                 # add to html layout
                 self.layout.addFigure(opts["section"],
                                       pname,
                                       opts["pattern"],
                                       side   = opts["sidelbl"],
                                       legend = opts["haslegend"])
-                
-                
+
+
                 # plot variable
                 for region in self.regions:
                     fig = plt.figure(figsize=(6.8,2.8))
@@ -236,7 +241,7 @@ class GenericConfrontation:
                                       opts["pattern"],
                                       side   = opts["sidelbl"],
                                       legend = opts["haslegend"])
-                
+
                 # plot variable
                 for region in self.regions:
                     fig,ax = plt.subplots(figsize=(6.8,2.8),tight_layout=True)
@@ -254,7 +259,7 @@ class GenericConfrontation:
         """
         # only the master processor needs to do this
         if not self.master: return
-        
+
         # build the metric dictionary
         metrics      = {}
         metric_names = { "period_mean"   : "Period Mean",
@@ -281,13 +286,13 @@ class GenericConfrontation:
                 for region in self.regions:
                     if region not in metrics[mname].keys(): metrics[mname][region] = {}
                     if region in var.name: metrics[mname][region][metname] = var
-
+                    
         # write the HTML page
         f = file("%s/%s.html" % (self.output_path,self.name),"w")
         self.layout.setMetrics(metrics)
-        f.write("%s" % self.layout)
-        f.close()      
-           
+        f.write(str(self.layout))
+        f.close()
+
 if __name__ == "__main__":
     import os
     from ModelResult import ModelResult
@@ -299,7 +304,7 @@ if __name__ == "__main__":
                                regions = ['global','amazon'])
     gpp.confront(m)
     gpp.postProcessFromFiles()
-    
+
     hfls = GenericConfrontation("LEFluxnetSites",os.environ["ILAMB_ROOT"]+"/DATA/le/FLUXNET/derived/le.nc",
                                 "hfls",
                                 alternate_vars = ["le"],
