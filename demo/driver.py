@@ -155,6 +155,7 @@ comm.Barrier()
 
 for c in C:
     c.generateHtml()
+    c.compositePlots()
     sys.stdout.flush()
  
 sys.stdout.flush()

@@ -189,11 +189,39 @@ class GenericConfrontation:
                 Variable(data=overall_score,name=name,unit="-").toNetCDF4(dataset)
         dataset.close()
 
+    def compositePlots(self):
+        """
+        """
+        if not self.master: return
+        models = []
+        colors = []
+        corr   = {}
+        std    = {}
+        for fname in glob.glob("%s/*.nc" % self.output_path):
+            if "Benchmark" in fname: continue
+            dataset   = Dataset(fname)
+            models.append(dataset.getncattr("name"))
+            colors.append(dataset.getncattr("color"))
+            for region in self.regions:
+                if not std. has_key(region): std [region] = []
+                if not corr.has_key(region): corr[region] = []
+                ckey = [v for v in dataset.variables.keys() if ("corr_" in v and region in v)]
+                skey = [v for v in dataset.variables.keys() if ("std_"  in v and region in v)]
+                assert len(ckey) == 1; assert len(skey) == 1
+                corr[region].append(Variable(filename=fname,variable_name=ckey[0]).data.data)
+                std [region].append(Variable(filename=fname,variable_name=skey[0]).data.data)
+        for region in self.regions:
+            fig = plt.figure(figsize=(6.0,6.0))
+            post.TaylorDiagram(np.asarray(std[region]),np.asarray(corr[region]),1.0,fig,colors)
+            fig.savefig("%s/%s_spatial_variance.png" % (self.output_path,region))
+            plt.close()
+            
     def postProcessFromFiles(self,m):
         """
         Call determinePlotLimits first
         Html layout gets built in here
         """
+        bname     = "%s/%s_Benchmark.nc" % (self.output_path,self.name)
         fname     = "%s/%s_%s.nc" % (self.output_path,self.name,m.name)
         dataset   = Dataset(fname)
         variables = [v for v in dataset.variables.keys() if v not in dataset.dimensions.keys()]
@@ -202,12 +230,13 @@ class GenericConfrontation:
 
             # is this a variable we need to plot?
             pname = vname.split("_")[0]
-            if pname not in self.limits.keys(): continue
+            if dataset.variables[vname][...].size <= 1: continue
             var = Variable(filename=fname,variable_name=vname)
-
+            
             if (var.spatial or (var.ndata is not None)) and not var.temporal:
 
                 # grab plotting options
+                if pname not in self.limits.keys(): continue
                 opts = space_opts[pname]
 
                 # add to html layout
@@ -231,6 +260,9 @@ class GenericConfrontation:
                     plt.close()
 
             if not (var.spatial or (var.ndata is not None)) and var.temporal:
+                
+                # grab the benchmark dataset to plot along with
+                obs = Variable(filename=bname,variable_name=vname)
 
                 # grab plotting options
                 opts = time_opts[pname]
@@ -244,7 +276,9 @@ class GenericConfrontation:
 
                 # plot variable
                 for region in self.regions:
+                    if region not in vname: continue
                     fig,ax = plt.subplots(figsize=(6.8,2.8),tight_layout=True)
+                    obs.plot(ax,lw=2,color='k',alpha=0.5)
                     var.plot(ax,lw=2,color=color,label=m.name,
                              ticks     =opts["ticks"],
                              ticklabels=opts["ticklabels"])

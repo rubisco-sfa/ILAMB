@@ -131,7 +131,11 @@ def TaylorDiagram(stddev,corrcoef,refstd,fig,colors,normalize=True):
     ax.axis["right"].major_ticklabels.set_axis_direction("left")
     ax.axis["bottom"].set_visible(False)
     ax.grid(True)
+    
     ax = ax.get_aux_axes(tr)
+    # Plot data
+    for i in range(len(corrcoef)):
+        ax.plot(np.arccos(corrcoef[i]),stddev[i],'o',color=colors[i],mew=0,ms=10)
 
     # Add reference point and stddev contour
     l, = ax.plot([0],refstd,'k*',ms=12,mew=0)
@@ -146,9 +150,6 @@ def TaylorDiagram(stddev,corrcoef,refstd,fig,colors,normalize=True):
     contours = ax.contour(ts,rs,rms,5,colors='k',alpha=0.4)
     ax.clabel(contours,fmt='%1.1f')
 
-    # Plot data
-    for i in range(len(corrcoef)):
-        ax.plot(np.arccos(corrcoef[i]),stddev[i],'o',color=colors[i],mew=0,ms=10)
 
     return ax
 

@@ -1189,6 +1189,8 @@ def AnalysisFluxrate(obs,mod,regions=['global'],dataset=None,benchmark_dataset=N
         sd_score       [region].name = "sd_score_of_%s_over_%s"    % (obs.name,region)
         mod_mean_cycle [region].name = "cycle_of_%s_over_%s"       % (obs.name,region)
         mod_spaceint   [region].name = "spaceint_of_%s_over_%s"    % (obs.name,region)
+        std            [region].name = "std_of_%s_over_%s"         % (obs.name,region)
+        R              [region].name = "corr_of_%s_over_%s"        % (obs.name,region)
         
     # More variable name changes
     obs_timeint.name  = "timeint_of_%s"   % obs.name
@@ -1201,7 +1203,7 @@ def AnalysisFluxrate(obs,mod,regions=['global'],dataset=None,benchmark_dataset=N
     # optionally dump results to a NetCDF file
     if dataset is not None:
         for var in [mod_period_mean,bias,rmse,shift,bias_score,rmse_score,shift_score,iav_score,sd_score,
-                    mod_timeint,bias_map,mod_maxt_map,shift_map,
+                    mod_timeint,bias_map,mod_maxt_map,shift_map,std,R,
                     mod_mean_cycle,mod_spaceint]:
             if type(var) == type({}):
                 for key in var.keys(): var[key].toNetCDF4(dataset)
