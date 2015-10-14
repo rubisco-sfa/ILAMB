@@ -135,7 +135,7 @@ def TaylorDiagram(stddev,corrcoef,refstd,fig,colors,normalize=True):
     ax = ax.get_aux_axes(tr)
     # Plot data
     for i in range(len(corrcoef)):
-        ax.plot(np.arccos(corrcoef[i]),stddev[i],'o',color=colors[i],mew=0,ms=10)
+        ax.plot(np.arccos(corrcoef[i]),stddev[i],'o',color=colors[i],mew=0,ms=8)
 
     # Add reference point and stddev contour
     l, = ax.plot([0],refstd,'k*',ms=12,mew=0)
@@ -181,13 +181,13 @@ class HtmlFigure():
             code += """
               <div class="inner rotate">%s</div>""" % (self.side.replace(" ","&nbsp;"))
         code += """
-              <div class="second"><img src="" id="%s" width=680 alt="Data not available"></img></div>""" % (self.name)
+              <div class="second"><img src="" id="%s" alt="Data not available"></img></div>""" % (self.name)
         if self.legend:
             if self.side is not None:
                 code += """
               <div class="inner rotate"> </div>"""
             code += """
-              <div class="second"><img src="legend_%s.png" id="leg" width=680 alt="Data not available"></img></div>""" % (self.name)
+              <div class="second"><img src="legend_%s.png" id="leg"  alt="Data not available"></img></div>""" % (self.name)
         code += """
         </div><br>"""
         return code
@@ -377,7 +377,7 @@ class HtmlLayout():
 
     def __str__(self):
         
-        def _sortFigures(figure,priority=["timeint","bias","phase","shift"]):
+        def _sortFigures(figure,priority=["timeint","bias","phase","shift","spatial_variance","spaceint","cycle","compcycle"]):
             val = 1.
             for i,pname in enumerate(priority):
                 if pname in figure.name: val += 2**i

@@ -197,25 +197,71 @@ class GenericConfrontation:
         colors = []
         corr   = {}
         std    = {}
+        cycle  = {}
         for fname in glob.glob("%s/*.nc" % self.output_path):
-            if "Benchmark" in fname: continue
-            dataset   = Dataset(fname)
+            dataset = Dataset(fname)
             models.append(dataset.getncattr("name"))
             colors.append(dataset.getncattr("color"))
             for region in self.regions:
-                if not std. has_key(region): std [region] = []
-                if not corr.has_key(region): corr[region] = []
-                ckey = [v for v in dataset.variables.keys() if ("corr_" in v and region in v)]
-                skey = [v for v in dataset.variables.keys() if ("std_"  in v and region in v)]
-                assert len(ckey) == 1; assert len(skey) == 1
-                corr[region].append(Variable(filename=fname,variable_name=ckey[0]).data.data)
-                std [region].append(Variable(filename=fname,variable_name=skey[0]).data.data)
+                if not std.  has_key(region): std  [region] = []
+                if not corr. has_key(region): corr [region] = []
+                if not cycle.has_key(region): cycle[region] = []
+                key = [v for v in dataset.variables.keys() if ("corr_" in v and region in v)]
+                if len(key)>0: corr [region].append(Variable(filename=fname,variable_name=key[0]).data.data)
+                key = [v for v in dataset.variables.keys() if ("std_"  in v and region in v)]
+                if len(key)>0: std  [region].append(Variable(filename=fname,variable_name=key[0]).data.data)
+                key = [v for v in dataset.variables.keys() if ("cycle_"  in v and region in v)]
+                if len(key)>0: cycle[region].append(Variable(filename=fname,variable_name=key[0]))
+                
+        # composite annual cycle plot
+        self.layout.addFigure("Spatially integrated regional mean",
+                              "compcycle",
+                              "RNAME_compcycle.png",
+                              side   = "CYCLES",
+                              legend = True)
+        for region in self.regions:
+            fig,ax = plt.subplots(figsize=(6.8,2.8),tight_layout=True)
+            for name,color,var in zip(models,colors,cycle[region]):
+                var.plot(ax,lw=2,color=color,label=name,
+                         ticks      = time_opts["cycle"]["ticks"],
+                         ticklabels = time_opts["cycle"]["ticklabels"])
+                ylbl = time_opts["cycle"]["ylabel"]
+                if ylbl == "unit": ylbl = post.UnitStringToMatplotlib(var.unit)
+            fig.savefig("%s/%s_compcycle.png" % (self.output_path,region))
+            plt.close()
+
+        # plot legends with model colors (sorted with Benchmark data on top)
+        def _alphabeticalBenchmarkFirst(key):
+            key = key[0].upper()
+            if key == "BENCHMARK": return 0
+            return key
+        tmp = sorted(zip(models,colors),key=_alphabeticalBenchmarkFirst)
+        fig,ax = plt.subplots()
+        for model,color in tmp:
+            ax.plot(0,0,'o',mew=0,ms=8,color=color,label=model)
+        handles,labels = ax.get_legend_handles_labels()
+        plt.close()
+        fig,ax = plt.subplots(figsize=(6.8,2.8),tight_layout=True)
+        ax.legend(handles,labels,loc="upper left",ncol=3,fontsize=10,numpoints=1)
+        ax.axis('off')
+        fig.savefig("%s/legend_compcycle.png" % self.output_path)
+        fig.savefig("%s/legend_spatial_variance.png" % self.output_path)
+        plt.close()
+        
+        # spatial distribution Taylor plot
+        self.layout.addFigure("Temporally integrated period mean",
+                              "spatial_variance",
+                              "RNAME_spatial_variance.png",
+                              side   = "SPATIAL DISTRIBUTION",
+                              legend = True)       
+        colors.pop(models.index("Benchmark"))
         for region in self.regions:
             fig = plt.figure(figsize=(6.0,6.0))
             post.TaylorDiagram(np.asarray(std[region]),np.asarray(corr[region]),1.0,fig,colors)
             fig.savefig("%s/%s_spatial_variance.png" % (self.output_path,region))
             plt.close()
-            
+
+        
     def postProcessFromFiles(self,m):
         """
         Call determinePlotLimits first
@@ -245,7 +291,6 @@ class GenericConfrontation:
                                       opts["pattern"],
                                       side   = opts["sidelbl"],
                                       legend = opts["haslegend"])
-
 
                 # plot variable
                 for region in self.regions:
