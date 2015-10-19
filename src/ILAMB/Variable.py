@@ -43,7 +43,11 @@ def FromNetCDF4(filename,variable_name,alternate_vars=[]):
         Number of data sites this data represents
 
     """
-    f         = Dataset(filename,mode="r")
+    try:
+        f = Dataset(filename,mode="r")
+    except RuntimeError:
+        raise RuntimeError("Unable to open the file: %s" % filename)
+        
     found     = False
     if variable_name in f.variables.keys():
         found = True

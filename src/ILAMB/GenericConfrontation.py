@@ -55,6 +55,7 @@ class GenericConfrontation:
         """
         # Read in the data, and perform consistency checks depending
         # on the data types found
+        print "Staging data of %s-%s" % (self.longname,m.name)
         if self.data is None:
             obs = Variable(filename=self.srcdata,variable_name=self.variable_name,alternate_vars=self.alternate_vars)
             self.data = obs
@@ -77,9 +78,9 @@ class GenericConfrontation:
             end   = np.argmin(np.abs(var.time-tf))+1
             var.time = var.time[begin:end]
             var.data = var.data[begin:end,...]
-        assert obs.time.shape == mod.time.shape       # same number of times
-        assert np.allclose(obs.time,mod.time,atol=14) # same times +- two weeks
-        assert obs.ndata == mod.ndata                 # same number of datasites
+
+        if obs.time.shape != mod.time.shape or obs.ndata != mod.ndata: raise il.VarNotOnTimeScale()
+        if not np.allclose(obs.time,mod.time,atol=14): raise il.VarsNotComparable()
         if self.land and mod.spatial:
             mod.data = np.ma.masked_array(mod.data,
                                           mask=mod.data.mask+(mod.area<1e-2)[np.newaxis,:,:],
