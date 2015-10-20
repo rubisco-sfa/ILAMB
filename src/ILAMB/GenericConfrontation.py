@@ -71,17 +71,16 @@ class GenericConfrontation:
                                       lons         = obs.lon,
                                       initial_time = obs.time[ 0],
                                       final_time   = obs.time[-1])
-        
-        t0 = max(obs.time[ 0],mod.time[ 0])
-        tf = min(obs.time[-1],mod.time[-1])
-        for var in [obs,mod]:
-            begin = np.argmin(np.abs(var.time-t0))
-            end   = np.argmin(np.abs(var.time-tf))+1
-            var.time = var.time[begin:end]
-            var.data = var.data[begin:end,...]
-        if obs.time.shape != mod.time.shape or obs.ndata != mod.ndata: raise il.VarNotOnTimeScale()
-        print np.abs(obs.time-mod.time)
-        if not np.allclose(obs.time,mod.time,atol=14): raise il.VarsNotComparable()
+        if obs.time.shape != mod.time.shape:
+            t0 = max(obs.time[ 0],mod.time[ 0])
+            tf = min(obs.time[-1],mod.time[-1])
+            for var in [obs,mod]:
+                begin = np.argmin(np.abs(var.time-t0))
+                end   = np.argmin(np.abs(var.time-tf))+1
+                var.time = var.time[begin:end]
+                var.data = var.data[begin:end,...]
+        if obs.time.shape != mod.time.shape: raise il.VarNotOnTimeScale()
+        if not np.allclose(obs.time,mod.time,atol=20): raise il.VarsNotComparable()
         if self.land and mod.spatial:
             mod.data = np.ma.masked_array(mod.data,
                                           mask=mod.data.mask+(mod.area<1e-2)[np.newaxis,:,:],
@@ -108,12 +107,12 @@ class GenericConfrontation:
         if self.master and not os.path.isfile(fname):
             benchmark_results = Dataset(fname,mode="w")
             benchmark_results.setncatts({"name" :"Benchmark", "color":np.asarray([0.5,0.5,0.5])})
-        try:
-            AnalysisFluxrate(obs,mod,dataset=results,regions=self.regions,benchmark_dataset=benchmark_results)
-        except:
-            results.close()
-            os.system("rm -f %s/%s_%s.nc" % (self.output_path,self.name,m.name))
-            raise il.AnalysisError()
+        #try:
+        AnalysisFluxrate(obs,mod,dataset=results,regions=self.regions,benchmark_dataset=benchmark_results)
+        #except:
+        #    results.close()
+        #    os.system("rm -f %s/%s_%s.nc" % (self.output_path,self.name,m.name))
+        #    raise il.AnalysisError()
         
     def determinePlotLimits(self):
         """

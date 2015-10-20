@@ -513,6 +513,7 @@ class Variable:
         """
         try:
             Units.conform(self.data,Units(self.unit),Units(unit),inplace=True)
+            self.unit = unit
         except:
             raise il.UnitConversionError()
         return self

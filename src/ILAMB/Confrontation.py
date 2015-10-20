@@ -417,8 +417,11 @@ def BuildHTMLTable(tree,M):
         <td>&nbsp;&nbsp;&nbsp;<a href="%s/%s.html">%s</a>&nbsp;(%.1f%%)</td>""" % (global_table_color,
                                                                                    c.output_path.replace("_build/",""),
                                                                                    c.name,c.name,weight)
-                for ind in range(node.score.size):
-                    global_html += '\n        <td>%.2f</td>' % (node.score[ind])  
+                if type(node.score) == type(np.empty(1)):
+                    for ind in range(node.score.size):
+                        global_html += '\n        <td>%.2f</td>' % (node.score[ind])
+                else:
+                    global_html += '\n        <td>%.2f</td>' % (node.score)  
             global_html += """
         <td></td>
       </tr>"""

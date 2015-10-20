@@ -59,7 +59,7 @@ for m in M:
     m.color = clr
 
 # Get confrontations
-Conf = Confrontation("sample.cfg",regions=args.regions)
+Conf = Confrontation("clm.cfg",regions=args.regions)
 
 # Build work list, ModelResult+Confrontation pairs
 W     = []
