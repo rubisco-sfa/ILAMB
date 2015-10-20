@@ -4,6 +4,7 @@ import ilamblib as il
 from constants import spd,dpy,mid_months,convert,regions as ILAMBregions
 import Post as post
 from copy import deepcopy
+from cfunits import Units
 
 import pylab as plt ### FIX: only import what I need
 
@@ -85,7 +86,7 @@ def FromNetCDF4(filename,variable_name,alternate_vars=[]):
         data = len(f.dimensions[data_name])
         # if we have data sites, there may be lat/lon data to come
         # along with them although not a dimension of the variable
-        for key in f.dimensions.keys():
+        for key in f.variables.keys():
             if "lat" in key: lat_name = key
             if "lon" in key: lon_name = key
         if lat_name is not None: lat = f.variables[lat_name][...]
@@ -472,7 +473,7 @@ class Variable:
             bnds[0]    = max(x[0] -0.5*(x[ 1]-x[ 0]),-180)
             bnds[-1]   = min(x[-1]+0.5*(x[-1]-x[-2]),+180)
             return bnds
-        assert var.unit == self.unit
+        assert Units(var.unit) == Units(self.unit)
         assert self.temporal == False
         assert self.ndata    == var.ndata
         # Perform a check on the spatial grid. If it is the exact same
@@ -499,18 +500,7 @@ class Variable:
         return diff
 
     def convert(self,unit):
-        """Incomplete attempt to handle unit conversions.
-
-        The following is an incomplete attempt to handle unit
-        conversions. It was thought out to handle conversions of
-        "powers" (e.g. Pg to g) or time conversions (e.g. seconds to
-        days). This depends on units being specified in the following
-        way:
-
-        kg m-2 s-1
-
-        where no division or parenthesis is used.
-
+        """
         Parameter
         ---------
         unit : str
@@ -521,33 +511,10 @@ class Variable:
         self : ILAMB.Variable.Variable
             this object with its unit converted
         """
-        def _parseToken(t):
-            power = 1.
-            denom = False
-            if "-" in t:
-                t     = t.split("-")
-                power = float(t[-1])
-                denom = True
-                t     = t[0]
-            return t,denom,power
-        stoken = self.unit.split(" ")
-        ttoken =      unit.split(" ")
-        fct    = 1.0
-        for s in stoken:
-            s,sdenom,spower = _parseToken(s)
-            found = False
-            for t in ttoken:
-                t,tdenom,tpower = _parseToken(t)
-                if convert[s].has_key(t):
-                    found = True
-                    if sdenom: 
-                        fct /= convert[s][t]**spower
-                    else:
-                        fct *= convert[s][t]**spower
-                if found: break
-            assert found==True
-        self.data *= fct
-        self.unit  = unit
+        try:
+            Units.conform(self.data,Units(self.unit),Units(unit),inplace=True)
+        except:
+            raise il.UnitConversionError()
         return self
     
     def toNetCDF4(self,dataset):
@@ -1071,7 +1038,7 @@ def AnalysisFluxrate(obs,mod,regions=['global'],dataset=None,benchmark_dataset=N
     """
     UNTESTED
     """
-    assert obs.unit == mod.unit
+    assert Units(obs.unit) == Units(mod.unit)
     spatial = obs.spatial
     
     # Integrate in time and divide through by the time period. We need

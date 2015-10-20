@@ -55,12 +55,12 @@ class GenericConfrontation:
         """
         # Read in the data, and perform consistency checks depending
         # on the data types found
-        print "Staging data of %s-%s" % (self.longname,m.name)
         if self.data is None:
             obs = Variable(filename=self.srcdata,variable_name=self.variable_name,alternate_vars=self.alternate_vars)
             self.data = obs
         else:
             obs = self.data
+        if obs.time is None: raise il.NotTemporalVariable()
         if obs.spatial:
             mod = m.extractTimeSeries(self.variable_name,
                                       initial_time = obs.time[ 0],
@@ -71,6 +71,7 @@ class GenericConfrontation:
                                       lons         = obs.lon,
                                       initial_time = obs.time[ 0],
                                       final_time   = obs.time[-1])
+        
         t0 = max(obs.time[ 0],mod.time[ 0])
         tf = min(obs.time[-1],mod.time[-1])
         for var in [obs,mod]:
@@ -78,8 +79,8 @@ class GenericConfrontation:
             end   = np.argmin(np.abs(var.time-tf))+1
             var.time = var.time[begin:end]
             var.data = var.data[begin:end,...]
-
         if obs.time.shape != mod.time.shape or obs.ndata != mod.ndata: raise il.VarNotOnTimeScale()
+        print np.abs(obs.time-mod.time)
         if not np.allclose(obs.time,mod.time,atol=14): raise il.VarsNotComparable()
         if self.land and mod.spatial:
             mod.data = np.ma.masked_array(mod.data,
@@ -107,8 +108,13 @@ class GenericConfrontation:
         if self.master and not os.path.isfile(fname):
             benchmark_results = Dataset(fname,mode="w")
             benchmark_results.setncatts({"name" :"Benchmark", "color":np.asarray([0.5,0.5,0.5])})
-        AnalysisFluxrate(obs,mod,dataset=results,regions=self.regions,benchmark_dataset=benchmark_results)
-
+        try:
+            AnalysisFluxrate(obs,mod,dataset=results,regions=self.regions,benchmark_dataset=benchmark_results)
+        except:
+            results.close()
+            os.system("rm -f %s/%s_%s.nc" % (self.output_path,self.name,m.name))
+            raise il.AnalysisError()
+        
     def determinePlotLimits(self):
         """
         This is essentially the reduction via datafile.
@@ -168,7 +174,10 @@ class GenericConfrontation:
         Done outside analysis such that weights can be changed and analysis need not be rerun
         """
         fname     = "%s/%s_%s.nc" % (self.output_path,self.name,m.name)
-        dataset   = Dataset(fname,mode="r+")
+        try:
+            dataset   = Dataset(fname,mode="r+")
+        except:
+            return
         variables = [v for v in dataset.variables.keys() if "score" in v and "overall" not in v]
         scores    = []
         for v in variables:
@@ -221,6 +230,7 @@ class GenericConfrontation:
                               side   = "CYCLES",
                               legend = True)
         for region in self.regions:
+            if not cycle.has_key(region): continue
             fig,ax = plt.subplots(figsize=(6.8,2.8),tight_layout=True)
             for name,color,var in zip(models,colors,cycle[region]):
                 var.plot(ax,lw=2,color=color,label=name,
@@ -255,8 +265,11 @@ class GenericConfrontation:
                               "RNAME_spatial_variance.png",
                               side   = "SPATIAL DISTRIBUTION",
                               legend = True)       
-        colors.pop(models.index("Benchmark"))
+        if "Benchmark" in models: colors.pop(models.index("Benchmark"))
         for region in self.regions:
+            if not (std.has_key(region) and corr.has_key(region)): continue
+            if len(std[region]) != len(corr[region]): continue
+            if len(std[region]) == 0: continue
             fig = plt.figure(figsize=(6.0,6.0))
             post.TaylorDiagram(np.asarray(std[region]),np.asarray(corr[region]),1.0,fig,colors)
             fig.savefig("%s/%s_spatial_variance.png" % (self.output_path,region))
@@ -270,7 +283,10 @@ class GenericConfrontation:
         """
         bname     = "%s/%s_Benchmark.nc" % (self.output_path,self.name)
         fname     = "%s/%s_%s.nc" % (self.output_path,self.name,m.name)
-        dataset   = Dataset(fname)
+        try:
+            dataset   = Dataset(fname)
+        except:
+            return
         variables = [v for v in dataset.variables.keys() if v not in dataset.dimensions.keys()]
         color     = dataset.getncattr("color")
         for vname in variables:

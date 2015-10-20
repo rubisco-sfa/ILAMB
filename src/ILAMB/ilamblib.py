@@ -7,35 +7,42 @@ from scipy.stats.mstats import mode
 # Define some ILAMB-specific exceptions
 
 class VarNotInFile(Exception):
-    pass
-
+    def __str__(self): return "VarNotInFile"
+    
 class VarNotMonthly(Exception):
-    pass
+    def __str__(self): return "VarNotMonthly"
 
 class VarNotInModel(Exception):
-    pass
+    def __str__(self): return "VarNotInModel"
 
 class VarsNotComparable(Exception):
-    pass
+    def __str__(self): return "VarsNotComparable"
 
 class VarNotOnTimeScale(Exception):
-    pass
+    def __str__(self): return "VarNotOnTimeScale"
 
 class UnknownUnit(Exception):
-    pass
+    def __str__(self): return "UnknownUnit"
 
 class AreasNotInModel(Exception):
-    pass
+    def __str__(self): return "AreasNotInModel"
 
 class MisplacedData(Exception):
-    pass
+    def __str__(self): return "MisplacedData"
 
 class NotTemporalVariable(Exception):
-    pass
+    def __str__(self): return "NotTemporalVariable"
 
 class NotSpatialVariable(Exception):
-    pass
+    def __str__(self): return "NotSpatialVariable"
 
+class UnitConversionError(Exception):
+    def __str__(self): return "UnitConversionError"
+
+class AnalysisError(Exception):
+    def __str__(self): return "AnalysisError"
+
+    
 def GenerateDistinctColors(N,saturation=0.67,value=0.67):
     r"""Generates a series of distinct colors.
 
@@ -83,6 +90,7 @@ def _convertCalendar(t):
     cal  = "noleap"
     unit = t.units.replace("No. of ","")
     data = t[:]
+    if type(data) == type(np.ma.empty(0)): data.data[data.mask] = 0
     if "calendar" in t.ncattrs(): cal = t.calendar
     if "year" in t.units: 
         data *= 365.

@@ -35,7 +35,7 @@ if args.regions is None: args.regions = ['global']
 
 # Initialize the models
 M    = []
-root = "%s/MODELS/CMIP5" % (os.environ["ILAMB_ROOT"])
+root = "%s/MODELS/CLM" % (os.environ["ILAMB_ROOT"])
 if rank == 0: print "\nSearching for model results in %s...\n" % root
 maxML = 0
 for subdir, dirs, files in os.walk(root):
@@ -119,19 +119,18 @@ for w in localW:
         c.confront(m)  
         dt = time.time()-t0
         print ("    {0:>%d} {1:>%d} %sCompleted%s {2:>5.1f} s" % (maxCL,maxML,OK,ENDC)).format(c.longname,m.name,dt)
-    except il.VarNotInModel:
-        print ("    {0:>%d} {1:>%d} %sVarNotInModel%s" % (maxCL,maxML,FAIL,ENDC)).format(c.longname,m.name)
-        continue
-    except il.AreasNotInModel:
-        print ("    {0:>%d} {1:>%d} %sAreasNotInModel%s" % (maxCL,maxML,FAIL,ENDC)).format(c.longname,m.name)
-        continue
-    except il.VarNotMonthly:
-        print ("    {0:>%d} {1:>%d} %sVarNotMonthly%s" % (maxCL,maxML,FAIL,ENDC)).format(c.longname,m.name)
-        continue
-    except il.VarNotOnTimeScale:
-        print ("    {0:>%d} {1:>%d} %sVarNotOnTimeScale%s" % (maxCL,maxML,FAIL,ENDC)).format(c.longname,m.name)
-        continue
 
+    except (il.VarNotInModel,
+            il.AreasNotInModel,
+            il.VarNotMonthly,
+            il.VarNotOnTimeScale,
+            il.NotTemporalVariable,
+            il.UnitConversionError,
+            il.AnalysisError,
+            il.VarsNotComparable) as ex:
+        print ("    {0:>%d} {1:>%d} %s%s%s" % (maxCL,maxML,FAIL,ex,ENDC)).format(c.longname,m.name)
+        continue
+            
 sys.stdout.flush()
 comm.Barrier()
 
