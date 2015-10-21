@@ -90,13 +90,24 @@ def _convertCalendar(t):
     cal  = "noleap"
     unit = t.units.replace("No. of ","")
     data = t[:]
+
+    # if the time array is masked, the novalue number can cause num2date problems
     if type(data) == type(np.ma.empty(0)): data.data[data.mask] = 0
     if "calendar" in t.ncattrs(): cal = t.calendar
     if "year" in t.units: 
         data *= 365.
         unit  = "days since 0-1-1"
     t = num2date(data,unit,calendar=cal) # converts data to dates
-    t = date2num(t,"days since 1850-1-1",calendar="noleap") # convert to numbers but with uniform datum and calendar
+
+    # FIX: find a better way, converts everything to noleap calendar
+    tmp = []
+    for i in range(t.size): tmp.append(float((t[i].year-1850.)*365. + mid_months[t[i].month-1]))
+    t = np.asarray(tmp)
+    
+    # if time was masked, we need to remask it as date2num doesn't handle
+    if type(data) == type(np.ma.empty(0)):
+        t = np.ma.masked_array(t,mask=data.mask)
+
     return t
 
 def ExtractPointTimeSeries(filename,variable,lat,lon,verbose=False):

@@ -1,6 +1,6 @@
 import ilamblib as il
 from Variable import *
-from constants import four_code_regions,space_opts,time_opts
+from constants import four_code_regions,space_opts,time_opts,mid_months,bnd_months
 import os,glob,re
 from netCDF4 import Dataset
 import Post as post
@@ -17,6 +17,7 @@ class GenericConfrontation:
         self.variable_name  = variable_name
         self.output_path    = keywords.get("output_path","_build/%s/" % self.name)
         self.alternate_vars = keywords.get("alternate_vars",[])
+        self.derived        = keywords.get("derived",None)
         self.regions        = keywords.get("regions",four_code_regions)
         self.data           = None
         self.cmap           = keywords.get("cmap","jet")
@@ -61,24 +62,43 @@ class GenericConfrontation:
         else:
             obs = self.data
         if obs.time is None: raise il.NotTemporalVariable()
+        t0 = obs.time.min()
+        tf = obs.time.max()
+        
         if obs.spatial:
-            mod = m.extractTimeSeries(self.variable_name,
-                                      initial_time = obs.time[ 0],
-                                      final_time   = obs.time[-1])
+            try:
+                mod = m.extractTimeSeries(self.variable_name,
+                                          alt_vars     = self.alternate_vars,
+                                          initial_time = t0,
+                                          final_time   = tf)
+            except:
+                mod = m.derivedVariable(self.variable_name,self.derived,
+                                        initial_time = t0,
+                                        final_time   = tf)
         else:
-            mod = m.extractTimeSeries(self.variable_name,
-                                      lats         = obs.lat,
-                                      lons         = obs.lon,
-                                      initial_time = obs.time[ 0],
-                                      final_time   = obs.time[-1])
+            try:
+                mod = m.extractTimeSeries(self.variable_name,
+                                          alt_vars     = self.alternate_vars,
+                                          lats         = obs.lat,
+                                          lons         = obs.lon,
+                                          initial_time = t0,
+                                          final_time   = tf)
+            except:
+                mod = m.derivedVariable(self.variable_name,self.derived,
+                                        lats         = obs.lat,
+                                        lons         = obs.lon,
+                                        initial_time = t0,
+                                        final_time   = tf)
+        
         if obs.time.shape != mod.time.shape:
-            t0 = max(obs.time[ 0],mod.time[ 0])
-            tf = min(obs.time[-1],mod.time[-1])
+            t0 = max(obs.time.min(),mod.time.min())
+            tf = min(obs.time.max(),mod.time.max())
             for var in [obs,mod]:
                 begin = np.argmin(np.abs(var.time-t0))
                 end   = np.argmin(np.abs(var.time-tf))+1
                 var.time = var.time[begin:end]
                 var.data = var.data[begin:end,...]
+
         if obs.time.shape != mod.time.shape: raise il.VarNotOnTimeScale()
         if not np.allclose(obs.time,mod.time,atol=20): raise il.VarsNotComparable()
         if self.land and mod.spatial:

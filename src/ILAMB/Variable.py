@@ -103,7 +103,12 @@ def FromNetCDF4(filename,variable_name,alternate_vars=[]):
         if "_FillValue"    in var.ncattrs(): mask += (np.abs(v-var._FillValue   )<1e-12)
         if "missing_value" in var.ncattrs(): mask += (np.abs(v-var.missing_value)<1e-12)
         v    = np.ma.masked_array(v,mask=mask,copy=False)
-    return v,var.units,variable_name,t,lat,lon,data
+
+    # handle units problems that cfunits doesn't
+    units = var.units
+    if units == "unitless": units = "1"
+    
+    return v,units,variable_name,t,lat,lon,data
 
 class Variable:
     """A class for managing variables and their analysis.

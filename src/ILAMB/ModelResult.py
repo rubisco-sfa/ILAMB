@@ -202,4 +202,71 @@ class ModelResult():
         v.time = v.time[begin:end]
         v.data = v.data[begin:end,...]
         return v
+    
+    def derivedVariable(self,variable_name,expression,
+                        lats=None,lons=None,initial_time=-1e20,final_time=1e20):
+        from sympy import sympify
+        from cfunits import Units
+        if expression is None: raise il.VarNotInModel()
+        args  = {}
+        unit  = expression
+        mask  = None
+        time  = None
+        lat   = None
+        lon   = None
+        ndata = None
+        area  = None
+        for arg in sympify(expression).free_symbols:
+            try:
+                var  = self.extractTimeSeries(arg.name,
+                                              lats=lats,lons=lons,
+                                              initial_time = initial_time,
+                                              final_time   = final_time)
+            except:
+                raise il.VarNotInModel()
             
+            unit = unit.replace(arg.name,"(%s)" % var.unit)
+            args[arg.name] = var.data.data
+
+            if mask is None:
+                mask  = var.data.mask
+            else:
+                mask += var.data.mask
+            if time is None:
+                time  = var.time
+            else:
+                assert(np.allclose(time,var.time))
+            if lat is None:
+                lat  = var.lat
+            else:
+                assert(np.allclose(lat,var.lat))
+            if lon is None:
+                lon  = var.lon
+            else:
+                assert(np.allclose(lon,var.lon))
+            if area is None:
+                area  = var.area
+            else:
+                assert(np.allclose(area,var.area))
+            if ndata is None:
+                ndata  = var.ndata
+            else:
+                assert(np.allclose(ndata,var.ndata))
+                
+        unit   = Units(unit).formatted()
+
+        # parse the result, skip invalid warnings, we will mask them out
+        np.seterr(invalid='ignore')
+        result = sympify(expression,locals=args)
+        np.seterr(invalid='warn')
+        mask  += np.isnan(result)
+        result = np.ma.masked_array(np.nan_to_num(result),mask=mask)
+        
+        return Variable(data  = np.ma.masked_array(result,mask=mask),
+                        unit  = unit,
+                        name  = variable_name,
+                        time  = time,
+                        lat   = lat,
+                        lon   = lon,
+                        area  = area,
+                        ndata = ndata)

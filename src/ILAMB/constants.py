@@ -18,6 +18,7 @@ dpm_gregorian    = npcopy(dpm_noleap) ; dpm_gregorian[1] = dpm_gregorian[1] + 0.
 dpm_360          = ones(mpy)*30.
 mid_months       = asarray([15.5,45.,74.5,105.,135.5,166.,196.5,227.5,258.,288.5,319.,349.5],dtype='float')
 lbl_months       = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]
+bnd_months       = asarray([0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334, 365],dtype='int')
 
 dpy = {"noleap"    : dpy_noleap,
        "365_day"   : dpy_noleap,

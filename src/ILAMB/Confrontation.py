@@ -19,9 +19,10 @@ class Node(object):
         self.overall_weight      = 0
         self.score    = 0
         self.source   = None
-        self.colormap = "jet"
+        self.colormap = None
         self.variable = None
         self.alternate_variable = None
+        self.derived  = None
         self.land     = False
         self.confrontation = None
         self.path     = None
@@ -89,6 +90,13 @@ def OverallWeights(node):
             node.overall_weight *= parent.normalize_weight
             parent = parent.parent
 
+def InheritVariableNames(node):
+    if node.parent             is None: return
+    if node.variable           is None: node.variable           = node.parent.variable
+    if node.alternate_variable is None: node.alternate_variable = node.parent.alternate_variable
+    if node.derived            is None: node.derived            = node.parent.derived
+    if node.colormap           is None: node.colormap           = node.colormap
+    
 def ParseConfrontationConfigureFile(filename):
     root = Node(None)
     previous_node = root
@@ -133,6 +141,7 @@ def ParseConfrontationConfigureFile(filename):
     TraversePostorder(root,SumWeightChildren)
     TraversePreorder (root,NormalizeWeights)
     TraversePreorder (root,OverallWeights)
+    TraversePostorder(root,InheritVariableNames)
     return root
 
 class Confrontation():
@@ -146,6 +155,7 @@ class Confrontation():
         def _initConfrontation(node):
             if not node.isLeaf(): return
             try:
+                if node.colormap is None: node.colormap = "jet"
                 node.confrontation = GenericConfrontation(node.name,
                                                           "%s/%s" % (os.environ["ILAMB_ROOT"],node.source),
                                                           node.variable,
@@ -153,7 +163,8 @@ class Confrontation():
                                                           regions=regions,
                                                           cmap=node.colormap,
                                                           output_path=node.path,
-                                                          land=node.land)
+                                                          land=node.land,
+                                                          derived=node.derived)
             except Exception,e:
                 pass
 

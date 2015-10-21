@@ -65,7 +65,11 @@ Conf = Confrontation("clm.cfg",regions=args.regions)
 W     = []
 C     = Conf.list()
 if args.confront is not None:
-    C = [c for c in C if c.name in args.confront]
+    tmp = []
+    for c in C:
+        for arg in args.confront:
+            if arg in c.longname: tmp.append(c)
+    C = tmp
 if len(C) == 0: sys.exit(0)
 
 maxCL = 0
