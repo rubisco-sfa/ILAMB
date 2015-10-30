@@ -209,6 +209,7 @@ class ModelResult():
         from cfunits import Units
         if expression is None: raise il.VarNotInModel()
         args  = {}
+        units = {}
         unit  = expression
         mask  = None
         time  = None
@@ -216,6 +217,7 @@ class ModelResult():
         lon   = None
         ndata = None
         area  = None
+
         for arg in sympify(expression).free_symbols:
             try:
                 var  = self.extractTimeSeries(arg.name,
@@ -225,8 +227,8 @@ class ModelResult():
             except:
                 raise il.VarNotInModel()
             
-            unit = unit.replace(arg.name,"(%s)" % var.unit)
-            args[arg.name] = var.data.data
+            units[arg.name] = var.unit
+            args [arg.name] = var.data.data
 
             if mask is None:
                 mask  = var.data.mask
@@ -252,13 +254,10 @@ class ModelResult():
                 ndata  = var.ndata
             else:
                 assert(np.allclose(ndata,var.ndata))
-                
-        unit   = Units(unit).formatted()
-
-        # parse the result, skip invalid warnings, we will mask them out
-        np.seterr(invalid='ignore')
-        result = sympify(expression,locals=args)
-        np.seterr(invalid='warn')
+            
+        np.seterr(divide='ignore',invalid='ignore')
+        result,unit = il.SympifyWithArgsUnits(expression,args,units)
+        np.seterr(divide='raise',invalid='raise')
         mask  += np.isnan(result)
         result = np.ma.masked_array(np.nan_to_num(result),mask=mask)
         

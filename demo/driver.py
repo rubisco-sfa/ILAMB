@@ -9,6 +9,8 @@ import numpy as np
 import os,time,sys
 from mpi4py import MPI
 
+np.seterr(all='raise')
+
 # MPI stuff
 comm = MPI.COMM_WORLD
 size = comm.Get_size()

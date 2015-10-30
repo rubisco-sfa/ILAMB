@@ -3,6 +3,8 @@ from netCDF4 import Dataset,num2date,date2num
 import numpy as np
 from constants import dpy,mid_months,regions as ILAMBregions
 from scipy.stats.mstats import mode
+from sympy import sympify,postorder_traversal
+from cfunits import Units
 
 # Define some ILAMB-specific exceptions
 
@@ -969,3 +971,61 @@ def MaxMonthMode(t,var):
     imode,nmode = mode(maxmonth)
     if mask.size > 1: mask = np.apply_along_axis(np.all,0,mask) # masks cells where no data exists
     return np.ma.masked_array(ts[np.asarray(imode,dtype='int')],mask=mask)
+
+def SympifyWithArgsUnits(expression,args,units):
+    """
+    
+    """
+    expression = sympify(expression)
+    
+    # We need to do what sympify does but also with unit
+    # conversions. So we traverse the expression tree in post order
+    # and take actions based on the kind of operation being performed.
+    for expr in postorder_traversal(expression):
+
+        if expr.is_Atom: continue        
+        ekey = str(expr) # expression key
+        
+        if expr.is_Add:
+
+            # Addition will require that all args should be the same
+            # unit. As a convention, we will try to conform all units
+            # to the first variable's units. 
+            key0 = None
+            for arg in expr.args:
+                key = str(arg)
+                if not args.has_key(key): continue
+                if key0 is None:
+                    key0 = key
+                else:
+                    # Conform these units to the units of the first arg
+                    Units.conform(args[key],
+                                  Units(units[key]),
+                                  Units(units[key0]),
+                                  inplace=True)
+                    units[key] = units[key0]
+
+            # Now add the result of the addition the the disctionary
+            # of arguments.
+            args [ekey] = sympify(str(expr),locals=args)
+            units[ekey] = units[key0]
+
+        elif expr.is_Pow:
+
+            assert len(expr.args) == 2 # check on an assumption
+            power = float(expr.args[1])
+            args [ekey] = args[str(expr.args[0])]**power
+            units[ekey] = Units(units[str(expr.args[0])])
+            units[ekey] = units[ekey]**power
+        
+        elif expr.is_Mul:
+
+            unit = Units("1")
+            for arg in expr.args:
+                key   = str(arg)
+                if units.has_key(key): unit *= Units(units[key])
+        
+            args [ekey] = sympify(str(expr),locals=args)
+            units[ekey] = Units(unit).formatted()
+
+    return args[ekey],units[ekey]

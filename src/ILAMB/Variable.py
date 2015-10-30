@@ -8,6 +8,12 @@ from cfunits import Units
 
 import pylab as plt ### FIX: only import what I need
 
+# Note concerning use of np.seterr: Currently, operations on masked
+# arrays occurs on the whole array internally and then the masks are
+# used to ignore these values at the numpy level. This causes spurious
+# over/underflow warnings which have been suppressed around the calls
+# that have been indentified as sometimes problematic. 
+
 def FromNetCDF4(filename,variable_name,alternate_vars=[]):
     """Extracts data from a netCDF4 datafile for use in a Variable object.
     
@@ -295,7 +301,11 @@ class Variable:
             dt       *= (self.time>=t0)*(self.time<=tf)
             for i in range(self.data.ndim-1): dt = np.expand_dims(dt,axis=-1)
             dt        = (dt*(self.data.mask==0)).sum(axis=0)
+
+            np.seterr(over='ignore',under='ignore')
             integral /= dt
+            np.seterr(over='raise',under='raise')
+            
             unit     += " d-1"
             name     += "_and_divided_by_time_period"
 
@@ -365,8 +375,10 @@ class Variable:
             mask      = ((self.lat>lats[0])*(self.lat<lats[1])*(self.lon>lons[0])*(self.lon<lons[1]))==False
             self.data.mask += mask
             rname = "_over_%s" % region
+        np.seterr(over='ignore',under='ignore')
         mean = self.data.mean(axis=-1)
         std  = self.data.std (axis=-1)
+        np.seterr(over='raise',under='raise')
         self.data.mask = rem_mask
         mean = Variable(data=mean,unit=self.unit,time=self.time,name="mean_%s%s" % (self.name,rname))
         std  = Variable(data=std ,unit=self.unit,time=self.time,name="std_%s%s"  % (self.name,rname))
@@ -396,8 +408,10 @@ class Variable:
         end   = begin+int(self.time[begin:].size/12.)*12
         shp   = (-1,12) + self.data.shape[1:]
         v     = self.data[begin:end,...].reshape(shp)
+        np.seterr(over='ignore',under='ignore')
         mean  = v.mean(axis=0)
         std   = v.std (axis=0)
+        np.seterr(over='raise',under='raise')
         mx    = v.max (axis=0)
         mn    = v.min (axis=0)
         mean  = Variable(data=mean,unit=self.unit,name="annual_cycle_mean_of_%s" % self.name,
@@ -894,11 +908,15 @@ class Variable:
             lat,lon  = ComposeSpatialGrids(self,var)
             self_int = self.interpolate(lat=lat,lon=lon)
             var_int  = var .interpolate(lat=lat,lon=lon)
+            np.seterr(over='ignore',under='ignore')
             data     = (var_int.data-self_int.data)**2
+            np.seterr(over='raise',under='raise')
             mask     = var_int.data.mask+self_int.data.mask
         elif self.ndata:
             # If the data are at sites, then take the difference
+            np.seterr(over='ignore',under='ignore')
             data = (var.data.data-self.data.data)**2
+            np.seterr(over='raise',under='raise')
             mask = var.data.mask+self.data.mask
             lat,lon = var.lat,var.lon
         else:
@@ -917,7 +935,10 @@ class Variable:
         UNTESTED
         """
         if not self.temporal: raise il.NotTemporalVariable
-        return Variable(data=self.data.std(axis=0),
+        np.seterr(over='ignore',under='ignore')
+        data = self.data.std(axis=0)
+        np.seterr(over='raise',under='raise')
+        return Variable(data=data,
                         name="iav_of_%s" % self.name,
                         unit=self.unit,ndata=self.ndata,
                         lat=self.lat,lon=self.lon,area=self.area)
@@ -938,7 +959,10 @@ class Variable:
         else:
             self.data.mask += (        ((self.lat>lats[0])*(self.lat<lats[1])*
                                         (self.lon>lons[0])*(self.lon<lons[1]))==0)
+            
+        np.seterr(over='ignore',under='ignore')
         std0 = self.data.std()
+        np.seterr(over='raise',under='raise')
 
         # Next compute the model spatial/site standard deviation
         rem_mask  = np.copy(var.data.mask)
@@ -948,7 +972,9 @@ class Variable:
         else:
             var.data.mask += (        ((var.lat>lats[0])*(var.lat<lats[1])*
                                        (var.lon>lons[0])*(var.lon<lons[1]))==0)
+        np.seterr(over='ignore',under='ignore')
         std = var.data.std()
+        np.seterr(over='raise',under='raise')
 
         # Interpolate to new grid for correlation
         if self.spatial:
@@ -983,7 +1009,9 @@ def Score(var,normalizer):
     UNTESTED
     """
     score      = deepcopy(var)
+    np.seterr(over='ignore',under='ignore')
     score.data = np.exp(-np.abs(score.data/normalizer.data))
+    np.seterr(over='raise',under='raise')
     score.name = score.name.replace("bias","bias_score")
     score.name = score.name.replace("rmse","rmse_score")
     score.name = score.name.replace("iav" ,"iav_score")

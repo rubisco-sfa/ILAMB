@@ -64,7 +64,7 @@ class GenericConfrontation:
         if obs.time is None: raise il.NotTemporalVariable()
         t0 = obs.time.min()
         tf = obs.time.max()
-        
+
         if obs.spatial:
             try:
                 mod = m.extractTimeSeries(self.variable_name,
@@ -124,16 +124,17 @@ class GenericConfrontation:
         results.setncatts({"name" :m.name, "color":m.color})
         benchmark_results = None
         fname = "%s/%s_Benchmark.nc" % (self.output_path,self.name)
-        if self.master and not os.path.isfile(fname):
+        if self.master:
             benchmark_results = Dataset(fname,mode="w")
             benchmark_results.setncatts({"name" :"Benchmark", "color":np.asarray([0.5,0.5,0.5])})
-        #try:
-        AnalysisFluxrate(obs,mod,dataset=results,regions=self.regions,benchmark_dataset=benchmark_results)
-        #except:
-        #    results.close()
-        #    os.system("rm -f %s/%s_%s.nc" % (self.output_path,self.name,m.name))
-        #    raise il.AnalysisError()
-        
+        try:
+            AnalysisFluxrate(obs,mod,dataset=results,regions=self.regions,benchmark_dataset=benchmark_results)
+        except:
+            results.close()
+            os.system("rm -f %s/%s_%s.nc" % (self.output_path,self.name,m.name))
+            raise il.AnalysisError()
+        if self.master: benchmark_results.close()
+            
     def determinePlotLimits(self):
         """
         This is essentially the reduction via datafile.
@@ -143,7 +144,10 @@ class GenericConfrontation:
         # Determine the min/max of variables over all models
         limits      = {}
         for fname in glob.glob("%s/*.nc" % self.output_path):
-            dataset   = Dataset(fname)
+            try:
+                dataset = Dataset(fname)
+            except:
+                continue
             variables = [v for v in dataset.variables.keys() if v not in dataset.dimensions.keys()]
             for vname in variables:
                 var   = dataset.variables[vname]
@@ -158,7 +162,7 @@ class GenericConfrontation:
                 limits[pname]["min"] = min(limits[pname]["min"],var.getncattr("min"))
                 limits[pname]["max"] = max(limits[pname]["max"],var.getncattr("max"))
             dataset.close()
-
+        
         # Second pass to plot legends
         for pname in limits.keys():
             opts = space_opts[pname]
@@ -388,7 +392,10 @@ class GenericConfrontation:
                          "sd_score"      : "Spatial Distribution Score",
                          "overall_score" : "Overall Score" }
         for fname in glob.glob("%s/*.nc" % self.output_path):
-            dataset   = Dataset(fname)
+            try:
+                dataset   = Dataset(fname)
+            except:
+                continue
             variables = [v for v in dataset.variables.keys() if v not in dataset.dimensions.keys()]
             mname     = dataset.getncattr("name")
             metrics[mname] = {}

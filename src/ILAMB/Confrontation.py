@@ -151,7 +151,7 @@ class Confrontation():
     def __init__(self,filename,regions=["global"]):
         
         self.tree = ParseConfrontationConfigureFile(filename)
-
+        
         def _initConfrontation(node):
             if not node.isLeaf(): return
             try:
@@ -387,7 +387,10 @@ def CompositeScores(tree,M):
             for ind,m in enumerate(global_model_list):
                 fname = "%s/%s_%s.nc" % (node.confrontation.output_path,node.confrontation.name,m.name)
                 if os.path.isfile(fname):
-                    dataset = Dataset(fname)
+                    try:
+                        dataset = Dataset(fname)
+                    except:
+                        continue
                     if dataset.variables.has_key("overall_score_over_global"):
                         data[ind] = dataset.variables["overall_score_over_global"][0]
                         mask[ind] = 0
@@ -401,7 +404,9 @@ def CompositeScores(tree,M):
             for child in node.children:
                 node.score  += child.score*child.weight
                 sum_weights += child.weight
+            np.seterr(over='ignore',under='ignore')
             node.score /= sum_weights
+            np.seterr(over='raise',under='raise')
     TraversePostorder(tree,_loadScores)
 
 
@@ -428,7 +433,7 @@ def BuildHTMLTable(tree,M):
         <td>&nbsp;&nbsp;&nbsp;<a href="%s/%s.html">%s</a>&nbsp;(%.1f%%)</td>""" % (global_table_color,
                                                                                    c.output_path.replace("_build/",""),
                                                                                    c.name,c.name,weight)
-                if type(node.score) == type(np.empty(1)):
+                if type(node.score) == type(np.empty(1)) or type(node.score) == type(np.ma.empty(1)):
                     for ind in range(node.score.size):
                         global_html += '\n        <td>%.2f</td>' % (node.score[ind])
                 else:
