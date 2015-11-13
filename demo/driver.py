@@ -168,4 +168,5 @@ comm.Barrier()
 
 if rank==0:
     Conf.createHtml(M)
+    Conf.createBarCharts(M)
     print "\nCompleted in {0:>5.1f} s\n".format(time.time()-T0)

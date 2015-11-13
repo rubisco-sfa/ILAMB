@@ -375,7 +375,10 @@ class Confrontation():
 
 
         file(filename,"w").write(html)
-
+        
+    def createBarCharts(self,M,filename="./_build/models.html"):
+        html = GenerateBarCharts(self.tree,M)
+        
 def CompositeScores(tree,M):
     global global_model_list
     global_model_list = M
@@ -477,3 +480,24 @@ def GenerateTable(tree,M):
     return global_html
 
 
+def GenerateBarCharts(tree,M):
+    table = []
+    row   = [m.name for m in M] 
+    row.insert(0,"Variables")
+    table.append(row)
+    for cat in tree.children:
+        for var in cat.children:
+            row = [var.name]
+            try:
+                for i in range(var.score.size): row.append(var.score[i])
+            except:
+                for i in range(len(M)): row.append(0)
+            table.append(row)
+    from jinja2 import FileSystemLoader,Environment
+    templateLoader = FileSystemLoader(searchpath="./")
+    templateEnv    = Environment(loader=templateLoader)
+    template       = templateEnv.get_template("tmp.html")
+    templateVars   = { "table" : table }
+    outputText     = template.render( templateVars )
+    file('gen.html',"w").write(outputText)
+    
