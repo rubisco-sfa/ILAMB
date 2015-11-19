@@ -26,7 +26,7 @@ class Node(object):
         self.land     = False
         self.confrontation = None
         self.path     = None
-        self.tablecolor = None
+        self.bgcolor  = None
         
     def __str__(self):
         if self.parent is None: return ""
@@ -203,41 +203,7 @@ class Confrontation():
 
         # Create html assets
         from pylab import imsave
-        def _createGradient(c1,c2):
-            if c1.max()>1.: c1/=256.
-            if c2.max()>1.: c2/=256.
-            A = np.zeros((30,1,4))
-            A[ :2,0,:] = c1
-            A[-4:,0,:] = c2
-            for i in range(2,26):
-                a = float(i-2)/23.
-                A[i,0,:] = (1.-a)*c1+a*c2
-            return A
-        path = "/".join(filename.split("/")[:-1]) + "/"
-        image = _createGradient(np.asarray([  0.,105.,181.,256.]),
-                                np.asarray([124.,184.,226.,256.]))
-        imsave(path + "blue_header_bkg.png",image)
-        image = _createGradient(np.asarray([256.,256.,256.,256.]),
-                                np.asarray([200.,222.,239.,256.]))
-        imsave(path + "blue_row_bkg.png",image)
-        image = _createGradient(np.asarray([ 11.,145.,  0.,256.]),
-                                np.asarray([133.,226.,124.,256.]))
-        imsave(path + "green_header_bkg.png",image)
-        image = _createGradient(np.asarray([256.,256.,256.,256.]),
-                                np.asarray([201.,239.,200.,256.]))
-        imsave(path + "green_row_bkg.png",image)         
-        image = _createGradient(np.asarray([181.,  0.,  0.,256.]),
-                                np.asarray([226.,124.,124.,256.]))
-        imsave(path + "red_header_bkg.png",image) 
-        image = _createGradient(np.asarray([256.,256.,256.,256.]),
-                                np.asarray([239.,200.,200.,256.]))
-        imsave(path + "red_row_bkg.png",image) 
-        image = _createGradient(np.asarray([ 90., 90., 90.,256.]),
-                                np.asarray([168.,168.,168.,256.]))
-        imsave(path + "grey_header_bkg.png",image) 
-        image = _createGradient(np.asarray([256.,256.,256.,256.]),
-                                np.asarray([200.,200.,200.,256.]))
-        imsave(path + "grey_row_bkg.png",image) 
+        path   = "/".join(filename.split("/")[:-1]) + "/"
         arrows = np.zeros((32,16,4))
         for i in range(7):
             arrows[ 4+i,(7-i):(7+i+1),3] = 1
@@ -245,135 +211,165 @@ class Confrontation():
         imsave(path + "arrows.png",arrows)
         
         html = r"""
-<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 <html>
   <head>"""
         html += """
     <title>ILAMB Benchmark Results</title>"""
         html += """
-    <script src="http://ajax.googleapis.com/ajax/libs/jquery/2.1.3/jquery.min.js" type="text/javascript"></script>
+    <link rel="stylesheet" href="http://code.jquery.com/mobile/1.4.5/jquery.mobile-1.4.5.min.css"></link>
+    <script src="http://code.jquery.com/jquery-1.11.2.min.js"></script>
+    <script>
+      $(document).bind('mobileinit',function(){
+      $.mobile.changePage.defaults.changeHash = false;
+      $.mobile.hashListeningEnabled = false;
+      $.mobile.pushStateEnabled = false;
+      });
+    </script>
+    <script src="http://code.jquery.com/mobile/1.4.5/jquery.mobile-1.4.5.min.js"></script>
+    <script type="text/javascript" src="https://www.google.com/jsapi"></script>
     <script type="text/javascript">  
       $(document).ready(function(){
-      
-        function getChildren($row) {
-          var children = [];
-          while($row.next().hasClass('child')) {
-            children.push($row.next());
-            $row = $row.next();
-          }            
-          return children;
-        }        
-
-        $('.parent').on('click', function() {
-          $(this).find(".arrow").toggleClass("up");
-          var children = getChildren($(this));
-          $.each(children, function() {
-            $(this).toggle();
-          })
-        });
-
-        $('.child').toggle();
+      function getChildren($row) {
+      var children = [];
+      while($row.next().hasClass('child')) {
+      children.push($row.next());
+      $row = $row.next();
+      }            
+      return children;
+      }
+      $('.parent').on('click', function() {
+      $(this).find(".arrow").toggleClass("up");
+      var children = getChildren($(this));
+      $.each(children, function() {
+      $(this).toggle();
+      })
+      });
+      $('.child').toggle();
       });
     </script>"""
         html += """
     <style>
-
-      body {
-        font-family:Arial, Helvetica, Sans-Serif;
-        font-size:0.8em;
-      }
-
-      table {
-        border-collapse:collapse;
-      }
-
       div.arrow {
         background:transparent url(arrows.png) no-repeat scroll 0px -16px;
         width:16px;
         height:16px; 
         display:block;
       }
-      
       div.up {
         background-position:0px 0px;
       }
-
-      .header {
-        border-collapse:collapse;
-        color:#fff;
-        padding:7px 15px;
-        text-align:left;
-      }
-      
       .child {
-        color:#000;
-        padding:7px 15px;
       }
-
       .parent {
         cursor:pointer;
       }
-
-      .hgreen {
-        background:#C9EFC8 url(green_header_bkg.png) repeat-x scroll center left;
-        background-size: auto 100%;
+      th {
+        border-bottom: 1px solid #d6d6d6;
       }
-      .cgreen {
-        background:#CAEEC7 none repeat-x scroll center left;
-      }
-      .pgreen {
-        background:#fff url(green_row_bkg.png) repeat-x scroll center left;
-      }
-
-      .hblue {
-        background:#7CB8E2 url(blue_header_bkg.png) repeat-x scroll center left;
-        background-size: auto 100%;
-      }
-      .cblue {
-        background:#C7DDEE none repeat-x scroll center left;
-      }
-      .pblue {
-        background:#fff url(blue_row_bkg.png) repeat-x scroll center left;
-      }
-
-      .hred {
-        background:#EFC8C8 url(red_header_bkg.png) repeat-x scroll center left;
-        background-size: auto 100%;
-      }
-      .cred {
-        background:#EFC8C8 none repeat-x scroll center left;
-      }
-      .pred {
-        background:#fff url(red_row_bkg.png) repeat-x scroll center left;
-      }
-
-      .hgrey {
-        background:#C8C8C8 url(grey_header_bkg.png) repeat-x scroll center left;
-        background-size: auto 100%;
-      }
-      .cgrey {
-        background:#C8C8C8 none repeat-x scroll center left;
-      }
-      .pgrey {
-        background:#fff url(grey_row_bkg.png) repeat-x scroll center left;
-      }
-
     </style>"""
         html += """
   </head>
 
   <body>"""
 
-        for tree in self.tree.children:
-            html += """
-    <h1>%s</h1>""" % tree.name
-            html += GenerateTable(tree,M)
         html += """
+    <div data-role="page" id="page1">
+      <div data-role="header" data-position="fixed" data-tap-toggle="false">
+	<h1>ILAMB Benchmark Results</h1>
+	<div data-role="navbar">
+	  <ul>
+	    <li><a href="#page1" class="ui-btn-active ui-state-persist">Overview</a></li>
+	    <li><a href="#page2">Results Table</a></li>
+	    <li><a href="#page3">Model Comparisons</a></li>
+	  </ul>
+	</div>
+      </div>
+      <div data-role="main" class="ui-content">
+	<img src="./_build/overview.png" width=100%></img>
+	<img src="./_build/contribution.png" width=100%></img>
+      </div>
+      <div data-role="footer">
+	<h1> </h1>
+      </div>
+    </div>"""
+
+        html += """
+    <div data-role="page" id="page2">
+      <div data-role="header" data-position="fixed" data-tap-toggle="false">
+	<h1>ILAMB Benchmark Results</h1>
+	<div data-role="navbar">
+	  <ul>
+	    <li><a href="#page1">Overview</a></li>
+	    <li><a href="#page2" class="ui-btn-active ui-state-persist">Results Table</a></li>
+	    <li><a href="#page3">Model Comparisons</a></li>
+	  </ul>
+	</div>
+      </div>
+
+      <div data-role="main" class="ui-content">
+	<table data-role="table" data-mode="columntoggle" class="ui-responsive ui-shadow" id="myTable">
+	  <thead>
+	    <tr>
+              <th style="width:300px"> </th>"""
+        for m in M:
+            html += """
+              <th style="width:80px" data-priority="1">%s</th>""" % m.name
+        html += """
+              <th style="width:20px"></th>
+	    </tr>
+	  </thead>
+          <tbody>"""
+        
+        for tree in self.tree.children: html += GenerateTable(tree,M)
+        html += """
+          </tbody>
+        </table>
+      </div>
+      <div data-role="footer">
+        <h1> </h1>
+      </div>
+    </div>
+
+    <div data-role="page" id="page3">      
+      <div data-role="header" data-position="fixed" data-tap-toggle="false">
+	<h1>ILAMB Benchmark Results</h1>
+	<div data-role="navbar">
+	  <ul>
+	    <li><a href="#page1">Overview</a></li>
+	    <li><a href="#page2">Results Table</a></li>
+	    <li><a href="#page3" class="ui-btn-active ui-state-persist">Model Comparisons</a></li>
+	  </ul>
+	</div>
+      </div>
+      <div data-role="main" class="ui-content">
+        <div data-role="fieldcontain">
+	  <label for="select-choice-1" class="select">Choose a reference model:</label>
+	  <select name="select-choice-1" id="select-choice-1">"""
+        for m in M:
+            html += """
+	    <option value="%s">%s</option>""" % (m.name,m.name)
+        html += """
+	  </select>
+        </div>
+        <div data-role="fieldcontain">
+	  <label for="select-choice-2" class="select">Choose a comparison model:</label>
+	  <select name="select-choice-2" id="select-choice-2">"""
+        for m in M:
+            html += """
+	    <option value="%s">%s</option>""" % (m.name,m.name)
+        html += """
+	  </select>
+        </div>
+      </div>
+
+
+      <div data-role="footer">
+	<h1> </h1>
+      </div>
+    </div>
 
 </body>
 </html>"""
-
-
         file(filename,"w").write(html)
         
     def createBarCharts(self,M,filename="./_build/models.html"):
@@ -412,9 +408,24 @@ def CompositeScores(tree,M):
             np.seterr(over='raise',under='raise')
     TraversePostorder(tree,_loadScores)
 
-
 global_html = ""
 global_table_color = ""
+
+def DarkenRowColor(clr,fraction=0.9):
+    from colorsys import rgb_to_hsv,hsv_to_rgb
+    def hex_to_rgb(value):
+        value = value.lstrip('#')
+        lv  = len(value)
+        rgb = tuple(int(value[i:i + lv // 3], 16) for i in range(0, lv, lv // 3))
+        rgb = np.asarray(rgb)/255.
+        return rgb
+    def rgb_to_hex(rgb):
+        return '#%02x%02x%02x' % rgb
+    rgb = hex_to_rgb(clr)
+    hsv = rgb_to_hsv(rgb[0],rgb[1],rgb[2])
+    rgb = hsv_to_rgb(hsv[0],hsv[1],fraction*hsv[2])
+    rgb = tuple(np.asarray(np.asarray(rgb)*255.,dtype=int))
+    return rgb_to_hex(rgb)
 
 def BuildHTMLTable(tree,M):
     global global_model_list
@@ -422,31 +433,33 @@ def BuildHTMLTable(tree,M):
     def _genHTML(node):
         global global_html
         global global_table_color
+        ccolor = DarkenRowColor(global_table_color,fraction=0.95)
         if node.isLeaf():
             weight = np.round(100.0*node.normalize_weight,1)
             if node.confrontation is None:
                 global_html += """
-      <tr class="child c%s">
-        <td>&nbsp;&nbsp;&nbsp;%s&nbsp;(%.1f%%)</td>""" % (global_table_color,node.name,weight)
+      <tr class="child" bgcolor="%s">
+        <td>&nbsp;&nbsp;&nbsp;%s&nbsp;(%.1f%%)</td>""" % (ccolor,node.name,weight)
                 for m in global_model_list: global_html += '\n        <td>~</td>'
-            else:
+            else:                
                 c = node.confrontation
                 global_html += """
-      <tr class="child c%s">
-        <td>&nbsp;&nbsp;&nbsp;<a href="%s/%s.html">%s</a>&nbsp;(%.1f%%)</td>""" % (global_table_color,
+      <tr class="child" bgcolor="%s">
+        <td>&nbsp;&nbsp;&nbsp;<a href="%s/%s.html">%s</a>&nbsp;(%.1f%%)</td>""" % (ccolor,
                                                                                    c.output_path.replace("_build/",""),
                                                                                    c.name,c.name,weight)
-                if type(node.score) == type(np.empty(1)) or type(node.score) == type(np.ma.empty(1)):
+                try:
                     for ind in range(node.score.size):
                         global_html += '\n        <td>%.2f</td>' % (node.score[ind])
-                else:
-                    global_html += '\n        <td>%.2f</td>' % (node.score)  
+                except:
+                    for ind in range(len(global_model_list)):
+                        global_html += '\n        <td>~</td>'
             global_html += """
         <td></td>
       </tr>"""
         else:
             global_html += """
-      <tr class="parent p%s">
+      <tr class="parent" bgcolor="%s">
         <td>%s</td>""" % (global_table_color,node.name)
             for ind,m in enumerate(global_model_list):
                 try:
@@ -464,23 +477,14 @@ def GenerateTable(tree,M):
     global global_table_color
     CompositeScores(tree,M)
     global_model_list = M
-    global_table_color = tree.tablecolor
-    global_html = """
-    <table>
-      <tr class="header h%s">
-        <th style="width:300px"> </th>""" % (global_table_color)
-    for m in global_model_list:
-        global_html += '\n        <th style="width:80px">%s</th>' % m.name
-    global_html += """
-        <th style="width:20px"></th>
-      </tr>"""
+    global_table_color = tree.bgcolor
+    global_html = ""
     for cat in tree.children: BuildHTMLTable(cat,M)
-    global_html += """
-    </table>"""
     return global_html
 
-
+"""
 def GenerateBarCharts(tree,M):
+    return
     table = []
     row   = [m.name for m in M] 
     row.insert(0,"Variables")
@@ -500,4 +504,7 @@ def GenerateBarCharts(tree,M):
     templateVars   = { "table" : table }
     outputText     = template.render( templateVars )
     file('gen.html',"w").write(outputText)
-    
+"""
+
+def GenerateSummaryFigure(tree,M):
+    pass
