@@ -112,7 +112,7 @@ for c in C:
         c.master = True
     else:
         c.master = False
-        
+
 # Run analysis on your local work model-confrontation pairs
 T0 = time.time()
 for w in localW:
@@ -168,5 +168,5 @@ comm.Barrier()
 
 if rank==0:
     Conf.createHtml(M)
-    Conf.createBarCharts(M)
+    Conf.createSummaryFigure(M)
     print "\nCompleted in {0:>5.1f} s\n".format(time.time()-T0)

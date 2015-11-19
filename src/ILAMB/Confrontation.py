@@ -2,6 +2,7 @@ from GenericConfrontation import GenericConfrontation
 import os,re
 from netCDF4 import Dataset
 import numpy as np
+from Post import BenchmarkSummaryFigure
 
 global_print_node_string  = ""
 global_confrontation_list = []
@@ -212,10 +213,8 @@ class Confrontation():
         
         html = r"""
 <html>
-  <head>"""
-        html += """
-    <title>ILAMB Benchmark Results</title>"""
-        html += """
+  <head>
+    <title>ILAMB Benchmark Results</title>
     <link rel="stylesheet" href="http://code.jquery.com/mobile/1.4.5/jquery.mobile-1.4.5.min.css"></link>
     <script src="http://code.jquery.com/jquery-1.11.2.min.js"></script>
     <script>
@@ -266,12 +265,17 @@ class Confrontation():
       th {
         border-bottom: 1px solid #d6d6d6;
       }
+      img.displayed {
+        display: block;
+        margin-left: auto;
+        margin-right: auto
+      }
     </style>"""
         html += """
   </head>
 
   <body>"""
-
+        
         html += """
     <div data-role="page" id="page1">
       <div data-role="header" data-position="fixed" data-tap-toggle="false">
@@ -285,8 +289,8 @@ class Confrontation():
 	</div>
       </div>
       <div data-role="main" class="ui-content">
-	<img src="./_build/overview.png" width=100%></img>
-	<img src="./_build/contribution.png" width=100%></img>
+	<img class="displayed" src="./overview.png"></img>
+	<img class="displayed" src="./contribution.png"></img>
       </div>
       <div data-role="footer">
 	<h1> </h1>
@@ -374,6 +378,9 @@ class Confrontation():
         
     def createBarCharts(self,M,filename="./_build/models.html"):
         html = GenerateBarCharts(self.tree,M)
+
+    def createSummaryFigure(self,M):
+        GenerateSummaryFigure(self.tree,M)
         
 def CompositeScores(tree,M):
     global global_model_list
@@ -507,4 +514,23 @@ def GenerateBarCharts(tree,M):
 """
 
 def GenerateSummaryFigure(tree,M):
-    pass
+
+    models    = [m.name for m in M]
+    variables = []
+    vcolors   = []
+    for cat in tree.children:
+        for var in cat.children:
+            variables.append(var.name)
+            vcolors.append(cat.bgcolor)
+            
+    data = np.zeros((len(variables),len(models)))
+    row  = -1
+    for cat in tree.children:
+        for var in cat.children:
+            row += 1
+            try:
+                data[row,:] = var.score
+            except:
+                data[row,:] = np.nan
+                
+    BenchmarkSummaryFigure(models,variables,data,"_build/overview.png",vcolor=vcolors)

@@ -480,3 +480,154 @@ class HtmlLayout():
   </body>
 </html>"""
         return code
+
+def RegisterCustomColormaps():
+    """Adds the 'stoplight' and 'RdGn' colormaps to matplotlib's database
+
+    """
+    import colorsys as cs
+    
+    # stoplight colormap
+    Rd1    = [1.,0.,0.]; Rd2 = Rd1
+    Yl1    = [1.,1.,0.]; Yl2 = Yl1
+    Gn1    = [0.,1.,0.]; Gn2 = Gn1
+    val    = 0.65
+    Rd1    = cs.rgb_to_hsv(Rd1[0],Rd1[1],Rd1[2])
+    Rd1    = cs.hsv_to_rgb(Rd1[0],Rd1[1],val   )
+    Yl1    = cs.rgb_to_hsv(Yl1[0],Yl1[1],Yl1[2])
+    Yl1    = cs.hsv_to_rgb(Yl1[0],Yl1[1],val   )
+    Gn1    = cs.rgb_to_hsv(Gn1[0],Gn1[1],Gn1[2])
+    Gn1    = cs.hsv_to_rgb(Gn1[0],Gn1[1],val   )
+    p      = 0
+    level1 = 0.5
+    level2 = 0.75
+    RdYlGn = {'red':   ((0.0     , 0.0   ,Rd1[0]),
+                        (level1-p, Rd2[0],Rd2[0]),
+                        (level1+p, Yl1[0],Yl1[0]),
+                        (level2-p, Yl2[0],Yl2[0]),
+                        (level2+p, Gn1[0],Gn1[0]),
+                        (1.00    , Gn2[0],  0.0)),
+              
+              'green': ((0.0     , 0.0   ,Rd1[1]),
+                        (level1-p, Rd2[1],Rd2[1]),
+                        (level1+p, Yl1[1],Yl1[1]),
+                        (level2-p, Yl2[1],Yl2[1]),
+                        (level2+p, Gn1[1],Gn1[1]),
+                        (1.00    , Gn2[1],  0.0)),
+              
+              'blue':  ((0.0     , 0.0   ,Rd1[2]),
+                        (level1-p, Rd2[2],Rd2[2]),
+                        (level1+p, Yl1[2],Yl1[2]),
+                        (level2-p, Yl2[2],Yl2[2]),
+                        (level2+p, Gn1[2],Gn1[2]),
+                        (1.00    , Gn2[2],  0.0))}
+    plt.register_cmap(name='stoplight', data=RdYlGn)
+    
+    # RdGn colormap
+    val = 0.8
+    Rd  = cs.rgb_to_hsv(1,0,0)
+    Rd  = cs.hsv_to_rgb(Rd[0],Rd[1],val)
+    Gn  = cs.rgb_to_hsv(0,1,0)
+    Gn  = cs.hsv_to_rgb(Gn[0],Gn[1],val)
+    RdGn = {'red':   ((0.0, 0.0,   Rd[0]),
+                      (0.5, 1.0  , 1.0  ),
+                      (1.0, Gn[0], 0.0  )),
+            'green': ((0.0, 0.0,   Rd[1]),
+                      (0.5, 1.0,   1.0  ),
+                      (1.0, Gn[1], 0.0  )),
+            'blue':  ((0.0, 0.0,   Rd[2]),
+                      (0.5, 1.0,   1.0  ),
+                      (1.0, Gn[2], 0.0  ))}
+    plt.register_cmap(name='RdGn', data=RdGn)
+
+
+def BenchmarkSummaryFigure(models,variables,data,figname,vcolor=None):
+    """Creates a summary figure for the benchmark results contained in the
+    data array.
+
+    Parameters
+    ----------
+    models : list
+        a list of the model names 
+    variables : list
+        a list of the variable names
+    data : numpy.ndarray or numpy.ma.ndarray
+        data scores whose shape is ( len(variables), len(models) )
+    figname : str
+        the full path of the output file to write
+    vcolor : list, optional
+        an array parallel to the variables array containing background 
+        colors for the labels to be displayed on the y-axis.
+    """
+    from mpl_toolkits.axes_grid1 import make_axes_locatable
+    
+    # data checks
+    assert  type(models)    is type(list())
+    assert  type(variables) is type(list())
+    assert (type(data)      is type(np   .empty(1)) or
+            type(data)      is type(np.ma.empty(1)))
+    assert data.shape[0] == len(variables)
+    assert data.shape[1] == len(models   )
+    assert  type(figname)   is type("")
+    if vcolor is not None:
+        assert type(vcolor) is type(list())
+        assert len(vcolor) == len(variables)
+        
+    # define some parameters
+    nmodels    = len(models)
+    nvariables = len(variables)
+    w          = max((nmodels-3.)/(14.-3.)*(9.5-5.08)+5.08,7.) # heuristic for figure size
+    h          = 8.
+    bad        = 0.5
+    if "stoplight" not in plt.colormaps(): RegisterCustomColormaps()
+    
+    # plot the variable scores
+    fig,ax = plt.subplots(figsize=(w,h),ncols=2,tight_layout=True)
+    cmap   = plt.get_cmap('stoplight')
+    cmap.set_bad('k',bad)
+    qc     = ax[0].pcolormesh(data[::-1,:],cmap=cmap,vmin=0,vmax=1,linewidth=0)
+    div    = make_axes_locatable(ax[0])
+    fig.colorbar(qc,
+                 ticks=(0,0.25,0.5,0.75,1.0),
+                 format="%g",
+                 cax=div.append_axes("bottom", size="5%", pad=0.05),
+                 orientation="horizontal",
+                 label="Variable Score")
+    plt.tick_params(which='both', length=0)
+    ax[0].xaxis.tick_top()
+    ax[0].set_xticks     (np.arange(nmodels   )+0.5)
+    ax[0].set_xticklabels(models,rotation=90)
+    ax[0].set_yticks     (np.arange(nvariables)+0.5)
+    ax[0].set_yticklabels(variables[::-1])
+    ax[0].set_ylim(0,nvariables)
+    ax[0].tick_params('both',length=0,width=0,which='major')
+    if vcolor is not None:
+        for i,t in enumerate(ax[0].yaxis.get_ticklabels()):
+            t.set_backgroundcolor(vcolor[::-1][i])
+    
+    # compute and plot the variable z-scores
+    mean = data.mean(axis=1)
+    std  = data.std (axis=1)
+    np.seterr(invalid='ignore')
+    Z    = (data-mean[:,np.newaxis])/std[:,np.newaxis]
+    np.seterr(invalid='warn')
+    cmap = plt.get_cmap('RdGn')
+    cmap.set_bad('k',bad)
+    qc   = ax[1].pcolormesh(Z[::-1],cmap=cmap,vmin=-2,vmax=2,linewidth=0)
+    div  = make_axes_locatable(ax[1])
+    fig.colorbar(qc,
+                 ticks=(-2,-1,0,1,2),
+                 format="%+d",
+                 cax=div.append_axes("bottom", size="5%", pad=0.05),
+                 orientation="horizontal",
+                 label="Variable Z-score")
+    plt.tick_params(which='both', length=0)
+    ax[1].xaxis.tick_top()
+    ax[1].set_xticks(np.arange(nmodels)+0.5)
+    ax[1].set_xticklabels(models,rotation=90)
+    ax[1].tick_params('both',length=0,width=0,which='major')
+    ax[1].set_yticks([])
+    ax[1].set_ylim(0,nvariables)
+
+    # save figure
+    fig.savefig(figname)
