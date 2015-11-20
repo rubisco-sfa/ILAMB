@@ -2,7 +2,7 @@
 structures may be used to run the benchmark on the model results
 cateloged in Mingquan's ftp site.
 """
-from ILAMB.Confrontation import Confrontation
+from ILAMB.Scoreboard import Scoreboard
 from ILAMB.ModelResult import ModelResult
 from ILAMB import ilamblib as il
 import numpy as np
@@ -61,7 +61,7 @@ for m in M:
     m.color = clr
 
 # Get confrontations
-Conf = Confrontation("clm.cfg",regions=args.regions)
+Conf = Scoreboard("clm.cfg",regions=args.regions)
 
 # Build work list, ModelResult+Confrontation pairs
 W     = []

@@ -1,536 +1,416 @@
-from GenericConfrontation import GenericConfrontation
-import os,re
+import ilamblib as il
+from Variable import *
+from constants import four_code_regions,space_opts,time_opts,mid_months,bnd_months
+import os,glob,re
 from netCDF4 import Dataset
-import numpy as np
-from Post import BenchmarkSummaryFigure
+import Post as post
+import pylab as plt
 
-global_print_node_string  = ""
-global_confrontation_list = []
-global_model_list         = []
+class Confrontation:
 
-class Node(object):
-    
-    def __init__(self, name):
-        self.name     = name
-        self.children = []
-        self.parent   = None
-        self.weight   = None
-        self.sum_weight_children = 0
-        self.normalize_weight    = 0
-        self.overall_weight      = 0
-        self.score    = 0
-        self.source   = None
-        self.colormap = None
-        self.variable = None
-        self.alternate_variable = None
-        self.derived  = None
-        self.land     = False
-        self.confrontation = None
-        self.path     = None
-        self.bgcolor  = None
+    def __init__(self,name,srcdata,variable_name,**keywords):
+
+        # Initialize
+        self.master         = True
+        self.name           = name
+        self.srcdata        = srcdata
+        self.variable_name  = variable_name
+        self.output_path    = keywords.get("output_path","_build/%s/" % self.name)
+        self.alternate_vars = keywords.get("alternate_vars",[])
+        self.derived        = keywords.get("derived",None)
+        self.regions        = keywords.get("regions",four_code_regions)
+        self.data           = None
+        self.cmap           = keywords.get("cmap","jet")
+        self.land           = keywords.get("land",False)
+        self.limits         = None
+        self.longname       = self.output_path
+        self.longname       = self.longname.replace("//","/").replace("./","").replace("_build/","")
+        if self.longname[-1] == "/": self.longname = self.longname[:-1]
+        self.longname       = "/".join(self.longname.split("/")[1:])
+
+        # Make sure the source data exists
+        try:
+            os.stat(self.srcdata)
+        except:
+            msg  = "\n\nI am looking for data for the %s confrontation here\n\n" % self.name
+            msg += "%s\n\nbut I cannot find it. " % self.srcdata
+            msg += "Did you download the data? Have you set the ILAMB_ROOT envronment variable?\n"
+            raise il.MisplacedData(msg)
+
+        # Setup a html layout for generating web views of the results
+        self.layout = post.HtmlLayout(self,regions=self.regions)
+        self.layout.setHeader("CNAME / RNAME / MNAME")
+        self.layout.setSections(["Temporally integrated period mean",
+                                 "Spatially integrated regional mean"])
+
+        # Define relative weights of each score in the overall score
+        # (FIX: need some way for the user to modify this)
+        self.weight = {"bias_score" :1.,
+                       "rmse_score" :2.,
+                       "shift_score":1.,
+                       "iav_score"  :1.,
+                       "sd_score"   :1.}
+
+    def stageData(self,m):
+        """
+        """
+        # Read in the data, and perform consistency checks depending
+        # on the data types found
+        if self.data is None:
+            obs = Variable(filename=self.srcdata,variable_name=self.variable_name,alternate_vars=self.alternate_vars)
+            self.data = obs
+        else:
+            obs = self.data
+        if obs.time is None: raise il.NotTemporalVariable()
+        t0 = obs.time.min()
+        tf = obs.time.max()
+
+        if obs.spatial:
+            try:
+                mod = m.extractTimeSeries(self.variable_name,
+                                          alt_vars     = self.alternate_vars,
+                                          initial_time = t0,
+                                          final_time   = tf)
+            except:
+                mod = m.derivedVariable(self.variable_name,self.derived,
+                                        initial_time = t0,
+                                        final_time   = tf)
+        else:
+            try:
+                mod = m.extractTimeSeries(self.variable_name,
+                                          alt_vars     = self.alternate_vars,
+                                          lats         = obs.lat,
+                                          lons         = obs.lon,
+                                          initial_time = t0,
+                                          final_time   = tf)
+            except:
+                mod = m.derivedVariable(self.variable_name,self.derived,
+                                        lats         = obs.lat,
+                                        lons         = obs.lon,
+                                        initial_time = t0,
+                                        final_time   = tf)
         
-    def __str__(self):
-        if self.parent is None: return ""
-        name   = self.name if self.name is not None else ""
-        weight = self.weight
-        if self.isLeaf():
-            s = "%s%s %d %.2f%%" % ("   "*(self.getDepth()-1),name,weight,100*self.overall_weight)
-        else:
-            s = "%s%s %d" % ("   "*(self.getDepth()-1),name,weight)
-        return s
+        if obs.time.shape != mod.time.shape:
+            t0 = max(obs.time.min(),mod.time.min())
+            tf = min(obs.time.max(),mod.time.max())
+            for var in [obs,mod]:
+                begin = np.argmin(np.abs(var.time-t0))
+                end   = np.argmin(np.abs(var.time-tf))+1
+                var.time = var.time[begin:end]
+                var.data = var.data[begin:end,...]
 
-    def isLeaf(self):
-        if len(self.children) == 0: return True
-        return False
-    
-    def addChild(self, node):
-        node.parent = self
-        self.children.append(node)
+        if obs.time.shape != mod.time.shape: raise il.VarNotOnTimeScale()
+        if not np.allclose(obs.time,mod.time,atol=20): raise il.VarsNotComparable()
+        if self.land and mod.spatial:
+            mod.data = np.ma.masked_array(mod.data,
+                                          mask=mod.data.mask+(mod.area<1e-2)[np.newaxis,:,:],
+                                          copy=False)
+        mod.convert(obs.unit)
+        return obs,mod
 
-    def getDepth(self):
-        depth  = 0
-        parent = self.parent
-        while parent is not None:
-            depth += 1
-            parent = parent.parent
-        return depth
+    def confront(self,m):
+        r"""Confronts the input model with the observational data.
 
-def TraversePostorder(node,visit):
-    for child in node.children: TraversePostorder(child,visit)
-    visit(node)
-    
-def TraversePreorder(node,visit):
-    visit(node)
-    for child in node.children: TraversePreorder(child,visit)
+        Parameters
+        ----------
+        m : ILAMB.ModelResult.ModelResult
+            the model results
+        """
+        # Grab the data
+        obs,mod = self.stageData(m)
 
-def PrintNode(node):
-    global global_print_node_string
-    global_print_node_string += "%s\n" % (node)
-    
-def ConvertTypes(node):
-    if node.weight is not None: node.weight = float(node.weight)
-    node.land = bool(node.land)
-    
-def SumWeightChildren(node):
-    for child in node.children:
-        if child.weight is None:
-            node.sum_weight_children += child.sum_weight_children
-        else:
-            node.sum_weight_children += child.weight
-    if node.weight is None: node.weight = node.sum_weight_children
-    
-def NormalizeWeights(node):
-    if node.parent is not None:
-        node.normalize_weight = node.weight/node.parent.sum_weight_children
+        # Open a dataset for recording the results of this confrontation
+        results = Dataset("%s/%s_%s.nc" % (self.output_path,self.name,m.name),mode="w")
+        results.setncatts({"name" :m.name, "color":m.color})
+        benchmark_results = None
+        fname = "%s/%s_Benchmark.nc" % (self.output_path,self.name)
+        if self.master:
+            benchmark_results = Dataset(fname,mode="w")
+            benchmark_results.setncatts({"name" :"Benchmark", "color":np.asarray([0.5,0.5,0.5])})
+        try:
+            AnalysisFluxrate(obs,mod,dataset=results,regions=self.regions,benchmark_dataset=benchmark_results)
+        except:
+            results.close()
+            os.system("rm -f %s/%s_%s.nc" % (self.output_path,self.name,m.name))
+            raise il.AnalysisError()
+        if self.master: benchmark_results.close()
+            
+    def determinePlotLimits(self):
+        """
+        This is essentially the reduction via datafile.
+        Plot legends.
+        """
 
-def OverallWeights(node):
-    if node.isLeaf():
-        node.overall_weight = node.normalize_weight
-        parent = node.parent
-        while parent.parent is not None:
-            node.overall_weight *= parent.normalize_weight
-            parent = parent.parent
+        # Determine the min/max of variables over all models
+        limits      = {}
+        for fname in glob.glob("%s/*.nc" % self.output_path):
+            try:
+                dataset = Dataset(fname)
+            except:
+                continue
+            variables = [v for v in dataset.variables.keys() if v not in dataset.dimensions.keys()]
+            for vname in variables:
+                var   = dataset.variables[vname]
+                pname = vname.split("_")[0]
+                if var[...].size <= 1: continue
+                if not space_opts.has_key(pname): continue
+                if not limits.has_key(pname):
+                    limits[pname] = {}
+                    limits[pname]["min"]  = +1e20
+                    limits[pname]["max"]  = -1e20
+                    limits[pname]["unit"] = post.UnitStringToMatplotlib(var.getncattr("units"))
+                limits[pname]["min"] = min(limits[pname]["min"],var.getncattr("min"))
+                limits[pname]["max"] = max(limits[pname]["max"],var.getncattr("max"))
+            dataset.close()
+        
+        # Second pass to plot legends
+        for pname in limits.keys():
+            opts = space_opts[pname]
 
-def InheritVariableNames(node):
-    if node.parent             is None: return
-    if node.variable           is None: node.variable           = node.parent.variable
-    if node.alternate_variable is None: node.alternate_variable = node.parent.alternate_variable
-    if node.derived            is None: node.derived            = node.parent.derived
-    if node.colormap           is None: node.colormap           = node.colormap
-    
-def ParseConfrontationConfigureFile(filename):
-    root = Node(None)
-    previous_node = root
-    current_level = 0
-    for line in file(filename).readlines():
-        line = line.strip()
-        if line.startswith("#"): continue
-        m1 = re.search(r"\[h(\d):\s+(.*)\]",line)
-        m2 = re.search(r"\[(.*)\]",line)
-        m3 = re.search(r"(.*)=(.*)",line)
-        if m1:
-            level = int(m1.group(1))
-            assert level-current_level<=1
-            name  = m1.group(2)
-            node  = Node(name)
-            if   level == current_level:
-                previous_node.parent.addChild(node)
-            elif level >  current_level:
-                previous_node.addChild(node)
-                current_level = level
+            # Determine plot limits and colormap
+            if opts["sym"]:
+                vabs =  max(abs(limits[pname]["min"]),abs(limits[pname]["min"]))
+                limits[pname]["min"] = -vabs
+                limits[pname]["max"] =  vabs
+            limits[pname]["cmap"] = opts["cmap"]
+            if limits[pname]["cmap"] == "choose": limits[pname]["cmap"] = self.cmap
+
+            # Plot a legend for each key
+            if opts["haslegend"]:
+                fig,ax = plt.subplots(figsize=(6.8,1.0),tight_layout=True)
+                label  = opts["label"]
+                if label == "unit": label = limits[pname]["unit"]
+                post.ColorBar(ax,
+                              vmin = limits[pname]["min"],
+                              vmax = limits[pname]["max"],
+                              cmap = limits[pname]["cmap"],
+                              ticks = opts["ticks"],
+                              ticklabels = opts["ticklabels"],
+                              label = label)
+                fig.savefig("%s/legend_%s.png" % (self.output_path,pname))
+                plt.close()
+
+        self.limits = limits
+
+    def computeOverallScore(self,m):
+        """
+        Done outside analysis such that weights can be changed and analysis need not be rerun
+        """
+        fname     = "%s/%s_%s.nc" % (self.output_path,self.name,m.name)
+        try:
+            dataset   = Dataset(fname,mode="r+")
+        except:
+            return
+        variables = [v for v in dataset.variables.keys() if "score" in v and "overall" not in v]
+        scores    = []
+        for v in variables:
+            s = "_".join(v.split("_")[:2])
+            if s not in scores: scores.append(s)
+        for region in self.regions:
+            for v in variables:
+                if region not in v: continue
+                overall_score  = 0.
+                sum_of_weights = 0.
+                for score in scores:
+                    overall_score  += self.weight[score]*dataset.variables[v][...]
+                    sum_of_weights += self.weight[score]
+                overall_score /= max(sum_of_weights,1e-12)
+            name = "overall_score_over_%s" % region
+            if name in dataset.variables.keys():
+                dataset.variables[name][0] = overall_score
             else:
-                addto = root
-                for i in range(level-1): addto = addto.children[-1]
-                addto.addChild(node)
-                current_level = level
-            previous_node = node
-    
-        if not m1 and m2:
-            node  = Node(m2.group(1))
-            previous_node.addChild(node)
+                Variable(data=overall_score,name=name,unit="-").toNetCDF4(dataset)
+        dataset.close()
 
-        if m3:
-            keyword = m3.group(1).strip()
-            value   = m3.group(2).strip().replace('"','')
-            if keyword not in node.__dict__.keys(): continue
-            try:
-                node.__dict__[keyword] = value
-            except:
-                pass
-
-    TraversePreorder (root,ConvertTypes)        
-    TraversePostorder(root,SumWeightChildren)
-    TraversePreorder (root,NormalizeWeights)
-    TraversePreorder (root,OverallWeights)
-    TraversePostorder(root,InheritVariableNames)
-    return root
-
-class Confrontation():
-    """
-    A class for managing confrontations
-    """
-    def __init__(self,filename,regions=["global"]):
-        
-        self.tree = ParseConfrontationConfigureFile(filename)
-        
-        def _initConfrontation(node):
-            if not node.isLeaf(): return
-            try:
-                if node.colormap is None: node.colormap = "jet"
-                node.confrontation = GenericConfrontation(node.name,
-                                                          "%s/%s" % (os.environ["ILAMB_ROOT"],node.source),
-                                                          node.variable,
-                                                          alternate_vars=[node.alternate_variable],
-                                                          regions=regions,
-                                                          cmap=node.colormap,
-                                                          output_path=node.path,
-                                                          land=node.land,
-                                                          derived=node.derived)
-            except Exception,e:
-                pass
-
-        def _buildDirectories(node):
-            if node.name is None: return
-            path   = ""
-            parent = node
-            while parent.name is not None:
-                path   = "%s/%s" % (parent.name.replace(" ",""),path)
-                parent = parent.parent
-            path = "./_build/%s" % path
-            if not os.path.isdir(path): os.mkdir(path)
-            node.path = path
-            
-        if not os.path.isdir("./_build"): os.mkdir("./_build")        
-        TraversePreorder(self.tree,_buildDirectories)
-        TraversePreorder(self.tree,_initConfrontation)
-        
-    def __str__(self):
-        global global_print_node_string
-        global_print_node_string = ""
-        TraversePreorder(self.tree,PrintNode)
-        return global_print_node_string
-
-    def list(self):
-        def _hasConfrontation(node):
-            global global_confrontation_list
-            if node.confrontation is not None:
-                global_confrontation_list.append(node.confrontation)
-        global global_confrontation_list
-        global_confrontation_list = []
-        TraversePreorder(self.tree,_hasConfrontation)
-        return global_confrontation_list
-        
-    def createHtml(self,M,filename="./_build/index.html"):
-
-        # Create html assets
-        from pylab import imsave
-        path   = "/".join(filename.split("/")[:-1]) + "/"
-        arrows = np.zeros((32,16,4))
-        for i in range(7):
-            arrows[ 4+i,(7-i):(7+i+1),3] = 1
-            arrows[27-i,(7-i):(7+i+1),3] = 1
-        imsave(path + "arrows.png",arrows)
-        
-        html = r"""
-<html>
-  <head>
-    <title>ILAMB Benchmark Results</title>
-    <link rel="stylesheet" href="http://code.jquery.com/mobile/1.4.5/jquery.mobile-1.4.5.min.css"></link>
-    <script src="http://code.jquery.com/jquery-1.11.2.min.js"></script>
-    <script>
-      $(document).bind('mobileinit',function(){
-      $.mobile.changePage.defaults.changeHash = false;
-      $.mobile.hashListeningEnabled = false;
-      $.mobile.pushStateEnabled = false;
-      });
-    </script>
-    <script src="http://code.jquery.com/mobile/1.4.5/jquery.mobile-1.4.5.min.js"></script>
-    <script type="text/javascript" src="https://www.google.com/jsapi"></script>
-    <script type="text/javascript">  
-      $(document).ready(function(){
-      function getChildren($row) {
-      var children = [];
-      while($row.next().hasClass('child')) {
-      children.push($row.next());
-      $row = $row.next();
-      }            
-      return children;
-      }
-      $('.parent').on('click', function() {
-      $(this).find(".arrow").toggleClass("up");
-      var children = getChildren($(this));
-      $.each(children, function() {
-      $(this).toggle();
-      })
-      });
-      $('.child').toggle();
-      });
-    </script>"""
-        html += """
-    <style>
-      div.arrow {
-        background:transparent url(arrows.png) no-repeat scroll 0px -16px;
-        width:16px;
-        height:16px; 
-        display:block;
-      }
-      div.up {
-        background-position:0px 0px;
-      }
-      .child {
-      }
-      .parent {
-        cursor:pointer;
-      }
-      th {
-        border-bottom: 1px solid #d6d6d6;
-      }
-      img.displayed {
-        display: block;
-        margin-left: auto;
-        margin-right: auto
-      }
-    </style>"""
-        html += """
-  </head>
-
-  <body>"""
-        
-        html += """
-    <div data-role="page" id="page1">
-      <div data-role="header" data-position="fixed" data-tap-toggle="false">
-	<h1>ILAMB Benchmark Results</h1>
-	<div data-role="navbar">
-	  <ul>
-	    <li><a href="#page1" class="ui-btn-active ui-state-persist">Overview</a></li>
-	    <li><a href="#page2">Results Table</a></li>
-	    <li><a href="#page3">Model Comparisons</a></li>
-	  </ul>
-	</div>
-      </div>
-      <div data-role="main" class="ui-content">
-	<img class="displayed" src="./overview.png"></img>
-	<img class="displayed" src="./contribution.png"></img>
-      </div>
-      <div data-role="footer">
-	<h1> </h1>
-      </div>
-    </div>"""
-
-        html += """
-    <div data-role="page" id="page2">
-      <div data-role="header" data-position="fixed" data-tap-toggle="false">
-	<h1>ILAMB Benchmark Results</h1>
-	<div data-role="navbar">
-	  <ul>
-	    <li><a href="#page1">Overview</a></li>
-	    <li><a href="#page2" class="ui-btn-active ui-state-persist">Results Table</a></li>
-	    <li><a href="#page3">Model Comparisons</a></li>
-	  </ul>
-	</div>
-      </div>
-
-      <div data-role="main" class="ui-content">
-	<table data-role="table" data-mode="columntoggle" class="ui-responsive ui-shadow" id="myTable">
-	  <thead>
-	    <tr>
-              <th style="width:300px"> </th>"""
-        for m in M:
-            html += """
-              <th style="width:80px" data-priority="1">%s</th>""" % m.name
-        html += """
-              <th style="width:20px"></th>
-	    </tr>
-	  </thead>
-          <tbody>"""
-        
-        for tree in self.tree.children: html += GenerateTable(tree,M)
-        html += """
-          </tbody>
-        </table>
-      </div>
-      <div data-role="footer">
-        <h1> </h1>
-      </div>
-    </div>
-
-    <div data-role="page" id="page3">      
-      <div data-role="header" data-position="fixed" data-tap-toggle="false">
-	<h1>ILAMB Benchmark Results</h1>
-	<div data-role="navbar">
-	  <ul>
-	    <li><a href="#page1">Overview</a></li>
-	    <li><a href="#page2">Results Table</a></li>
-	    <li><a href="#page3" class="ui-btn-active ui-state-persist">Model Comparisons</a></li>
-	  </ul>
-	</div>
-      </div>
-      <div data-role="main" class="ui-content">
-        <div data-role="fieldcontain">
-	  <label for="select-choice-1" class="select">Choose a reference model:</label>
-	  <select name="select-choice-1" id="select-choice-1">"""
-        for m in M:
-            html += """
-	    <option value="%s">%s</option>""" % (m.name,m.name)
-        html += """
-	  </select>
-        </div>
-        <div data-role="fieldcontain">
-	  <label for="select-choice-2" class="select">Choose a comparison model:</label>
-	  <select name="select-choice-2" id="select-choice-2">"""
-        for m in M:
-            html += """
-	    <option value="%s">%s</option>""" % (m.name,m.name)
-        html += """
-	  </select>
-        </div>
-      </div>
-
-
-      <div data-role="footer">
-	<h1> </h1>
-      </div>
-    </div>
-
-</body>
-</html>"""
-        file(filename,"w").write(html)
-        
-    def createBarCharts(self,M,filename="./_build/models.html"):
-        html = GenerateBarCharts(self.tree,M)
-
-    def createSummaryFigure(self,M):
-        GenerateSummaryFigure(self.tree,M)
-        
-def CompositeScores(tree,M):
-    global global_model_list
-    global_model_list = M
-    def _loadScores(node):
-        if node.isLeaf():
-            if node.confrontation is None: return
-            data = np.zeros(len(global_model_list))
-            mask = np.ones (len(global_model_list),dtype=bool)
-            for ind,m in enumerate(global_model_list):
-                fname = "%s/%s_%s.nc" % (node.confrontation.output_path,node.confrontation.name,m.name)
-                if os.path.isfile(fname):
-                    try:
-                        dataset = Dataset(fname)
-                    except:
-                        continue
-                    if dataset.variables.has_key("overall_score_over_global"):
-                        data[ind] = dataset.variables["overall_score_over_global"][0]
-                        mask[ind] = 0
-                    else:
-                        data[ind] = -999.
-                        mask[ind] = 1
-                    node.score = np.ma.masked_array(data,mask=mask)
-        else:
-            node.score  = 0
-            sum_weights = 0
-            for child in node.children:
-                node.score  += child.score*child.weight
-                sum_weights += child.weight
-            np.seterr(over='ignore',under='ignore')
-            node.score /= sum_weights
-            np.seterr(over='raise',under='raise')
-    TraversePostorder(tree,_loadScores)
-
-global_html = ""
-global_table_color = ""
-
-def DarkenRowColor(clr,fraction=0.9):
-    from colorsys import rgb_to_hsv,hsv_to_rgb
-    def hex_to_rgb(value):
-        value = value.lstrip('#')
-        lv  = len(value)
-        rgb = tuple(int(value[i:i + lv // 3], 16) for i in range(0, lv, lv // 3))
-        rgb = np.asarray(rgb)/255.
-        return rgb
-    def rgb_to_hex(rgb):
-        return '#%02x%02x%02x' % rgb
-    rgb = hex_to_rgb(clr)
-    hsv = rgb_to_hsv(rgb[0],rgb[1],rgb[2])
-    rgb = hsv_to_rgb(hsv[0],hsv[1],fraction*hsv[2])
-    rgb = tuple(np.asarray(np.asarray(rgb)*255.,dtype=int))
-    return rgb_to_hex(rgb)
-
-def BuildHTMLTable(tree,M):
-    global global_model_list
-    global_model_list = M
-    def _genHTML(node):
-        global global_html
-        global global_table_color
-        ccolor = DarkenRowColor(global_table_color,fraction=0.95)
-        if node.isLeaf():
-            weight = np.round(100.0*node.normalize_weight,1)
-            if node.confrontation is None:
-                global_html += """
-      <tr class="child" bgcolor="%s">
-        <td>&nbsp;&nbsp;&nbsp;%s&nbsp;(%.1f%%)</td>""" % (ccolor,node.name,weight)
-                for m in global_model_list: global_html += '\n        <td>~</td>'
-            else:                
-                c = node.confrontation
-                global_html += """
-      <tr class="child" bgcolor="%s">
-        <td>&nbsp;&nbsp;&nbsp;<a href="%s/%s.html">%s</a>&nbsp;(%.1f%%)</td>""" % (ccolor,
-                                                                                   c.output_path.replace("_build/",""),
-                                                                                   c.name,c.name,weight)
-                try:
-                    for ind in range(node.score.size):
-                        global_html += '\n        <td>%.2f</td>' % (node.score[ind])
-                except:
-                    for ind in range(len(global_model_list)):
-                        global_html += '\n        <td>~</td>'
-            global_html += """
-        <td></td>
-      </tr>"""
-        else:
-            global_html += """
-      <tr class="parent" bgcolor="%s">
-        <td>%s</td>""" % (global_table_color,node.name)
-            for ind,m in enumerate(global_model_list):
-                try:
-                    global_html += '\n        <td>%.2f</td>' % (node.score[ind])
-                except:
-                    global_html += '\n        <td>~</td>' 
-            global_html += """
-        <td><div class="arrow"></div></td>
-      </tr>"""
-    TraversePreorder(tree,_genHTML)
-    
-def GenerateTable(tree,M):
-    global global_html
-    global global_model_list
-    global global_table_color
-    CompositeScores(tree,M)
-    global_model_list = M
-    global_table_color = tree.bgcolor
-    global_html = ""
-    for cat in tree.children: BuildHTMLTable(cat,M)
-    return global_html
-
-"""
-def GenerateBarCharts(tree,M):
-    return
-    table = []
-    row   = [m.name for m in M] 
-    row.insert(0,"Variables")
-    table.append(row)
-    for cat in tree.children:
-        for var in cat.children:
-            row = [var.name]
-            try:
-                for i in range(var.score.size): row.append(var.score[i])
-            except:
-                for i in range(len(M)): row.append(0)
-            table.append(row)
-    from jinja2 import FileSystemLoader,Environment
-    templateLoader = FileSystemLoader(searchpath="./")
-    templateEnv    = Environment(loader=templateLoader)
-    template       = templateEnv.get_template("tmp.html")
-    templateVars   = { "table" : table }
-    outputText     = template.render( templateVars )
-    file('gen.html',"w").write(outputText)
-"""
-
-def GenerateSummaryFigure(tree,M):
-
-    models    = [m.name for m in M]
-    variables = []
-    vcolors   = []
-    for cat in tree.children:
-        for var in cat.children:
-            variables.append(var.name)
-            vcolors.append(cat.bgcolor)
-            
-    data = np.zeros((len(variables),len(models)))
-    row  = -1
-    for cat in tree.children:
-        for var in cat.children:
-            row += 1
-            try:
-                data[row,:] = var.score
-            except:
-                data[row,:] = np.nan
+    def compositePlots(self):
+        """
+        """
+        if not self.master: return
+        models = []
+        colors = []
+        corr   = {}
+        std    = {}
+        cycle  = {}
+        for fname in glob.glob("%s/*.nc" % self.output_path):
+            dataset = Dataset(fname)
+            models.append(dataset.getncattr("name"))
+            colors.append(dataset.getncattr("color"))
+            for region in self.regions:
+                if not std.  has_key(region): std  [region] = []
+                if not corr. has_key(region): corr [region] = []
+                if not cycle.has_key(region): cycle[region] = []
+                key = [v for v in dataset.variables.keys() if ("corr_" in v and region in v)]
+                if len(key)>0: corr [region].append(Variable(filename=fname,variable_name=key[0]).data.data)
+                key = [v for v in dataset.variables.keys() if ("std_"  in v and region in v)]
+                if len(key)>0: std  [region].append(Variable(filename=fname,variable_name=key[0]).data.data)
+                key = [v for v in dataset.variables.keys() if ("cycle_"  in v and region in v)]
+                if len(key)>0: cycle[region].append(Variable(filename=fname,variable_name=key[0]))
                 
-    BenchmarkSummaryFigure(models,variables,data,"_build/overview.png",vcolor=vcolors)
+        # composite annual cycle plot
+        self.layout.addFigure("Spatially integrated regional mean",
+                              "compcycle",
+                              "RNAME_compcycle.png",
+                              side   = "CYCLES",
+                              legend = True)
+        for region in self.regions:
+            if not cycle.has_key(region): continue
+            fig,ax = plt.subplots(figsize=(6.8,2.8),tight_layout=True)
+            for name,color,var in zip(models,colors,cycle[region]):
+                var.plot(ax,lw=2,color=color,label=name,
+                         ticks      = time_opts["cycle"]["ticks"],
+                         ticklabels = time_opts["cycle"]["ticklabels"])
+                ylbl = time_opts["cycle"]["ylabel"]
+                if ylbl == "unit": ylbl = post.UnitStringToMatplotlib(var.unit)
+            fig.savefig("%s/%s_compcycle.png" % (self.output_path,region))
+            plt.close()
+
+        # plot legends with model colors (sorted with Benchmark data on top)
+        def _alphabeticalBenchmarkFirst(key):
+            key = key[0].upper()
+            if key == "BENCHMARK": return 0
+            return key
+        tmp = sorted(zip(models,colors),key=_alphabeticalBenchmarkFirst)
+        fig,ax = plt.subplots()
+        for model,color in tmp:
+            ax.plot(0,0,'o',mew=0,ms=8,color=color,label=model)
+        handles,labels = ax.get_legend_handles_labels()
+        plt.close()
+        fig,ax = plt.subplots(figsize=(6.8,2.8),tight_layout=True)
+        ax.legend(handles,labels,loc="upper left",ncol=3,fontsize=10,numpoints=1)
+        ax.axis('off')
+        fig.savefig("%s/legend_compcycle.png" % self.output_path)
+        fig.savefig("%s/legend_spatial_variance.png" % self.output_path)
+        plt.close()
+        
+        # spatial distribution Taylor plot
+        self.layout.addFigure("Temporally integrated period mean",
+                              "spatial_variance",
+                              "RNAME_spatial_variance.png",
+                              side   = "SPATIAL DISTRIBUTION",
+                              legend = True)       
+        if "Benchmark" in models: colors.pop(models.index("Benchmark"))
+        for region in self.regions:
+            if not (std.has_key(region) and corr.has_key(region)): continue
+            if len(std[region]) != len(corr[region]): continue
+            if len(std[region]) == 0: continue
+            fig = plt.figure(figsize=(6.0,6.0))
+            post.TaylorDiagram(np.asarray(std[region]),np.asarray(corr[region]),1.0,fig,colors)
+            fig.savefig("%s/%s_spatial_variance.png" % (self.output_path,region))
+            plt.close()
+
+        
+    def postProcessFromFiles(self,m):
+        """
+        Call determinePlotLimits first
+        Html layout gets built in here
+        """
+        bname     = "%s/%s_Benchmark.nc" % (self.output_path,self.name)
+        fname     = "%s/%s_%s.nc" % (self.output_path,self.name,m.name)
+        try:
+            dataset   = Dataset(fname)
+        except:
+            return
+        variables = [v for v in dataset.variables.keys() if v not in dataset.dimensions.keys()]
+        color     = dataset.getncattr("color")
+        for vname in variables:
+
+            # is this a variable we need to plot?
+            pname = vname.split("_")[0]
+            if dataset.variables[vname][...].size <= 1: continue
+            var = Variable(filename=fname,variable_name=vname)
+            
+            if (var.spatial or (var.ndata is not None)) and not var.temporal:
+
+                # grab plotting options
+                if pname not in self.limits.keys(): continue
+                opts = space_opts[pname]
+
+                # add to html layout
+                self.layout.addFigure(opts["section"],
+                                      pname,
+                                      opts["pattern"],
+                                      side   = opts["sidelbl"],
+                                      legend = opts["haslegend"])
+
+                # plot variable
+                for region in self.regions:
+                    fig = plt.figure(figsize=(6.8,2.8))
+                    ax  = fig.add_axes([0.06,0.025,0.88,0.965])
+                    var.plot(ax,
+                             region = region,
+                             vmin   = self.limits[pname]["min"],
+                             vmax   = self.limits[pname]["max"],
+                             cmap   = self.limits[pname]["cmap"])
+                    fig.savefig("%s/%s_%s_%s.png" % (self.output_path,m.name,region,pname))
+                    plt.close()
+
+            if not (var.spatial or (var.ndata is not None)) and var.temporal:
+                
+                # grab the benchmark dataset to plot along with
+                obs = Variable(filename=bname,variable_name=vname)
+
+                # grab plotting options
+                opts = time_opts[pname]
+
+                # add to html layout
+                self.layout.addFigure(opts["section"],
+                                      pname,
+                                      opts["pattern"],
+                                      side   = opts["sidelbl"],
+                                      legend = opts["haslegend"])
+
+                # plot variable
+                for region in self.regions:
+                    if region not in vname: continue
+                    fig,ax = plt.subplots(figsize=(6.8,2.8),tight_layout=True)
+                    obs.plot(ax,lw=2,color='k',alpha=0.5)
+                    var.plot(ax,lw=2,color=color,label=m.name,
+                             ticks     =opts["ticks"],
+                             ticklabels=opts["ticklabels"])
+                    ylbl = opts["ylabel"]
+                    if ylbl == "unit": ylbl = post.UnitStringToMatplotlib(var.unit)
+                    ax.set_ylabel(ylbl)
+                    fig.savefig("%s/%s_%s_%s.png" % (self.output_path,m.name,region,pname))
+                    plt.close()
+
+    def generateHtml(self):
+        """
+        """
+        # only the master processor needs to do this
+        if not self.master: return
+
+        # build the metric dictionary
+        metrics      = {}
+        metric_names = { "period_mean"   : "Period Mean",
+                         "bias_of"       : "Bias",
+                         "rmse_of"       : "RMSE",
+                         "shift_of"      : "Phase Shift",
+                         "bias_score"    : "Bias Score",
+                         "rmse_score"    : "RMSE Score",
+                         "shift_score"   : "Phase Score",
+                         "iav_score"     : "Interannual Variability Score",
+                         "sd_score"      : "Spatial Distribution Score",
+                         "overall_score" : "Overall Score" }
+        for fname in glob.glob("%s/*.nc" % self.output_path):
+            try:
+                dataset   = Dataset(fname)
+            except:
+                continue
+            variables = [v for v in dataset.variables.keys() if v not in dataset.dimensions.keys()]
+            mname     = dataset.getncattr("name")
+            metrics[mname] = {}
+            for vname in variables:
+                if dataset.variables[vname][...].size > 1: continue
+                var  = Variable(filename=fname,variable_name=vname)
+                name = "_".join(var.name.split("_")[:2])
+                if not metric_names.has_key(name): continue
+                metname = metric_names[name]
+                for region in self.regions:
+                    if region not in metrics[mname].keys(): metrics[mname][region] = {}
+                    if region in var.name: metrics[mname][region][metname] = var
+                    
+        # write the HTML page
+        f = file("%s/%s.html" % (self.output_path,self.name),"w")
+        self.layout.setMetrics(metrics)
+        f.write(str(self.layout))
+        f.close()
