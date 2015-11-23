@@ -297,7 +297,9 @@ class HtmlLayout():
                     metric_unit = ""
                 else:
                     metric_name = metric.name
-                    metric_unit = metric.unit.replace(" ",r"&thinsp;").replace("-1",r"<sup>-1</sup>")
+                    metric_unit = metric.unit.replace(" " ,r"&thinsp;")
+                    metric_unit = metric.unit.replace("-1",r"<sup>-1</sup>")
+                    metric_unit = metric.unit.replace("-2",r"<sup>-2</sup>")
                 code += """
         data.addColumn('number','<span title="%s">%s [%s]</span>');""" % (metric_name,header,metric_unit)
         code += """

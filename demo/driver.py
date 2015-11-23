@@ -132,7 +132,7 @@ for w in localW:
             il.VarNotOnTimeScale,
             il.NotTemporalVariable,
             il.UnitConversionError,
-            il.AnalysisError,
+            #il.AnalysisError,
             il.VarsNotComparable) as ex:
         print ("    {0:>%d} {1:>%d} %s%s%s" % (maxCL,maxML,FAIL,ex,ENDC)).format(c.longname,m.name)
         continue

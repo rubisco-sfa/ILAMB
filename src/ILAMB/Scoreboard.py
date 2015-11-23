@@ -26,8 +26,11 @@ class Node(object):
         self.derived  = None
         self.land     = False
         self.confrontation = None
-        self.path     = None
-        self.bgcolor  = None
+        self.path      = None
+        self.bgcolor   = None
+        self.table_unit = None
+        self.plot_unit  = None
+        self.space_mean = True
         
     def __str__(self):
         if self.parent is None: return ""
@@ -68,8 +71,12 @@ def PrintNode(node):
     global_print_node_string += "%s\n" % (node)
     
 def ConvertTypes(node):
+    def _to_bool(a):
+        if type(a) is type(True): return a
+        if type(a) is type("")  : return a.lower() == "true"
     if node.weight is not None: node.weight = float(node.weight)
-    node.land = bool(node.land)
+    node.land       = _to_bool(node.land)
+    node.space_mean = _to_bool(node.space_mean)
     
 def SumWeightChildren(node):
     for child in node.children:
@@ -96,7 +103,7 @@ def InheritVariableNames(node):
     if node.variable           is None: node.variable           = node.parent.variable
     if node.alternate_variable is None: node.alternate_variable = node.parent.alternate_variable
     if node.derived            is None: node.derived            = node.parent.derived
-    if node.colormap           is None: node.colormap           = node.colormap
+    if node.colormap           is None: node.colormap           = node.parent.colormap
     
 def ParseScoreboardConfigureFile(filename):
     root = Node(None)
@@ -165,7 +172,10 @@ class Scoreboard():
                                                    cmap=node.colormap,
                                                    output_path=node.path,
                                                    land=node.land,
-                                                   derived=node.derived)
+                                                   derived=node.derived,
+                                                   space_mean=node.space_mean,
+                                                   table_unit=node.table_unit,
+                                                   plot_unit=node.plot_unit)
             except Exception,e:
                 pass
 

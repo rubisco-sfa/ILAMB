@@ -534,6 +534,7 @@ class Variable:
             Units.conform(self.data,Units(self.unit),Units(unit),inplace=True)
             self.unit = unit
         except:
+            print "Unit conversion error!!!!",self.name,self.unit,unit
             raise il.UnitConversionError()
         return self
     
@@ -1068,7 +1069,7 @@ def ScoreSeasonalCycle(phase_shift):
                     lon   = phase_shift.lon,
                     area  = phase_shift.area)
 
-def AnalysisFluxrate(obs,mod,regions=['global'],dataset=None,benchmark_dataset=None):
+def AnalysisFluxrate(obs,mod,regions=['global'],dataset=None,benchmark_dataset=None,space_mean=True,table_unit=None,plot_unit=None):
     """
     UNTESTED
     """
@@ -1138,14 +1139,14 @@ def AnalysisFluxrate(obs,mod,regions=['global'],dataset=None,benchmark_dataset=N
         if spatial:
 
             # Compute the scalar integral over the specified region.
-            obs_period_mean[region] = obs_timeint    .integrateInSpace(region=region)
+            obs_period_mean[region] = obs_timeint    .integrateInSpace(region=region,mean=space_mean) ##
             obs_mean_cycle [region] = obs_cycle      .integrateInSpace(region=region,mean=True)
             obs_spaceint   [region] = obs            .integrateInSpace(region=region,mean=True)
-            mod_period_mean[region] = mod_timeint    .integrateInSpace(region=region)
+            mod_period_mean[region] = mod_timeint    .integrateInSpace(region=region,mean=space_mean) ##
             
             # Compute the scalar means over the specified region.
-            bias           [region] = bias_map       .integrateInSpace(region=region,mean=True)
-            rmse           [region] = rmse_map       .integrateInSpace(region=region,mean=True)
+            bias           [region] = bias_map       .integrateInSpace(region=region,mean=space_mean) ##
+            rmse           [region] = rmse_map       .integrateInSpace(region=region,mean=space_mean) ##
             bias_score     [region] = bias_score_map .integrateInSpace(region=region,mean=True)
             rmse_score     [region] = rmse_score_map .integrateInSpace(region=region,mean=True)
             shift          [region] = shift_map      .integrateInSpace(region=region,mean=True)
@@ -1204,8 +1205,22 @@ def AnalysisFluxrate(obs,mod,regions=['global'],dataset=None,benchmark_dataset=N
     obs_maxt_map.name = "phase_map_of_%s" % obs.name
     mod_maxt_map.name = "phase_map_of_%s" % obs.name
     shift_map.name    = "shift_map_of_%s" % obs.name
-    
-    # optionally dump results to a NetCDF file
+
+    # Unit conversions
+    if table_unit is not None:
+        for var in [obs_period_mean,mod_period_mean,bias,rmse]:
+            if type(var) == type({}):
+                for key in var.keys(): var[key].convert(table_unit)
+            else:
+                var.convert(plot_unit)
+    if plot_unit is not None:
+        for var in [mod_timeint,obs_timeint,bias_map,mod_mean_cycle,mod_spaceint]:
+            if type(var) == type({}):
+                for key in var.keys(): var[key].convert(plot_unit)
+            else:
+                var.convert(plot_unit)
+
+    # Optionally dump results to a NetCDF file
     if dataset is not None:
         for var in [mod_period_mean,bias,rmse,shift,bias_score,rmse_score,shift_score,iav_score,sd_score,
                     mod_timeint,bias_map,mod_maxt_map,shift_map,std,R,
@@ -1220,26 +1235,3 @@ def AnalysisFluxrate(obs,mod,regions=['global'],dataset=None,benchmark_dataset=N
                 for key in var.keys(): var[key].toNetCDF4(benchmark_dataset)
             else:
                 var.toNetCDF4(benchmark_dataset)
-
-    
-                
-if __name__ == "__main__":
-    import os
-
-    regions = ['global','nhaf']
-    
-    obs = Variable(filename = os.environ["ILAMB_ROOT"]+"/DATA/gpp/FLUXNET-MTE/derived/gpp.nc",
-                   variable_name = "gpp")
-    mod = Variable(filename = os.environ["ILAMB_ROOT"]+"/MODELS/CMIP5/inmcm4/gpp/gpp_Lmon_inmcm4_historical_r1i1p1_185001-200512.nc",
-                   variable_name = "gpp")
-    dataset = Dataset("gpp.nc",mode="w")
-    AnalysisFluxrate(obs,mod,regions=regions,dataset=dataset)
-
-    obs = Variable(filename = os.environ["ILAMB_ROOT"]+"/DATA/le/FLUXNET/derived/le.nc",
-                   variable_name = "le"); obs.name = "hfls"
-    mod = Variable(filename = os.environ["ILAMB_ROOT"]+"/MODELS/CMIP5/inmcm4/hfls/hfls_Amon_inmcm4_historical_r1i1p1_185001-200512.nc",
-                   variable_name = "hfls")
-    dataset = Dataset("hfls.nc",mode="w")
-    AnalysisFluxrate(obs,mod,regions=regions,dataset=dataset)
-
-

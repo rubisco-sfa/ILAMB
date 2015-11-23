@@ -27,7 +27,10 @@ class Confrontation:
         self.longname       = self.longname.replace("//","/").replace("./","").replace("_build/","")
         if self.longname[-1] == "/": self.longname = self.longname[:-1]
         self.longname       = "/".join(self.longname.split("/")[1:])
-
+        self.table_unit     = keywords.get("table_unit",None)
+        self.plot_unit      = keywords.get("plot_unit",None)
+        self.space_mean     = keywords.get("space_mean",True)        
+        
         # Make sure the source data exists
         try:
             os.stat(self.srcdata)
@@ -128,7 +131,8 @@ class Confrontation:
             benchmark_results = Dataset(fname,mode="w")
             benchmark_results.setncatts({"name" :"Benchmark", "color":np.asarray([0.5,0.5,0.5])})
         try:
-            AnalysisFluxrate(obs,mod,dataset=results,regions=self.regions,benchmark_dataset=benchmark_results)
+            AnalysisFluxrate(obs,mod,dataset=results,regions=self.regions,benchmark_dataset=benchmark_results,
+                             table_unit=self.table_unit,plot_unit=self.plot_unit,space_mean=self.space_mean)
         except:
             results.close()
             os.system("rm -f %s/%s_%s.nc" % (self.output_path,self.name,m.name))
@@ -137,12 +141,9 @@ class Confrontation:
             
     def determinePlotLimits(self):
         """
-        This is essentially the reduction via datafile.
-        Plot legends.
         """
-
         # Determine the min/max of variables over all models
-        limits      = {}
+        limits = {}
         for fname in glob.glob("%s/*.nc" % self.output_path):
             try:
                 dataset = Dataset(fname)
@@ -196,9 +197,9 @@ class Confrontation:
         """
         Done outside analysis such that weights can be changed and analysis need not be rerun
         """
-        fname     = "%s/%s_%s.nc" % (self.output_path,self.name,m.name)
+        fname = "%s/%s_%s.nc" % (self.output_path,self.name,m.name)
         try:
-            dataset   = Dataset(fname,mode="r+")
+            dataset = Dataset(fname,mode="r+")
         except:
             return
         variables = [v for v in dataset.variables.keys() if "score" in v and "overall" not in v]
@@ -206,6 +207,7 @@ class Confrontation:
         for v in variables:
             s = "_".join(v.split("_")[:2])
             if s not in scores: scores.append(s)
+        overall_score = 0.
         for region in self.regions:
             for v in variables:
                 if region not in v: continue
@@ -261,6 +263,7 @@ class Confrontation:
                          ticklabels = time_opts["cycle"]["ticklabels"])
                 ylbl = time_opts["cycle"]["ylabel"]
                 if ylbl == "unit": ylbl = post.UnitStringToMatplotlib(var.unit)
+                ax.set_ylabel(ylbl)
             fig.savefig("%s/%s_compcycle.png" % (self.output_path,region))
             plt.close()
 
