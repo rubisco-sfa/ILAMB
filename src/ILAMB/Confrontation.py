@@ -5,6 +5,7 @@ import os,glob,re
 from netCDF4 import Dataset
 import Post as post
 import pylab as plt
+from matplotlib.colors import LogNorm
 
 class Confrontation:
 
@@ -30,6 +31,7 @@ class Confrontation:
         self.table_unit     = keywords.get("table_unit",None)
         self.plot_unit      = keywords.get("plot_unit",None)
         self.space_mean     = keywords.get("space_mean",True)        
+        self.correlation    = keywords.get("correlation",None)
         
         # Make sure the source data exists
         try:
@@ -138,7 +140,42 @@ class Confrontation:
             os.system("rm -f %s/%s_%s.nc" % (self.output_path,self.name,m.name))
             raise il.AnalysisError()
         if self.master: benchmark_results.close()
-            
+
+    def correlate(self,c,m):
+        r"""
+
+        """
+        def _extractMaxTemporalOverlap(v1,v2):
+            t0 = max(v1.time.min(),v2.time.min())
+            tf = min(v1.time.max(),v2.time.max())
+            for v in [v1,v2]:
+                begin = np.argmin(np.abs(v.time-t0))
+                end   = np.argmin(np.abs(v.time-tf))+1
+                v.time = v.time[begin:end]
+                v.data = v.data[begin:end,...]
+            return v1,v2
+        obs_ind,mod_ind = self.stageData(m)
+        obs_dep,mod_dep = c   .stageData(m)
+        
+        obs_ind,obs_dep = _extractMaxTemporalOverlap(obs_ind,obs_dep)
+        mask = obs_ind.data.mask + obs_dep.data.mask
+        x = obs_dep.data[mask==0].flatten()
+        y = obs_ind.data[mask==0].flatten()
+
+        dx = 3.5*x.std()*np.power(x.size,-1./3.)
+        dy = 3.5*y.std()*np.power(y.size,-1./3.)
+        Nx = int((x.max()-x.min())/dx)+1
+        Ny = int((y.max()-y.min())/dy)+1
+        counts,xedges,yedges = np.histogram2d(x,y,[Nx,Ny],normed=True)
+        counts = np.ma.masked_values(counts,0)
+        
+
+        plt.pcolormesh(yedges,xedges,counts,norm=LogNorm(vmin=counts.min(), vmax=counts.max()),cmap='plasma')
+        plt.colorbar()
+        plt.xlabel(self.longname)
+        plt.ylabel(c.longname)
+        plt.show()
+        
     def determinePlotLimits(self):
         """
         """

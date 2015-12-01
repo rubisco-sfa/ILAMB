@@ -132,7 +132,7 @@ for w in localW:
             il.VarNotOnTimeScale,
             il.NotTemporalVariable,
             il.UnitConversionError,
-            #il.AnalysisError,
+            il.AnalysisError,
             il.VarsNotComparable) as ex:
         print ("    {0:>%d} {1:>%d} %s%s%s" % (maxCL,maxML,FAIL,ex,ENDC)).format(c.longname,m.name)
         continue
@@ -150,6 +150,12 @@ for c in C: c.determinePlotLimits() # only confrontations on my processor
 for w in localW:
     m,c = w
     t0  = time.time()
+
+    for longname in c.correlation:
+        for cor in Conf.list():
+            if longname.lower() == cor.longname.lower():
+                c.correlate(cor,m)
+        
     c.computeOverallScore(m)
     c.postProcessFromFiles(m)
     dt = time.time()-t0
