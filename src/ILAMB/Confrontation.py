@@ -6,6 +6,7 @@ from netCDF4 import Dataset
 import Post as post
 import pylab as plt
 from matplotlib.colors import LogNorm
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 class Confrontation:
 
@@ -145,6 +146,7 @@ class Confrontation:
         r"""
 
         """
+        print self.longname,c.longname
         def _extractMaxTemporalOverlap(v1,v2):
             t0 = max(v1.time.min(),v2.time.min())
             tf = min(v1.time.max(),v2.time.max())
@@ -154,28 +156,66 @@ class Confrontation:
                 v.time = v.time[begin:end]
                 v.data = v.data[begin:end,...]
             return v1,v2
+
+        def _plot2DHistogram(ind,dep,fig,ax):
+            # Scott's rule for bin width selection: doi:10.1093/biomet/66.3.605
+            dind = 3.5*ind.std()*np.power(ind.size,-1./3.)*5.
+            ddep = 3.5*dep.std()*np.power(dep.size,-1./3.)*5.
+            Nind = int(round((ind.max()-ind.min())/dind,0))
+            Ndep = int(round((dep.max()-dep.min())/ddep,0))
+            counts,indedges,depedges = np.histogram2d(ind,dep,[Nind,Ndep])
+            counts = np.ma.masked_values(counts,0)/float(ind.size)*100.0
+            pc   = ax.pcolormesh(indedges,depedges,counts.T,
+                                 norm=LogNorm(vmin=1e-4,vmax=1e1),
+                                 cmap='plasma')
+            div  = make_axes_locatable(ax)
+            fig.colorbar(pc,
+                         cax=div.append_axes("right", size="5%", pad=0.05),
+                         orientation="vertical",
+                         label="Percent")
+            x = []
+            y = []
+            for i in range(indedges.size-1):
+                tf = (ind>indedges[i])*(ind<indedges[i+1])
+                if tf.sum() < 0.0001*ind.size: continue
+                x.append(ind[tf].mean())
+                y.append(dep[tf].mean())
+            ax.plot(x,y,'-k',lw=2)
+            return ax,[indedges.min(),indedges.max(),depedges.min(),depedges.max()]
+            
+        # get confrontation and model data of both variables
         obs_ind,mod_ind = self.stageData(m)
         obs_dep,mod_dep = c   .stageData(m)
-        
+
+        ind_name = self.longname.split("/")[0]
+        dep_name =    c.longname.split("/")[0]
+
         obs_ind,obs_dep = _extractMaxTemporalOverlap(obs_ind,obs_dep)
         mask = obs_ind.data.mask + obs_dep.data.mask
-        x = obs_dep.data[mask==0].flatten()
-        y = obs_ind.data[mask==0].flatten()
-
-        dx = 3.5*x.std()*np.power(x.size,-1./3.)
-        dy = 3.5*y.std()*np.power(y.size,-1./3.)
-        Nx = int((x.max()-x.min())/dx)+1
-        Ny = int((y.max()-y.min())/dy)+1
-        counts,xedges,yedges = np.histogram2d(x,y,[Nx,Ny],normed=True)
-        counts = np.ma.masked_values(counts,0)
+        ind = obs_dep.data[mask==0].flatten()
+        dep = obs_ind.data[mask==0].flatten()
+        fig,ax = plt.subplots(figsize=(18,8),ncols=2,tight_layout=True)
+        ax[0],ex1 = _plot2DHistogram(ind,dep,fig,ax[0])
+        ax[0].set_xlabel("%s   %s" % (   c.longname,post.UnitStringToMatplotlib(obs_dep.unit)))
+        ax[0].set_ylabel("%s   %s" % (self.longname,post.UnitStringToMatplotlib(obs_ind.unit)))
         
+        mod_ind,mod_dep = _extractMaxTemporalOverlap(mod_ind,mod_dep)
+        mask = mod_ind.data.mask + mod_dep.data.mask
+        ind = mod_dep.data[mask==0].flatten()
+        dep = mod_ind.data[mask==0].flatten()
+        ax[1],ex2 = _plot2DHistogram(ind,dep,fig,ax[1])
+        ax[1].set_xlabel("%s/%s   %s" % (dep_name,m.name,post.UnitStringToMatplotlib(mod_dep.unit)))
+        ax[1].set_ylabel("%s/%s   %s" % (ind_name,m.name,post.UnitStringToMatplotlib(mod_ind.unit)))
 
-        plt.pcolormesh(yedges,xedges,counts,norm=LogNorm(vmin=counts.min(), vmax=counts.max()),cmap='plasma')
-        plt.colorbar()
-        plt.xlabel(self.longname)
-        plt.ylabel(c.longname)
-        plt.show()
         
+        ax[0].set_xlim(min(ex1[0],ex2[0]),max(ex1[1],ex2[1]))
+        ax[1].set_xlim(min(ex1[0],ex2[0]),max(ex1[1],ex2[1]))
+        ax[0].set_ylim(min(ex1[2],ex2[2]),max(ex1[3],ex2[3]))
+        ax[1].set_ylim(min(ex1[2],ex2[2]),max(ex1[3],ex2[3]))
+        
+        fig.savefig("%s%s_%s%s_%s.png" % (ind_name,self.name,dep_name,c.name,m.name))
+        plt.close()
+
     def determinePlotLimits(self):
         """
         """
