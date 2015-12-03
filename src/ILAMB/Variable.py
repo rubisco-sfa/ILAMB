@@ -1235,3 +1235,93 @@ def AnalysisFluxrate(obs,mod,regions=['global'],dataset=None,benchmark_dataset=N
                 for key in var.keys(): var[key].toNetCDF4(benchmark_dataset)
             else:
                 var.toNetCDF4(benchmark_dataset)
+
+
+def AnalysisRelationship(dep_var,ind_var,dataset,rname):
+    r"""
+    
+    Parameters
+    ----------
+    x : numpy.ndarray
+        the independent variable
+    y : numpy.ndarray
+        the dependent variable
+    dataset : 
+    
+    """    
+    def _extractMaxTemporalOverlap(v1,v2):  # should move to ilamblib?
+        t0 = max(v1.time.min(),v2.time.min())
+        tf = min(v1.time.max(),v2.time.max())
+        for v in [v1,v2]:
+            begin = np.argmin(np.abs(v.time-t0))
+            end   = np.argmin(np.abs(v.time-tf))+1
+            v.time = v.time[begin:end]
+            v.data = v.data[begin:end,...]
+        mask = v1.data.mask + v2.data.mask
+        v1 = v1.data[mask==0].flatten()
+        v2 = v2.data[mask==0].flatten()
+        return v1,v2
+
+    # Get maxmimal overlap
+    x,y = _extractMaxTemporalOverlap(dep_var,ind_var)
+
+    # Scott's rule (doi:10.1093/biomet/66.3.605) assumes that the
+    # data is normally distributed
+    dx = 3.5*x.std()*np.power(x.size,-1./3.)
+    dy = 3.5*y.std()*np.power(y.size,-1./3.)
+
+    # Compute 2D histogram, normalized by number of datapoints
+    Nx = int(round((x.max()-x.min())/dx,0))
+    Ny = int(round((y.max()-y.min())/dy,0))
+    counts,xedges,yedges = np.histogram2d(x,y,[Nx,Ny])
+    counts = np.ma.masked_values(counts,0)/float(x.size)
+
+    # Compute mean relationship function
+    nudge = 1e-15
+    xedges[0] -= nudge; xedges[-1] += nudge
+    xbins = np.digitize(x,xedges)-1
+    xmean = []
+    ymean = []
+    ystd  = []
+    for i in range(xedges.size-1):
+        ind = (xbins==i)
+        if ind.sum() < max(x.size*1e-4,10): continue
+        xtmp = x[ind]
+        ytmp = y[ind]
+        xmean.append(xtmp.mean())
+        ymean.append(ytmp.mean())
+        try:        
+            ystd.append(ytmp. std())
+        except:
+            ystd.append(0)
+    xmean = np.asarray(xmean)
+    ymean = np.asarray(ymean)
+    ystd  = np.asarray(ystd )
+
+    # Write histogram to the dataset
+    grp = dataset.createGroup("relationship_%s" % rname)
+    grp.createDimension("nv",size=2)
+    for d_bnd,dname in zip([xedges,yedges],["ind","dep"]):
+        d = 0.5*(d_bnd[:-1]+d_bnd[1:])
+        dbname = dname + "_bnd"
+        grp.createDimension(dname,size=d.size)
+        D = grp.createVariable(dname,"double",(dname))
+        D.setncattr("standard_name",dname)
+        D.setncattr("bounds",dbname)
+        D[...] = d
+        B = grp.createVariable(dbname,"double",(dname,"nv"))
+        B.setncattr("standard_name",dbname)
+        B[:,0] = d_bnd[:-1]
+        B[:,1] = d_bnd[+1:]
+    H = grp.createVariable("histogram","double",("ind","dep"))
+    H.setncattr("standard_name","histogram")
+    H[...] = counts
+        
+    # Write relationship to the dataset
+    grp.createDimension("ndata",size=xmean.size)
+    X = grp.createVariable("ind_mean","double",("ndata"))
+    M = grp.createVariable("dep_mean","double",("ndata"))
+    S = grp.createVariable("dep_std" ,"double",("ndata"))
+    X[...] = xmean
+    M[...] = ymean
+    S[...] = ystd

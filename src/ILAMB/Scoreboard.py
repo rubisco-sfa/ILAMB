@@ -79,7 +79,7 @@ def ConvertTypes(node):
     node.land       = _to_bool(node.land)
     node.space_mean = _to_bool(node.space_mean)
     if node.correlation is not None: node.correlation = node.correlation.split(",")
-    
+            
 def SumWeightChildren(node):
     for child in node.children:
         if child.weight is None:

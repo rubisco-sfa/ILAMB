@@ -113,6 +113,13 @@ for c in C:
     else:
         c.master = False
 
+# find confrontation names for relationships (move this elsewhere)
+for c in C:
+    for i,longname in enumerate(c.correlation):
+        for cor in Conf.list():
+            if longname.lower() == cor.longname.lower():
+                c.correlation[i] = cor
+
 # Run analysis on your local work model-confrontation pairs
 T0 = time.time()
 for w in localW:
@@ -122,7 +129,7 @@ for w in localW:
         print ("    {0:>%d} {1:>%d} %sUsingCachedData%s " % (maxCL,maxML,OK,ENDC)).format(c.longname,m.name)
         continue
     try:
-        c.confront(m)  
+        c.confront(m,clist=c.correlation)  
         dt = time.time()-t0
         print ("    {0:>%d} {1:>%d} %sCompleted%s {2:>5.1f} s" % (maxCL,maxML,OK,ENDC)).format(c.longname,m.name,dt)
 
@@ -149,13 +156,7 @@ for c in C: c.determinePlotLimits() # only confrontations on my processor
 
 for w in localW:
     m,c = w
-    t0  = time.time()
-
-    for longname in c.correlation:
-        for cor in Conf.list():
-            if longname.lower() == cor.longname.lower():
-                c.correlate(cor,m)
-        
+    t0  = time.time()    
     c.computeOverallScore(m)
     c.postProcessFromFiles(m)
     dt = time.time()-t0
@@ -176,3 +177,4 @@ if rank==0:
     Conf.createHtml(M)
     Conf.createSummaryFigure(M)
     print "\nCompleted in {0:>5.1f} s\n".format(time.time()-T0)
+

@@ -114,7 +114,7 @@ class Confrontation:
         mod.convert(obs.unit)
         return obs,mod
 
-    def confront(self,m):
+    def confront(self,m,clist=None):
         r"""Confronts the input model with the observational data.
 
         Parameters
@@ -125,7 +125,9 @@ class Confrontation:
         # Grab the data
         obs,mod = self.stageData(m)
 
-        # Open a dataset for recording the results of this confrontation
+        # Open a dataset for recording the results of this
+        # confrontation, record for the benchmark if we are the master
+        # process.
         results = Dataset("%s/%s_%s.nc" % (self.output_path,self.name,m.name),mode="w")
         results.setncatts({"name" :m.name, "color":m.color})
         benchmark_results = None
@@ -133,6 +135,8 @@ class Confrontation:
         if self.master:
             benchmark_results = Dataset(fname,mode="w")
             benchmark_results.setncatts({"name" :"Benchmark", "color":np.asarray([0.5,0.5,0.5])})
+
+        # Perform the standard fluxrate analysis
         try:
             AnalysisFluxrate(obs,mod,dataset=results,regions=self.regions,benchmark_dataset=benchmark_results,
                              table_unit=self.table_unit,plot_unit=self.plot_unit,space_mean=self.space_mean)
@@ -140,82 +144,21 @@ class Confrontation:
             results.close()
             os.system("rm -f %s/%s_%s.nc" % (self.output_path,self.name,m.name))
             raise il.AnalysisError()
+        
+        # Perform relationship analysis
+        obs_dep,mod_dep = obs,mod
+        dep_name        = self.longname.split("/")[0]
+        for c in clist:
+            obs_ind,mod_ind = c.stageData(m) # independent variable
+            ind_name = c.longname.split("/")[0]            
+            if self.master:
+                AnalysisRelationship(obs_ind,obs_dep,benchmark_results,ind_name)
+            AnalysisRelationship(mod_ind,mod_dep,results,ind_name)
+
+        # close files
+        results.close()
         if self.master: benchmark_results.close()
-
-    def correlate(self,c,m):
-        r"""
-
-        """
-        print self.longname,c.longname
-        def _extractMaxTemporalOverlap(v1,v2):
-            t0 = max(v1.time.min(),v2.time.min())
-            tf = min(v1.time.max(),v2.time.max())
-            for v in [v1,v2]:
-                begin = np.argmin(np.abs(v.time-t0))
-                end   = np.argmin(np.abs(v.time-tf))+1
-                v.time = v.time[begin:end]
-                v.data = v.data[begin:end,...]
-            return v1,v2
-
-        def _plot2DHistogram(ind,dep,fig,ax):
-            # Scott's rule for bin width selection: doi:10.1093/biomet/66.3.605
-            dind = 3.5*ind.std()*np.power(ind.size,-1./3.)*5.
-            ddep = 3.5*dep.std()*np.power(dep.size,-1./3.)*5.
-            Nind = int(round((ind.max()-ind.min())/dind,0))
-            Ndep = int(round((dep.max()-dep.min())/ddep,0))
-            counts,indedges,depedges = np.histogram2d(ind,dep,[Nind,Ndep])
-            counts = np.ma.masked_values(counts,0)/float(ind.size)*100.0
-            pc   = ax.pcolormesh(indedges,depedges,counts.T,
-                                 norm=LogNorm(vmin=1e-4,vmax=1e1),
-                                 cmap='plasma')
-            div  = make_axes_locatable(ax)
-            fig.colorbar(pc,
-                         cax=div.append_axes("right", size="5%", pad=0.05),
-                         orientation="vertical",
-                         label="Percent")
-            x = []
-            y = []
-            for i in range(indedges.size-1):
-                tf = (ind>indedges[i])*(ind<indedges[i+1])
-                if tf.sum() < 0.0001*ind.size: continue
-                x.append(ind[tf].mean())
-                y.append(dep[tf].mean())
-            ax.plot(x,y,'-k',lw=2)
-            return ax,[indedges.min(),indedges.max(),depedges.min(),depedges.max()]
-            
-        # get confrontation and model data of both variables
-        obs_ind,mod_ind = self.stageData(m)
-        obs_dep,mod_dep = c   .stageData(m)
-
-        ind_name = self.longname.split("/")[0]
-        dep_name =    c.longname.split("/")[0]
-
-        obs_ind,obs_dep = _extractMaxTemporalOverlap(obs_ind,obs_dep)
-        mask = obs_ind.data.mask + obs_dep.data.mask
-        ind = obs_dep.data[mask==0].flatten()
-        dep = obs_ind.data[mask==0].flatten()
-        fig,ax = plt.subplots(figsize=(18,8),ncols=2,tight_layout=True)
-        ax[0],ex1 = _plot2DHistogram(ind,dep,fig,ax[0])
-        ax[0].set_xlabel("%s   %s" % (   c.longname,post.UnitStringToMatplotlib(obs_dep.unit)))
-        ax[0].set_ylabel("%s   %s" % (self.longname,post.UnitStringToMatplotlib(obs_ind.unit)))
-        
-        mod_ind,mod_dep = _extractMaxTemporalOverlap(mod_ind,mod_dep)
-        mask = mod_ind.data.mask + mod_dep.data.mask
-        ind = mod_dep.data[mask==0].flatten()
-        dep = mod_ind.data[mask==0].flatten()
-        ax[1],ex2 = _plot2DHistogram(ind,dep,fig,ax[1])
-        ax[1].set_xlabel("%s/%s   %s" % (dep_name,m.name,post.UnitStringToMatplotlib(mod_dep.unit)))
-        ax[1].set_ylabel("%s/%s   %s" % (ind_name,m.name,post.UnitStringToMatplotlib(mod_ind.unit)))
-
-        
-        ax[0].set_xlim(min(ex1[0],ex2[0]),max(ex1[1],ex2[1]))
-        ax[1].set_xlim(min(ex1[0],ex2[0]),max(ex1[1],ex2[1]))
-        ax[0].set_ylim(min(ex1[2],ex2[2]),max(ex1[3],ex2[3]))
-        ax[1].set_ylim(min(ex1[2],ex2[2]),max(ex1[3],ex2[3]))
-        
-        fig.savefig("%s%s_%s%s_%s.png" % (ind_name,self.name,dep_name,c.name,m.name))
-        plt.close()
-
+                
     def determinePlotLimits(self):
         """
         """
@@ -453,6 +396,53 @@ class Confrontation:
                     fig.savefig("%s/%s_%s_%s.png" % (self.output_path,m.name,region,pname))
                     plt.close()
 
+
+        
+        """
+        def _plot2DHistogram(ind,dep,fig,ax):
+
+            pc   = ax.pcolormesh(indedges,depedges,counts.T,
+                                 norm=LogNorm(vmin=1e-4,vmax=1e1),
+                                 cmap='plasma')
+            div  = make_axes_locatable(ax)
+            fig.colorbar(pc,
+                         cax=div.append_axes("right", size="5%", pad=0.05),
+                         orientation="vertical",
+                         label="Percent")
+            x = []
+            y = []
+            for i in range(indedges.size-1):
+                tf = (ind>indedges[i])*(ind<indedges[i+1])
+                if tf.sum() < 0.0001*ind.size: continue
+                x.append(ind[tf].mean())
+                y.append(dep[tf].mean())
+            ax.plot(x,y,'-k',lw=2)
+            return ax,[indedges.min(),indedges.max(),depedges.min(),depedges.max()]
+
+            
+        fig,ax = plt.subplots(figsize=(18,8),ncols=2,tight_layout=True)
+        ax[0],ex1 = _plot2DHistogram(ind,dep,fig,ax[0])
+        ax[0].set_xlabel("%s   %s" % (   c.longname,post.UnitStringToMatplotlib(obs_dep.unit)))
+        ax[0].set_ylabel("%s   %s" % (self.longname,post.UnitStringToMatplotlib(obs_ind.unit)))
+        
+        mod_ind,mod_dep = _extractMaxTemporalOverlap(mod_ind,mod_dep)
+        mask = mod_ind.data.mask + mod_dep.data.mask
+        ind = mod_dep.data[mask==0].flatten()
+        dep = mod_ind.data[mask==0].flatten()
+        ax[1],ex2 = _plot2DHistogram(ind,dep,fig,ax[1])
+        ax[1].set_xlabel("%s/%s   %s" % (dep_name,m.name,post.UnitStringToMatplotlib(mod_dep.unit)))
+        ax[1].set_ylabel("%s/%s   %s" % (ind_name,m.name,post.UnitStringToMatplotlib(mod_ind.unit)))
+
+        ax[0].set_xlim(min(ex1[0],ex2[0]),max(ex1[1],ex2[1]))
+        ax[1].set_xlim(min(ex1[0],ex2[0]),max(ex1[1],ex2[1]))
+        ax[0].set_ylim(min(ex1[2],ex2[2]),max(ex1[3],ex2[3]))
+        ax[1].set_ylim(min(ex1[2],ex2[2]),max(ex1[3],ex2[3]))
+        
+        fig.savefig("%s%s_%s%s_%s.png" % (ind_name,self.name,dep_name,c.name,m.name))
+        plt.close()
+        """
+
+                    
     def generateHtml(self):
         """
         """
