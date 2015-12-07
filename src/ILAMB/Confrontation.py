@@ -396,53 +396,47 @@ class Confrontation:
                     fig.savefig("%s/%s_%s_%s.png" % (self.output_path,m.name,region,pname))
                     plt.close()
 
-
-        
-        """
-        def _plot2DHistogram(ind,dep,fig,ax):
-
-            pc   = ax.pcolormesh(indedges,depedges,counts.T,
-                                 norm=LogNorm(vmin=1e-4,vmax=1e1),
-                                 cmap='plasma')
-            div  = make_axes_locatable(ax)
+        def _plotHistogram(grp,name):
+            fig,ax   = plt.subplots(figsize=(6.8,6.8),tight_layout=True)
+            ind      = np.zeros(grp.variables["ind_bnd"].shape[0]+1);
+            ind[:-1] = grp.variables["ind_bnd"][:,0]
+            ind[+1:] = grp.variables["ind_bnd"][:,1]
+            dep      = np.zeros(grp.variables["dep_bnd"].shape[0]+1);
+            dep[:-1] = grp.variables["dep_bnd"][:,0]
+            dep[+1:] = grp.variables["dep_bnd"][:,1]
+            pc       = ax.pcolormesh(ind,dep,
+                                     grp.variables["histogram"][...].T,
+                                     norm=LogNorm(vmin=1e-4,vmax=1e-1),
+                                     cmap='plasma')
+            div      = make_axes_locatable(ax)
             fig.colorbar(pc,
-                         cax=div.append_axes("right", size="5%", pad=0.05),
+                         cax=div.append_axes("right",size="5%",pad=0.05),
                          orientation="vertical",
-                         label="Percent")
-            x = []
-            y = []
-            for i in range(indedges.size-1):
-                tf = (ind>indedges[i])*(ind<indedges[i+1])
-                if tf.sum() < 0.0001*ind.size: continue
-                x.append(ind[tf].mean())
-                y.append(dep[tf].mean())
-            ax.plot(x,y,'-k',lw=2)
-            return ax,[indedges.min(),indedges.max(),depedges.min(),depedges.max()]
-
+                         label="Fraction")
+            ax.plot(grp.variables["ind_mean"],grp.variables["dep_mean"],'-w',lw=2,alpha=0.5)
+            fig.savefig("%s_%s.png" % (grp.name,name))
+            plt.close()
             
-        fig,ax = plt.subplots(figsize=(18,8),ncols=2,tight_layout=True)
-        ax[0],ex1 = _plot2DHistogram(ind,dep,fig,ax[0])
-        ax[0].set_xlabel("%s   %s" % (   c.longname,post.UnitStringToMatplotlib(obs_dep.unit)))
-        ax[0].set_ylabel("%s   %s" % (self.longname,post.UnitStringToMatplotlib(obs_ind.unit)))
-        
-        mod_ind,mod_dep = _extractMaxTemporalOverlap(mod_ind,mod_dep)
-        mask = mod_ind.data.mask + mod_dep.data.mask
-        ind = mod_dep.data[mask==0].flatten()
-        dep = mod_ind.data[mask==0].flatten()
-        ax[1],ex2 = _plot2DHistogram(ind,dep,fig,ax[1])
-        ax[1].set_xlabel("%s/%s   %s" % (dep_name,m.name,post.UnitStringToMatplotlib(mod_dep.unit)))
-        ax[1].set_ylabel("%s/%s   %s" % (ind_name,m.name,post.UnitStringToMatplotlib(mod_ind.unit)))
+        groups = [g for g in dataset.groups.keys()]
+        for group in groups:
+            grp = dataset.groups[group]
+            _plotHistogram(grp,m.name)
+            self.layout.addFigure("Relationships",
+                                  name,
+                                  pattern,
+                                  side   = "Evapotranspiration")
+        if self.master is True:
+            try:
+                bdataset = Dataset(bname)
+            except:
+                return
+            groups = [g for g in bdataset.groups.keys()]
+            for group in groups:
+                grp = bdataset.groups[group]
+                _plotHistogram(grp,"Benchmark")
 
-        ax[0].set_xlim(min(ex1[0],ex2[0]),max(ex1[1],ex2[1]))
-        ax[1].set_xlim(min(ex1[0],ex2[0]),max(ex1[1],ex2[1]))
-        ax[0].set_ylim(min(ex1[2],ex2[2]),max(ex1[3],ex2[3]))
-        ax[1].set_ylim(min(ex1[2],ex2[2]),max(ex1[3],ex2[3]))
         
-        fig.savefig("%s%s_%s%s_%s.png" % (ind_name,self.name,dep_name,c.name,m.name))
-        plt.close()
-        """
-
-                    
+            
     def generateHtml(self):
         """
         """
