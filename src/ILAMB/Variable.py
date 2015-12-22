@@ -1273,6 +1273,8 @@ def AnalysisRelationship(dep_var,ind_var,dataset,rname):
     # Compute 2D histogram, normalized by number of datapoints
     Nx = int(round((x.max()-x.min())/dx,0))
     Ny = int(round((y.max()-y.min())/dy,0))
+    Nx = 100
+    Ny = 100
     counts,xedges,yedges = np.histogram2d(x,y,[Nx,Ny])
     counts = np.ma.masked_values(counts,0)/float(x.size)
 

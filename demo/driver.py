@@ -117,10 +117,13 @@ for c in C:
 for c in C:
     if c.correlation is None: continue
     for i,longname in enumerate(c.correlation):
+        found = False
         for cor in Conf.list():
             if longname.lower() == cor.longname.lower():
                 c.correlation[i] = cor
+                found = True
 
+        
 # Run analysis on your local work model-confrontation pairs
 T0 = time.time()
 for w in localW:
