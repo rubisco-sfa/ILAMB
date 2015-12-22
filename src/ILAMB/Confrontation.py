@@ -47,7 +47,8 @@ class Confrontation:
         self.layout = post.HtmlLayout(self,regions=self.regions)
         self.layout.setHeader("CNAME / RNAME / MNAME")
         self.layout.setSections(["Temporally integrated period mean",
-                                 "Spatially integrated regional mean"])
+                                 "Spatially integrated regional mean",
+                                 "Relationships"])
 
         # Define relative weights of each score in the overall score
         # (FIX: need some way for the user to modify this)
@@ -148,12 +149,14 @@ class Confrontation:
         # Perform relationship analysis
         obs_dep,mod_dep = obs,mod
         dep_name        = self.longname.split("/")[0]
-        for c in clist:
-            obs_ind,mod_ind = c.stageData(m) # independent variable
-            ind_name = c.longname.split("/")[0]            
-            if self.master:
-                AnalysisRelationship(obs_ind,obs_dep,benchmark_results,ind_name)
-            AnalysisRelationship(mod_ind,mod_dep,results,ind_name)
+
+        if clist is not None:
+            for c in clist:
+                obs_ind,mod_ind = c.stageData(m) # independent variable
+                ind_name = c.longname.split("/")[0]            
+                if self.master:
+                    AnalysisRelationship(obs_ind,obs_dep,benchmark_results,ind_name)
+                AnalysisRelationship(mod_ind,mod_dep,results,ind_name)
 
         # close files
         results.close()
@@ -396,52 +399,37 @@ class Confrontation:
                     fig.savefig("%s/%s_%s_%s.png" % (self.output_path,m.name,region,pname))
                     plt.close()
 
+        # each group is a variable-to-variable relationship object
+        groups = [g for g in dataset.groups.keys()]
 
-        
-        """
-        def _plot2DHistogram(ind,dep,fig,ax):
-
-            pc   = ax.pcolormesh(indedges,depedges,counts.T,
-                                 norm=LogNorm(vmin=1e-4,vmax=1e1),
-                                 cmap='plasma')
-            div  = make_axes_locatable(ax)
-            fig.colorbar(pc,
-                         cax=div.append_axes("right", size="5%", pad=0.05),
+        dep_name = self.longname.split("/")[0] + "/" + m.name
+        for g in groups:
+            ind_name  = g.replace("relationship_","") + "/" + m.name
+            grp       = dataset.groups[g]
+            ind       = grp.variables["ind"][...]
+            dep       = grp.variables["dep"][...]
+            ind_bnd   = grp.variables["ind_bnd"][...]
+            dep_bnd   = grp.variables["dep_bnd"][...]
+            histogram = grp.variables["histogram"][...].T
+            ind_edges = np.zeros(ind_bnd.shape[0]+1); ind_edges[:-1] = ind_bnd[:,0]; ind_edges[-1] = ind_bnd[-1,1]
+            dep_edges = np.zeros(dep_bnd.shape[0]+1); dep_edges[:-1] = dep_bnd[:,0]; dep_edges[-1] = dep_bnd[-1,1]
+            fig,ax    = plt.subplots(figsize=(7,6),tight_layout=True)
+            pc        = ax.pcolormesh(ind_edges,dep_edges,histogram,
+                                      norm=LogNorm(),
+                                      cmap='plasma')
+            div       = make_axes_locatable(ax)
+            fig.colorbar(pc,cax=div.append_axes("right",size="5%",pad=0.05),
                          orientation="vertical",
-                         label="Percent")
-            x = []
-            y = []
-            for i in range(indedges.size-1):
-                tf = (ind>indedges[i])*(ind<indedges[i+1])
-                if tf.sum() < 0.0001*ind.size: continue
-                x.append(ind[tf].mean())
-                y.append(dep[tf].mean())
-            ax.plot(x,y,'-k',lw=2)
-            return ax,[indedges.min(),indedges.max(),depedges.min(),depedges.max()]
-
-            
-        fig,ax = plt.subplots(figsize=(18,8),ncols=2,tight_layout=True)
-        ax[0],ex1 = _plot2DHistogram(ind,dep,fig,ax[0])
-        ax[0].set_xlabel("%s   %s" % (   c.longname,post.UnitStringToMatplotlib(obs_dep.unit)))
-        ax[0].set_ylabel("%s   %s" % (self.longname,post.UnitStringToMatplotlib(obs_ind.unit)))
-        
-        mod_ind,mod_dep = _extractMaxTemporalOverlap(mod_ind,mod_dep)
-        mask = mod_ind.data.mask + mod_dep.data.mask
-        ind = mod_dep.data[mask==0].flatten()
-        dep = mod_ind.data[mask==0].flatten()
-        ax[1],ex2 = _plot2DHistogram(ind,dep,fig,ax[1])
-        ax[1].set_xlabel("%s/%s   %s" % (dep_name,m.name,post.UnitStringToMatplotlib(mod_dep.unit)))
-        ax[1].set_ylabel("%s/%s   %s" % (ind_name,m.name,post.UnitStringToMatplotlib(mod_ind.unit)))
-
-        ax[0].set_xlim(min(ex1[0],ex2[0]),max(ex1[1],ex2[1]))
-        ax[1].set_xlim(min(ex1[0],ex2[0]),max(ex1[1],ex2[1]))
-        ax[0].set_ylim(min(ex1[2],ex2[2]),max(ex1[3],ex2[3]))
-        ax[1].set_ylim(min(ex1[2],ex2[2]),max(ex1[3],ex2[3]))
-        
-        fig.savefig("%s%s_%s%s_%s.png" % (ind_name,self.name,dep_name,c.name,m.name))
-        plt.close()
-        """
-
+                         label="Fraction of total datasites")
+            ax.set_xlabel("%s" % (ind_name))
+            ax.set_ylabel("%s" % (dep_name))
+            fig.savefig("%s/%s_%s.png" % (self.output_path,g,m.name))
+            self.layout.addFigure("Relationships",
+                                  g,
+                                  "%s_%s.png" % (g,m.name),
+                                  side   = g.replace("relationship_",""),
+                                  legend = False)       
+            plt.close()
                     
     def generateHtml(self):
         """

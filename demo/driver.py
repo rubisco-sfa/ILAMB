@@ -115,6 +115,7 @@ for c in C:
 
 # find confrontation names for relationships (move this elsewhere)
 for c in C:
+    if c.correlation is None: continue
     for i,longname in enumerate(c.correlation):
         for cor in Conf.list():
             if longname.lower() == cor.longname.lower():
