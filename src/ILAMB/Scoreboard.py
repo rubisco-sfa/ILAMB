@@ -465,7 +465,7 @@ def BuildHTMLTable(tree,M):
                 c = node.confrontation
                 global_html += """
       <tr class="child" bgcolor="%s">
-        <td>&nbsp;&nbsp;&nbsp;<a href="%s/%s.html">%s</a>&nbsp;(%.1f%%)</td>""" % (ccolor,
+        <td>&nbsp;&nbsp;&nbsp;<a href="%s/%s.html" rel="external">%s</a>&nbsp;(%.1f%%)</td>""" % (ccolor,
                                                                                    c.output_path.replace("_build/",""),
                                                                                    c.name,c.name,weight)
                 try:
