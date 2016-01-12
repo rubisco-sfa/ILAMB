@@ -370,6 +370,31 @@ class Confrontation:
                     fig.savefig("%s/%s_%s_%s.png" % (self.output_path,m.name,region,pname))
                     plt.close()
 
+                # Jumping through hoops to get the benchmark plotted and in the html output
+                if self.master and (pname == "timeint" or pname == "phase"):
+
+                    opts = space_opts[pname]
+
+                    # add to html layout
+                    self.layout.addFigure(opts["section"],
+                                          "benchmark_%s" % pname,
+                                          opts["pattern"].replace("MNAME","Benchmark"),
+                                          side   = opts["sidelbl"].replace("MODEL","BENCHMARK"),
+                                          legend = False)
+
+                    # plot variable
+                    obs = Variable(filename=bname,variable_name=vname)
+                    for region in self.regions:
+                        fig = plt.figure(figsize=(6.8,2.8))
+                        ax  = fig.add_axes([0.06,0.025,0.88,0.965])
+                        obs.plot(ax,
+                                 region = region,
+                                 vmin   = self.limits[pname]["min"],
+                                 vmax   = self.limits[pname]["max"],
+                                 cmap   = self.limits[pname]["cmap"])
+                        fig.savefig("%s/Benchmark_%s_%s.png" % (self.output_path,region,pname))
+                        plt.close()
+                    
             if not (var.spatial or (var.ndata is not None)) and var.temporal:
                 
                 # grab the benchmark dataset to plot along with
@@ -413,7 +438,7 @@ class Confrontation:
             histogram = grp.variables["histogram"][...].T
             ind_edges = np.zeros(ind_bnd.shape[0]+1); ind_edges[:-1] = ind_bnd[:,0]; ind_edges[-1] = ind_bnd[-1,1]
             dep_edges = np.zeros(dep_bnd.shape[0]+1); dep_edges[:-1] = dep_bnd[:,0]; dep_edges[-1] = dep_bnd[-1,1]
-            fig,ax    = plt.subplots(figsize=(7,6),tight_layout=True)
+            fig,ax    = plt.subplots(figsize=(6,5.25),tight_layout=True)
             pc        = ax.pcolormesh(ind_edges,dep_edges,histogram,
                                       norm=LogNorm(),
                                       cmap='plasma')

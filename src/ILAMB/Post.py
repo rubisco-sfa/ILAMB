@@ -352,10 +352,12 @@ class HtmlLayout():
           var RNAME  = document.getElementById("region").options[rid].value;
           header     = header.replace("RNAME",RNAME);"""
         code += """
-          var row    = 0
           var select = table.getSelection()
-          if(select.length > 0){
-            row = select[0].row;
+          row = select[0].row;
+          if (row == 0) {
+            table.setSelection([{'row': 1}]);
+            clickRow();
+            return;
           }
           var MNAME  = data.getValue(row,0);
           header     = header.replace("MNAME",MNAME);"""
@@ -379,10 +381,10 @@ class HtmlLayout():
 
     def __str__(self):
         
-        def _sortFigures(figure,priority=["timeint","bias","phase","shift","spatial_variance","spaceint","cycle","compcycle"]):
+        def _sortFigures(figure,priority=["benchmark_timeint","timeint","bias","benchmark_phase","phase","shift","spatial_variance","spaceint","cycle","compcycle"]):
             val = 1.
             for i,pname in enumerate(priority):
-                if pname in figure.name: val += 2**i
+                if pname == figure.name: val += 2**i
             return val
 
         # Open the html and head
