@@ -155,12 +155,13 @@ def TaylorDiagram(stddev,corrcoef,refstd,fig,colors,normalize=True):
 
 class HtmlFigure():
 
-    def __init__(self,name,pattern,side=None,legend=False):
+    def __init__(self,name,pattern,side=None,legend=False,benchmark=False):
 
-        self.name    = name
-        self.pattern = pattern
-        self.side    = side
-        self.legend  = legend
+        self.name      = name
+        self.pattern   = pattern
+        self.side      = side
+        self.legend    = legend
+        self.benchmark = benchmark
         
     def generateClickRow(self):
         name = self.pattern
@@ -171,22 +172,43 @@ class HtmlFigure():
         name = name.replace("'' + ","")
         code = """
           document.getElementById('%s').src =  %s""" % (self.name,name)
+        if self.benchmark:
+            name = self.pattern.replace('MNAME','Benchmark')
+            for token in ['CNAME','MNAME','RNAME']:
+                name = name.split(token)
+                name = ("' + %s + '" % token).join(name)
+            name = "'%s'" % name
+            name = name.replace("'' + ","")
+            code += """
+          document.getElementById('benchmark_%s').src =  %s""" % (self.name,name)
         return code
 
     def __str__(self):
 
-        code = """
+        if self.benchmark:
+            code = """
+        <div class="benchmark" id="%s_div">""" % (self.name)
+        else:
+            code = """
         <div class="outer" id="%s_div">""" % (self.name)
-        if self.side is not None:
+
+        if self.benchmark:
             code += """
-              <div class="inner rotate">%s</div>""" % (self.side.replace(" ","&nbsp;"))
-        code += """
-              <div class="second"><img src="" id="%s" alt="Data not available"></img></div>""" % (self.name)
-        if self.legend:
+              <div class="second">
+                 <img src="" id="benchmark_%s" alt="Data not available"></img>
+                 <img src="" id="%s" alt="Data not available"></img>
+              </div>""" % (self.name,self.name)
+        else:            
             if self.side is not None:
                 code += """
-              <div class="inner rotate"> </div>"""
+              <div class="inner rotate">%s</div>""" % (self.side.replace(" ","&nbsp;"))
             code += """
+              <div class="second"><img src="" id="%s" alt="Data not available"></img></div>""" % (self.name)
+            if self.legend:
+                if self.side is not None:
+                    code += """
+              <div class="inner rotate"> </div>"""
+                code += """
               <div class="second"><img src="legend_%s.png" id="leg"  alt="Data not available"></img></div>""" % (self.name)
         code += """
         </div><br>"""
@@ -210,12 +232,12 @@ class HtmlLayout():
         self.sections = sections
         for section in sections: self.figures[section] = []
 
-    def addFigure(self,section,name,pattern,side=None,legend=False):
+    def addFigure(self,section,name,pattern,side=None,legend=False,benchmark=False):
 
         assert section in self.sections
         for fig in self.figures[section]:
             if fig.name == name: return
-        self.figures[section].append(HtmlFigure(name,pattern,side=side,legend=legend))
+        self.figures[section].append(HtmlFigure(name,pattern,side=side,legend=legend,benchmark=benchmark))
 
     def setHeader(self,header):
 
@@ -412,6 +434,11 @@ class HtmlLayout():
     <style type="text/css">
       .outer {
              width: 40px;
+          position: relative;
+           display: inline-block;
+            margin: 0 15px;
+      }
+      .benchmark {
           position: relative;
            display: inline-block;
             margin: 0 15px;

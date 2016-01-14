@@ -430,44 +430,58 @@ class Confrontation:
                     fig.savefig("%s/%s_%s_%s.png" % (self.output_path,m.name,region,pname))
                     plt.close()
 
-        # each group is a variable-to-variable relationship object
-        groups = [g for g in dataset.groups.keys()]
-
-        dep_name = self.longname.split("/")[0] + "/" + m.name
-        for g in groups:
-            ind_name  = g.replace("relationship_","") + "/" + m.name
-            grp       = dataset.groups[g]
-            ind       = grp.variables["ind"][...]
-            dep       = grp.variables["dep"][...]
-            ind_bnd   = grp.variables["ind_bnd"][...]
-            dep_bnd   = grp.variables["dep_bnd"][...]
-            histogram = grp.variables["histogram"][...].T
-            ind_edges = np.zeros(ind_bnd.shape[0]+1); ind_edges[:-1] = ind_bnd[:,0]; ind_edges[-1] = ind_bnd[-1,1]
-            dep_edges = np.zeros(dep_bnd.shape[0]+1); dep_edges[:-1] = dep_bnd[:,0]; dep_edges[-1] = dep_bnd[-1,1]
-            fig,ax    = plt.subplots(figsize=(6,5.25),tight_layout=True)
-            pc        = ax.pcolormesh(ind_edges,dep_edges,histogram,
-                                      norm=LogNorm(),
-                                      cmap='plasma')
-            x,y = grp.variables["ind_mean"],grp.variables["dep_mean"]
-            ax.plot(x,y,'-w',lw=3,alpha=0.75)
-            #ax.fill_between(grp.variables["ind_mean"][...],
-            #                grp.variables["dep_mean"][...]-grp.variables["dep_std"][...],
-            #                grp.variables["dep_mean"][...]+grp.variables["dep_std"][...],
-            #                color='k',alpha=0.25,lw=0)
+        datasets = [dataset]
+        names    = [m.name]
+        if self.master:
+            datasets.append(Dataset(bname))
+            names.append("Benchmark")
             
-            div       = make_axes_locatable(ax)
-            fig.colorbar(pc,cax=div.append_axes("right",size="5%",pad=0.05),
-                         orientation="vertical",
-                         label="Fraction of total datasites")
-            ax.set_xlabel("%s,  %s" % (ind_name,post.UnitStringToMatplotlib(x.getncattr("unit"))))
-            ax.set_ylabel("%s,  %s" % (dep_name,post.UnitStringToMatplotlib(y.getncattr("unit"))))
-            fig.savefig("%s/%s_%s.png" % (self.output_path,g,m.name))
-            self.layout.addFigure("Period Mean Relationships",
-                                  g,
-                                  "%s_%s.png" % (g,m.name),
-                                  side   = g.replace("relationship_",""),
-                                  legend = False)       
-            plt.close()
+            for data,name in zip(datasets,names):
+                groups = [g for g in data.groups.keys()]
+                if name == "Benchmark":
+                    dep_name = self.longname
+                else:
+                    dep_name = self.longname.split("/")[0] + "/" + name
+
+                for g in groups:
+                    if name == "Benchmark":
+                        ind_name = g.replace("relationship_","")
+                    else:
+                        ind_name = g.replace("relationship_","") + "/" + name
+                    grp       = data.groups[g]
+                    ind       = grp.variables["ind"][...]
+                    dep       = grp.variables["dep"][...]
+                    ind_bnd   = grp.variables["ind_bnd"][...]
+                    dep_bnd   = grp.variables["dep_bnd"][...]
+                    histogram = grp.variables["histogram"][...].T
+                    ind_edges = np.zeros(ind_bnd.shape[0]+1); ind_edges[:-1] = ind_bnd[:,0]; ind_edges[-1] = ind_bnd[-1,1]
+                    dep_edges = np.zeros(dep_bnd.shape[0]+1); dep_edges[:-1] = dep_bnd[:,0]; dep_edges[-1] = dep_bnd[-1,1]
+                    fig,ax    = plt.subplots(figsize=(6,5.25),tight_layout=True)
+                    pc        = ax.pcolormesh(ind_edges,dep_edges,histogram,
+                                              norm=LogNorm(),
+                                              cmap='plasma')
+                    x,y = grp.variables["ind_mean"],grp.variables["dep_mean"]
+                    ax.plot(x,y,'-w',lw=3,alpha=0.75)
+                    #ax.fill_between(grp.variables["ind_mean"][...],
+                    #                grp.variables["dep_mean"][...]-grp.variables["dep_std"][...],
+                    #                grp.variables["dep_mean"][...]+grp.variables["dep_std"][...],
+                    #                color='k',alpha=0.25,lw=0)
+                    
+                    div       = make_axes_locatable(ax)
+                    fig.colorbar(pc,cax=div.append_axes("right",size="5%",pad=0.05),
+                                 orientation="vertical",
+                                 label="Fraction of total datasites")
+                    ax.set_xlabel("%s,  %s" % (ind_name,post.UnitStringToMatplotlib(x.getncattr("unit"))))
+                    ax.set_ylabel("%s,  %s" % (dep_name,post.UnitStringToMatplotlib(y.getncattr("unit"))))
+                    short_name = g.replace("relationship_","rel_")
+                    fig.savefig("%s/%s_%s.png" % (self.output_path,name,short_name))
+                    self.layout.addFigure("Period Mean Relationships",
+                                          short_name,
+                                          "MNAME_%s.png" % (short_name),
+                                          legend = False,
+                                          benchmark = True)
+
+                    plt.close()
                     
     def generateHtml(self):
         """
