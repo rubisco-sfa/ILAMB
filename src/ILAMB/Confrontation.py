@@ -220,6 +220,25 @@ class Confrontation:
                 fig.savefig("%s/legend_%s.png" % (self.output_path,pname))
                 plt.close()
 
+        # Determine min/max of relationship variables
+        for fname in glob.glob("%s/*.nc" % self.output_path):
+            try:
+                dataset = Dataset(fname)
+            except:
+                continue
+            for g in dataset.groups.keys():
+                grp = dataset.groups[g]
+                if not limits.has_key(g):
+                    limits[g] = {}
+                    limits[g]["xmin"] = +1e20
+                    limits[g]["xmax"] = -1e20
+                    limits[g]["ymin"] = +1e20
+                    limits[g]["ymax"] = -1e20
+                limits[g]["xmin"] = min(limits[g]["xmin"],grp.variables["ind_bnd"][ 0, 0])
+                limits[g]["xmax"] = max(limits[g]["xmax"],grp.variables["ind_bnd"][-1,-1])
+                limits[g]["ymin"] = min(limits[g]["ymin"],grp.variables["dep_bnd"][ 0, 0])
+                limits[g]["ymax"] = max(limits[g]["ymax"],grp.variables["dep_bnd"][-1,-1])
+                
         self.limits = limits
 
     def computeOverallScore(self,m):
@@ -473,6 +492,8 @@ class Confrontation:
                                  label="Fraction of total datasites")
                     ax.set_xlabel("%s,  %s" % (ind_name,post.UnitStringToMatplotlib(x.getncattr("unit"))))
                     ax.set_ylabel("%s,  %s" % (dep_name,post.UnitStringToMatplotlib(y.getncattr("unit"))))
+                    ax.set_xlim(self.limits[g]["xmin"],self.limits[g]["xmax"])
+                    ax.set_ylim(self.limits[g]["ymin"],self.limits[g]["ymax"])
                     short_name = g.replace("relationship_","rel_")
                     fig.savefig("%s/%s_%s.png" % (self.output_path,name,short_name))
                     self.layout.addFigure("Period Mean Relationships",
