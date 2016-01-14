@@ -1237,16 +1237,9 @@ def AnalysisFluxrate(obs,mod,regions=['global'],dataset=None,benchmark_dataset=N
                 var.toNetCDF4(benchmark_dataset)
 
 
-def AnalysisRelationship(dep_var,ind_var,dataset,rname):
+def AnalysisRelationship(dep_var,ind_var,dataset,rname,**keywords):
     r"""
     
-    Parameters
-    ----------
-    x : numpy.ndarray
-        the independent variable
-    y : numpy.ndarray
-        the dependent variable
-    dataset : 
     
     """    
     def _extractMaxTemporalOverlap(v1,v2):  # should move to ilamblib?
@@ -1261,20 +1254,31 @@ def AnalysisRelationship(dep_var,ind_var,dataset,rname):
         v1 = v1.data[mask==0].flatten()
         v2 = v2.data[mask==0].flatten()
         return v1,v2
+    
+    # convert to plot units
+    dep_plot_unit = keywords.get("dep_plot_unit",dep_var.unit)
+    ind_plot_unit = keywords.get("ind_plot_unit",ind_var.unit)    
+    if dep_plot_unit is not None: dep_var.convert(dep_plot_unit)
+    if ind_plot_unit is not None: ind_var.convert(ind_plot_unit)
 
-    # Get maxmimal overlap
-    x,y = _extractMaxTemporalOverlap(dep_var,ind_var)
+    # if the variables are temporal, we need to get period means
+    if dep_var.temporal: dep_var = dep_var.integrateInTime(mean=True)
+    if ind_var.temporal: ind_var = ind_var.integrateInTime(mean=True)
+
+    mask = dep_var.data.mask + ind_var.data.mask
+    x    = ind_var.data[mask==0].flatten()
+    y    = dep_var.data[mask==0].flatten()
 
     # Scott's rule (doi:10.1093/biomet/66.3.605) assumes that the
     # data is normally distributed
-    dx = 3.5*x.std()*np.power(x.size,-1./3.)
-    dy = 3.5*y.std()*np.power(y.size,-1./3.)
+    #dx = 3.5*x.std()*np.power(x.size,-1./3.)
+    #dy = 3.5*y.std()*np.power(y.size,-1./3.)
 
     # Compute 2D histogram, normalized by number of datapoints
-    Nx = int(round((x.max()-x.min())/dx,0))
-    Ny = int(round((y.max()-y.min())/dy,0))
-    Nx = 100
-    Ny = 100
+    #Nx = int(round((x.max()-x.min())/dx,0))
+    #Ny = int(round((y.max()-y.min())/dy,0))
+    Nx = 50
+    Ny = 50
     counts,xedges,yedges = np.histogram2d(x,y,[Nx,Ny])
     counts = np.ma.masked_values(counts,0)/float(x.size)
 
@@ -1295,7 +1299,7 @@ def AnalysisRelationship(dep_var,ind_var,dataset,rname):
         try:        
             ystd.append(ytmp. std())
         except:
-            ystd.append(0)
+            ystd.append(np.sqrt((((ytmp-ytmp.mean())**2).sum())/float(ytmp.size-1)))
     xmean = np.asarray(xmean)
     ymean = np.asarray(ymean)
     ystd  = np.asarray(ystd )
@@ -1322,7 +1326,9 @@ def AnalysisRelationship(dep_var,ind_var,dataset,rname):
     # Write relationship to the dataset
     grp.createDimension("ndata",size=xmean.size)
     X = grp.createVariable("ind_mean","double",("ndata"))
+    X.setncattr("unit",ind_plot_unit)
     M = grp.createVariable("dep_mean","double",("ndata"))
+    M.setncattr("unit",dep_plot_unit)
     S = grp.createVariable("dep_std" ,"double",("ndata"))
     X[...] = xmean
     M[...] = ymean

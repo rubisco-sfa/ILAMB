@@ -48,7 +48,7 @@ class Confrontation:
         self.layout.setHeader("CNAME / RNAME / MNAME")
         self.layout.setSections(["Temporally integrated period mean",
                                  "Spatially integrated regional mean",
-                                 "Relationships"])
+                                 "Period Mean Relationships"])
 
         # Define relative weights of each score in the overall score
         # (FIX: need some way for the user to modify this)
@@ -149,15 +149,21 @@ class Confrontation:
         # Perform relationship analysis
         obs_dep,mod_dep = obs,mod
         dep_name        = self.longname.split("/")[0]
-
+        dep_plot_unit   = self.plot_unit
+        if (dep_plot_unit is None): dep_plot_unit = obs_dep.unit
+        
         if clist is not None:
             for c in clist:
                 obs_ind,mod_ind = c.stageData(m) # independent variable
                 ind_name = c.longname.split("/")[0]            
+                ind_plot_unit = c.plot_unit
+                if (ind_plot_unit is None): ind_plot_unit = obs_ind.unit
                 if self.master:
-                    AnalysisRelationship(obs_ind,obs_dep,benchmark_results,ind_name)
-                AnalysisRelationship(mod_ind,mod_dep,results,ind_name)
-
+                    AnalysisRelationship(obs_dep,obs_ind,benchmark_results,ind_name,
+                                         dep_plot_unit=dep_plot_unit,ind_plot_unit=ind_plot_unit)
+                AnalysisRelationship(mod_dep,mod_ind,results,ind_name,
+                                     dep_plot_unit=dep_plot_unit,ind_plot_unit=ind_plot_unit)
+                
         # close files
         results.close()
         if self.master: benchmark_results.close()
@@ -442,14 +448,21 @@ class Confrontation:
             pc        = ax.pcolormesh(ind_edges,dep_edges,histogram,
                                       norm=LogNorm(),
                                       cmap='plasma')
+            x,y = grp.variables["ind_mean"],grp.variables["dep_mean"]
+            ax.plot(x,y,'-w',lw=3,alpha=0.75)
+            #ax.fill_between(grp.variables["ind_mean"][...],
+            #                grp.variables["dep_mean"][...]-grp.variables["dep_std"][...],
+            #                grp.variables["dep_mean"][...]+grp.variables["dep_std"][...],
+            #                color='k',alpha=0.25,lw=0)
+            
             div       = make_axes_locatable(ax)
             fig.colorbar(pc,cax=div.append_axes("right",size="5%",pad=0.05),
                          orientation="vertical",
                          label="Fraction of total datasites")
-            ax.set_xlabel("%s" % (ind_name))
-            ax.set_ylabel("%s" % (dep_name))
+            ax.set_xlabel("%s,  %s" % (ind_name,post.UnitStringToMatplotlib(x.getncattr("unit"))))
+            ax.set_ylabel("%s,  %s" % (dep_name,post.UnitStringToMatplotlib(y.getncattr("unit"))))
             fig.savefig("%s/%s_%s.png" % (self.output_path,g,m.name))
-            self.layout.addFigure("Relationships",
+            self.layout.addFigure("Period Mean Relationships",
                                   g,
                                   "%s_%s.png" % (g,m.name),
                                   side   = g.replace("relationship_",""),
