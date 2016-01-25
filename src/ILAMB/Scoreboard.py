@@ -15,7 +15,7 @@ class Node(object):
         self.children = []
         self.parent   = None
         self.weight   = None
-        self.sum_weight_children = 0
+        self.sum_weight_children = 1
         self.normalize_weight    = 0
         self.overall_weight      = 0
         self.score    = 0
