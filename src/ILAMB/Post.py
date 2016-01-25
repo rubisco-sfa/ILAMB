@@ -662,3 +662,4 @@ def BenchmarkSummaryFigure(models,variables,data,figname,vcolor=None):
 
     # save figure
     fig.savefig(figname)
+

@@ -115,7 +115,7 @@ class Confrontation:
         mod.convert(obs.unit)
         return obs,mod
 
-    def confront(self,m,clist=None):
+    def confront(self,m):
         r"""Confronts the input model with the observational data.
 
         Parameters
@@ -139,6 +139,7 @@ class Confrontation:
 
         # Perform the standard fluxrate analysis
         try:
+            pass
             AnalysisFluxrate(obs,mod,dataset=results,regions=self.regions,benchmark_dataset=benchmark_results,
                              table_unit=self.table_unit,plot_unit=self.plot_unit,space_mean=self.space_mean)
         except:
@@ -151,9 +152,9 @@ class Confrontation:
         dep_name        = self.longname.split("/")[0]
         dep_plot_unit   = self.plot_unit
         if (dep_plot_unit is None): dep_plot_unit = obs_dep.unit
-        
-        if clist is not None:
-            for c in clist:
+
+        if self.correlation is not None:
+            for c in self.correlation:
                 obs_ind,mod_ind = c.stageData(m) # independent variable
                 ind_name = c.longname.split("/")[0]            
                 ind_plot_unit = c.plot_unit
@@ -163,7 +164,7 @@ class Confrontation:
                                          dep_plot_unit=dep_plot_unit,ind_plot_unit=ind_plot_unit)
                 AnalysisRelationship(mod_dep,mod_ind,results,ind_name,
                                      dep_plot_unit=dep_plot_unit,ind_plot_unit=ind_plot_unit)
-                
+
         # close files
         results.close()
         if self.master: benchmark_results.close()
@@ -455,55 +456,121 @@ class Confrontation:
             datasets.append(Dataset(bname))
             names.append("Benchmark")
             
-            for data,name in zip(datasets,names):
-                groups = [g for g in data.groups.keys()]
+        for data,name in zip(datasets,names):
+            groups = [g for g in data.groups.keys()]
+            if name == "Benchmark":
+                dep_name = self.longname
+            else:
+                dep_name = self.longname.split("/")[0] + "/" + name
+
+            for g in groups:
                 if name == "Benchmark":
-                    dep_name = self.longname
+                    ind_name = g.replace("relationship_","")
                 else:
-                    dep_name = self.longname.split("/")[0] + "/" + name
+                    ind_name = g.replace("relationship_","") + "/" + name
+                grp       = data.groups[g]
+                ind       = grp.variables["ind"][...]
+                dep       = grp.variables["dep"][...]
+                ind_bnd   = grp.variables["ind_bnd"][...]
+                dep_bnd   = grp.variables["dep_bnd"][...]
+                histogram = grp.variables["histogram"][...].T
+                ind_edges = np.zeros(ind_bnd.shape[0]+1); ind_edges[:-1] = ind_bnd[:,0]; ind_edges[-1] = ind_bnd[-1,1]
+                dep_edges = np.zeros(dep_bnd.shape[0]+1); dep_edges[:-1] = dep_bnd[:,0]; dep_edges[-1] = dep_bnd[-1,1]
+                fig,ax    = plt.subplots(figsize=(6,5.25),tight_layout=True)
+                pc        = ax.pcolormesh(ind_edges,dep_edges,histogram,
+                                          norm=LogNorm(),
+                                          cmap='plasma')
+                x,y = grp.variables["ind_mean"],grp.variables["dep_mean"]
+                ax.plot(x,y,'-w',lw=3,alpha=0.75)
+                #ax.fill_between(grp.variables["ind_mean"][...],
+                #                grp.variables["dep_mean"][...]-grp.variables["dep_std"][...],
+                #                grp.variables["dep_mean"][...]+grp.variables["dep_std"][...],
+                #                color='k',alpha=0.25,lw=0)
+                
+                div       = make_axes_locatable(ax)
+                fig.colorbar(pc,cax=div.append_axes("right",size="5%",pad=0.05),
+                             orientation="vertical",
+                             label="Fraction of total datasites")
+                ax.set_xlabel("%s,  %s" % (ind_name,post.UnitStringToMatplotlib(x.getncattr("unit"))))
+                ax.set_ylabel("%s,  %s" % (dep_name,post.UnitStringToMatplotlib(y.getncattr("unit"))))
+                ax.set_xlim(self.limits[g]["xmin"],self.limits[g]["xmax"])
+                ax.set_ylim(self.limits[g]["ymin"],self.limits[g]["ymax"])
+                short_name = g.replace("relationship_","rel_")
+                fig.savefig("%s/%s_%s.png" % (self.output_path,name,short_name))
+                self.layout.addFigure("Period Mean Relationships",
+                                      short_name,
+                                      "MNAME_%s.png" % (short_name),
+                                      legend = False,
+                                      benchmark = True)
+                plt.close()
 
-                for g in groups:
-                    if name == "Benchmark":
-                        ind_name = g.replace("relationship_","")
-                    else:
-                        ind_name = g.replace("relationship_","") + "/" + name
-                    grp       = data.groups[g]
-                    ind       = grp.variables["ind"][...]
-                    dep       = grp.variables["dep"][...]
-                    ind_bnd   = grp.variables["ind_bnd"][...]
-                    dep_bnd   = grp.variables["dep_bnd"][...]
-                    histogram = grp.variables["histogram"][...].T
-                    ind_edges = np.zeros(ind_bnd.shape[0]+1); ind_edges[:-1] = ind_bnd[:,0]; ind_edges[-1] = ind_bnd[-1,1]
-                    dep_edges = np.zeros(dep_bnd.shape[0]+1); dep_edges[:-1] = dep_bnd[:,0]; dep_edges[-1] = dep_bnd[-1,1]
-                    fig,ax    = plt.subplots(figsize=(6,5.25),tight_layout=True)
-                    pc        = ax.pcolormesh(ind_edges,dep_edges,histogram,
-                                              norm=LogNorm(),
-                                              cmap='plasma')
-                    x,y = grp.variables["ind_mean"],grp.variables["dep_mean"]
-                    ax.plot(x,y,'-w',lw=3,alpha=0.75)
-                    #ax.fill_between(grp.variables["ind_mean"][...],
-                    #                grp.variables["dep_mean"][...]-grp.variables["dep_std"][...],
-                    #                grp.variables["dep_mean"][...]+grp.variables["dep_std"][...],
-                    #                color='k',alpha=0.25,lw=0)
-                    
-                    div       = make_axes_locatable(ax)
-                    fig.colorbar(pc,cax=div.append_axes("right",size="5%",pad=0.05),
-                                 orientation="vertical",
-                                 label="Fraction of total datasites")
-                    ax.set_xlabel("%s,  %s" % (ind_name,post.UnitStringToMatplotlib(x.getncattr("unit"))))
-                    ax.set_ylabel("%s,  %s" % (dep_name,post.UnitStringToMatplotlib(y.getncattr("unit"))))
-                    ax.set_xlim(self.limits[g]["xmin"],self.limits[g]["xmax"])
-                    ax.set_ylim(self.limits[g]["ymin"],self.limits[g]["ymax"])
-                    short_name = g.replace("relationship_","rel_")
-                    fig.savefig("%s/%s_%s.png" % (self.output_path,name,short_name))
-                    self.layout.addFigure("Period Mean Relationships",
-                                          short_name,
-                                          "MNAME_%s.png" % (short_name),
-                                          legend = False,
-                                          benchmark = True)
+                
+        # Code to add a Whittaker diagram (FIX: this is messy, need to rethink data access, redundant computation)
+        Ts = []; T_plot_units = []; T_labels = []
+        Ps = []; P_plot_units = []; P_labels = []
+        if self.correlation is not None:
+            for c in self.correlation:
+                
+                if "Temperature" in c.longname:
+                    obs,mod = c.stageData(m)
+                    Ts.append(mod)
+                    T_plot_units.append(c.plot_unit)
+                    T_labels.append(c.longname.split("/")[0] + "/" + m.name)
+                    if self.master:
+                        Ts.append(obs)
+                        T_plot_units.append(c.plot_unit)
+                        T_labels.append(c.longname)
 
-                    plt.close()
-                    
+                if "Precipitation" in c.longname:
+                    obs,mod = c.stageData(m)
+                    Ps.append(mod)
+                    P_plot_units.append(c.plot_unit)
+                    P_labels.append(c.longname.split("/")[0] + "/" + m.name)
+                    if self.master:
+                        Ps.append(obs)
+                        P_plot_units.append(c.plot_unit)
+                        P_labels.append(c.longname)
+                        
+        filenames = [fname]
+        Z_labels  = [self.longname.split("/")[0] + "/" + m.name]
+        if self.master:
+            filenames.append(bname)
+            Z_labels.append(self.longname)
+            
+        T_key = [key for key in self.limits.keys() if "Temperature" in key][0]
+        T_min = self.limits[T_key]["xmin"]
+        T_max = self.limits[T_key]["xmax"]
+        P_key = [key for key in self.limits.keys() if "Precipitation" in key][0]
+        P_min = self.limits[P_key]["xmin"]
+        P_max = self.limits[P_key]["xmax"]
+        V_min = self.limits[P_key]["ymin"]
+        V_max = self.limits[P_key]["ymax"]
+        
+        if len(Ts) > 0 and len(Ps) > 0:
+            for filename,data,name,T,T_plot_unit,T_label,P,P_plot_unit,P_label,Z_label in zip(filenames,datasets,names,
+                                                                                              Ts,T_plot_units,T_labels,
+                                                                                              Ps,P_plot_units,P_labels,
+                                                                                              Z_labels):
+                Z = [k for k in data.variables.keys() if "timeint_of" in k]
+                WhittakerDiagram(T,
+                                 P,
+                                 Variable(filename=filename,variable_name=Z[0]),
+                                 X_plot_unit =    T_plot_unit,
+                                 Y_plot_unit =    P_plot_unit,
+                                 Z_plot_unit = self.plot_unit,
+                                 X_label     =    T_label,
+                                 Y_label     =    P_label,
+                                 Z_label     = self.longname,
+                                 X_min = T_min, X_max = T_max,
+                                 Y_min = P_min, Y_max = P_max,
+                                 Z_min = V_min, Z_max = V_max,
+                                 filename    = "%s/%s_whittaker.png" % (self.output_path,name))
+            self.layout.addFigure("Period Mean Relationships",
+                                  "whittaker",
+                                  "MNAME_whittaker.png",
+                                  legend    = False,
+                                  benchmark = True)
+                
     def generateHtml(self):
         """
         """
@@ -545,3 +612,48 @@ class Confrontation:
         self.layout.setMetrics(metrics)
         f.write(str(self.layout))
         f.close()
+
+def WhittakerDiagram(X,Y,Z,**keywords):
+    from mpl_toolkits.axes_grid1 import make_axes_locatable
+    
+    # possibly integrate in time
+    if X.temporal: X = X.integrateInTime(mean=True)
+    if Y.temporal: Y = Y.integrateInTime(mean=True)
+    if Z.temporal: Z = Z.integrateInTime(mean=True)
+    
+    # convert to plot units
+    X_plot_unit = keywords.get("X_plot_unit",X.unit)
+    Y_plot_unit = keywords.get("Y_plot_unit",Y.unit)
+    Z_plot_unit = keywords.get("Z_plot_unit",Z.unit)
+    if X_plot_unit is not None: X.convert(X_plot_unit)
+    if Y_plot_unit is not None: Y.convert(Y_plot_unit)
+    if Z_plot_unit is not None: Z.convert(Z_plot_unit)
+    
+    # flatten data, if any data is masked all the data is masked
+    mask = (X.data.mask + Y.data.mask + Z.data.mask)==0
+    x    = X.data[mask].flatten()
+    y    = Y.data[mask].flatten()
+    z    = Z.data[mask].flatten()
+
+    # make plot
+    fig,ax = plt.subplots(figsize=(6,5.25),tight_layout=True)
+    sc     = ax.scatter(x,y,c=z,linewidths=0,
+                        vmin=keywords.get("Z_min",z.min()),
+                        vmax=keywords.get("Z_max",z.max()))
+    div    = make_axes_locatable(ax)
+    fig.colorbar(sc,cax=div.append_axes("right",size="5%",pad=0.05),
+                 orientation="vertical",
+                 label=keywords.get("Z_label","%s %s" % (Z.name,Z.unit)))
+    X_min = keywords.get("X_min",x.min())
+    X_max = keywords.get("X_max",x.max())
+    Y_min = keywords.get("Y_min",y.min())
+    Y_max = keywords.get("Y_max",y.max())
+    ax.set_xlim(X_min,X_max)
+    ax.set_ylim(Y_min,Y_max)
+    ax.set_xlabel(keywords.get("X_label","%s %s" % (X.name,X.unit)))
+    ax.set_ylabel(keywords.get("Y_label","%s %s" % (Y.name,Y.unit)))
+    #ax.grid()
+    fig.savefig(keywords.get("filename","whittaker.png"))
+    plt.close()
+
+    

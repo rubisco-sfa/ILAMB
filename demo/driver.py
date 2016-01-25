@@ -133,7 +133,7 @@ for w in localW:
         print ("    {0:>%d} {1:>%d} %sUsingCachedData%s " % (maxCL,maxML,OK,ENDC)).format(c.longname,m.name)
         continue
     try:
-        c.confront(m,clist=c.correlation)  
+        c.confront(m)  
         dt = time.time()-t0
         print ("    {0:>%d} {1:>%d} %sCompleted%s {2:>5.1f} s" % (maxCL,maxML,OK,ENDC)).format(c.longname,m.name,dt)
 
