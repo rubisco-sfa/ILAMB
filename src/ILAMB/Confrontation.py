@@ -12,7 +12,12 @@ class Confrontation:
     """A generic class for confronting model results with observational data.
 
     This class is meant to provide the user with a simple way to
-    specify observational datasets and compare them to model results. 
+    specify observational datasets and compare them to model
+    results. A generic analysis routine is called which checks mean
+    states of the variables, afterwhich the results are tabulated and
+    plotted automatically. A HTML page is built dynamically as plots
+    are created based on available information and successful
+    analysis.
 
     Parameters
     ----------
@@ -45,6 +50,7 @@ class Confrontation:
         the colormap to use in rendering plots (default is 'jet')
     land : str, bool
         enable to force the masking of areas with no land (default is False)
+
     """
     def __init__(self,name,srcdata,variable_name,**keywords):
         
@@ -236,7 +242,14 @@ class Confrontation:
         if self.master: benchmark_results.close()
                 
     def determinePlotLimits(self):
-        """
+        """Determine the limits of all plots which are inclusive of all ranges.
+
+        The routine will open all netCDF files in the output path and
+        add the maximum and minimum of all variables which are
+        designated to be plotted. If legends are desired for a given
+        plot, these are rendered here as well. This routine should be
+        called before calling any plotting routine.
+
         """
         # Determine the min/max of variables over all models
         limits = {}
@@ -260,7 +273,7 @@ class Confrontation:
                 limits[pname]["max"] = max(limits[pname]["max"],var.getncattr("max"))
             dataset.close()
         
-        # Second pass to plot legends
+        # Second pass to plot legends (FIX: only for master?)
         for pname in limits.keys():
             opts = space_opts[pname]
 
@@ -309,8 +322,13 @@ class Confrontation:
         self.limits = limits
 
     def computeOverallScore(self,m):
-        """
-        Done outside analysis such that weights can be changed and analysis need not be rerun
+        """Computes the overall composite score for a given model.
+
+        This routine will try to open the model's netCDF file which
+        contains the analysis results, and then loop over variables
+        which contribute to the overall score. This number is added to
+        the dataset as a new variable of scalar type.
+
         """
         fname = "%s/%s_%s.nc" % (self.output_path,self.name,m.name)
         try:
@@ -340,7 +358,12 @@ class Confrontation:
         dataset.close()
 
     def compositePlots(self):
-        """
+        """Renders plots which display information of all models.
+
+        This routine renders plots which contain information from all
+        models. Thus only the master process will run this routine,
+        and only after all analysis has finished.
+
         """
         if not self.master: return
         models = []
@@ -417,10 +440,14 @@ class Confrontation:
             plt.close()
 
         
-    def postProcessFromFiles(self,m):
-        """
-        Call determinePlotLimits first
-        Html layout gets built in here
+    def modelPlots(self,m):
+        """For a given model, create the plots of the analysis results.
+
+        This routine will extract plotting information out of the
+        netCDF file which results from the analysis and create
+        plots. Note that determinePlotLimits should be called before
+        this routine.
+
         """
         bname     = "%s/%s_Benchmark.nc" % (self.output_path,self.name)
         fname     = "%s/%s_%s.nc" % (self.output_path,self.name,m.name)
@@ -640,7 +667,13 @@ class Confrontation:
                                   benchmark = True)
                 
     def generateHtml(self):
-        """
+        """Generate the HTML for the results of this confrontation.
+
+        This routine opens all netCDF files and builds a table of
+        metrics. Then it passes the results to the HTML generator and
+        saves the result in the output directory. This only occurs on
+        the confrontation flagged as master.
+
         """
         # only the master processor needs to do this
         if not self.master: return
@@ -682,6 +715,8 @@ class Confrontation:
         f.close()
 
 def WhittakerDiagram(X,Y,Z,**keywords):
+    """FIX: move
+    """
     from mpl_toolkits.axes_grid1 import make_axes_locatable
     
     # possibly integrate in time

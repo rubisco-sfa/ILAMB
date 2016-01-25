@@ -167,7 +167,7 @@ for w in localW:
     m,c = w
     t0  = time.time()    
     c.computeOverallScore(m)
-    c.postProcessFromFiles(m)
+    c.modelPlots(m)
     dt = time.time()-t0
     print ("    {0:>%d} {1:>%d} %sCompleted%s {2:>5.1f} s" % (maxCL,maxML,OK,ENDC)).format(c.longname,m.name,dt)
     
