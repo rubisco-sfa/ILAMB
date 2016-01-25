@@ -120,12 +120,12 @@ for c in C:
 
 # find confrontation names for relationships (move this elsewhere)
 for c in C:
-    if c.correlation is None: continue
-    for i,longname in enumerate(c.correlation):
+    if c.relationships is None: continue
+    for i,longname in enumerate(c.relationships):
         found = False
         for cor in Conf.list():
             if longname.lower() == cor.longname.lower():
-                c.correlation[i] = cor
+                c.relationships[i] = cor
                 found = True
 
         

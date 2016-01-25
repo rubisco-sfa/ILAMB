@@ -31,7 +31,7 @@ class Node(object):
         self.table_unit = None
         self.plot_unit  = None
         self.space_mean = True
-        self.correlation = None
+        self.relationships = None
         
     def __str__(self):
         if self.parent is None: return ""
@@ -78,7 +78,7 @@ def ConvertTypes(node):
     if node.weight is not None: node.weight = float(node.weight)
     node.land       = _to_bool(node.land)
     node.space_mean = _to_bool(node.space_mean)
-    if node.correlation is not None: node.correlation = node.correlation.split(",")
+    if node.relationships is not None: node.relationships = node.relationships.split(",")
             
 def SumWeightChildren(node):
     for child in node.children:
@@ -178,7 +178,7 @@ class Scoreboard():
                                                    space_mean=node.space_mean,
                                                    table_unit=node.table_unit,
                                                    plot_unit=node.plot_unit,
-                                                   correlation=node.correlation)
+                                                   relationships=node.relationships)
             except Exception,e:
                 pass
 

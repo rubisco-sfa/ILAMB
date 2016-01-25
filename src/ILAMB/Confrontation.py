@@ -69,7 +69,7 @@ class Confrontation:
         self.plot_unit      = keywords.get("plot_unit",None)
         self.space_mean     = keywords.get("space_mean",True)        
         self.relationships  = keywords.get("relationships",None)
-        
+
         # Make sure the source data exists
         try:
             os.stat(self.srcdata)
@@ -219,8 +219,8 @@ class Confrontation:
         dep_plot_unit   = self.plot_unit
         if (dep_plot_unit is None): dep_plot_unit = obs_dep.unit
 
-        if self.correlation is not None:
-            for c in self.correlation:
+        if self.relationships is not None:
+            for c in self.relationships:
                 obs_ind,mod_ind = c.stageData(m) # independent variable
                 ind_name = c.longname.split("/")[0]            
                 ind_plot_unit = c.plot_unit
@@ -574,8 +574,8 @@ class Confrontation:
         # Code to add a Whittaker diagram (FIX: this is messy, need to rethink data access, redundant computation)
         Ts = []; T_plot_units = []; T_labels = []
         Ps = []; P_plot_units = []; P_labels = []
-        if self.correlation is not None:
-            for c in self.correlation:
+        if self.relationships is not None:
+            for c in self.relationships:
                 
                 if "Temperature" in c.longname:
                     obs,mod = c.stageData(m)
@@ -596,13 +596,15 @@ class Confrontation:
                         Ps.append(obs)
                         P_plot_units.append(c.plot_unit)
                         P_labels.append(c.longname)
-                        
+
+        if len(Ts) == 0 or len(Ps) == 0: return
+        
         filenames = [fname]
         Z_labels  = [self.longname.split("/")[0] + "/" + m.name]
         if self.master:
             filenames.append(bname)
             Z_labels.append(self.longname)
-            
+
         T_key = [key for key in self.limits.keys() if "Temperature" in key][0]
         T_min = self.limits[T_key]["xmin"]
         T_max = self.limits[T_key]["xmax"]
