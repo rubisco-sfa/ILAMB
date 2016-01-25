@@ -91,8 +91,9 @@ def _convertCalendar(t):
     """
     cal  = "noleap"
     unit = t.units.replace("No. of ","")
-    data = t[:]
-
+    data = t[:]    
+    unit = unit.replace("0000","1850")
+    
     # if the time array is masked, the novalue number can cause num2date problems
     if type(data) == type(np.ma.empty(0)): data.data[data.mask] = 0
     if "calendar" in t.ncattrs(): cal = t.calendar
@@ -756,7 +757,9 @@ def SpatiallyIntegratedTimeSeries(var,areas):
         the spatially integrated variable
     """
     assert var.shape[-2:] == areas.shape
+    np.seterr(over='ignore',under='ignore')
     vbar = (var*areas).sum(axis=-1).sum(axis=-1)
+    np.seterr(over='raise',under='raise')
     return vbar
             
 def TemporallyIntegratedTimeSeries(t,var,**keywords):
