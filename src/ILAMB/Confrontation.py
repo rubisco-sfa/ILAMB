@@ -9,9 +9,45 @@ from matplotlib.colors import LogNorm
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 class Confrontation:
+    """A generic class for confronting model results with observational data.
 
+    This class is meant to provide the user with a simple way to
+    specify observational datasets and compare them to model results. 
+
+    Parameters
+    ----------
+    name : str
+        a name for the confrontation
+    srcdata : str
+        full path to the observational dataset
+    variable_name : str
+        name of the variable to extract from the source dataset
+    
+    Other Parameters
+    ----------------
+    output_path : str, optional
+        path into which all output from this confrontation will be generated
+    alternate_vars : list of str, optional
+        other accepted variable names when extracting from models
+    derived : str, optional
+        an algebraic expression which captures how the confrontation variable may be generated
+    regions : list of str, optional
+        a list of regions over which the spatial analysis will be performed (default is global)
+    table_unit : str, optional
+        the unit to use in the output HTML table
+    plot_unit : str, optional
+        the unit to use in the output images
+    space_mean : bool, optional
+        enable to take spatial means (as opposed to spatial integrals) in the analysis (enabled by default)
+    relationships : list of ILAMB.Confrontation.Confrontation, optional
+        a list of confrontations with whose data we use to study relationships
+    cmap : str, optional
+        the colormap to use in rendering plots (default is 'jet')
+    land : str, bool
+        enable to force the masking of areas with no land (default is False)
+    """
     def __init__(self,name,srcdata,variable_name,**keywords):
-
+        
         # Initialize
         self.master         = True
         self.name           = name
@@ -20,7 +56,7 @@ class Confrontation:
         self.output_path    = keywords.get("output_path","_build/%s/" % self.name)
         self.alternate_vars = keywords.get("alternate_vars",[])
         self.derived        = keywords.get("derived",None)
-        self.regions        = keywords.get("regions",four_code_regions)
+        self.regions        = keywords.get("regions",["global"])
         self.data           = None
         self.cmap           = keywords.get("cmap","jet")
         self.land           = keywords.get("land",False)
@@ -32,7 +68,7 @@ class Confrontation:
         self.table_unit     = keywords.get("table_unit",None)
         self.plot_unit      = keywords.get("plot_unit",None)
         self.space_mean     = keywords.get("space_mean",True)        
-        self.correlation    = keywords.get("correlation",None)
+        self.relationships  = keywords.get("relationships",None)
         
         # Make sure the source data exists
         try:
@@ -59,12 +95,40 @@ class Confrontation:
                        "sd_score"   :1.}
 
     def stageData(self,m):
+        r"""Extracts model data which matches the observational dataset defined along with this confrontation.
+        
+        The datafile associated with this confrontation defines what
+        is to be extracted from the model results. If the
+        observational data represents sites, as opposed to spatially
+        defined over a latitude/longitude grid, then the model results
+        will be sampled at the site locations to match. The spatial
+        grids need not align, the analysis will handle the
+        interpolations when necesary.
+
+        If both datasets are defined on the same temporal scale, then
+        the maximum overlap time is computed and the datasets are
+        clipped to match. If there is some disparity in the temporal
+        scale (e.g. annual mean observational data and monthly mean
+        model results), then we look at the cell_methods attribute in
+        the netCDF4 dataset to determine how to operate on the model
+        result to make it commensurate with the observations.
+
+        Parameters
+        ----------
+        m : ILAMB.ModelResult.ModelResult
+            the model result context
+
+        Returns
+        -------
+        obs : ILAMB.Variable.Variable
+            the variable context associated with the observational dataset
+        mod : ILAMB.Variable.Variable
+            the variable context associated with the model result
         """
-        """
-        # Read in the data, and perform consistency checks depending
-        # on the data types found
         if self.data is None:
-            obs = Variable(filename=self.srcdata,variable_name=self.variable_name,alternate_vars=self.alternate_vars)
+            obs = Variable(filename       = self.srcdata,
+                           variable_name  = self.variable_name,
+                           alternate_vars = self.alternate_vars)
             self.data = obs
         else:
             obs = self.data
@@ -112,6 +176,8 @@ class Confrontation:
             mod.data = np.ma.masked_array(mod.data,
                                           mask=mod.data.mask+(mod.area<1e-2)[np.newaxis,:,:],
                                           copy=False)
+
+        
         mod.convert(obs.unit)
         return obs,mod
 

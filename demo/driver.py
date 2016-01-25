@@ -23,6 +23,10 @@ ENDC = '\033[0m'
 
 import argparse
 parser = argparse.ArgumentParser(description='')
+parser.add_argument('--root', dest="root", metavar='root', type=str, nargs=1,
+                    help='root at which to search for models')
+parser.add_argument('--config', dest="config", metavar='config', type=str, nargs=1,
+                    help='path to configuration file to use')
 parser.add_argument('--models', dest="models", metavar='m', type=str, nargs='+',
                     help='specify which models to run, list model names with no quotes and only separated by a space.')
 parser.add_argument('--confrontations', dest="confront", metavar='c', type=str, nargs='+',
@@ -37,7 +41,8 @@ if args.regions is None: args.regions = ['global']
 
 # Initialize the models
 M    = []
-root = "%s/MODELS/CLM" % (os.environ["ILAMB_ROOT"])
+root = args.root[0]
+if root[-1] == "/": root = root[:-1]
 if rank == 0: print "\nSearching for model results in %s...\n" % root
 maxML = 0
 for subdir, dirs, files in os.walk(root):
@@ -47,7 +52,7 @@ for subdir, dirs, files in os.walk(root):
     if args.models is not None:
         if mname not in args.models: continue
     maxML  = max(maxML,len(mname))
-    M.append(ModelResult(subdir,modelname=mname,filter="r1i1p1"))
+    M.append(ModelResult(subdir,modelname=mname))
 M = sorted(M,key=lambda m: m.name.upper())
 if rank == 0: 
     for m in M: 
@@ -61,7 +66,7 @@ for m in M:
     m.color = clr
 
 # Get confrontations
-Conf = Scoreboard("clm.cfg",regions=args.regions)
+Conf = Scoreboard(args.config[0],regions=args.regions)
 
 # Build work list, ModelResult+Confrontation pairs
 W     = []

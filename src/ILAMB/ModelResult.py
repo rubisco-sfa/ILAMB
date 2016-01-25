@@ -177,7 +177,7 @@ class ModelResult():
         for f in derived:
             f = f.replace("-derived","")
             if f in data: data.remove(f)
-
+            
         # build variable and merge if in separate files
         if len(data) == 0:
             raise il.VarNotInModel()
