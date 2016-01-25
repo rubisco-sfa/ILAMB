@@ -54,7 +54,7 @@ def FromNetCDF4(filename,variable_name,alternate_vars=[]):
         f = Dataset(filename,mode="r")
     except RuntimeError:
         raise RuntimeError("Unable to open the file: %s" % filename)
-        
+    
     found     = False
     if variable_name in f.variables.keys():
         found = True
@@ -69,6 +69,7 @@ def FromNetCDF4(filename,variable_name,alternate_vars=[]):
     lat_name  = None
     lon_name  = None
     data_name = None
+           
     for key in var.dimensions:
         if "time" in key: time_name = key
         if "lat"  in key: lat_name  = key
@@ -631,7 +632,7 @@ class Variable:
             dim.append(_checkLat(self.lat,dataset))
             dim.append(_checkLon(self.lon,dataset))
             
-        V = dataset.createVariable(self.name,"double",dim)
+        V = dataset.createVariable(self.name,"double",dim,zlib=True)
         V.setncattr("units",self.unit)
         V.setncattr("max",self.data.max())
         V.setncattr("min",self.data.min())
