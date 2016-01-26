@@ -147,7 +147,8 @@ NCARclrs = asarray([[93,0,135],
 
 # Spatial plots and their default options
 space_opts = {}
-space_opts["timeint"] = { "cmap"      :"choose",
+space_opts["timeint"] = { "name"      :"Temporally integrated period mean",
+                          "cmap"      :"choose",
                           "sym"       :False,
                           "ticks"     :None,
                           "ticklabels":None,
@@ -157,7 +158,8 @@ space_opts["timeint"] = { "cmap"      :"choose",
                           "sidelbl"   :"MODEL MEAN",
                           "haslegend" :True }
 
-space_opts["bias"]    = { "cmap"      :"seismic",
+space_opts["bias"]    = { "name"      :"Temporally integrated period mean bias",
+                          "cmap"      :"seismic",
                           "sym"       :True,
                           "ticks"     :None,
                           "ticklabels":None,
@@ -167,7 +169,8 @@ space_opts["bias"]    = { "cmap"      :"seismic",
                           "sidelbl"   :"BIAS",
                           "haslegend" :True }
 
-space_opts["shift"]   = { "cmap"      :"PRGn",
+space_opts["shift"]   = { "name"      :"Temporally integrated mean phase shift",
+                          "cmap"      :"PRGn",
                           "sym"       :True,
                           "ticks"     :None,
                           "ticklabels":None,
@@ -177,7 +180,8 @@ space_opts["shift"]   = { "cmap"      :"PRGn",
                           "sidelbl"   :"SHIFT",
                           "haslegend" :True }
 
-space_opts["phase"]   = { "cmap"      :"jet",
+space_opts["phase"]   = { "name"      :"Temporally integrated period mean max month",
+                          "cmap"      :"jet",
                           "sym"       :False,
                           "ticks"     :mid_months,
                           "ticklabels":lbl_months,

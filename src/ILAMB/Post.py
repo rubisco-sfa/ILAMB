@@ -163,9 +163,10 @@ class HtmlFigure():
         self.legend    = legend
         self.benchmark = benchmark
         
-    def generateClickRow(self):
+    def generateClickRow(self,allModels=False):
         name = self.pattern
-        for token in ['CNAME','MNAME','RNAME']:
+        if allModels: name = name.replace(self.name,"PNAME")
+        for token in ['CNAME','MNAME','RNAME','PNAME']:
             name = name.split(token)
             name = ("' + %s + '" % token).join(name)
         name = "'%s'" % name
@@ -270,10 +271,10 @@ class HtmlLayout():
         # Convenience redefinition
         c       = self.c
         metrics = self.metrics
-
-        # Grab the data
-        models  = metrics.keys()
         regions = self.regions
+        models  = metrics.keys()
+        
+        # Grab the data
         if regions is None: regions = ['']
         data = []
         for model in models:
@@ -394,9 +395,36 @@ class HtmlLayout():
         code += """
         }
         google.visualization.events.addListener(table, 'select', clickRow);
-        table.setSelection([{'row': 0}]);
-        clickRow();
+      table.setSelection([{'row': 0}]);
+      clickRow();
+
+    }
+    </script>"""
+
+        code += """
+    
+    <script>
+      function select2() {
+        var header = "%s";
+        var CNAME  = "%s";
+        header     = header.replace("CNAME",CNAME);
+        var rid    = document.getElementById("region2").selectedIndex;
+        var RNAME  = document.getElementById("region2").options[rid].value;
+        var pid    = document.getElementById("plot"  ).selectedIndex;
+        var PNAME  = document.getElementById("plot"  ).options[pid].value;
+        header     = header.replace("RNAME",RNAME);
+        $("#header h1 #header_txt").text(header);""" % (self.header.replace(" / MNAME",""),self.c.longname.replace("/"," / "))
+
+
+
+        
+        code += """
       }
+    </script>
+    <script>
+      $(document).on('pageshow', '[data-role="page"]', function(){ 
+        select2()
+      });
     </script>"""
 
         return code
@@ -467,12 +495,18 @@ class HtmlLayout():
         code += """
   </head>
   <body>
-    <div data-role="page" id="pageone">"""
+    <div data-role="page" id="page1">"""
 
         # Page header
         code += """
       <div id="header" data-role="header" data-position="fixed" data-tap-toggle="false">
         <h1><span id="header_txt"></span></h1>
+	<div data-role="navbar">
+	  <ul>
+	    <li><a href="#page1" class="ui-btn-active ui-state-persist">Single Model</a></li>
+	    <li><a href="#page2">All Models</a></li>
+	  </ul>
+	</div>
       </div>"""
 
         # Add optional regions pulldown
@@ -506,6 +540,75 @@ class HtmlLayout():
       </div>"""
 
         # End the first and html page
+        code += """
+    </div>"""
+
+        # Second page
+        code += """
+    <div data-role="page" id="page2">
+      <div id="header" data-role="header" data-position="fixed" data-tap-toggle="false">
+        <h1><span id="header_txt"></span></h1>
+	<div data-role="navbar">
+	  <ul>
+	    <li><a href="#page1">Single Model</a></li>
+	    <li><a href="#page2" class="ui-btn-active ui-state-persist">All Models</a></li>
+	  </ul>
+	</div>
+      </div>"""
+        
+        # Add optional regions pulldown
+        if self.regions is not None:
+            code += """
+      <select id="region2" onchange="select2()">"""
+            for r in self.regions:
+                if "global" in r:
+                    opt = 'selected="selected"'
+                else:
+                    opt = ''
+                code += """
+        <option value="%s" %s>%s</option>""" % (r,opt,r)
+            code += """
+      </select>"""
+
+        # Add a plot for each model
+        models = self.metrics.keys()
+        models.sort(key=lambda key: key.upper())
+        try:
+            models.insert(0,models.pop(models.index("Benchmark")))
+        except:
+            pass
+
+        # Which plots to add?
+        figs = []
+        if self.sections is not None:
+            for section in self.sections:
+                if len(self.figures[section]) == 0: continue
+                for figure in self.figures[section]:
+                    if figure.name in ['timeint','bias','phase','shift']:
+                        if figure not in figs: figs.append(figure)
+        code += """
+      <select id="plot">"""
+        from constants import space_opts
+        for f in figs:
+            opt = ''
+            if "timeint" is f.name: opt = 'selected="selected"'
+            code += """
+        <option value="%s" %s>%s</option>""" % (f.name,opt,space_opts[f.name]["name"])
+        code += """
+      </select>"""
+
+        fig = figs[0]
+        rem_legend = fig.legend; fig.legend = False
+        rem_side   = fig.side;   fig.side   = "MNAME"
+        img = "%s" % (fig)
+        img = img.replace("%s" % fig.name,"MNAME")
+        fig.legend = rem_legend
+        fig.side   = rem_side
+        for model in models:
+            code += img.replace("MNAME",model)
+
+            
+        # close page 2 and end
         code += """
     </div>
   </body>
