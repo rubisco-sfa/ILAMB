@@ -296,6 +296,19 @@ class HtmlLayout():
         regions.sort()
         data.sort(key=_sortMetrics)
 
+        # List of plots for the 'All Models' page
+        plots = []
+        bench = []
+        if self.sections is not None:
+            for section in self.sections:
+                if len(self.figures[section]) == 0: continue
+                for figure in self.figures[section]:
+                    if figure.name in ['timeint','bias','phase','shift']:
+                        if figure not in plots: plots.append(figure)
+                    if "benchmark" in figure.name:
+                        if figure.name not in bench: bench.append(figure.name)
+        nobench = [plot.name for plot in plots if "benchmark_%s" % (plot.name) not in bench]        
+        
         # Generate the Google DataTable Javascript code
         code = """
     <script type="text/javascript" src="https://www.google.com/jsapi"></script>
@@ -416,7 +429,18 @@ class HtmlLayout():
         $("#header h1 #header_txt").text(header);""" % (self.header.replace(" / MNAME",""),self.c.longname.replace("/"," / "))
 
 
+        code += """
+        if(%s){
+          document.getElementById("Benchmark_div").style.display = 'none'
+        }else{
+          document.getElementById("Benchmark_div").style.display = 'block'
+          document.getElementById('Benchmark').src = 'Benchmark_' + RNAME + '_' + PNAME + '.png'
+        }
+        document.getElementById('legend').src = 'legend_' + PNAME + '.png'""" % (" || ".join(['PNAME == "%s"' % n for n in nobench]))
 
+        for model in models:
+            code += """
+        document.getElementById('%s').src = '%s_' + RNAME + '_' + PNAME + '.png'""" % (model,model)
         
         code += """
       }
@@ -586,8 +610,9 @@ class HtmlLayout():
                 for figure in self.figures[section]:
                     if figure.name in ['timeint','bias','phase','shift']:
                         if figure not in figs: figs.append(figure)
+
         code += """
-      <select id="plot">"""
+      <select id="plot" onchange="select2()">"""
         from constants import space_opts
         for f in figs:
             opt = ''
@@ -607,7 +632,12 @@ class HtmlLayout():
         for model in models:
             code += img.replace("MNAME",model)
 
-            
+        code += """
+        <div class="outer" id="legend_div">
+              <div class="inner rotate"> </div>
+              <div class="second"><img src="" id="legend" alt="Data not available"></img></div>
+        </div><br>"""
+        
         # close page 2 and end
         code += """
     </div>
