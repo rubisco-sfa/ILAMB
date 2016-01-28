@@ -233,9 +233,11 @@ class Confrontation:
                 if (ind_plot_unit is None): ind_plot_unit = obs_ind.unit
                 if self.master:
                     AnalysisRelationship(obs_dep,obs_ind,benchmark_results,ind_name,
-                                         dep_plot_unit=dep_plot_unit,ind_plot_unit=ind_plot_unit)
+                                         dep_plot_unit=dep_plot_unit,ind_plot_unit=ind_plot_unit,
+                                         regions=self.regions)
                 AnalysisRelationship(mod_dep,mod_ind,results,ind_name,
-                                     dep_plot_unit=dep_plot_unit,ind_plot_unit=ind_plot_unit)
+                                     dep_plot_unit=dep_plot_unit,ind_plot_unit=ind_plot_unit,
+                                     regions=self.regions)
 
         # close files
         results.close()
@@ -558,9 +560,10 @@ class Confrontation:
 
             for g in groups:
                 if name == "Benchmark":
-                    ind_name = g.replace("relationship_","")
+                    ind_name = g.replace("relationship_","").split("_")[-1]
                 else:
-                    ind_name = g.replace("relationship_","") + "/" + name
+                    ind_name = g.replace("relationship_","").split("_")[-1] + "/" + name
+
                 grp       = data.groups[g]
                 ind       = grp.variables["ind"][...]
                 dep       = grp.variables["dep"][...]
@@ -590,12 +593,15 @@ class Confrontation:
                 ax.set_ylim(self.limits[g]["ymin"],self.limits[g]["ymax"])
                 short_name = g.replace("relationship_","rel_")
                 fig.savefig("%s/%s_%s.png" % (self.output_path,name,short_name))
-                self.layout.addFigure("Period Mean Relationships",
-                                      short_name,
-                                      "MNAME_%s.png" % (short_name),
-                                      legend = False,
-                                      benchmark = True)
                 plt.close()
+                if "global_" in short_name:
+                    short_name = short_name.replace("global_","")
+                    self.layout.addFigure("Period Mean Relationships",
+                                          short_name,
+                                          "MNAME_RNAME_%s.png" % (short_name),
+                                          legend = False,
+                                          benchmark = True)
+
 
                 
         # Code to add a Whittaker diagram (FIX: this is messy, need to rethink data access, redundant computation)
@@ -632,39 +638,44 @@ class Confrontation:
             filenames.append(bname)
             Z_labels.append(self.longname)
 
-        T_key = [key for key in self.limits.keys() if "Temperature" in key][0]
-        T_min = self.limits[T_key]["xmin"]
-        T_max = self.limits[T_key]["xmax"]
-        P_key = [key for key in self.limits.keys() if "Precipitation" in key][0]
-        P_min = self.limits[P_key]["xmin"]
-        P_max = self.limits[P_key]["xmax"]
-        V_min = self.limits[P_key]["ymin"]
-        V_max = self.limits[P_key]["ymax"]
+        for region in self.regions:
+            
+            T_key = [key for key in self.limits.keys() if ("Temperature" in key and region in key)][0]
+            T_min = self.limits[T_key]["xmin"]
+            T_max = self.limits[T_key]["xmax"]
+            P_key = [key for key in self.limits.keys() if ("Precipitation" in key and region in key)][0]
+            P_min = self.limits[P_key]["xmin"]
+            P_max = self.limits[P_key]["xmax"]
+            V_min = self.limits[P_key]["ymin"]
+            V_max = self.limits[P_key]["ymax"]
         
-        if len(Ts) > 0 and len(Ps) > 0:
-            for filename,data,name,T,T_plot_unit,T_label,P,P_plot_unit,P_label,Z_label in zip(filenames,datasets,names,
-                                                                                              Ts,T_plot_units,T_labels,
-                                                                                              Ps,P_plot_units,P_labels,
-                                                                                              Z_labels):
-                Z = [k for k in data.variables.keys() if "timeint_of" in k]
-                WhittakerDiagram(T,
-                                 P,
-                                 Variable(filename=filename,variable_name=Z[0]),
-                                 X_plot_unit =    T_plot_unit,
-                                 Y_plot_unit =    P_plot_unit,
-                                 Z_plot_unit = self.plot_unit,
-                                 X_label     =    T_label,
-                                 Y_label     =    P_label,
-                                 Z_label     = self.longname,
-                                 X_min = T_min, X_max = T_max,
-                                 Y_min = P_min, Y_max = P_max,
-                                 Z_min = V_min, Z_max = V_max,
-                                 filename    = "%s/%s_whittaker.png" % (self.output_path,name))
-            self.layout.addFigure("Period Mean Relationships",
-                                  "whittaker",
-                                  "MNAME_whittaker.png",
-                                  legend    = False,
-                                  benchmark = True)
+            if len(Ts) > 0 and len(Ps) > 0:
+                for filename,data,name,T,T_plot_unit,T_label,P,P_plot_unit,P_label,Z_label in zip(filenames,datasets,names,
+                                                                                                  Ts,T_plot_units,T_labels,
+                                                                                                  Ps,P_plot_units,P_labels,
+                                                                                                  Z_labels):
+                    Z = [k for k in data.variables.keys() if "timeint_of" in k]
+
+                    WhittakerDiagram(T,
+                                     P,
+                                     Variable(filename=filename,variable_name=Z[0]),
+                                     region      = region,
+                                     X_plot_unit =    T_plot_unit,
+                                     Y_plot_unit =    P_plot_unit,
+                                     Z_plot_unit = self.plot_unit,
+                                     X_label     =    T_label,
+                                     Y_label     =    P_label,
+                                     Z_label     = self.longname,
+                                     X_min = T_min, X_max = T_max,
+                                     Y_min = P_min, Y_max = P_max,
+                                     Z_min = V_min, Z_max = V_max,
+                                     filename    = "%s/%s_%s_whittaker.png" % (self.output_path,name,region))
+                    
+                self.layout.addFigure("Period Mean Relationships",
+                                      "whittaker",
+                                      "MNAME_RNAME_whittaker.png",
+                                      legend    = False,
+                                      benchmark = True)
                 
     def generateHtml(self):
         """Generate the HTML for the results of this confrontation.
@@ -733,7 +744,14 @@ def WhittakerDiagram(X,Y,Z,**keywords):
     if Z_plot_unit is not None: Z.convert(Z_plot_unit)
     
     # flatten data, if any data is masked all the data is masked
-    mask = (X.data.mask + Y.data.mask + Z.data.mask)==0
+    mask   = (X.data.mask + Y.data.mask + Z.data.mask)==0
+
+    # mask outside region
+    from constants import regions as ILAMBregions
+    region    = keywords.get("region","global")
+    lats,lons = ILAMBregions[region]
+    mask     += (np.outer((X.lat>lats[0])*(X.lat<lats[1]),
+                          (X.lon>lons[0])*(X.lon<lons[1]))==0)
     x    = X.data[mask].flatten()
     y    = Y.data[mask].flatten()
     z    = Z.data[mask].flatten()

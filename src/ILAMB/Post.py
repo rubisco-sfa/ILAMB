@@ -608,7 +608,8 @@ class HtmlLayout():
             for section in self.sections:
                 if len(self.figures[section]) == 0: continue
                 for figure in self.figures[section]:
-                    if figure.name in ['timeint','bias','phase','shift']:
+                    if (figure.name in ['timeint','bias','phase','shift','whittaker'] or
+                        "rel_" in figure.name):
                         if figure not in figs: figs.append(figure)
 
         code += """
@@ -617,8 +618,12 @@ class HtmlLayout():
         for f in figs:
             opt = ''
             if "timeint" is f.name: opt = 'selected="selected"'
+            name = ""
+            if space_opts.has_key(f.name): name = space_opts[f.name]["name"]
+            if "rel_" in f.name: name = f.name.replace("rel_","Relationship with ")
+            if "whittaker" == f.name: name = "Whittaker"
             code += """
-        <option value="%s" %s>%s</option>""" % (f.name,opt,space_opts[f.name]["name"])
+        <option value="%s" %s>%s</option>""" % (f.name,opt,name)
         code += """
       </select>"""
 
