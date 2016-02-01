@@ -1,12 +1,12 @@
-from datetime import datetime
-from netCDF4 import Dataset,num2date,date2num
-import numpy as np
 from constants import dpy,mid_months,regions as ILAMBregions
-from scipy.stats.mstats import mode
+from netCDF4 import Dataset,num2date,date2num
 from sympy import sympify,postorder_traversal
+from scipy.stats.mstats import mode
+from Variable import Variable
+from datetime import datetime
 from cfunits import Units
-
-# Define some ILAMB-specific exceptions
+from copy import deepcopy
+import numpy as np
 
 class VarNotInFile(Exception):
     def __str__(self): return "VarNotInFile"
@@ -1032,3 +1032,440 @@ def SympifyWithArgsUnits(expression,args,units):
             units[ekey] = Units(unit).formatted()
 
     return args[ekey],units[ekey]
+
+
+def FromNetCDF4(filename,variable_name,alternate_vars=[]):
+    """Extracts data from a netCDF4 datafile for use in a Variable object.
+    
+    Intended to be used inside of the Variable constructor. Some of
+    the return arguments will be None depending on the contents of the
+    netCDF4 file.
+
+    Parameters
+    ----------
+    filename : str
+        Name of the netCDF4 file from which to extract a variable
+    variable_name : str
+        Name of the variable to extract from the netCDF4 file
+    alternate_vars : list of str, optional
+        A list of possible alternate variable names to find
+
+    Returns
+    -------
+    data : numpy.ma.masked_array
+        The array which contains the data which constitutes the variable
+    unit : str
+        The unit of the input data
+    name : str
+        The name of the variable, will be how it is saved in an output netCDF4 file
+    time : numpy.ndarray
+        A 1D array of times in days since 1850-01-01 00:00:00
+    lat : numpy.ndarray
+        A 1D array of latitudes of cell centroids
+    lon : numpy.ndarray
+        A 1D array of longitudes of cell centroids
+    area : numpy.ndarray
+        A 2D array of the cell areas
+    ndata : int
+        Number of data sites this data represents
+
+    """
+    try:
+        f = Dataset(filename,mode="r")
+    except RuntimeError:
+        raise RuntimeError("Unable to open the file: %s" % filename)
+    
+    found     = False
+    if variable_name in f.variables.keys():
+        found = True
+        var   = f.variables[variable_name]
+    else:
+        for var_name in alternate_vars:
+            if var_name in f.variables.keys():
+                found = True
+                var   = f.variables[var_name]
+    assert found == True
+    time_name = None
+    lat_name  = None
+    lon_name  = None
+    data_name = None
+           
+    for key in var.dimensions:
+        if "time" in key: time_name = key
+        if "lat"  in key: lat_name  = key
+        if "lon"  in key: lon_name  = key
+        if "data" in key: data_name = key
+    if time_name is None:
+        t = None
+    else:
+        t = _convertCalendar(f.variables[time_name])
+    if lat_name is None:
+        lat = None
+    else:
+        lat = f.variables[lat_name][...]
+    if lon_name is None:
+        lon = None
+    else:
+        lon = f.variables[lon_name][...]
+    if data_name is None:
+        data = None
+    else:
+        data = len(f.dimensions[data_name])
+        # if we have data sites, there may be lat/lon data to come
+        # along with them although not a dimension of the variable
+        for key in f.variables.keys():
+            if "lat" in key: lat_name = key
+            if "lon" in key: lon_name = key
+        if lat_name is not None: lat = f.variables[lat_name][...]
+        if lon_name is not None: lon = f.variables[lon_name][...]
+        if lat.size != data: lat = None
+        if lon.size != data: lon = None
+
+    # handle incorrect or absent masking of arrays
+    if type(var[...]) == type(np.ma.empty([])):
+        v    = var[...]
+    else:
+        v    = var[...]
+        mask = np.zeros(v.shape,dtype=int)
+        if "_FillValue"    in var.ncattrs(): mask += (np.abs(v-var._FillValue   )<1e-12)
+        if "missing_value" in var.ncattrs(): mask += (np.abs(v-var.missing_value)<1e-12)
+        v    = np.ma.masked_array(v,mask=mask,copy=False)
+
+    # handle units problems that cfunits doesn't
+    units = var.units
+    if units == "unitless": units = "1"
+    
+    return v,units,variable_name,t,lat,lon,data
+
+        
+def Score(var,normalizer):
+    """
+    UNTESTED
+    """
+    score      = deepcopy(var)
+    np.seterr(over='ignore',under='ignore')
+    score.data = np.exp(-np.abs(score.data/normalizer.data))
+    np.seterr(over='raise',under='raise')
+    score.name = score.name.replace("bias","bias_score")
+    score.name = score.name.replace("rmse","rmse_score")
+    score.name = score.name.replace("iav" ,"iav_score")
+    score.unit = "-"
+    return score
+
+def ComposeSpatialGrids(var1,var2):
+    """Creates a grid which conforms the boundaries of both variables.
+    
+    This routine takes the union of the latitude and longitude
+    cell boundaries of both grids and returns a new set of
+    latitudes and longitudes which represent cell centers of the
+    new grid.
+    
+    Parameters
+    ----------
+    var1,var2 : ILAMB.Variable.Variable
+        The two variables for which we wish to find a common grid
+    
+    Returns
+    -------
+    lat : numpy.ndarray
+        a 1D array of latitudes of cell centroids
+    lon : numpy.ndarray
+        a 1D array of longitudes of cell centroids
+    """
+    if not var1.spatial: il.NotSpatialVariable()
+    if not var2.spatial: il.NotSpatialVariable()
+    def _make_bnds(x):
+        bnds       = np.zeros(x.size+1)
+        bnds[1:-1] = 0.5*(x[1:]+x[:-1])
+        bnds[ 0]   = max(x[ 0]-0.5*(x[ 1]-x[ 0]),-180)
+        bnds[-1]   = min(x[-1]+0.5*(x[-1]-x[-2]),+180)
+        return bnds
+    lat1_bnd = _make_bnds(var1.lat)
+    lon1_bnd = _make_bnds(var1.lon)
+    lat2_bnd = _make_bnds(var2.lat)
+    lon2_bnd = _make_bnds(var2.lon)
+    lat_bnd  = np.hstack((lat1_bnd,lat2_bnd)); lat_bnd.sort(); lat_bnd = np.unique(lat_bnd)
+    lon_bnd  = np.hstack((lon1_bnd,lon2_bnd)); lon_bnd.sort(); lon_bnd = np.unique(lon_bnd)
+    lat      = 0.5*(lat_bnd[1:]+lat_bnd[:-1])
+    lon      = 0.5*(lon_bnd[1:]+lon_bnd[:-1])
+    return lat,lon
+
+def ScoreSeasonalCycle(phase_shift):
+    """
+    UNTESTED
+    """
+    return Variable(data  = (1+np.cos(np.abs(phase_shift.data)/365*2*np.pi))*0.5,
+                    unit  = "-",
+                    name  = phase_shift.name.replace("phase_shift","phase_shift_score"),
+                    ndata = phase_shift.ndata,
+                    lat   = phase_shift.lat,
+                    lon   = phase_shift.lon,
+                    area  = phase_shift.area)
+
+def AnalysisFluxrate(obs,mod,regions=['global'],dataset=None,benchmark_dataset=None,space_mean=True,table_unit=None,plot_unit=None):
+    """
+    UNTESTED
+    """
+    assert Units(obs.unit) == Units(mod.unit)
+    spatial = obs.spatial
+    
+    # Integrate in time and divide through by the time period. We need
+    # these maps/sites for plotting.
+    obs_timeint = obs.integrateInTime(mean=True)
+    mod_timeint = mod.integrateInTime(mean=True)
+        
+    # Compute maps of the bias and rmse. We will use these variables
+    # later in the regional analysis to obtain means over individual
+    # regions. Note that since we have already taken a temporal
+    # average of the variables, the bias() function can reuse this
+    # data and avoid extra averaging. We also compute maps of the
+    # scores, each normalized in their respective manner.
+    bias_map = obs_timeint.bias(mod_timeint)
+    rmse_map = obs        .rmse(mod)
+    if spatial:
+        period_mean      = obs_timeint.integrateInSpace(mean=True)
+        bias_score_map   = Score(bias_map,period_mean)
+        rmse_mean        = rmse_map.integrateInSpace(mean=True)
+        rmse_score_map   = Score(rmse_map,rmse_mean)
+    else:
+        period_mean,junk = obs_timeint.siteStats()
+        bias_score_map   = Score(bias_map,period_mean)
+        rmse_mean,junk   = rmse_map.siteStats()
+        rmse_score_map   = Score(rmse_map,rmse_mean)
+
+    # Compute maps of the phase shift. First we compute the mean
+    # annual cycle over space/sites and then find the time where the
+    # maxmimum occurs.
+    obs_cycle,junk,junk,junk = obs.annualCycle()
+    mod_cycle,junk,junk,junk = mod.annualCycle()
+    obs_maxt_map    = obs_cycle.timeOfExtrema(etype="max")
+    mod_maxt_map    = mod_cycle.timeOfExtrema(etype="max")
+    shift_map       = obs_maxt_map.phaseShift(mod_maxt_map)
+    shift_score_map = ScoreSeasonalCycle(shift_map)
+
+    # Compute a map of interannual variability score.
+    obs_iav_map   = obs.interannualVariability()
+    mod_iav_map   = mod.interannualVariability()
+    iav_score_map = obs_iav_map.spatialDifference(mod_iav_map)
+    iav_score_map.name = obs_iav_map.name
+    if spatial:
+        obs_iav_mean      = obs_iav_map.integrateInSpace(mean=True)
+    else:
+        obs_iav_mean,junk = obs_iav_map.siteStats()
+    iav_score_map = Score(iav_score_map,obs_iav_mean)
+    
+    # Perform analysis over regions. We will store these in
+    # dictionaries of variables where the keys are the region names.
+    obs_period_mean = {}
+    obs_mean_cycle  = {}
+    obs_spaceint    = {}
+    mod_period_mean = {}
+    mod_mean_cycle  = {}
+    mod_spaceint    = {}
+    bias  = {}; bias_score  = {}
+    rmse  = {}; rmse_score  = {}
+    shift = {}; shift_score = {}
+    iav_score = {};
+    std = {}; R = {}; sd_score = {}
+    for region in regions:
+        
+        if spatial:
+
+            # Compute the scalar integral over the specified region.
+            obs_period_mean[region] = obs_timeint    .integrateInSpace(region=region,mean=space_mean) ##
+            obs_mean_cycle [region] = obs_cycle      .integrateInSpace(region=region,mean=True)
+            obs_spaceint   [region] = obs            .integrateInSpace(region=region,mean=True)
+            mod_period_mean[region] = mod_timeint    .integrateInSpace(region=region,mean=space_mean) ##
+            
+            # Compute the scalar means over the specified region.
+            bias           [region] = bias_map       .integrateInSpace(region=region,mean=space_mean) ##
+            rmse           [region] = rmse_map       .integrateInSpace(region=region,mean=space_mean) ##
+            bias_score     [region] = bias_score_map .integrateInSpace(region=region,mean=True)
+            rmse_score     [region] = rmse_score_map .integrateInSpace(region=region,mean=True)
+            shift          [region] = shift_map      .integrateInSpace(region=region,mean=True)
+            shift_score    [region] = shift_score_map.integrateInSpace(region=region,mean=True)
+            iav_score      [region] = iav_score_map  .integrateInSpace(region=region,mean=True)
+            mod_mean_cycle [region] = mod_cycle      .integrateInSpace(region=region,mean=True)
+            mod_spaceint   [region] = mod            .integrateInSpace(region=region,mean=True)
+            
+        else:
+
+            # We need to check if there are datasites in this
+            # region. If not, we will just skip the region.
+            lats,lons = ILAMBregions[region]
+            if ((obs.lat>lats[0])*(obs.lat<lats[1])*(obs.lon>lons[0])*(obs.lon<lons[1])).sum() == 0: continue
+            
+            # Compute the scalar period mean over sites in the specified region.
+            obs_period_mean[region],junk = obs_timeint    .siteStats(region=region)
+            obs_mean_cycle [region],junk = obs_cycle      .siteStats(region=region)
+            obs_spaceint   [region],junk = obs            .siteStats(region=region)
+            mod_period_mean[region],junk = mod_timeint    .siteStats(region=region)
+            bias           [region],junk = bias_map       .siteStats(region=region)
+            rmse           [region],junk = rmse_map       .siteStats(region=region)
+            bias_score     [region],junk = bias_score_map .siteStats(region=region)
+            rmse_score     [region],junk = rmse_score_map .siteStats(region=region)
+            shift          [region],junk = shift_map      .siteStats(region=region)
+            shift_score    [region],junk = shift_score_map.siteStats(region=region)
+            iav_score      [region],junk = iav_score_map  .siteStats(region=region)
+            mod_mean_cycle [region],junk = mod_cycle      .siteStats(region=region)
+            mod_spaceint   [region],junk = mod            .siteStats(region=region)
+
+        # Compute the spatial variability.
+        std[region],R[region],sd_score[region] = obs_timeint.spatialDistribution(mod_timeint,region=region)
+        
+        # Change variable names to make things easier to parse later.
+        obs_period_mean[region].name = "period_mean_of_%s_over_%s" % (obs.name,region)
+        obs_mean_cycle [region].name = "cycle_of_%s_over_%s"       % (obs.name,region)
+        obs_spaceint   [region].name = "spaceint_of_%s_over_%s"    % (obs.name,region)
+        mod_period_mean[region].name = "period_mean_of_%s_over_%s" % (obs.name,region)
+        bias           [region].name = "bias_of_%s_over_%s"        % (obs.name,region)
+        rmse           [region].name = "rmse_of_%s_over_%s"        % (obs.name,region)
+        shift          [region].name = "shift_of_%s_over_%s"       % (obs.name,region)
+        bias_score     [region].name = "bias_score_of_%s_over_%s"  % (obs.name,region)
+        rmse_score     [region].name = "rmse_score_of_%s_over_%s"  % (obs.name,region)
+        shift_score    [region].name = "shift_score_of_%s_over_%s" % (obs.name,region)
+        iav_score      [region].name = "iav_score_of_%s_over_%s"   % (obs.name,region)
+        sd_score       [region].name = "sd_score_of_%s_over_%s"    % (obs.name,region)
+        mod_mean_cycle [region].name = "cycle_of_%s_over_%s"       % (obs.name,region)
+        mod_spaceint   [region].name = "spaceint_of_%s_over_%s"    % (obs.name,region)
+        std            [region].name = "std_of_%s_over_%s"         % (obs.name,region)
+        R              [region].name = "corr_of_%s_over_%s"        % (obs.name,region)
+        
+    # More variable name changes
+    obs_timeint.name  = "timeint_of_%s"   % obs.name
+    mod_timeint.name  = "timeint_of_%s"   % obs.name
+    bias_map.name     = "bias_map_of_%s"  % obs.name
+    obs_maxt_map.name = "phase_map_of_%s" % obs.name
+    mod_maxt_map.name = "phase_map_of_%s" % obs.name
+    shift_map.name    = "shift_map_of_%s" % obs.name
+
+    # Unit conversions
+    if table_unit is not None:
+        for var in [obs_period_mean,mod_period_mean,bias,rmse]:
+            if type(var) == type({}):
+                for key in var.keys(): var[key].convert(table_unit)
+            else:
+                var.convert(plot_unit)
+    if plot_unit is not None:
+        for var in [mod_timeint,obs_timeint,bias_map,mod_mean_cycle,mod_spaceint]:
+            if type(var) == type({}):
+                for key in var.keys(): var[key].convert(plot_unit)
+            else:
+                var.convert(plot_unit)
+
+    # Optionally dump results to a NetCDF file
+    if dataset is not None:
+        for var in [mod_period_mean,bias,rmse,shift,bias_score,rmse_score,shift_score,iav_score,sd_score,
+                    mod_timeint,bias_map,mod_maxt_map,shift_map,std,R,
+                    mod_mean_cycle,mod_spaceint]:
+            if type(var) == type({}):
+                for key in var.keys(): var[key].toNetCDF4(dataset)
+            else:
+                var.toNetCDF4(dataset)
+    if benchmark_dataset is not None:
+        for var in [obs_period_mean,obs_timeint,obs_maxt_map,obs_mean_cycle,obs_spaceint]:
+            if type(var) == type({}):
+                for key in var.keys(): var[key].toNetCDF4(benchmark_dataset)
+            else:
+                var.toNetCDF4(benchmark_dataset)
+
+
+def AnalysisRelationship(dep_var,ind_var,dataset,rname,**keywords):
+    r"""
+    
+    
+    """    
+    def _extractMaxTemporalOverlap(v1,v2):  # should move to ilamblib?
+        t0 = max(v1.time.min(),v2.time.min())
+        tf = min(v1.time.max(),v2.time.max())
+        for v in [v1,v2]:
+            begin = np.argmin(np.abs(v.time-t0))
+            end   = np.argmin(np.abs(v.time-tf))+1
+            v.time = v.time[begin:end]
+            v.data = v.data[begin:end,...]
+        mask = v1.data.mask + v2.data.mask
+        v1 = v1.data[mask==0].flatten()
+        v2 = v2.data[mask==0].flatten()
+        return v1,v2
+
+    # grab regions
+    regions = keywords.get("regions",["global"])
+    
+    # convert to plot units
+    dep_plot_unit = keywords.get("dep_plot_unit",dep_var.unit)
+    ind_plot_unit = keywords.get("ind_plot_unit",ind_var.unit)    
+    if dep_plot_unit is not None: dep_var.convert(dep_plot_unit)
+    if ind_plot_unit is not None: ind_var.convert(ind_plot_unit)
+
+    # if the variables are temporal, we need to get period means
+    if dep_var.temporal: dep_var = dep_var.integrateInTime(mean=True)
+    if ind_var.temporal: ind_var = ind_var.integrateInTime(mean=True)
+    mask = dep_var.data.mask + ind_var.data.mask
+
+    # analysis over regions
+    for region in regions:
+
+        lats,lons = ILAMBregions[region]
+        rmask     = (np.outer((dep_var.lat>lats[0])*(dep_var.lat<lats[1]),
+                              (dep_var.lon>lons[0])*(dep_var.lon<lons[1]))==0)
+        rmask    += mask
+        x    = ind_var.data[rmask==0].flatten()
+        y    = dep_var.data[rmask==0].flatten()
+
+        # Compute 2D histogram, normalized by number of datapoints
+        Nx = 50
+        Ny = 50
+        counts,xedges,yedges = np.histogram2d(x,y,[Nx,Ny])
+        counts = np.ma.masked_values(counts,0)/float(x.size)
+
+        # Compute mean relationship function
+        nudge = 1e-15
+        xedges[0] -= nudge; xedges[-1] += nudge
+        xbins = np.digitize(x,xedges)-1
+        xmean = []
+        ymean = []
+        ystd  = []
+        for i in range(xedges.size-1):
+            ind = (xbins==i)
+            if ind.sum() < max(x.size*1e-4,10): continue
+            xtmp = x[ind]
+            ytmp = y[ind]
+            xmean.append(xtmp.mean())
+            ymean.append(ytmp.mean())
+            try:        
+                ystd.append(ytmp. std())
+            except:
+                ystd.append(np.sqrt((((ytmp-ytmp.mean())**2).sum())/float(ytmp.size-1)))
+        xmean = np.asarray(xmean)
+        ymean = np.asarray(ymean)
+        ystd  = np.asarray(ystd )
+
+        # Write histogram to the dataset
+        grp = dataset.createGroup("%s_relationship_%s" % (region,rname))
+        grp.createDimension("nv",size=2)
+        for d_bnd,dname in zip([xedges,yedges],["ind","dep"]):
+            d = 0.5*(d_bnd[:-1]+d_bnd[1:])
+            dbname = dname + "_bnd"
+            grp.createDimension(dname,size=d.size)
+            D = grp.createVariable(dname,"double",(dname))
+            D.setncattr("standard_name",dname)
+            D.setncattr("bounds",dbname)
+            D[...] = d
+            B = grp.createVariable(dbname,"double",(dname,"nv"))
+            B.setncattr("standard_name",dbname)
+            B[:,0] = d_bnd[:-1]
+            B[:,1] = d_bnd[+1:]
+        H = grp.createVariable("histogram","double",("ind","dep"))
+        H.setncattr("standard_name","histogram")
+        H[...] = counts
+        
+        # Write relationship to the dataset
+        grp.createDimension("ndata",size=xmean.size)
+        X = grp.createVariable("ind_mean","double",("ndata"))
+        X.setncattr("unit",ind_plot_unit)
+        M = grp.createVariable("dep_mean","double",("ndata"))
+        M.setncattr("unit",dep_plot_unit)
+        S = grp.createVariable("dep_std" ,"double",("ndata"))
+        X[...] = xmean
+        M[...] = ymean
+        S[...] = ystd

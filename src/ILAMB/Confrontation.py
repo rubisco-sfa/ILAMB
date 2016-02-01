@@ -210,14 +210,13 @@ class Confrontation:
             benchmark_results.setncatts({"name" :"Benchmark", "color":np.asarray([0.5,0.5,0.5])})
 
         # Perform the standard fluxrate analysis
-        try:
-            pass
-            AnalysisFluxrate(obs,mod,dataset=results,regions=self.regions,benchmark_dataset=benchmark_results,
-                             table_unit=self.table_unit,plot_unit=self.plot_unit,space_mean=self.space_mean)
-        except:
-            results.close()
-            os.system("rm -f %s/%s_%s.nc" % (self.output_path,self.name,m.name))
-            raise il.AnalysisError()
+        #try:
+        il.AnalysisFluxrate(obs,mod,dataset=results,regions=self.regions,benchmark_dataset=benchmark_results,
+                         table_unit=self.table_unit,plot_unit=self.plot_unit,space_mean=self.space_mean)
+        #except:
+        #    results.close()
+        #    os.system("rm -f %s/%s_%s.nc" % (self.output_path,self.name,m.name))
+        #    raise il.AnalysisError()
         
         # Perform relationship analysis
         obs_dep,mod_dep = obs,mod
@@ -232,12 +231,12 @@ class Confrontation:
                 ind_plot_unit = c.plot_unit
                 if (ind_plot_unit is None): ind_plot_unit = obs_ind.unit
                 if self.master:
-                    AnalysisRelationship(obs_dep,obs_ind,benchmark_results,ind_name,
-                                         dep_plot_unit=dep_plot_unit,ind_plot_unit=ind_plot_unit,
-                                         regions=self.regions)
-                AnalysisRelationship(mod_dep,mod_ind,results,ind_name,
-                                     dep_plot_unit=dep_plot_unit,ind_plot_unit=ind_plot_unit,
-                                     regions=self.regions)
+                    il.AnalysisRelationship(obs_dep,obs_ind,benchmark_results,ind_name,
+                                            dep_plot_unit=dep_plot_unit,ind_plot_unit=ind_plot_unit,
+                                            regions=self.regions)
+                il.AnalysisRelationship(mod_dep,mod_ind,results,ind_name,
+                                        dep_plot_unit=dep_plot_unit,ind_plot_unit=ind_plot_unit,
+                                        regions=self.regions)
 
         # close files
         results.close()
