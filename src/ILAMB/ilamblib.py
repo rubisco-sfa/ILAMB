@@ -2,7 +2,6 @@ from constants import dpy,mid_months,regions as ILAMBregions
 from netCDF4 import Dataset,num2date,date2num
 from sympy import sympify,postorder_traversal
 from scipy.stats.mstats import mode
-from Variable import Variable
 from datetime import datetime
 from cfunits import Units
 from copy import deepcopy
@@ -1194,6 +1193,7 @@ def ScoreSeasonalCycle(phase_shift):
     """
     UNTESTED
     """
+    from Variable import Variable
     return Variable(data  = (1+np.cos(np.abs(phase_shift.data)/365*2*np.pi))*0.5,
                     unit  = "-",
                     name  = phase_shift.name.replace("phase_shift","phase_shift_score"),
