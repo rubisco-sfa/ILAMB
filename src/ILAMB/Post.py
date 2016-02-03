@@ -628,17 +628,18 @@ class HtmlLayout():
         code += """
       </select>"""
 
-        fig = figs[0]
-        rem_legend = fig.legend; fig.legend = False
-        rem_side   = fig.side;   fig.side   = "MNAME"
-        img = "%s" % (fig)
-        img = img.replace("%s" % fig.name,"MNAME")
-        fig.legend = rem_legend
-        fig.side   = rem_side
-        for model in models:
-            code += img.replace("MNAME",model)
+        if len(figs) > 0:
+            fig = figs[0]
+            rem_legend = fig.legend; fig.legend = False
+            rem_side   = fig.side;   fig.side   = "MNAME"
+            img = "%s" % (fig)
+            img = img.replace("%s" % fig.name,"MNAME")
+            fig.legend = rem_legend
+            fig.side   = rem_side
+            for model in models:
+                code += img.replace("MNAME",model)
 
-        code += """
+            code += """
         <div class="outer" id="legend_div">
               <div class="inner rotate"> </div>
               <div class="second"><img src="" id="legend" alt="Data not available"></img></div>
