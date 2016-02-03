@@ -134,9 +134,10 @@ def TaylorDiagram(stddev,corrcoef,refstd,fig,colors,normalize=True):
     
     ax = ax.get_aux_axes(tr)
     # Plot data
+    corrcoef = corrcoef.clip(-1,1)
     for i in range(len(corrcoef)):
         ax.plot(np.arccos(corrcoef[i]),stddev[i],'o',color=colors[i],mew=0,ms=8)
-
+            
     # Add reference point and stddev contour
     l, = ax.plot([0],refstd,'k*',ms=12,mew=0)
     t = np.linspace(0, np.pi/2)

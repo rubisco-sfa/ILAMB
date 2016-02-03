@@ -242,7 +242,7 @@ class Variable:
         if not self.spatial: raise il.NotSpatialVariable()
         if region is None:
             integral = il.SpatiallyIntegratedTimeSeries(self.data,self.area)
-            if mean: integral /= self.area.sum()
+            if mean: integral /= np.ma.masked_array(self.area,mask=self.data.mask).sum()
             name = self.name + "_integrated_over_space"
         else:
             rem_mask  = np.copy(self.data.mask)
@@ -455,7 +455,11 @@ class Variable:
             this object with its unit converted
         """
         try:
-            Units.conform(self.data,Units(self.unit),Units(unit),inplace=True)
+            src_unit  = Units(self.unit)
+            tar_unit  = Units(     unit)
+            mask      = self.data.mask
+            self.data = Units.conform(self.data,src_unit,tar_unit)
+            self.data = np.ma.masked_array(self.data,mask=mask)
             self.unit = unit
         except:
             print "Unit conversion error! var_name = %s, var_unit = %s, convert_unit = %s " % (self.name,self.unit,unit)
@@ -794,6 +798,7 @@ class Variable:
         """
         # If not a temporal variable, then we assume that the user is
         # passing in mean data and return the difference.
+        lat,lon,area = self.lat,self.lon,self.area
         if not self.temporal:
             assert self.temporal == var.temporal
             bias = self.spatialDifference(var)
@@ -802,11 +807,23 @@ class Variable:
         if self.spatial:
             # If the data is spatial, then we interpolate it on a
             # common grid and take the difference.
-            lat,lon  = il.ComposeSpatialGrids(self,var)
-            self_int = self.interpolate(lat=lat,lon=lon)
-            var_int  = var .interpolate(lat=lat,lon=lon)
-            data     = var_int.data-self_int.data
-            mask     = var_int.data.mask+self_int.data.mask
+
+            same_grid = False
+            try:
+                same_grid = np.allclose(self.lat,var.lat)*np.allclose(self.lon,var.lon)
+            except:
+                pass
+            if not same_grid:
+                lat,lon  = il.ComposeSpatialGrids(self,var)
+                area     = None
+                self_int = self.interpolate(lat=lat,lon=lon)
+                var_int  = var .interpolate(lat=lat,lon=lon)
+                data     = var_int.data-self_int.data
+                mask     = var_int.data.mask+self_int.data.mask
+            else:
+                data     = var.data     -self.data
+                mask     = var.data.mask+self.data.mask
+
         elif (self.ndata or self.time.size == self.data.size):
             # If the data are at sites, then take the difference
             data = var.data.data-self.data.data
@@ -817,7 +834,7 @@ class Variable:
         bias = Variable(data=np.ma.masked_array(data,mask=mask),
                         name="bias_of_%s" % self.name,time=self.time,
                         unit=self.unit,ndata=self.ndata,
-                        lat=self.lat,lon=self.lon,area=self.area).integrateInTime(mean=True)
+                        lat=lat,lon=lon,area=area).integrateInTime(mean=True)
         bias.name = bias.name.replace("_integrated_over_time_and_divided_by_time_period","")
         return bias
     
@@ -825,32 +842,46 @@ class Variable:
         """
         UNTESTED
         """
-        if not self.temporal or not var.temporal: raise il.NotTemporalVariable
-        assert self.ndata == var.ndata
+        # If not a temporal variable, then we assume that the user is
+        # passing in mean data and return the difference.
+        lat,lon,area = self.lat,self.lon,self.area
+        if not self.temporal:
+            assert self.temporal == var.temporal
+            rmse = self.spatialDifference(var)
+            rmse.name = "rmse_of_%s" % self.name
+            return rmse
         if self.spatial:
             # If the data is spatial, then we interpolate it on a
             # common grid and take the difference.
-            lat,lon  = il.ComposeSpatialGrids(self,var)
-            self_int = self.interpolate(lat=lat,lon=lon)
-            var_int  = var .interpolate(lat=lat,lon=lon)
-            np.seterr(over='ignore',under='ignore')
-            data     = (var_int.data-self_int.data)**2
-            np.seterr(over='raise',under='raise')
-            mask     = var_int.data.mask+self_int.data.mask
-        elif self.ndata:
+            same_grid = False
+            try:
+                same_grid = np.allclose(self.lat,var.lat)*np.allclose(self.lon,var.lon)
+            except:
+                pass
+            if not same_grid:
+                lat,lon  = il.ComposeSpatialGrids(self,var)
+                area     = None
+                self_int = self.interpolate(lat=lat,lon=lon)
+                var_int  = var .interpolate(lat=lat,lon=lon)
+                data     = var_int.data-self_int.data
+                mask     = var_int.data.mask+self_int.data.mask
+            else:
+                data     = var.data     -self.data
+                mask     = var.data.mask+self.data.mask
+        elif (self.ndata or self.time.size == self.data.size):
             # If the data are at sites, then take the difference
-            np.seterr(over='ignore',under='ignore')
-            data = (var.data.data-self.data.data)**2
-            np.seterr(over='raise',under='raise')
+            data = var.data.data-self.data.data
             mask = var.data.mask+self.data.mask
-            lat,lon = var.lat,var.lon
         else:
             raise il.NotSpatialVariable("Cannot take rmse of scalars")
-        # Finally we return the temporal mean of the difference squared
+        # Finally we return the temporal mean of the difference
+        np.seterr(over='ignore',under='ignore')
+        data *= data
+        np.seterr(over='raise',under='raise')
         rmse = Variable(data=np.ma.masked_array(data,mask=mask),
                         name="rmse_of_%s" % self.name,time=self.time,
                         unit=self.unit,ndata=self.ndata,
-                        lat=lat,lon=lon).integrateInTime(mean=True)
+                        lat=lat,lon=lon,area=area).integrateInTime(mean=True)
         rmse.name = rmse.name.replace("_integrated_over_time_and_divided_by_time_period","")
         rmse.data = np.sqrt(rmse.data)
         return rmse

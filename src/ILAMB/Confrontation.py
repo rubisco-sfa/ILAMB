@@ -183,8 +183,22 @@ class Confrontation:
                                           mask=mod.data.mask+(mod.area<1e-2)[np.newaxis,:,:],
                                           copy=False)
 
-        
-        mod.convert(obs.unit)
+        # Check the order of magnitude of the data and convert to help avoid roundoff errors
+        def _reduceRoundoffErrors(var):
+            if "s-1" in var.unit: return var.convert(var.unit.replace("s-1","d-1"))
+            if "kg"  in var.unit: return var.convert(var.unit.replace("kg" ,"g"  ))
+            return var
+        def _getOrder(var):
+            return np.log10(np.abs(var.data).clip(1e-16)).mean()
+        order = _getOrder(obs)
+        count = 0
+        while order < -2 and count < 2:
+            obs    = _reduceRoundoffErrors(obs)
+            order  = _getOrder(obs)
+            count += 1
+
+        # convert the model data to the same unit
+        mod = mod.convert(obs.unit)
         return obs,mod
 
     def confront(self,m):
@@ -212,7 +226,7 @@ class Confrontation:
         # Perform the standard fluxrate analysis
         #try:
         il.AnalysisFluxrate(obs,mod,dataset=results,regions=self.regions,benchmark_dataset=benchmark_results,
-                         table_unit=self.table_unit,plot_unit=self.plot_unit,space_mean=self.space_mean)
+                            table_unit=self.table_unit,plot_unit=self.plot_unit,space_mean=self.space_mean)
         #except:
         #    results.close()
         #    os.system("rm -f %s/%s_%s.nc" % (self.output_path,self.name,m.name))
@@ -337,20 +351,16 @@ class Confrontation:
         except:
             return
         variables = [v for v in dataset.variables.keys() if "score" in v and "overall" not in v]
-        scores    = []
-        for v in variables:
-            s = "_".join(v.split("_")[:2])
-            if s not in scores: scores.append(s)
-        overall_score = 0.
         for region in self.regions:
+            overall_score  = 0.
+            sum_of_weights = 0.
             for v in variables:
                 if region not in v: continue
-                overall_score  = 0.
-                sum_of_weights = 0.
-                for score in scores:
-                    overall_score  += self.weight[score]*dataset.variables[v][...]
-                    sum_of_weights += self.weight[score]
-                overall_score /= max(sum_of_weights,1e-12)
+                score = "_".join(v.split("_")[:2])
+                if not self.weight.has_key(score): continue
+                overall_score  += self.weight[score]*dataset.variables[v][...]
+                sum_of_weights += self.weight[score]        
+            overall_score /= max(sum_of_weights,1e-12)
             name = "overall_score_over_%s" % region
             if name in dataset.variables.keys():
                 dataset.variables[name][0] = overall_score

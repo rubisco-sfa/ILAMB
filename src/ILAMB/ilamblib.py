@@ -1137,13 +1137,26 @@ def FromNetCDF4(filename,variable_name,alternate_vars=[]):
     return v,units,variable_name,t,lat,lon,data
 
         
-def Score(var,normalizer):
+def Score(var,normalizer,eps=1e-12,theta=0.5,error=1.0):
+    """Remaps a normalized variable to the interval [0,1].
+
+    Parameters
+    ----------
+    var : ILAMB.Variable.Variable
+        The variable to normalize, usually represents an error of some sort
+    normalizer : ILAMB.Variable.Variable
+        The variable by which we normalize 
+    eps : float, optional
+        A small parameter used to avoid division by zero, defaults to 1e-12
+    theta,error : float, optional
+        Parameters which control the mapping, see the notes.
     """
-    UNTESTED
-    """
-    score      = deepcopy(var)
+    score = deepcopy(var)
     np.seterr(over='ignore',under='ignore')
-    score.data = np.exp(-np.abs(score.data/normalizer.data))
+    # Compute the absolute relative error
+    score.data = np.abs(score.data/(np.abs(normalizer.data)+eps))
+    # Remap the error to [0,1]
+    score.data = np.exp(np.log(theta)/error*score.data)
     np.seterr(over='raise',under='raise')
     score.name = score.name.replace("bias","bias_score")
     score.name = score.name.replace("rmse","rmse_score")
