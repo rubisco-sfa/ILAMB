@@ -441,30 +441,74 @@ class Variable:
             diff = Variable(data=error,unit=var.unit,lat=lat,lon=lon,name="%s_minus_%s" % (var.name,self.name))
         return diff
 
-    def convert(self,unit):
+    def convert(self,unit,density=998.2):
         """Convert the variable to a given unit.
 
         Parameter
         ---------
         unit : str
-            the desired unit to convert to
+            the desired converted unit
+        density : float, optional
+            the mass density in [kg m-3] to use when converting linear
+            rates to area density rates
         
         Return
         ------
         self : ILAMB.Variable.Variable
             this object with its unit converted
+
         """
+        src_unit  = Units(self.unit)
+        tar_unit  = Units(     unit)
+        mask      = self.data.mask
+
+        # standard units convert
         try:
-            src_unit  = Units(self.unit)
-            tar_unit  = Units(     unit)
-            mask      = self.data.mask
             self.data = Units.conform(self.data,src_unit,tar_unit)
             self.data = np.ma.masked_array(self.data,mask=mask)
             self.unit = unit
+            return self
         except:
-            print "Unit conversion error! var_name = %s, var_unit = %s, convert_unit = %s " % (self.name,self.unit,unit)
-            raise il.UnitConversionError()
-        return self
+            pass
+        
+        # assuming substance is water, try to convert (L / T) * (M / L^3) == (M / L^2 / T)
+        try:
+            linear_rate       = Units("m s-1")
+            area_density_rate = Units("kg m-2 s-1")
+            mass_density      = Units("kg m-3")
+            if not (src_unit.equivalent(linear_rate) and
+                    tar_unit.equivalent(area_density_rate)): raise
+            np.seterr(over='ignore',under='ignore')
+            self.data *= density
+            np.seterr(over='raise',under='raise')
+            self.data  = Units.conform(self.data,src_unit*mass_density,tar_unit)
+            self.data  = np.ma.masked_array(self.data,mask=mask)
+            self.unit  = unit
+            return self
+        except:
+            pass
+
+        # assuming substance is water, try to convert (M / L^2 / T) / (M / L^3) == (L / T) 
+        try:
+            linear_rate       = Units("m s-1")
+            area_density_rate = Units("kg m-2 s-1")
+            mass_density      = Units("kg m-3")
+            if not (src_unit.equivalent(area_density_rate) and
+                    tar_unit.equivalent(linear_rate)): raise
+            np.seterr(over='ignore',under='ignore')
+            self.data /= density
+            np.seterr(over='raise',under='raise')
+            self.data  = Units.conform(self.data,src_unit/mass_density,tar_unit)
+            self.data  = np.ma.masked_array(self.data,mask=mask)
+            self.unit  = unit
+            return self
+        except:
+            pass
+        
+        # if no conversions pass, then raise this exception
+        print "var_name = %s, var_unit = %s, convert_unit = %s " % (self.name,self.unit,unit)
+        raise il.UnitConversionError()
+
     
     def toNetCDF4(self,dataset):
         """Adds the variable to the specified netCDF4 dataset.

@@ -50,7 +50,6 @@ class Confrontation:
         the colormap to use in rendering plots (default is 'jet')
     land : str, bool
         enable to force the masking of areas with no land (default is False)
-
     """
     def __init__(self,name,srcdata,variable_name,**keywords):
         
