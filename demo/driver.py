@@ -39,6 +39,8 @@ args = parser.parse_args()
 
 if args.regions is None: args.regions = ['global']
 
+
+
 # Initialize the models
 M    = []
 root = args.root[0]

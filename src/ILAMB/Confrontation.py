@@ -99,6 +99,12 @@ class Confrontation:
                        "iav_score"  :1.,
                        "sd_score"   :1.}
 
+    def dataSize(self):
+        if self.data: return self.data.size
+        return Variable(filename       = self.srcdata,
+                        variable_name  = self.variable_name,
+                        alternate_vars = self.alternate_vars).data.size        
+        
     def stageData(self,m):
         r"""Extracts model data which matches the observational dataset defined along with this confrontation.
         

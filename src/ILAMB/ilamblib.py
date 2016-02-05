@@ -1079,11 +1079,14 @@ def FromNetCDF4(filename,variable_name,alternate_vars=[]):
         found = True
         var   = f.variables[variable_name]
     else:
+        while alternate_vars.count(None) > 0: alternate_vars.pop(alternate_vars.index(None))
         for var_name in alternate_vars:
             if var_name in f.variables.keys():
                 found = True
                 var   = f.variables[var_name]
-    assert found == True
+    if found == False:
+        alternate_vars.insert(0,variable_name)
+        raise RuntimeError("Unable to find [%s] in the file: %s" % (",".join(alternate_vars),filename))
     time_name = None
     lat_name  = None
     lon_name  = None
