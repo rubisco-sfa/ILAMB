@@ -789,8 +789,10 @@ def TemporallyIntegratedTimeSeries(t,var,**keywords):
     wgt       = np.zeros(t.shape)
     wgt[:-1]  = 0.5*(t[1:]-t[:-1])
     wgt[ 1:] += 0.5*(t[1:]-t[:-1])
-    wgt[ 0]  += t[0]-t0
-    wgt[-1]  += tf-t[-1]
+    wgt[ 0]  *= 2.0
+    wgt[-1]  *= 2.0
+    wgt      *= (t>=t0)*(t<=tf)
+    
     for i in range(var.ndim-1): wgt = np.expand_dims(wgt,axis=-1)
     vhat = (var*wgt).sum(axis=0)
     mask = False

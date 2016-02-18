@@ -34,6 +34,8 @@ class Variable:
         file
     time : numpy.ndarray, optional
         a 1D array of times in days since 1850-01-01 00:00:00
+    time_bnds : numpy.ndarray, optional
+        a 1D array of time bounds in days since 1850-01-01 00:00:00
     lat : numpy.ndarray, optional
         a 1D array of latitudes of cell centroids
     lon : numpy.ndarray, optional
@@ -71,6 +73,7 @@ class Variable:
             unit  = keywords.get("unit" ,None)
             name  = keywords.get("name" ,"unnamed")
             time  = keywords.get("time" ,None)
+            time_bnds  = keywords.get("time_bnds" ,None)
             lat   = keywords.get("lat"  ,None)
             lon   = keywords.get("lon"  ,None)
             ndata = keywords.get("ndata",None)
@@ -87,12 +90,18 @@ class Variable:
         self.name  = name
         
         # Handle time data
-        self.time     = time   # time data
-        self.temporal = False  # flag for temporal data
-        self.dt       = 0.     # mean temporal spacing
-        self.monthly  = False  # flag for monthly means
+        self.time      = time      # time data
+        self.time_bnds = time_bnds # bounds on time
+        self.temporal  = False     # flag for temporal data
+        self.dt        = 0.        # mean temporal spacing
+        self.monthly   = False     # flag for monthly means
         if time is not None: 
             self.temporal = True
+            if self.time_bnds is None:
+                self.time_bnds = np.zeros(time.size+1)
+                self.time_bnds[1:-1] = 0.5*(time[:-1]+time[+1:])
+                self.time_bnds[ 0]   = self.time[ 0] - 0.5*(self.time[ 1]-self.time[ 0])
+                self.time_bnds[-1]   = self.time[-1] + 0.5*(self.time[-1]-self.time[-2])
             self.dt = (time[1:]-time[:-1]).mean()
             if np.allclose(self.dt,30,atol=3): self.monthly = True
 
@@ -176,48 +185,41 @@ class Variable:
 
         # perform the integration using ILAMB.ilamblib
         integral = il.TemporallyIntegratedTimeSeries(self.time,self.data,t0=t0,tf=tf)
-
-        # special handling of Watts --> Joules per second (improve this)
-        unit = self.unit
-        if "W" in unit: unit = unit.replace("W","J s-1")
         
-        # handle units (fragile, depends on user following this convention)
-        if " s-1" in unit:
-            integral *= spd
-            unit      = unit.replace(" s-1","")
-        elif " d-1" in self.unit:
-            unit      = unit.replace(" d-1","")
-        elif " y-1" in self.unit: 
-            integral /= dpy["noleap"]
-            unit      = unit.replace(" y-1","")
-        else:
-            unit += " d"
+        # handle units
+        unit = Units(self.unit)
         name = self.name + "_integrated_over_time"
 
-        # divide thru by the non-masked amount of time
         if mean:
-            dt        = np.zeros(self.time.shape)
-            dt[1:-1]  = 0.5*(self.time[2:]-self.time[:-2])
-            dt[0]     = 0.5*(self.time[1] -self.time[0])  + self.time[0]-t0
-            dt[-1]    = 0.5*(self.time[-1]-self.time[-2]) + tf-self.time[-1]
+            
+            # divide thru by the non-masked amount of time
+            name     += "_and_divided_by_time_period"
+            dt        = self.time_bnds[1:]-self.time_bnds[:-1]
             dt       *= (self.time>=t0)*(self.time<=tf)
             for i in range(self.data.ndim-1): dt = np.expand_dims(dt,axis=-1)
             dt        = (dt*(self.data.mask==0)).sum(axis=0)
-
             np.seterr(over='ignore',under='ignore')
             integral /= dt
-            np.seterr(over='raise',under='raise')
+            np.seterr(over='raise' ,under='raise' )
             
-            unit     += " d-1"
-            name     += "_and_divided_by_time_period"
+        else:
 
-        # special handling of Joules per day --> Watts (again, need to improve)
-        if "J" in unit and "d-1" in unit:
-            integral /= spd
-            unit      = unit.replace("J","W").replace("d-1","")
-        unit = unit.replace("d d-1","")
+            # handle units
+            unit *= Units("d")
+            frmt  = unit.formatted().split()
+            if len(frmt) == 2:
+                integral *= float(frmt[ 0])
+                unit      = Units(frmt[-1])
+            else:
+                unit      = Units(frmt[ 0])
         
-        return Variable(data=integral,unit=unit,name=name,lat=self.lat,lon=self.lon,area=self.area,ndata=self.ndata)
+        return Variable(data  = integral,
+                        unit  = unit.units,
+                        name  = name,
+                        lat   = self.lat,
+                        lon   = self.lon,
+                        area  = self.area,
+                        ndata = self.ndata)
 
     def integrateInSpace(self,region=None,mean=False):
         """Integrates the variable over space.
@@ -1005,3 +1007,23 @@ class Variable:
         std   = Variable(data=std  ,name="normalized_spatial_std_of_%s_over_%s" % (self.name,region),unit="-")
         score = Variable(data=score,name="spatial_distribution_score_of_%s_over_%s" % (self.name,region),unit="-")
         return std,R,score
+
+    def coarsenInTime(self,intervals):
+        """
+        """
+        n    = intervals.size-1
+        time = np.zeros(n)
+        data = np.zeros(n)
+        for i in range(n):
+            t0      = intervals[i  ]
+            tf      = intervals[i+1]
+            time[i] = 0.5*(t0+tf)
+            data[i] = self.integrateInTime(mean=True,t0=t0,tf=tf).convert(self.unit).data
+        return Variable(name = "coarsened_%s" % self.name,
+                        unit = self.unit,
+                        time = time,
+                        time_bnds = intervals,
+                        data = data)
+        
+
+        
