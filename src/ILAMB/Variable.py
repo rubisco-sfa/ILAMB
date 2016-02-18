@@ -258,11 +258,13 @@ class Variable:
                 area = np.ma.masked_array(self.area,mask=mask)
                 integral /= area.sum()
             name = self.name + "_integrated_over_%s" % region
+
+        # handle the unit
         unit = self.unit
         if mean:
             name += "_and_divided_by_area"
         else:
-            unit  = unit.replace(" m-2","")
+            unit  = unit.replace(" m-2","").replace(r"/m2","").replace(r"/ m2","")
         return Variable(data=np.ma.masked_array(integral),unit=unit,time=self.time,name=name)
 
     def siteStats(self,region=None):

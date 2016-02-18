@@ -180,7 +180,7 @@ class Scoreboard():
                                                    plot_unit=node.plot_unit,
                                                    relationships=node.relationships)
             except Exception,e:
-                pass
+                print "WARNING: Datafile for %s not found: %s/%s" % (node.variable,os.environ["ILAMB_ROOT"],node.source)
 
         def _buildDirectories(node):
             if node.name is None: return
