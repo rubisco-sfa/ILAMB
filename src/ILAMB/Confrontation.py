@@ -235,7 +235,7 @@ class Confrontation:
         except:
             results.close()
             os.system("rm -f %s/%s_%s.nc" % (self.output_path,self.name,m.name))
-            if self.master and benchmark_results is not None:
+            if self.master:
                 benchmark_results.close()
                 os.system("rm -f %s" % fname)
             raise il.AnalysisError()
