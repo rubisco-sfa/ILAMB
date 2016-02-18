@@ -90,7 +90,8 @@ def _convertCalendar(t):
     """
     cal  = "noleap"
     unit = t.units.replace("No. of ","")
-    data = t[:]    
+    shp  = t[...].shape
+    data = t[...].flatten()
     unit = unit.replace("0000","1850")
     
     # if the time array is masked, the novalue number can cause num2date problems
@@ -110,6 +111,7 @@ def _convertCalendar(t):
     if type(data) == type(np.ma.empty(0)):
         t = np.ma.masked_array(t,mask=data.mask)
 
+    t = t.reshape(shp)
     return t
 
 def ExtractPointTimeSeries(filename,variable,lat,lon,verbose=False):
@@ -1061,6 +1063,8 @@ def FromNetCDF4(filename,variable_name,alternate_vars=[]):
         The name of the variable, will be how it is saved in an output netCDF4 file
     time : numpy.ndarray
         A 1D array of times in days since 1850-01-01 00:00:00
+    time_bnds : numpy.ndarray
+        A 1D array of time bounds in days since 1850-01-01 00:00:00
     lat : numpy.ndarray
         A 1D array of latitudes of cell centroids
     lon : numpy.ndarray
@@ -1089,20 +1093,26 @@ def FromNetCDF4(filename,variable_name,alternate_vars=[]):
     if found == False:
         alternate_vars.insert(0,variable_name)
         raise RuntimeError("Unable to find [%s] in the file: %s" % (",".join(alternate_vars),filename))
-    time_name = None
-    lat_name  = None
-    lon_name  = None
-    data_name = None
+    time_name     = None
+    time_bnd_name = None
+    lat_name      = None
+    lon_name      = None
+    data_name     = None
            
     for key in var.dimensions:
-        if "time" in key: time_name = key
-        if "lat"  in key: lat_name  = key
-        if "lon"  in key: lon_name  = key
-        if "data" in key: data_name = key
+        if "time"           in key: time_name     = key
+        if "time" and "bnd" in key: time_bnd_name = key
+        if "lat"            in key: lat_name      = key
+        if "lon"            in key: lon_name      = key
+        if "data"           in key: data_name     = key
     if time_name is None:
         t = None
     else:
         t = _convertCalendar(f.variables[time_name])
+    if time_bnd_name is None:
+        t_bnd = None
+    else:
+        t_bnd = _convertCalendar(f.variables[time_bnd_name])
     if lat_name is None:
         lat = None
     else:
@@ -1139,7 +1149,7 @@ def FromNetCDF4(filename,variable_name,alternate_vars=[]):
     units = var.units
     if units == "unitless": units = "1"
     
-    return v,units,variable_name,t,lat,lon,data
+    return v,units,variable_name,t,t_bnd,lat,lon,data
 
         
 def Score(var,normalizer,eps=1e-12,theta=0.5,error=1.0):

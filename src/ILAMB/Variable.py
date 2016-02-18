@@ -73,7 +73,7 @@ class Variable:
             unit  = keywords.get("unit" ,None)
             name  = keywords.get("name" ,"unnamed")
             time  = keywords.get("time" ,None)
-            time_bnds  = keywords.get("time_bnds" ,None)
+            time_bnds = keywords.get("time_bnds" ,None)
             lat   = keywords.get("lat"  ,None)
             lon   = keywords.get("lon"  ,None)
             ndata = keywords.get("ndata",None)
@@ -81,8 +81,8 @@ class Variable:
             assert unit is not None
         else:
             assert variable_name is not None
-            data,unit,name,time,lat,lon,ndata = il.FromNetCDF4(filename,variable_name,alternate_vars)
-
+            data,unit,name,time,time_bnds,lat,lon,ndata = il.FromNetCDF4(filename,variable_name,alternate_vars)
+                            
         if not np.ma.isMaskedArray(data): data = np.ma.masked_array(data)
         self.data  = data 
         self.ndata = ndata
@@ -102,9 +102,16 @@ class Variable:
                 self.time_bnds[1:-1] = 0.5*(time[:-1]+time[+1:])
                 self.time_bnds[ 0]   = self.time[ 0] - 0.5*(self.time[ 1]-self.time[ 0])
                 self.time_bnds[-1]   = self.time[-1] + 0.5*(self.time[-1]-self.time[-2])
+            else:
+                if self.time_bnds.ndim == 2:
+                    tmp = np.copy(time_bnds)
+                    self.time_bnds = np.zeros(self.time.size+1)
+                    self.time_bnds[:-1] = tmp[0,:]
+                    self.time_bnds[-1 ] = tmp[1,-1]
             self.dt = (time[1:]-time[:-1]).mean()
             if np.allclose(self.dt,30,atol=3): self.monthly = True
-
+            assert (self.time.size+1) == self.time_bnds.size
+            
         # Handle space or multimember data
         self.spatial = False
         self.lat     = lat
@@ -189,10 +196,12 @@ class Variable:
         # handle units
         unit = Units(self.unit)
         name = self.name + "_integrated_over_time"
-
+        
         if mean:
             
-            # divide thru by the non-masked amount of time
+            # divide thru by the non-masked amount of time, the units
+            # can remain as input because we integrate over time and
+            # then divide by the time interval in the same units
             name     += "_and_divided_by_time_period"
             dt        = self.time_bnds[1:]-self.time_bnds[:-1]
             dt       *= (self.time>=t0)*(self.time<=tf)
@@ -204,14 +213,10 @@ class Variable:
             
         else:
 
-            # handle units
-            unit *= Units("d")
-            frmt  = unit.formatted().split()
-            if len(frmt) == 2:
-                integral *= float(frmt[ 0])
-                unit      = Units(frmt[-1])
-            else:
-                unit      = Units(frmt[ 0])
+            # if not a mean, we need to potentially handle unit conversions
+            unit0    = Units("d")*unit
+            unit     = Units(unit0.formatted().split()[-1])
+            integral = Units.conform(integral,unit0,unit)
         
         return Variable(data  = integral,
                         unit  = unit.units,
@@ -262,12 +267,21 @@ class Variable:
             name = self.name + "_integrated_over_%s" % region
 
         # handle the unit
-        unit = self.unit
+        unit = Units(self.unit)
         if mean:
+
+            # we have already divided thru by the non-masked area in
+            # units of m^2, which are the same units of the integrand.
             name += "_and_divided_by_area"
+            
         else:
-            unit  = unit.replace(" m-2","").replace(r"/m2","").replace(r"/ m2","")
-        return Variable(data=np.ma.masked_array(integral),unit=unit,time=self.time,name=name)
+
+            # if not a mean, we need to potentially handle unit conversions
+            unit0    = Units("m2")*unit
+            unit     = Units(unit0.formatted().split()[-1])
+            integral = Units.conform(integral,unit0,unit)
+            
+        return Variable(data=np.ma.masked_array(integral),unit=unit.units,time=self.time,name=name)
 
     def siteStats(self,region=None):
         """Computes the mean and standard deviation of the variable over all data sites.
@@ -1011,19 +1025,22 @@ class Variable:
     def coarsenInTime(self,intervals):
         """
         """
+        if not self.temporal: raise il.NotTemporalVariable
         n    = intervals.size-1
+        shp  = (n,)+self.data.shape[1:]
         time = np.zeros(n)
-        data = np.zeros(n)
+        data = np.zeros(shp)
+        mask = np.zeros(shp,dtype=bool)
         for i in range(n):
-            t0      = intervals[i  ]
-            tf      = intervals[i+1]
-            time[i] = 0.5*(t0+tf)
-            data[i] = self.integrateInTime(mean=True,t0=t0,tf=tf).convert(self.unit).data
-        return Variable(name = "coarsened_%s" % self.name,
-                        unit = self.unit,
-                        time = time,
+            t0          = intervals[i  ]
+            tf          = intervals[i+1]
+            time[i]     = 0.5*(t0+tf)
+            data[i,...] = self.integrateInTime(mean=True,t0=t0,tf=tf).convert(self.unit).data
+        return Variable(name      = "coarsened_%s" % self.name,
+                        unit      = self.unit,
+                        time      = time,
                         time_bnds = intervals,
-                        data = data)
+                        data      = data)
         
 
         
