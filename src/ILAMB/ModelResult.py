@@ -33,23 +33,26 @@ def CombineVariables(V):
     assert (t0[1:]-tf[:-1]).min() >= 0
 
     # Assemble the data
-    shp  = (nt.sum(),)+V[0].data.shape[1:]
-    time = np.zeros(shp[0])
-    data = np.zeros(shp)
-    mask = np.zeros(shp,dtype=bool)
+    shp       = (nt.sum(),)+V[0].data.shape[1:]
+    time      = np.zeros(shp[0])
+    time_bnds = np.zeros(2,shp[0])
+    data      = np.zeros(shp)
+    mask      = np.zeros(shp,dtype=bool)
     for i,v in enumerate(V):
-        time[ind[i]:ind[i+1]]     = v.time
-        data[ind[i]:ind[i+1],...] = v.data
-        mask[ind[i]:ind[i+1],...] = v.data.mask
+        time       [ind[i]:ind[i+1]]     = v.time
+        time_bnds[:,ind[i]:ind[i+1]]     = v.time_bnds
+        data       [ind[i]:ind[i+1],...] = v.data
+        mask       [ind[i]:ind[i+1],...] = v.data.mask
     v = V[0]
-    return Variable(data  = np.ma.masked_array(data,mask=mask),
-                    unit  = v.unit,
-                    name  = v.name,
-                    time  = time,
-                    lat   = v.lat,
-                    lon   = v.lon,
-                    area  = v.area,
-                    ndata = v.ndata)
+    return Variable(data      = np.ma.masked_array(data,mask=mask),
+                    unit      = v.unit,
+                    name      = v.name,
+                    time      = time,
+                    time_bnds = time_bnds,
+                    lat       = v.lat,
+                    lon       = v.lon,
+                    area      = v.area,
+                    ndata     = v.ndata)
 
 class ModelResult():
     """A class for exploring model results.
@@ -67,9 +70,25 @@ class ModelResult():
         self.lat            = None
         self.lon            = None        
         self.lat_bnds       = None
-        self.lon_bnds       = None        
+        self.lon_bnds       = None
+        self.variables      = None
         self._getGridInformation()
-
+        self._findVariables()
+        
+    def _findVariables(self):
+        variables = {}
+        for subdir, dirs, files in os.walk(self.path):
+            for fileName in files:
+                if ".nc"       not in fileName: continue
+                if self.filter not in fileName: continue
+                pathName  = "%s/%s" % (subdir,fileName)
+                dataset   = Dataset(pathName)
+                for key in dataset.variables.keys():
+                    if not variables.has_key(key):
+                        variables[key] = []
+                    variables[key].append(pathName)
+        self.variables = variables
+    
     def _fileExists(self,contains):
         """Looks through the model result path for a file that contains the text specified in "constains". Returns "" if not found.
         """
@@ -158,52 +177,28 @@ class ModelResult():
 
         # create a list of datafiles which have a non-null intersection
         # over the desired time range
-        data = []
-        for subdir, dirs, files in os.walk(self.path):
-            for fileName in files:
-                if ".nc"       not in fileName: continue
-                if self.filter not in fileName: continue
-                pathName  = "%s/%s" % (subdir,fileName)
-                dataset   = Dataset(pathName)
-                variables = dataset.variables.keys()
-                intersect = [v for v in altvars if v in variables]
-                if len(intersect) == 0: continue
-                time      = il._convertCalendar(dataset.variables["time"])
-                if (time[0] > final_time or time[-1] < initial_time): continue
-                data.append(pathName)
-        
-        # some data are marked "-derived", check for these and give preference
-        derived = [f for f in data if "-derived" in f]
-        for f in derived:
-            f = f.replace("-derived","")
-            if f in data: data.remove(f)
-            
-        # build variable and merge if in separate files
-        if len(data) == 0:
-            raise il.VarNotInModel()
-        else:
-            V = []
-            for pathName in data:
-                if lats is None:
-                    V.append(Variable(filename       = pathName,
-                                      variable_name  = variable,
-                                      alternate_vars = altvars[1:],
-                                      area           = self.land_areas))
-                else:
-                    V.append(Variable(filename       = pathName,
-                                      variable_name  = variable,
-                                      alternate_vars = altvars[1:],
-                                      area           = self.land_areas).extractDatasites(lats,lons))
+
+        V = []
+        for v in altvars:
+            if not self.variables.has_key(v): continue
+            for pathName in self.variables[v]:
+                V.append(Variable(filename       = pathName,
+                                  variable_name  = variable,
+                                  alternate_vars = altvars[1:],
+                                  area           = self.land_areas))
+                if lats is not None: V[-1].extractDatasites(lats,lons)
+            break
         v = CombineVariables(V)
 
         # adjust the time range
-        begin  = np.argmin(np.abs(v.time-initial_time))
-        end    = np.argmin(np.abs(v.time-final_time))+1
-        v.time = v.time[begin:end]
+        begin  = np.argmin(np.abs(v.time_bnds[0,:]-initial_time))
+        end    = np.argmin(np.abs(v.time_bnds[1,:]-final_time  ))
+        v.time      = v.time     [  begin:end]
         v.time_bnds = v.time_bnds[:,begin:end]
-        v.data = v.data[begin:end,...]
+        v.data      = v.data     [  begin:end,...]
         return v
-    
+
+        
     def derivedVariable(self,variable_name,expression,
                         lats=None,lons=None,initial_time=-1e20,final_time=1e20):
         from sympy import sympify

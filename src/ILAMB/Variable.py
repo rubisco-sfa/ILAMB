@@ -98,13 +98,12 @@ class Variable:
         if time is not None: 
             self.temporal = True
             if self.time_bnds is None:
-                time_bnds       = np.zeros(time.size+1)
-                time_bnds[1:-1] = 0.5*(time[:-1]+time[+1:])
-                time_bnds[ 0]   = self.time[ 0] - 0.5*(self.time[ 1]-self.time[ 0])
-                time_bnds[-1]   = self.time[-1] + 0.5*(self.time[-1]-self.time[-2])
                 self.time_bnds = np.zeros((2,time.size))
-                self.time_bnds[0,:] = time_bnds[:-1]
-                self.time_bnds[1,:] = time_bnds[+1:]
+                self.time_bnds[0,+1:] = 0.5*(time[:-1]+time[+1:])
+                self.time_bnds[1,:-1] = 0.5*(time[:-1]+time[+1:])
+                if time.size > 1:
+                    self.time_bnds[0,  0] = time[ 0] - 0.5*(time[ 1]-time[ 0])
+                    self.time_bnds[1, -1] = time[-1] + 0.5*(time[-1]-time[-2])
             self.dt = (self.time_bnds[1,:]-self.time_bnds[0,:]).mean()
             if np.allclose(self.dt,30,atol=3): self.monthly = True
             assert (2*self.time.size) == (self.time_bnds.size)
@@ -295,7 +294,11 @@ class Variable:
             unit     = Units(unit0.formatted().split()[-1])
             integral = Units.conform(integral,unit0,unit)
             
-        return Variable(data=np.ma.masked_array(integral),unit=unit.units,time=self.time,name=name)
+        return Variable(data      = np.ma.masked_array(integral),
+                        unit      = unit.units,
+                        time      = self.time,
+                        time_bnds = self.time_bnds,
+                        name      = name)
 
     def siteStats(self,region=None):
         """Computes the mean and standard deviation of the variable over all data sites.
@@ -326,8 +329,16 @@ class Variable:
         std  = self.data.std (axis=-1)
         np.seterr(over='raise',under='raise')
         self.data.mask = rem_mask
-        mean = Variable(data=mean,unit=self.unit,time=self.time,name="mean_%s%s" % (self.name,rname))
-        std  = Variable(data=std ,unit=self.unit,time=self.time,name="std_%s%s"  % (self.name,rname))
+        mean = Variable(data      = mean,
+                        unit      = self.unit,
+                        time      = self.time,
+                        time_bnds = self.time_bnds,
+                        name      = "mean_%s%s" % (self.name,rname))
+        std  = Variable(data      = std ,
+                        unit      = self.unit,
+                        time      = self.time,
+                        time_bnds = self.time_bnds,
+                        name      = "std_%s%s" % (self.name,rname))
         return mean,std
     
     def annualCycle(self):
@@ -419,7 +430,14 @@ class Variable:
         else:
             data  = self.data[...,ilat,ilon]
             ndata = lat.size
-        return Variable(data=data,unit=self.unit,name=self.name,lat=lat,lon=lon,ndata=ndata,time=time)
+        return Variable(data      = data,
+                        unit      = self.unit,
+                        name      = self.name,
+                        lat       = lat,
+                        lon       = lon,
+                        ndata     = ndata,
+                        time      = time,
+                        time_bnds = self.time_bnds)
         
     def spatialDifference(self,var):
         """Computes the point-wise difference of two spatially defined variables.
@@ -859,10 +877,12 @@ class Variable:
             if self.spatial:  axes     = range(self.data.ndim)[-2:]
             if self.ndata:    axes     = self.data.ndim-1
             if self.temporal: out_time = self.time
+        out_time_bnds = None
+        if out_time is not None: out_time_bnds = self.time_bnds
         r = _correlation(self.data,var.data,axes=axes)
         return Variable(data=r,unit="-",
                         name="%s_correlation_of_%s" % (ctype,self.name),
-                        time=out_time,ndata=out_ndata,
+                        time=out_time,time_bnds=out_time_bnds,ndata=out_ndata,
                         lat=out_lat,lon=out_lon,area=out_area)
     
     def bias(self,var):
@@ -908,7 +928,7 @@ class Variable:
             raise il.NotSpatialVariable("Cannot take bias of scalars")
         # Finally we return the temporal mean of the difference
         bias = Variable(data=np.ma.masked_array(data,mask=mask),
-                        name="bias_of_%s" % self.name,time=self.time,
+                        name="bias_of_%s" % self.name,time=self.time,time_bnds=self.time_bnds,
                         unit=self.unit,ndata=self.ndata,
                         lat=lat,lon=lon,area=area).integrateInTime(mean=True)
         bias.name = bias.name.replace("_integrated_over_time_and_divided_by_time_period","")
@@ -955,7 +975,7 @@ class Variable:
         data *= data
         np.seterr(over='raise',under='raise')
         rmse = Variable(data=np.ma.masked_array(data,mask=mask),
-                        name="rmse_of_%s" % self.name,time=self.time,
+                        name="rmse_of_%s" % self.name,time=self.time,time_bnds=self.time_bnds,
                         unit=self.unit,ndata=self.ndata,
                         lat=lat,lon=lon,area=area).integrateInTime(mean=True)
         rmse.name = rmse.name.replace("_integrated_over_time_and_divided_by_time_period","")

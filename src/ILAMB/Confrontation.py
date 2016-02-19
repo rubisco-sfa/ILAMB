@@ -144,9 +144,9 @@ class Confrontation:
         else:
             obs = self.data
         if obs.time is None: raise il.NotTemporalVariable()
-        t0 = obs.time.min()
-        tf = obs.time.max()
-
+        t0 = obs.time_bnds[0,:].min()
+        tf = obs.time_bnds[1,:].max()
+        
         if obs.spatial:
             try:
                 mod = m.extractTimeSeries(self.variable_name,
@@ -171,19 +171,19 @@ class Confrontation:
                                         lons         = obs.lon,
                                         initial_time = t0,
                                         final_time   = tf)
-        
+                
         if obs.time.shape != mod.time.shape:
             t0 = max(obs.time.min(),mod.time.min())
             tf = min(obs.time.max(),mod.time.max())
             for var in [obs,mod]:
                 begin = np.argmin(np.abs(var.time-t0))
                 end   = np.argmin(np.abs(var.time-tf))+1
-                var.time = var.time[begin:end]
+                var.time      = var.time     [  begin:end]
                 var.time_bnds = var.time_bnds[:,begin:end]
-                var.data = var.data[begin:end,...]
+                var.data      = var.data     [  begin:end,...]
 
         if obs.time.shape != mod.time.shape: raise il.VarNotOnTimeScale()
-        if not np.allclose(obs.time,mod.time,atol=20): raise il.VarsNotComparable()
+        if not np.allclose(obs.time,mod.time,atol=0.5*obs.dt): raise il.VarsNotComparable()
         if self.land and mod.spatial:
             mod.data = np.ma.masked_array(mod.data,
                                           mask=mod.data.mask+(mod.area<1e-2)[np.newaxis,:,:],

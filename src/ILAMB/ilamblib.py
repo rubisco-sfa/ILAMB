@@ -70,7 +70,7 @@ def GenerateDistinctColors(N,saturation=0.67,value=0.67):
     RGB_tuples = map(lambda x: hsv_to_rgb(*x), HSV_tuples)
     return RGB_tuples
 
-def _convertCalendar(t):
+def _convertCalendar(t,unit=None):
     r"""A local function used to convert calendar representations
 
     This routine converts the representation of time to the ILAMB
@@ -89,7 +89,8 @@ def _convertCalendar(t):
         a numpy array of the converted times
     """
     cal  = "noleap"
-    unit = t.units.replace("No. of ","")
+    if unit is None:
+        unit = t.units.replace("No. of ","")
     shp  = t[...].shape
     data = t[...].flatten()
     unit = unit.replace("0000","1850")
@@ -97,7 +98,7 @@ def _convertCalendar(t):
     # if the time array is masked, the novalue number can cause num2date problems
     if type(data) == type(np.ma.empty(0)): data.data[data.mask] = 0
     if "calendar" in t.ncattrs(): cal = t.calendar
-    if "year" in t.units: 
+    if "year" in unit: 
         data *= 365.
         unit  = "days since 0-1-1"
     t = num2date(data,unit,calendar=cal) # converts data to dates
@@ -1100,11 +1101,14 @@ def FromNetCDF4(filename,variable_name,alternate_vars=[]):
     data_name     = None
            
     for key in var.dimensions:
-        if "time"           in key: time_name     = key
-        if "time" and "bnd" in key: time_bnd_name = key
-        if "lat"            in key: lat_name      = key
-        if "lon"            in key: lon_name      = key
-        if "data"           in key: data_name     = key
+        if "time" in key:
+            time_name = key
+            t = f.variables[key]
+            if "bounds" in t.ncattrs():
+                time_bnd_name = t.getncattr("bounds")
+        if "lat"  in key: lat_name  = key
+        if "lon"  in key: lon_name  = key
+        if "data" in key: data_name = key
     if time_name is None:
         t = None
     else:
@@ -1112,7 +1116,7 @@ def FromNetCDF4(filename,variable_name,alternate_vars=[]):
     if time_bnd_name is None:
         t_bnd = None
     else:
-        t_bnd = _convertCalendar(f.variables[time_bnd_name])
+        t_bnd = _convertCalendar(f.variables[time_bnd_name],unit=f.variables[time_name].units).T
     if lat_name is None:
         lat = None
     else:
