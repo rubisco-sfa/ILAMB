@@ -35,7 +35,7 @@ class Variable:
     time : numpy.ndarray, optional
         a 1D array of times in days since 1850-01-01 00:00:00
     time_bnds : numpy.ndarray, optional
-        a 1D array of time bounds in days since 1850-01-01 00:00:00
+        a 2D array of time bounds in days since 1850-01-01 00:00:00
     lat : numpy.ndarray, optional
         a 1D array of latitudes of cell centroids
     lon : numpy.ndarray, optional
@@ -98,19 +98,16 @@ class Variable:
         if time is not None: 
             self.temporal = True
             if self.time_bnds is None:
-                self.time_bnds = np.zeros(time.size+1)
-                self.time_bnds[1:-1] = 0.5*(time[:-1]+time[+1:])
-                self.time_bnds[ 0]   = self.time[ 0] - 0.5*(self.time[ 1]-self.time[ 0])
-                self.time_bnds[-1]   = self.time[-1] + 0.5*(self.time[-1]-self.time[-2])
-            else:
-                if self.time_bnds.ndim == 2:
-                    tmp = np.copy(time_bnds)
-                    self.time_bnds = np.zeros(self.time.size+1)
-                    self.time_bnds[:-1] = tmp[0,:]
-                    self.time_bnds[-1 ] = tmp[1,-1]
-            self.dt = (time[1:]-time[:-1]).mean()
+                time_bnds       = np.zeros(time.size+1)
+                time_bnds[1:-1] = 0.5*(time[:-1]+time[+1:])
+                time_bnds[ 0]   = self.time[ 0] - 0.5*(self.time[ 1]-self.time[ 0])
+                time_bnds[-1]   = self.time[-1] + 0.5*(self.time[-1]-self.time[-2])
+                self.time_bnds = np.zeros((2,time.size))
+                self.time_bnds[0,:] = time_bnds[:-1]
+                self.time_bnds[1,:] = time_bnds[+1:]
+            self.dt = (self.time_bnds[1,:]-self.time_bnds[0,:]).mean()
             if np.allclose(self.dt,30,atol=3): self.monthly = True
-            assert (self.time.size+1) == self.time_bnds.size
+            assert (2*self.time.size) == (self.time_bnds.size)
             
         # Handle space or multimember data
         self.spatial = False
@@ -186,12 +183,29 @@ class Variable:
 
         """
         if not self.temporal: raise il.NotTemporalVariable()
-        t0   = keywords.get("t0",self.time.min())
-        tf   = keywords.get("tf",self.time.max())
+        t0   = keywords.get("t0",self.time_bnds[0,:].min())
+        tf   = keywords.get("tf",self.time_bnds[1,:].max())
         mean = keywords.get("mean",False)
+        
+        # find which time bounds are included even partially in the interval [t0,tf]
+        time_bnds = np.copy(self.time_bnds)
+        ind       = np.where((t0<time_bnds[1,:])*(tf>time_bnds[0,:]))
+        time_bnds[0,(t0>time_bnds[0,:])*(t0<time_bnds[1,:])] = t0
+        time_bnds[1,(tf>time_bnds[0,:])*(tf<time_bnds[1,:])] = tf
+        time_bnds = time_bnds[:,ind]
+        dt        = (time_bnds[1,:]-time_bnds[0,:])[0,:]
 
-        # perform the integration using ILAMB.ilamblib
-        integral = il.TemporallyIntegratedTimeSeries(self.time,self.data,t0=t0,tf=tf)
+        # now expand this dt to the other dimensions of the data array (i.e. space or datasites)
+        for i in range(self.data.ndim-1): dt = np.expand_dims(dt,axis=-1)
+
+        # approximate the integral by nodal integration (rectangle rule)
+        integral = (self.data[ind]*dt).sum(axis=0)
+        
+        # the integrated array should be masked where *all* data in time was previously masked
+        mask = False
+        if self.data.ndim > 1 and self.data.mask.size > 1:
+            mask = np.apply_along_axis(np.all,0,self.data.mask[ind])
+        integral = np.ma.masked_array(integral,mask=mask,copy=False)
         
         # handle units
         unit = Units(self.unit)
@@ -203,10 +217,10 @@ class Variable:
             # can remain as input because we integrate over time and
             # then divide by the time interval in the same units
             name     += "_and_divided_by_time_period"
-            dt        = self.time_bnds[1:]-self.time_bnds[:-1]
-            dt       *= (self.time>=t0)*(self.time<=tf)
-            for i in range(self.data.ndim-1): dt = np.expand_dims(dt,axis=-1)
-            dt        = (dt*(self.data.mask==0)).sum(axis=0)
+            if self.data.mask.size > 1:
+                dt = (dt*(self.data.mask[ind]==0)).sum(axis=0)
+            else:
+                dt = dt.sum(axis=0)   
             np.seterr(over='ignore',under='ignore')
             integral /= dt
             np.seterr(over='raise' ,under='raise' )
@@ -1026,16 +1040,17 @@ class Variable:
         """
         """
         if not self.temporal: raise il.NotTemporalVariable
-        n    = intervals.size-1
+        assert intervals.ndim == 2
+        n    = intervals.shape[1]
         shp  = (n,)+self.data.shape[1:]
         time = np.zeros(n)
-        data = np.zeros(shp)
-        mask = np.zeros(shp,dtype=bool)
+        data = np.ma.zeros(shp)
         for i in range(n):
-            t0          = intervals[i  ]
-            tf          = intervals[i+1]
+            t0          = intervals[0,i]
+            tf          = intervals[1,i]
             time[i]     = 0.5*(t0+tf)
-            data[i,...] = self.integrateInTime(mean=True,t0=t0,tf=tf).convert(self.unit).data
+            mean        = self.integrateInTime(mean=True,t0=t0,tf=tf).convert(self.unit)
+            data[i,...] = mean.data
         return Variable(name      = "coarsened_%s" % self.name,
                         unit      = self.unit,
                         time      = time,

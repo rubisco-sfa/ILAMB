@@ -1176,7 +1176,7 @@ def Score(var,normalizer,eps=1e-12,theta=0.5,error=1.0):
     score.name = score.name.replace("bias","bias_score")
     score.name = score.name.replace("rmse","rmse_score")
     score.name = score.name.replace("iav" ,"iav_score")
-    score.unit = "-"
+    score.unit = "1"
     return score
 
 def ComposeSpatialGrids(var1,var2):
@@ -1223,7 +1223,7 @@ def ScoreSeasonalCycle(phase_shift):
     """
     from Variable import Variable
     return Variable(data  = (1+np.cos(np.abs(phase_shift.data)/365*2*np.pi))*0.5,
-                    unit  = "-",
+                    unit  = "1",
                     name  = phase_shift.name.replace("phase_shift","phase_shift_score"),
                     ndata = phase_shift.ndata,
                     lat   = phase_shift.lat,
@@ -1260,7 +1260,7 @@ def AnalysisFluxrate(obs,mod,regions=['global'],dataset=None,benchmark_dataset=N
         bias_score_map   = Score(bias_map,period_mean)
         rmse_mean,junk   = rmse_map.siteStats()
         rmse_score_map   = Score(rmse_map,rmse_mean)
-
+    
     # Compute maps of the phase shift. First we compute the mean
     # annual cycle over space/sites and then find the time where the
     # maxmimum occurs.

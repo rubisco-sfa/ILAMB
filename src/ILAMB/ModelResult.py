@@ -200,6 +200,7 @@ class ModelResult():
         begin  = np.argmin(np.abs(v.time-initial_time))
         end    = np.argmin(np.abs(v.time-final_time))+1
         v.time = v.time[begin:end]
+        v.time_bnds = v.time_bnds[:,begin:end]
         v.data = v.data[begin:end,...]
         return v
     

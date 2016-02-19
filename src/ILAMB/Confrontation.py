@@ -179,6 +179,7 @@ class Confrontation:
                 begin = np.argmin(np.abs(var.time-t0))
                 end   = np.argmin(np.abs(var.time-tf))+1
                 var.time = var.time[begin:end]
+                var.time_bnds = var.time_bnds[:,begin:end]
                 var.data = var.data[begin:end,...]
 
         if obs.time.shape != mod.time.shape: raise il.VarNotOnTimeScale()
