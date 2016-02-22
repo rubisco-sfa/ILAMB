@@ -6,17 +6,17 @@ import Post as post
 import numpy as np
 
 class Variable:
-    """A class for managing variables and their analysis.
+    r"""A class for managing variables and their analysis.
 
     There are two ways to create a Variable object. Because python
     does not support multiple constructors, we will use keyword
-    arguments. The first way to specify a Variable is by loading a
-    netCDF4 file. You can achieve this by specifying the 'filename'
-    and 'variable_name' keywords. The second way is to use the
-    remaining keyword arguments to specify data arrays directly. If
-    you use the second way, you must specify the keywords 'data' and
-    'unit'. The rest are truly optional and depend on the nature of
-    your data.
+    arguments so that the users intent may be captured. The first way
+    to specify a Variable is by loading a netCDF4 file. You can
+    achieve this by specifying the 'filename' and 'variable_name'
+    keywords. The second way is to use the remaining keyword arguments
+    to specify data arrays directly. If you use the second way, you
+    must specify the keywords 'data' and 'unit'. The rest are truly
+    optional and depend on the nature of your data.
 
     Parameters
     ----------
@@ -60,9 +60,10 @@ class Variable:
     Or you can initiate a variable by extracting a specific field from a netCDF4 file.
 
     >>> v = Variable(filename="some_netcdf_file.nc",variable_name="name_of_var_to_extract")
+
     """
     def __init__(self,**keywords):
-        """Constructor for the variable class by specifying the data arrays.
+        r"""Constructor for the variable class by specifying the data arrays.
         """
         # See if the user specified a netCDF4 file and variable
         filename       = keywords.get("filename"     ,None)
@@ -160,11 +161,27 @@ class Variable:
         return s
 
     def integrateInTime(self,**keywords):
-        """Integrates the variable over time period.
+        r"""Integrates the variable over time period.
 
-        Uses nodal integration to integrate the variable over the time
-        domain. 
+        Uses nodal integration to integrate to approximate 
+
+        .. math:: \int_{t_0}^{t_f} v(t,\dots)\ dt
+
+        The arguments of the integrand reflect that while it must be
+        at least defined in time, the remaining arguments are
+        flexible. If :math:`t_0` or :math:`t_f` are not specified, the
+        variable will be integrated over the extent of its time
+        domain. If the mean function value over time is desired, this
+        routine will approximate
+
+        .. math:: \frac{1}{t_f-t_0} \int_{t_0}^{t_f} v(t,\dots)\ dt
         
+        again by nodal integration. The amount of time which we divide
+        by is the non-masked amount of time. This means that if a
+        function has some values masked or marked as invalid, we do
+        not penalize the average value by including this as a time at
+        which data is expected.
+
         Parameters
         ----------
         t0 : float, optional
