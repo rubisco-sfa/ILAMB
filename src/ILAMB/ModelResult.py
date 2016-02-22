@@ -182,11 +182,12 @@ class ModelResult():
         for v in altvars:
             if not self.variables.has_key(v): continue
             for pathName in self.variables[v]:
-                V.append(Variable(filename       = pathName,
-                                  variable_name  = variable,
-                                  alternate_vars = altvars[1:],
-                                  area           = self.land_areas))
-                if lats is not None: V[-1].extractDatasites(lats,lons)
+                var = Variable(filename       = pathName,
+                               variable_name  = variable,
+                               alternate_vars = altvars[1:],
+                               area           = self.land_areas)
+                if lats is not None: var = var.extractDatasites(lats,lons)
+                V.append(var)
             break
         v = CombineVariables(V)
 
