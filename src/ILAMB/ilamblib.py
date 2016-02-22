@@ -763,45 +763,6 @@ def SpatiallyIntegratedTimeSeries(var,areas):
     vbar = (var*areas).sum(axis=-1).sum(axis=-1)
     np.seterr(over='raise',under='raise')
     return vbar
-            
-def TemporallyIntegratedTimeSeries(t,var,**keywords):
-    r"""Integrate a variable over time.
-    
-    Given a variable :math:`f(\mathbf{x},t)`, the temporally averaged
-    variable is then given as
-
-    .. math:: \hat{f}(\mathbf{x}) = \int_t f(\mathbf{x},t)\ dt
-
-    where we approximate this integral by nodal integration.
-
-    Parameters
-    ----------
-    t : numpy.ndarray
-        a 1D array of times
-    var : numpy.ndarray
-        an array assumed to be a monthly average of a variable with
-        the dimensions, (ntimes,latitudes,longitudes)
-
-    Returns
-    -------
-    vhat : numpy.array
-        the temporally integrated variable
-    """
-    t0        = keywords.get("t0",t.min())
-    tf        = keywords.get("tf",t.max())
-    wgt       = np.zeros(t.shape)
-    wgt[:-1]  = 0.5*(t[1:]-t[:-1])
-    wgt[ 1:] += 0.5*(t[1:]-t[:-1])
-    wgt[ 0]  *= 2.0
-    wgt[-1]  *= 2.0
-    wgt      *= (t>=t0)*(t<=tf)
-    
-    for i in range(var.ndim-1): wgt = np.expand_dims(wgt,axis=-1)
-    vhat = (var*wgt).sum(axis=0)
-    mask = False
-    if var.ndim > 1 and var.mask.size > 1:
-        mask = np.apply_along_axis(np.all,0,var.mask) # only mask where mask applies for all time
-    return np.ma.masked_array(vhat,mask=mask,copy=False)
 
 def CellAreas(lat,lon):
     """Given arrays of latitude and longitude, return cell areas in square meters.
