@@ -17,7 +17,7 @@ class VarNotInModel(Exception):
     def __str__(self): return "VarNotInModel"
 
 class VarsNotComparable(Exception):
-    def __str__(self): return "VarsNotComparable"
+    def __str__(self): return self.message
 
 class VarNotOnTimeScale(Exception):
     def __str__(self): return "VarNotOnTimeScale"
@@ -1514,3 +1514,144 @@ def AnalysisRelationship(dep_var,ind_var,dataset,rname,**keywords):
         X[...] = xmean
         M[...] = ymean
         S[...] = ystd
+
+def ClipTime(v,t0,tf):
+    r"""
+    """
+    begin = np.argmin(np.abs(v.time_bnds[0,:]-t0))
+    end   = np.argmin(np.abs(v.time_bnds[1,:]-tf))
+    while v.time_bnds[0,begin] > t0:
+        begin    -= 1
+        if begin <= 0:
+            begin = 0
+            break
+    while v.time_bnds[1,  end] < tf:
+        end      += 1
+        if end   >= v.time.size-1:
+            end   = v.time.size-1
+            break
+    v.time      = v.time     [  begin:(end+1)    ]
+    v.time_bnds = v.time_bnds[:,begin:(end+1)    ]
+    v.data      = v.data     [  begin:(end+1),...]
+    return v
+    
+def MakeComparable(ref,com,**keywords):
+    r"""Make two variables comparable.
+
+    Given a reference variable and a comparison variable, make the two
+    variables comparable or raise an exception explaining why they are
+    not.
+
+    Parameters
+    ----------
+    ref : ILAMB.Variable.Variable
+        the reference variable object
+    com : ILAMB.Variable.Variable
+        the comparison variable object
+    clip_ref : bool, optional
+        enable in order to clip the reference variable time using the
+        limits of the comparison variable (defult is False)
+    mask_ref : bool, optional
+        enable in order to mask the reference variable using an
+        interpolation of the comparison variable (defult is False)
+    eps : float, optional
+        used to determine how close you can be to a specific time
+        (expressed in days since 1-1-1850) and still be considered the
+        same time (default is 30 minutes)
+    window : float, optional
+        specify to extend the averaging intervals (in days since
+        1-1-1850) when a variable must be coarsened (default is 0)
+
+    Returns
+    -------
+    ref : ILAMB.Variable.Variable
+        the modified reference variable object
+    com : ILAMB.Variable.Variable
+        the modified comparison variable object
+
+    """
+    # Process keywords
+    clip_ref = keywords.get("clip_ref",False)
+    mask_ref = keywords.get("mask_ref",False)
+    eps      = keywords.get("eps"     ,30./60./24.)
+    window   = keywords.get("window"  ,0.)
+    
+    # If one variable is temporal, then they both must be
+    if ref.temporal != com.temporal:
+        msg  = "\n  The datasets are not both uniformly temporal:\n"
+        msg += "    reference = %s, comparison = %s\n" % (ref.temporal,com.temporal)
+        raise VarsNotComparable(msg)
+
+    # If the reference is spatial, the comparison must be
+    if ref.spatial and not com.spatial:
+        msg = "\n  The reference data is spatial but the comparison data is not\n"
+        raise VarsNotComparable(msg)
+
+    # If the reference represents observation sites, extract them from
+    # the comparison
+    if ref.ndata is not None and com.spatial: com = com.extractDatasites(ref.lat,ref.lon)
+
+    # If both variables represent observations sites, make sure you
+    # have the same number of sites and that they represent the same
+    # location. Note this is after the above extraction so at this
+    # point the ndata field of both variables should be equal.
+    if ref.ndata != com.ndata:
+        msg  = "\n  One or both datasets are understood as site data but differ in number of sites.\n"
+        msg += "    number of sites of reference = %d, comparison = %d\n" % (ref.ndata,com.ndata)
+        raise VarsNotComparable(msg)
+    if ref.ndata is not None:
+        if not (np.allclose(ref.lat,com.lat) or np.allclose(ref.lon,com.lon)):
+            msg  = "\n  Both datasets represent sites, but the locations are different:"
+            msg += "    Maximum difference lat = %.f, lon = %.f" % (np.abs((ref.lat-com.lat)).max(),
+                                                                    np.abs((ref.lon-com.lon)).max())
+            raise VarsNotComparable(msg)
+        
+    if ref.temporal:
+
+        # If the reference time scale is significantly larger than the
+        # comparison, coarsen the comparison
+        if np.log10(ref.dt/com.dt) > 0.5:
+            com = com.coarsenInTime(ref.time_bnds,window=window)
+        
+        # Time bounds of the reference dataset
+        t0  = ref.time_bnds[0, 0]
+        tf  = ref.time_bnds[1,-1]
+
+        # Find the comparison time range which fully encompasses the reference
+        com = ClipTime(com,t0,tf)
+        
+        if clip_ref:
+
+            # We will clip the reference dataset too
+            t0  = max(t0,com.time_bnds[0, 0])
+            tf  = min(tf,com.time_bnds[1,-1])
+            ref = ClipTime(ref,t0,tf)
+
+        else:
+            
+            # The comparison dataset needs to fully cover the reference in time
+            if (com.time_bnds[0, 0] > (t0+eps) or
+                com.time_bnds[1,-1] < (tf-eps)):
+                msg  = "\n  Comparison dataset does not cover the time frame of the reference:\n"
+                msg += "    t0: %.16e <= %.16e (%s)\n" % (com.time_bnds[0, 0],t0+eps,com.time_bnds[0, 0] <= (t0+eps))
+                msg += "    tf: %.16e >= %.16e (%s)\n" % (com.time_bnds[1,-1],tf-eps,com.time_bnds[1,-1] >= (tf-eps))
+                raise VarsNotComparable(msg)
+
+        # Check that we now are on the same time intervals
+        if ref.time.size != com.time.size:
+            msg  = "\n  Datasets have differing numbers of time intervals:\n"
+            msd += "    reference = %d, comparison = %d\n" % (ref.time.size,com.time.size)
+            raise VarsNotComparable(msg)
+        if not np.allclose(ref.time_bnds,com.time_bnds,atol=0.1*ref.dt):
+            msg  = "\n  Datasets are defined on different time intervals"
+            raise VarsNotComparable(msg)
+                                   
+    # Apply the reference mask to the comparison dataset and
+    # optionally vice-versa
+    mask = ref.interpolate(time=com.time,lat=com.lat,lon=com.lon)
+    com.data.mask = mask.data.mask
+    if mask_ref:
+        mask = com.interpolate(time=ref.time,lat=ref.lat,lon=ref.lon)
+        ref.data.mask = mask.data.mask
+            
+    return ref,com

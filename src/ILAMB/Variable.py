@@ -1073,7 +1073,7 @@ class Variable:
         score = Variable(data=score,name="spatial_distribution_score_of_%s_over_%s" % (self.name,region),unit="-")
         return std,R,score
 
-    def coarsenInTime(self,intervals):
+    def coarsenInTime(self,intervals,window=0.):
         """
         """
         if not self.temporal: raise il.NotTemporalVariable
@@ -1083,8 +1083,8 @@ class Variable:
         time = np.zeros(n)
         data = np.ma.zeros(shp)
         for i in range(n):
-            t0          = intervals[0,i]
-            tf          = intervals[1,i]
+            t0          = intervals[0,i]-window
+            tf          = intervals[1,i]+window
             time[i]     = 0.5*(t0+tf)
             mean        = self.integrateInTime(mean=True,t0=t0,tf=tf).convert(self.unit)
             data[i,...] = mean.data
@@ -1092,7 +1092,10 @@ class Variable:
                         unit      = self.unit,
                         time      = time,
                         time_bnds = intervals,
-                        data      = data)
+                        data      = data,
+                        lat       = self.lat,
+                        lon       = self.lon,
+                        area      = self.area)
         
 
         
