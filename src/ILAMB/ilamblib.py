@@ -70,7 +70,7 @@ def GenerateDistinctColors(N,saturation=0.67,value=0.67):
     RGB_tuples = map(lambda x: hsv_to_rgb(*x), HSV_tuples)
     return RGB_tuples
 
-def _convertCalendar(t,unit=None):
+def _convertCalendar(t,unit=None,calendar=None):
     r"""A local function used to convert calendar representations
 
     This routine converts the representation of time to the ILAMB
@@ -88,31 +88,15 @@ def _convertCalendar(t,unit=None):
     t : numpy.ndarray
         a numpy array of the converted times
     """
-    cal  = "noleap"
-    if unit is None:
-        unit = t.units.replace("No. of ","")
-    shp  = t[...].shape
-    data = t[...].flatten()
-    unit = unit.replace("0000","1850")
-    
-    # if the time array is masked, the novalue number can cause num2date problems
-    if type(data) == type(np.ma.empty(0)): data.data[data.mask] = 0
-    if "calendar" in t.ncattrs(): cal = t.calendar
-    if "year" in unit: 
-        data *= 365.
-        unit  = "days since 0-1-1"
-    t = num2date(data,unit,calendar=cal) # converts data to dates
-
-    # FIX: find a better way, converts everything to noleap calendar
-    tmp = []
-    for i in range(t.size): tmp.append(float((t[i].year-1850.)*365. + mid_months[t[i].month-1]))
-    t = np.asarray(tmp)
-    
-    # if time was masked, we need to remask it as date2num doesn't handle
-    if type(data) == type(np.ma.empty(0)):
-        t = np.ma.masked_array(t,mask=data.mask)
-
-    t = t.reshape(shp)
+    if unit     is None: unit = t.units
+    if calendar is None:
+        try:
+            calendar = t.calendar
+        except:
+            calendar = "365_day"
+    t0 = Units(unit,calendar=calendar)
+    tf = Units("days since 1850-1-1",calendar="365_day")
+    t  = Units.conform(t[...],t0,tf)
     return t
 
 def ExtractPointTimeSeries(filename,variable,lat,lon,verbose=False):
@@ -1077,7 +1061,9 @@ def FromNetCDF4(filename,variable_name,alternate_vars=[]):
     if time_bnd_name is None:
         t_bnd = None
     else:
-        t_bnd = _convertCalendar(f.variables[time_bnd_name],unit=f.variables[time_name].units).T
+        t_bnd = _convertCalendar(f.variables[time_bnd_name],
+                                 unit     = f.variables[time_name].units,
+                                 calendar = f.variables[time_name].calendar).T
     if lat_name is None:
         lat = None
     else:
@@ -1575,6 +1561,13 @@ def MakeComparable(ref,com,**keywords):
     mask_ref = keywords.get("mask_ref",False)
     eps      = keywords.get("eps"     ,30./60./24.)
     window   = keywords.get("window"  ,0.)
+
+    # The reference might be a time series only and not have any site
+    # or spatial data associated with it
+    if ((ref.spatial is False and ref.ndata is     None) and
+        (com.spatial is True  or  com.ndata is not None)):
+        msg = "\n  The reference dataset contains no spatial information:\n"
+        raise VarsNotComparable(msg)
     
     # If one variable is temporal, then they both must be
     if ref.temporal != com.temporal:
@@ -1586,7 +1579,7 @@ def MakeComparable(ref,com,**keywords):
     if ref.spatial and not com.spatial:
         msg = "\n  The reference data is spatial but the comparison data is not\n"
         raise VarsNotComparable(msg)
-
+    
     # If the reference represents observation sites, extract them from
     # the comparison
     if ref.ndata is not None and com.spatial: com = com.extractDatasites(ref.lat,ref.lon)
@@ -1605,7 +1598,8 @@ def MakeComparable(ref,com,**keywords):
             msg += "    Maximum difference lat = %.f, lon = %.f" % (np.abs((ref.lat-com.lat)).max(),
                                                                     np.abs((ref.lon-com.lon)).max())
             raise VarsNotComparable(msg)
-        
+
+    
     if ref.temporal:
 
         # If the reference time scale is significantly larger than the
@@ -1640,18 +1634,18 @@ def MakeComparable(ref,com,**keywords):
         # Check that we now are on the same time intervals
         if ref.time.size != com.time.size:
             msg  = "\n  Datasets have differing numbers of time intervals:\n"
-            msd += "    reference = %d, comparison = %d\n" % (ref.time.size,com.time.size)
-            raise VarsNotComparable(msg)
-        if not np.allclose(ref.time_bnds,com.time_bnds,atol=0.1*ref.dt):
+            msg += "    reference = %d, comparison = %d\n" % (ref.time.size,com.time.size)
+            raise VarsNotComparable(msg)        
+        if not np.allclose(ref.time_bnds,com.time_bnds,atol=0.75*ref.dt):
             msg  = "\n  Datasets are defined on different time intervals"
             raise VarsNotComparable(msg)
                                    
     # Apply the reference mask to the comparison dataset and
     # optionally vice-versa
     mask = ref.interpolate(time=com.time,lat=com.lat,lon=com.lon)
-    com.data.mask = mask.data.mask
+    com.data.mask += mask.data.mask
     if mask_ref:
         mask = com.interpolate(time=ref.time,lat=ref.lat,lon=ref.lon)
-        ref.data.mask = mask.data.mask
+        ref.data.mask += mask.data.mask
             
     return ref,com

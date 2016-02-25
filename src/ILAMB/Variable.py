@@ -215,7 +215,9 @@ class Variable:
         for i in range(self.data.ndim-1): dt = np.expand_dims(dt,axis=-1)
 
         # approximate the integral by nodal integration (rectangle rule)
+        np.seterr(over='ignore',under='ignore')
         integral = (self.data[ind]*dt).sum(axis=0)
+        np.seterr(over='raise',under='raise')
         
         # the integrated array should be masked where *all* data in time was previously masked
         mask = False
@@ -672,9 +674,15 @@ class Variable:
             
         V = dataset.createVariable(self.name,"double",dim,zlib=True)
         V.setncattr("units",self.unit)
-        V.setncattr("max",self.data.max())
-        V.setncattr("min",self.data.min())
-        V[...] = self.data
+        try:
+            V.setncattr("max",self.data.max())
+            V.setncattr("min",self.data.min())
+        except:
+            pass
+        if type(self.data) is np.ma.core.MaskedConstant:
+            V[...] = np.nan
+        else:
+            V[...] = self.data
 
     def plot(self,ax,**keywords):
         """Plots the variable on the given matplotlib axis
@@ -1056,7 +1064,8 @@ class Variable:
             self_int = self
             var_int  = var
         R   = self_int.correlation(var_int,ctype="spatial") # add regions
-
+        if type(R.data) is np.ma.core.MaskedConstant: R.data = 0.
+        
         # Restore masks
         self.data.mask = rem_mask0
         var.data.mask  = rem_mask
@@ -1064,11 +1073,15 @@ class Variable:
         # Put together scores, we clip the standard deviation of both
         # variables at the same small amount, meant to avoid division
         # by zero errors.
-        R0    = 1.0
-        std0  = std0.clip(1e-12)
-        std   = std .clip(1e-12)
-        std  /= std0
-        score = 4.0*(1.0+R.data)/((std+1.0/std)**2 *(1.0+R0))
+        try:
+            R0    = 1.0
+            std0  = std0.clip(1e-12)
+            std   = std .clip(1e-12)
+            std  /= std0
+            score = 4.0*(1.0+R.data)/((std+1.0/std)**2 *(1.0+R0))
+        except:
+            std   = np.asarray([0.0])
+            score = np.asarray([0.0])
         std   = Variable(data=std  ,name="normalized_spatial_std_of_%s_over_%s" % (self.name,region),unit="-")
         score = Variable(data=score,name="spatial_distribution_score_of_%s_over_%s" % (self.name,region),unit="-")
         return std,R,score

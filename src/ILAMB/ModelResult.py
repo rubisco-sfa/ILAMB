@@ -1,6 +1,5 @@
 import glob
 import ilamblib as il
-from constants import convert
 import numpy as np
 from netCDF4 import Dataset
 import os
@@ -191,12 +190,6 @@ class ModelResult():
             break
         v = CombineVariables(V)
 
-        # adjust the time range
-        begin  = np.argmin(np.abs(v.time_bnds[0,:]-initial_time))
-        end    = np.argmin(np.abs(v.time_bnds[1,:]-final_time  ))
-        v.time      = v.time     [  begin:end]
-        v.time_bnds = v.time_bnds[:,begin:end]
-        v.data      = v.data     [  begin:end,...]
         return v
 
         
@@ -210,6 +203,7 @@ class ModelResult():
         unit  = expression
         mask  = None
         time  = None
+        tbnd  = None
         lat   = None
         lon   = None
         ndata = None
@@ -217,10 +211,7 @@ class ModelResult():
 
         for arg in sympify(expression).free_symbols:
             try:
-                var  = self.extractTimeSeries(arg.name,
-                                              lats=lats,lons=lons,
-                                              initial_time = initial_time,
-                                              final_time   = final_time)
+                var  = self.extractTimeSeries(arg.name,lats=lats,lons=lons)
             except:
                 raise il.VarNotInModel()
             
@@ -235,6 +226,10 @@ class ModelResult():
                 time  = var.time
             else:
                 assert(np.allclose(time,var.time))
+            if tbnd is None:
+                tbnd  = var.time_bnds
+            else:
+                assert(np.allclose(tbnd,var.time_bnds))
             if lat is None:
                 lat  = var.lat
             else:
@@ -258,11 +253,12 @@ class ModelResult():
         mask  += np.isnan(result)
         result = np.ma.masked_array(np.nan_to_num(result),mask=mask)
         
-        return Variable(data  = np.ma.masked_array(result,mask=mask),
-                        unit  = unit,
-                        name  = variable_name,
-                        time  = time,
-                        lat   = lat,
-                        lon   = lon,
-                        area  = area,
-                        ndata = ndata)
+        return Variable(data      = np.ma.masked_array(result,mask=mask),
+                        unit      = unit,
+                        name      = variable_name,
+                        time      = time,
+                        time_bnds = tbnd,
+                        lat       = lat,
+                        lon       = lon,
+                        area      = area,
+                        ndata     = ndata)
