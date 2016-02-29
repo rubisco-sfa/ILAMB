@@ -1,4 +1,5 @@
 from Confrontation import Confrontation
+from ConfNBP import ConfNBP
 import os,re
 from netCDF4 import Dataset
 import numpy as np
@@ -32,6 +33,7 @@ class Node(object):
         self.plot_unit  = None
         self.space_mean = True
         self.relationships = None
+        self.ctype         = None
         
     def __str__(self):
         if self.parent is None: return ""
@@ -106,6 +108,7 @@ def InheritVariableNames(node):
     if node.alternate_variable is None: node.alternate_variable = node.parent.alternate_variable
     if node.derived            is None: node.derived            = node.parent.derived
     if node.colormap           is None: node.colormap           = node.parent.colormap
+    if node.ctype              is None: node.ctype              = node.parent.ctype
     
 def ParseScoreboardConfigureFile(filename):
     root = Node(None)
@@ -154,6 +157,10 @@ def ParseScoreboardConfigureFile(filename):
     TraversePostorder(root,InheritVariableNames)
     return root
 
+
+ConfrontationTypes = { None    : Confrontation,
+                      "ConfNBP": ConfNBP}
+
 class Scoreboard():
     """
     A class for managing confrontations
@@ -166,19 +173,21 @@ class Scoreboard():
             if not node.isLeaf(): return
             try:
                 if node.colormap is None: node.colormap = "jet"
-                node.confrontation = Confrontation(node.name,
-                                                   "%s/%s" % (os.environ["ILAMB_ROOT"],node.source),
-                                                   node.variable,
-                                                   alternate_vars=[node.alternate_variable],
-                                                   regions=regions,
-                                                   cmap=node.colormap,
-                                                   output_path=node.path,
-                                                   land=node.land,
-                                                   derived=node.derived,
-                                                   space_mean=node.space_mean,
-                                                   table_unit=node.table_unit,
-                                                   plot_unit=node.plot_unit,
-                                                   relationships=node.relationships)
+                
+                Constructor = ConfrontationTypes[node.ctype]
+                node.confrontation = Constructor(node.name,
+                                                 "%s/%s" % (os.environ["ILAMB_ROOT"],node.source),
+                                                 node.variable,
+                                                 alternate_vars=[node.alternate_variable],
+                                                 regions=regions,
+                                                 cmap=node.colormap,
+                                                 output_path=node.path,
+                                                 land=node.land,
+                                                 derived=node.derived,
+                                                 space_mean=node.space_mean,
+                                                 table_unit=node.table_unit,
+                                                 plot_unit=node.plot_unit,
+                                                 relationships=node.relationships)
             except Exception,e:
                 print "WARNING: Datafile for %s not found: %s/%s" % (node.variable,os.environ["ILAMB_ROOT"],node.source)
 
