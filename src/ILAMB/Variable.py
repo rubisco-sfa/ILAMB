@@ -155,9 +155,11 @@ class Variable:
         s += "{0:>20}: ".format("isSpatial")  + str(self.spatial)  + space + "\n"
         s += "{0:>20}: ".format("nDatasites") + ndata              + "\n"
         s += "{0:>20}: ".format("dataShape")  + "%s\n" % (self.data.shape,)
+        np.seterr(over='ignore',under='ignore')
         s += "{0:>20}: ".format("dataMax")    + "%e\n" % self.data.max()
         s += "{0:>20}: ".format("dataMin")    + "%e\n" % self.data.min()
         s += "{0:>20}: ".format("dataMean")   + "%e\n" % self.data.mean()
+        np.seterr(over='warn',under='warn')
         return s
 
     def integrateInTime(self,**keywords):
@@ -1111,4 +1113,26 @@ class Variable:
                         area      = self.area)
         
 
-        
+    def accumulateInTime(self):
+        """
+        """
+        if not self.temporal: raise il.NotTemporalVariable
+        n       = self.time.size
+        shp     = (n+1,) + self.data.shape[1:]
+        time    = np.zeros(n+1)
+        data    = np.ma.zeros(shp)
+        time[0] = self.time_bnds[0,0]
+        for i in range(n):
+            t0   = self.time_bnds[0,i]
+            tf   = self.time_bnds[1,i]
+            isum = self.integrateInTime(t0=t0,tf=tf)
+            time[i+1]     = tf
+            data[i+1,...] = data[i,...] + isum.data
+
+        return Variable(name      = "cumulative_sum_%s" % self.name,
+                        unit      = isum.unit,
+                        time      = time,
+                        data      = data,
+                        lat       = self.lat,
+                        lon       = self.lon,
+                        area      = self.area)

@@ -59,7 +59,7 @@ class ConfNBP(Confrontation):
         self.output_path    = keywords.get("output_path","_build/%s/" % self.name)
         self.alternate_vars = keywords.get("alternate_vars",[])
         self.derived        = keywords.get("derived",None)
-        self.regions        = keywords.get("regions",["global"])
+        self.regions        = ["global"]
         self.data           = None
         self.cmap           = keywords.get("cmap","jet")
         self.land           = keywords.get("land",False)
@@ -140,69 +140,47 @@ class ConfNBP(Confrontation):
         """
         # Grab the data
         obs,mod = self.stageData(m)
+        
+        obs_sum  = obs.accumulateInTime().convert("Pg")
+        mod_sum  = mod.accumulateInTime().convert("Pg")
+        
+        obs_mean   = obs.integrateInTime(mean=True)
+        mod_mean   = mod.integrateInTime(mean=True)
+        bias       = obs.bias(mod)
+        rmse       = obs.rmse(mod)
+        bias_score = il.Score(bias,obs_mean)
+        rmse_score = il.Score(rmse,obs_mean)
+        
+        # change names to make things easier to parse later
+        obs       .name = "spaceint_of_nbp_over_global"
+        mod       .name = "spaceint_of_nbp_over_global"
+        obs_sum   .name = "accumulate_of_nbp_over_global"
+        mod_sum   .name = "accumulate_of_nbp_over_global"
+        obs_mean  .name = "period_mean_of_nbp_over_global"
+        mod_mean  .name = "period_mean_of_nbp_over_global"
+        bias      .name = "bias_of_nbp_over_global"       
+        rmse      .name = "rmse_of_nbp_over_global"       
+        bias_score.name = "bias_score_of_nbp_over_global" 
+        rmse_score.name = "rmse_score_of_nbp_over_global" 
 
-        # Open a dataset for recording the results of this
-        # confrontation, record for the benchmark if we are the master
-        # process.
+        # Dump to files
         results = Dataset("%s/%s_%s.nc" % (self.output_path,self.name,m.name),mode="w")
         results.setncatts({"name" :m.name, "color":m.color})
-        benchmark_results = None
-        fname = "%s/%s_Benchmark.nc" % (self.output_path,self.name)
-        if self.master:
-            benchmark_results = Dataset(fname,mode="w")
-            benchmark_results.setncatts({"name" :"Benchmark", "color":np.asarray([0.5,0.5,0.5])})
-
-        obs_mean = obs.integrateInTime(mean=True)
-        mod_mean = mod.integrateInTime(mean=True)
-        bias     = obs.bias(mod)
-        rmse     = obs.rmse(mod)
-
-        print rmse.data
-        
-        # close files
+        mod       .toNetCDF4(results)
+        mod_sum   .toNetCDF4(results)
+        mod_mean  .toNetCDF4(results)
+        bias      .toNetCDF4(results)
+        rmse      .toNetCDF4(results)
+        bias_score.toNetCDF4(results)
+        rmse_score.toNetCDF4(results)
         results.close()
-        if self.master: benchmark_results.close()
-                
-    def determinePlotLimits(self):
-        """Determine the limits of all plots which are inclusive of all ranges.
-
-        The routine will open all netCDF files in the output path and
-        add the maximum and minimum of all variables which are
-        designated to be plotted. If legends are desired for a given
-        plot, these are rendered here as well. This routine should be
-        called before calling any plotting routine.
-
-        """
-        pass
-    
-    def computeOverallScore(self,m):
-        """Computes the overall composite score for a given model.
-
-        This routine will try to open the model's netCDF file which
-        contains the analysis results, and then loop over variables
-        which contribute to the overall score. This number is added to
-        the dataset as a new variable of scalar type.
-
-        """
-        pass
-    
-    def compositePlots(self):
-        """Renders plots which display information of all models.
-
-        This routine renders plots which contain information from all
-        models. Thus only the master process will run this routine,
-        and only after all analysis has finished.
-
-        """
-        pass
         
-    def modelPlots(self,m):
-        """For a given model, create the plots of the analysis results.
-
-        This routine will extract plotting information out of the
-        netCDF file which results from the analysis and create
-        plots. Note that determinePlotLimits should be called before
-        this routine.
-
-        """
-        pass
+        if self.master:
+            results = Dataset("%s/%s_Benchmark.nc" % (self.output_path,self.name),mode="w")
+            results.setncatts({"name" :"Benchmark", "color":np.asarray([0.5,0.5,0.5])})
+            obs     .toNetCDF4(results)
+            obs_sum .toNetCDF4(results)
+            obs_mean.toNetCDF4(results)
+            results.close()
+            
+        

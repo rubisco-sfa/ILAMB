@@ -367,6 +367,8 @@ class Confrontation:
         corr   = {}
         std    = {}
         cycle  = {}
+        has_cycle = False
+        has_std   = False
         for fname in glob.glob("%s/*.nc" % self.output_path):
             dataset = Dataset(fname)
             models.append(dataset.getncattr("name"))
@@ -378,16 +380,21 @@ class Confrontation:
                 key = [v for v in dataset.variables.keys() if ("corr_" in v and region in v)]
                 if len(key)>0: corr [region].append(Variable(filename=fname,variable_name=key[0]).data.data)
                 key = [v for v in dataset.variables.keys() if ("std_"  in v and region in v)]
-                if len(key)>0: std  [region].append(Variable(filename=fname,variable_name=key[0]).data.data)
+                if len(key)>0:
+                    has_std = True
+                    std  [region].append(Variable(filename=fname,variable_name=key[0]).data.data)
                 key = [v for v in dataset.variables.keys() if ("cycle_"  in v and region in v)]
-                if len(key)>0: cycle[region].append(Variable(filename=fname,variable_name=key[0]))
+                if len(key)>0:
+                    has_cycle = True
+                    cycle[region].append(Variable(filename=fname,variable_name=key[0]))
                 
         # composite annual cycle plot
-        self.layout.addFigure("Spatially integrated regional mean",
-                              "compcycle",
-                              "RNAME_compcycle.png",
-                              side   = "CYCLES",
-                              legend = True)
+        if has_cycle:
+            self.layout.addFigure("Spatially integrated regional mean",
+                                  "compcycle",
+                                  "RNAME_compcycle.png",
+                                  side   = "CYCLES",
+                                  legend = True)
         for region in self.regions:
             if not cycle.has_key(region): continue
             fig,ax = plt.subplots(figsize=(6.8,2.8),tight_layout=True)
@@ -420,11 +427,12 @@ class Confrontation:
         plt.close()
         
         # spatial distribution Taylor plot
-        self.layout.addFigure("Temporally integrated period mean",
-                              "spatial_variance",
-                              "RNAME_spatial_variance.png",
-                              side   = "SPATIAL DISTRIBUTION",
-                              legend = True)       
+        if has_std:
+            self.layout.addFigure("Temporally integrated period mean",
+                                  "spatial_variance",
+                                  "RNAME_spatial_variance.png",
+                                  side   = "SPATIAL DISTRIBUTION",
+                                  legend = True)       
         if "Benchmark" in models: colors.pop(models.index("Benchmark"))
         for region in self.regions:
             if not (std.has_key(region) and corr.has_key(region)): continue
@@ -716,6 +724,34 @@ class Confrontation:
         # write the HTML page
         f = file("%s/%s.html" % (self.output_path,self.name),"w")
         self.layout.setMetrics(metrics)
+
+        """
+        print "\n\n",self.longname
+        import sys
+        def dump(obj, nested_level=0, output=sys.stdout):
+            spacing = '   '
+            if type(obj) == dict:
+                print >> output, '%s{' % ((nested_level) * spacing)
+                for k, v in obj.items():
+                    if hasattr(v, '__iter__'):
+                        print >> output, '%s%s:' % ((nested_level + 1) * spacing, k)
+                        dump(v, nested_level + 1, output)
+                    else:
+                        print >> output, '%s%s: %s' % ((nested_level + 1) * spacing, k, v.name)
+                print >> output, '%s}' % (nested_level * spacing)
+            elif type(obj) == list:
+                print >> output, '%s[' % ((nested_level) * spacing)
+                for v in obj:
+                    if hasattr(v, '__iter__'):
+                        dump(v, nested_level + 1, output)
+                    else:
+                        print >> output, '%s%s' % ((nested_level + 1) * spacing, v.name)
+                print >> output, '%s]' % ((nested_level) * spacing)
+            else:
+                print >> output, '%s%s' % (nested_level * spacing, obj.name)
+        dump(metrics)
+        """
+        
         f.write(str(self.layout))
         f.close()
 

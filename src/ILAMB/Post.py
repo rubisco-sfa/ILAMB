@@ -251,17 +251,6 @@ class HtmlLayout():
 
     def generateMetricTable(self):
 
-        # Local function to find how deep the metric dictionary goes
-        def _findDictDepth(metrics):
-            tmp   = metrics
-            depth = 0
-            while True:
-                if type(tmp) is type({}):
-                    tmp    = tmp[tmp.keys()[0]]
-                    depth += 1
-                else:
-                    return depth
-
         # Sorting function
         def _sortMetrics(name,priority=["Bias","RMSE","Phase","Seasonal","Interannual","Spatial","Score","Overall"]):
             val = 1.
@@ -279,14 +268,10 @@ class HtmlLayout():
         if regions is None: regions = ['']
         data = []
         for model in models:
-            if _findDictDepth(metrics) == 2:
-                for key in metrics[model].keys():
+            for region in regions:
+                if not metrics[model].has_key(region): continue
+                for key in metrics[model][region].keys():
                     if data.count(key) == 0: data.append(key)
-            else:
-                for region in regions:
-                    if not metrics[model].has_key(region): continue
-                    for key in metrics[model][region].keys():
-                        if data.count(key) == 0: data.append(key)
 
         # Sorts
         models.sort(key=lambda key: key.upper())

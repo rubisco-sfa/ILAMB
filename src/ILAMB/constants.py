@@ -159,6 +159,14 @@ time_opts["spaceint"] = { "section"    : "Spatially integrated regional mean",
                           "ticklabels" : None,
                           "ylabel"     : "unit"}
 
+time_opts["accumulate"] = { "section"    : "Spatially integrated regional mean",
+                          "haslegend"  : False,
+                          "pattern"    : "MNAME_RNAME_accumulate.png",
+                          "sidelbl"    : "ACCUMULATION",
+                          "ticks"      : None,
+                          "ticklabels" : None,
+                          "ylabel"     : "unit"}
+
 time_opts["cycle"]    = { "section"    : "Spatially integrated regional mean",
                           "haslegend"  : False,
                           "pattern"    : "MNAME_RNAME_cycle.png",
