@@ -877,7 +877,10 @@ class Variable:
             xy   = (x*y).sum(axis=axes)
             x2   = (x*x).sum(axis=axes)
             y2   = (y*y).sum(axis=axes)
-            r    = (xy-n*xbar*ybar)/(np.sqrt(x2-n*xbar*xbar)*np.sqrt(y2-n*ybar*ybar))
+            try:
+                r = (xy-n*xbar*ybar)/(np.sqrt(x2-n*xbar*xbar)*np.sqrt(y2-n*ybar*ybar))
+            except:
+                r = np.nan
             return r
         
         # checks on data consistency
