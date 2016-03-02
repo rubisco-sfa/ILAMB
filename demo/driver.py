@@ -1,13 +1,9 @@
-"""This demo script is intended to show how this package's data
-structures may be used to run the benchmark on the model results
-cateloged in Mingquan's ftp site.
-"""
 from ILAMB.Scoreboard import Scoreboard
 from ILAMB.ModelResult import ModelResult
 from ILAMB import ilamblib as il
-import numpy as np
-import os,time,sys
+import os,time,sys,argparse
 from mpi4py import MPI
+import numpy as np
 
 np.seterr(all='raise')
 
@@ -21,7 +17,7 @@ OK   = '\033[92m'
 FAIL = '\033[91m'
 ENDC = '\033[0m'
 
-import argparse
+
 parser = argparse.ArgumentParser(description='')
 parser.add_argument('--root', dest="root", metavar='root', type=str, nargs=1,
                     help='root at which to search for models')

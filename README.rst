@@ -31,5 +31,5 @@ Once you have done this, execute the driver script found in the directory of dem
   $ cd demo
   $ python driver.py --config sample.cfg --root $ILAMB_ROOT/MODELS/ --regions global
 
-The driver is setup to use the ILAMB python package to compare the GPP of two models included in the sample data to the Fluxnet Global MTE benchmark dataset. The script produces a directory structure which contains a webpage that summarizes results from the confrontation. To view it, open ``./demo/_build/GPPFluxnetGlobalMTE/GPPFluxnetGlobalMTE.html`` in a web browser or explore the contents of the directory manually.
+  
 
