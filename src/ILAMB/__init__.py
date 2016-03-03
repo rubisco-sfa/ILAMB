@@ -10,7 +10,6 @@ requires = {
     "numpy"                : "1.10",
     "matplotlib"           : "1.5",
     "netCDF4"              : "1.1.4",
-    "mpi4py"               : "1.3.1",
     "cfunits"              : "1.1.4",
     "mpl_toolkits.basemap" : "1.0.7"
 }
