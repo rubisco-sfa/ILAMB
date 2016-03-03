@@ -4,6 +4,7 @@ import os,re
 from netCDF4 import Dataset
 import numpy as np
 from Post import BenchmarkSummaryFigure
+from ilamblib import MisplacedData
 
 global_print_node_string  = ""
 global_confrontation_list = []
@@ -192,10 +193,10 @@ class Scoreboard():
                                                  table_unit=node.table_unit,
                                                  plot_unit=node.plot_unit,
                                                  relationships=node.relationships)
-                
+
                 if verbose and master: print ("    {0:>%d}\033[92m Initialized\033[0m" % max_name_len).format(node.confrontation.longname)
                 
-            except Exception,e:
+            except MisplacedData:
 
                 if (master and verbose): 
                     longname = node.path
