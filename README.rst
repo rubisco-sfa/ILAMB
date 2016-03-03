@@ -22,14 +22,14 @@ You will note the ``--user`` flag in both install lines--this installs the packa
 Next Steps
 ----------
 
-The software project contains no data. To see if your installation works as intended you will need to download and extract a `sample <http://www.climate.ornl.gov/~ncf/ILAMB/minimal_ILAMB_data.tgz>`_ dataset. Then you need to set an environment variable to point to this dataset::
+The software project contains no data. To see if your installation works as intended you will need to download and extract a `sample <http://climate.ornl.gov/~ncf/ILAMB/minimal_ILAMB_data.tgz>`_ dataset. Then you need to set an environment variable to point to this dataset::
 
   $ export ILAMB_ROOT=PATH_TO_THE_EXTRACTED_DATA
 
 Once you have done this, execute the driver script found in the directory of demos::
 
   $ cd demo
-  $ python driver.py --config sample.cfg --root $ILAMB_ROOT/MODELS/ --regions global
+  $ python driver.py --config sample.cfg --model_root $ILAMB_ROOT/MODELS/ --regions global
 
   
 
