@@ -7,8 +7,8 @@ import platform
 
 # These are guesses at actual requirements
 requires = {
-    "numpy"                : "1.10",
-    "matplotlib"           : "1.5",
+    "numpy"                : "1.9.2",
+    "matplotlib"           : "1.4.3",
     "netCDF4"              : "1.1.4",
     "cfunits"              : "1.1.4",
     "mpl_toolkits.basemap" : "1.0.7"
