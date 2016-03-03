@@ -167,6 +167,9 @@ class Scoreboard():
     """
     def __init__(self,filename,regions=["global"],verbose=False,master=True):
 
+        if not os.environ.has_key('ILAMB_ROOT'):
+            raise ValueError("You must set the environment variable 'ILAMB_ROOT'")
+        
         self.tree = ParseScoreboardConfigureFile(filename)
         max_name_len = 45
 
