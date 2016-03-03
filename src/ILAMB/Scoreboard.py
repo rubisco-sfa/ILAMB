@@ -165,15 +165,16 @@ class Scoreboard():
     """
     A class for managing confrontations
     """
-    def __init__(self,filename,regions=["global"]):
-        
+    def __init__(self,filename,regions=["global"],verbose=False,master=True):
+
         self.tree = ParseScoreboardConfigureFile(filename)
-        
+        max_name_len = 45
+
         def _initConfrontation(node):
             if not node.isLeaf(): return
+            
             try:
                 if node.colormap is None: node.colormap = "jet"
-                
                 Constructor = ConfrontationTypes[node.ctype]
                 node.confrontation = Constructor(node.name,
                                                  "%s/%s" % (os.environ["ILAMB_ROOT"],node.source),
@@ -188,9 +189,18 @@ class Scoreboard():
                                                  table_unit=node.table_unit,
                                                  plot_unit=node.plot_unit,
                                                  relationships=node.relationships)
+                
+                if verbose and master: print ("    {0:>%d}\033[92m Initialized\033[0m" % max_name_len).format(node.confrontation.longname)
+                
             except Exception,e:
-                print "WARNING: Datafile for %s not found: %s/%s" % (node.variable,os.environ["ILAMB_ROOT"],node.source)
 
+                if (master and verbose): 
+                    longname = node.path
+                    longname = longname.replace("//","/").replace("./","").replace("_build/","")
+                    if longname[-1] == "/": longname = longname[:-1]
+                    longname = "/".join(longname.split("/")[1:])
+                    print ("    {0:>%d}\033[91m MisplacedData\033[0m" % max_name_len).format(longname)
+                
         def _buildDirectories(node):
             if node.name is None: return
             path   = ""
@@ -199,9 +209,9 @@ class Scoreboard():
                 path   = "%s/%s" % (parent.name.replace(" ",""),path)
                 parent = parent.parent
             path = "./_build/%s" % path
-            if not os.path.isdir(path): os.mkdir(path)
+            if not os.path.isdir(path) and master: os.mkdir(path)
             node.path = path
-            
+
         if not os.path.isdir("./_build"): os.mkdir("./_build")        
         TraversePreorder(self.tree,_buildDirectories)
         TraversePreorder(self.tree,_initConfrontation)

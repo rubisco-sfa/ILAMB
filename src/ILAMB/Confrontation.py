@@ -74,7 +74,7 @@ class Confrontation:
         self.plot_unit      = keywords.get("plot_unit",None)
         self.space_mean     = keywords.get("space_mean",True)        
         self.relationships  = keywords.get("relationships",None)
-
+        
         # Make sure the source data exists
         try:
             os.stat(self.srcdata)
