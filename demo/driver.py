@@ -250,10 +250,7 @@ def WorkPost(M,C,W,S,verbose=False):
     maxCL = 45; maxML = 20
     
     # work done on just the master confrontation
-    for c in C:
-        c.determinePlotLimits()
-        c.compositePlots()
-        c.generateHtml()
+    for c in C: c.determinePlotLimits()
         
     for w in W:
         m,c = w
@@ -263,6 +260,10 @@ def WorkPost(M,C,W,S,verbose=False):
         dt = time.time()-t0
         if verbose: print ("    {0:>%d} {1:<%d} %sCompleted%s {2:>5.1f} s" % (maxCL,maxML,OK,ENDC)).format(c.longname,m.name,dt)
         sys.stdout.flush()
+        
+    for c in C:
+        c.compositePlots()
+        c.generateHtml()
     
     if rank==0:
         S.createHtml(M)
