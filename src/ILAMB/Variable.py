@@ -163,7 +163,7 @@ class Variable:
         return s
 
     def integrateInTime(self,**keywords):
-        r"""Integrates the variable over time period.
+        r"""Integrates the variable over a given time period.
 
         Uses nodal integration to integrate to approximate 
 
@@ -197,7 +197,7 @@ class Variable:
         -------
         integral : ILAMB.Variable.Variable
             a Variable instance with the integrated value along with the
-            appropriate name and unit change.
+            appropriate name and unit change
 
         """
         if not self.temporal: raise il.NotTemporalVariable()
@@ -261,11 +261,27 @@ class Variable:
                         ndata = self.ndata)
 
     def integrateInSpace(self,region=None,mean=False):
-        """Integrates the variable over space.
+        r"""Integrates the variable over a given region.
 
-        Uses nodal integration to integrate the variable over the
-        specified region. If no region is specified, then perform the
-        integration over the extent of the dataset.
+        Uses nodal integration to integrate to approximate 
+
+        .. math:: \int_{\Omega} v(\mathbf{x},\dots)\ d\Omega
+
+        The arguments of the integrand reflect that while it must be
+        at least defined in space, the remaining arguments are
+        flexible. The variable :math:`\Omega` represents the desired
+        region over which we will integrate. If no region is
+        specified, the variable will be integrated over the extent of
+        its spatial domain. If the mean function value over time is
+        desired, this routine will approximate
+
+        .. math:: \frac{1}{A(\Omega)} \int_{\Omega} v(\mathbf{x},\dots)\ d\Omega
+        
+        again by nodal integration. The spatial area which we divide
+        by :math:`A(\Omega)` is the non-masked area of the given
+        region. This means that if a function has some values masked
+        or marked as invalid, we do not penalize the average value by
+        including this as a point at which data is expected.
         
         Parameters
         ----------
@@ -279,6 +295,7 @@ class Variable:
         integral : ILAMB.Variable.Variable
             a Variable instace with the integrated value along with the
             appropriate name and unit change.
+
         """
         if not self.spatial: raise il.NotSpatialVariable()
         if region is None:
@@ -363,7 +380,7 @@ class Variable:
         return mean,std
     
     def annualCycle(self):
-        """Returns annual cycle information for the variable.
+        """Computes mean annual cycle information (climatology) for the variable.
         
         For each site/cell in the variable, computes the mean,
         standard deviation, maximum and minimum values for each month
@@ -426,7 +443,7 @@ class Variable:
                         lat=self.lat,lon=self.lon,area=self.area,ndata=self.ndata)
 
     def extractDatasites(self,lat,lon):
-        """Extracts a variable at a set of latitude and longitude.
+        """Extracts a variable at sites defined by a set of latitude and longitude.
 
         Parameters
         ----------
@@ -514,6 +531,17 @@ class Variable:
 
     def convert(self,unit,density=998.2):
         """Convert the variable to a given unit.
+
+        We use the UDUNITS library via the cfunits python interface to
+        convert the variable's unit. Additional support is provided
+        for unit conversions in which substance information is
+        required. For example, in quantities such as precipitation it
+        is common to have data in the form of a mass rate per unit
+        area [kg s-1 m-2] yet desire it in a linear rate [m s-1]. This
+        can be accomplished if the density of the substance is
+        known. We assume here that water is the substance, but this
+        can be changed by specifying the density when calling the
+        function.
 
         Parameters
         ----------
@@ -687,7 +715,7 @@ class Variable:
             V[...] = self.data
 
     def plot(self,ax,**keywords):
-        """Plots the variable on the given matplotlib axis
+        """Plots the variable on the given matplotlib axis.
 
         The behavior of this routine depends on the type of variable
         specified. If the data is purely temporal, then the plot will
@@ -714,8 +742,12 @@ class Variable:
             The maximum plotted value
         region : str, optional
             The region on which to display a spatial variable
-        cmap : str
+        cmap : str, optional
             The name of the colormap to be used in plotting the spatial variable
+        ticks : array of floats, optional
+            Defines the locations of xtick
+        ticklabels : array of strings, optional
+            Defines the labels of the xticks
         """
         lw     = keywords.get("lw",1.0)
         alpha  = keywords.get("alpha",1.0)
@@ -752,7 +784,7 @@ class Variable:
         return ax
 
     def interpolate(self,time=None,lat=None,lon=None):
-        """Use nearest-neighbor interpolation to interpolate time and space at given values.
+        """Use nearest-neighbor interpolation to interpolate time and/or space at given values.
 
         Parameters
         ----------
@@ -800,12 +832,12 @@ class Variable:
                         time = output_time)
 
     def phaseShift(self,var,method="max_of_annual_cycle"):
-        """Compute the phase shift between a variable and this variable.
+        """Computes the phase shift between a variable and this variable.
         
         Finds the phase shift as the time between extrema of the
         annual cycles of the variables. Note that if this var and/or
         the given variable are not already annual cycles, they will be
-        computed but not returned. The shift will then be returned as 
+        computed but not returned. 
 
         Parameters
         ----------
@@ -847,7 +879,7 @@ class Variable:
         return shift
     
     def correlation(self,var,ctype,region=None):
-        """Compute the correlation between two variables.
+        """Computes the correlation between two variables.
 
         Parameters
         ----------
@@ -916,11 +948,17 @@ class Variable:
                         lat=out_lat,lon=out_lon,area=out_area)
     
     def bias(self,var):
-        """rethink this
+        """Computes the bias between a given variable and this variable.
 
-        if not temporal data is passed in, assume that these are the
-        means and simply return the difference.
+        Parameters
+        ----------
+        var : ILAMB.Variable.Variable
+            The variable with which we will measure bias
 
+        Returns
+        -------
+        bias : ILAMB.Variable.Variable
+            the bias
         """
         # If not a temporal variable, then we assume that the user is
         # passing in mean data and return the difference.
@@ -965,8 +1003,18 @@ class Variable:
         return bias
     
     def rmse(self,var):
-        """
-        UNTESTED
+        """Computes the RMSE between a given variable and this variable.
+
+        Parameters
+        ----------
+        var : ILAMB.Variable.Variable
+            The variable with which we will measure RMSE
+
+        Returns
+        -------
+        RMSE : ILAMB.Variable.Variable
+            the RMSE
+
         """
         # If not a temporal variable, then we assume that the user is
         # passing in mean data and return the difference.
@@ -1000,7 +1048,7 @@ class Variable:
             mask = var.data.mask+self.data.mask
         else:
             raise il.NotSpatialVariable("Cannot take rmse of scalars")
-        # Finally we return the temporal mean of the difference
+        # Finally we return the temporal mean of the difference squared
         np.seterr(over='ignore',under='ignore')
         data *= data
         np.seterr(over='raise',under='raise')
@@ -1013,8 +1061,15 @@ class Variable:
         return rmse
     
     def interannualVariability(self):
-        """
-        UNTESTED
+        """Computes the interannual variability.
+
+        The internannual variability in this case is defined as the
+        standard deviation of the data in the temporal dimension.
+
+        Returns
+        -------
+        iav : ILAMB.Variable.Variable
+            the interannual variability variable
         """
         if not self.temporal: raise il.NotTemporalVariable
         np.seterr(over='ignore',under='ignore')
@@ -1026,8 +1081,34 @@ class Variable:
                         lat=self.lat,lon=self.lon,area=self.area)
 
     def spatialDistribution(self,var,region="global"):
-        """
-        UNTESTED
+        r"""Evaluates how well the input variable is spatially distributed relative to this variable.
+        
+        This routine returns the normalized standard deviation and
+        correlation (needed for a Taylor plot) as well as a score
+        given as
+
+        .. math:: \frac{4(1+R)}{((\sigma+\frac{1}{\sigma})^2 (1+R_0))}
+
+        where :math:`R` is the correlation, :math:`R_0=1` is the
+        reference correlation, and :math:`\sigma` is the normalized
+        standard deviation.
+
+        Parameters
+        ----------
+        var : ILAMB.Variable.Variable
+            the comparison variable
+        region : str, optional
+            the name of the region over which to check the spatial distribution
+        
+        Returns
+        -------
+        std : ILAMB.Variable.Variable
+            the normalized standard deviation of the input variable
+        R : ILAMB.Variable.Variable
+            the correlation of the input variable
+        score : ILAMB.Variable.Variable
+            the spatial distribution score
+
         """
         assert self.temporal == var.temporal == False
 
@@ -1092,7 +1173,20 @@ class Variable:
         return std,R,score
 
     def coarsenInTime(self,intervals,window=0.):
-        """
+        """Compute the mean function value in each of the input intervals.
+
+        Parameters
+        ----------
+        intervals : array of shape (2,n) 
+            An array of n intervals where the first entry is the
+            beginning and the second entry is the end of the interval
+        window : float, optional
+            Extend each interval before and after by this amount of time
+
+        Returns
+        -------
+        coarse : ILAMB.Variable.Variable
+            The coarsened variable
         """
         if not self.temporal: raise il.NotTemporalVariable
         assert intervals.ndim == 2
@@ -1115,9 +1209,23 @@ class Variable:
                         lon       = self.lon,
                         area      = self.area)
         
-
     def accumulateInTime(self):
-        """
+        r"""For each time interval, accumulate variable from the beginning.
+
+        For each time interval :math:`i` in the variable, defined by
+        :math:`[t_0^i,t_f^i]`, compute
+        
+        .. math:: \int_{t_0^0}^{t_f^i} v(t,\dots)\ dt
+
+        This routine is useful, for example, if the variable is a mass
+        rate defined over time and we wish to know the mass
+        accumulation as a function of time.
+
+        Returns
+        -------
+        sum : ILAMB.Variable.Variable
+            The cumulative sum of this variable
+
         """
         if not self.temporal: raise il.NotTemporalVariable
         n       = self.time.size
