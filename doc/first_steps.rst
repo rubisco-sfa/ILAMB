@@ -19,8 +19,8 @@ data locations, we can specify them relative to this path. This both
 shortens the path and makes the configuration portable to other
 systems or data locations.
 
-We can use the ``tree`` command to explore the contents of this sample
-data directory::
+The following tree represents the organization of the contents of this
+sample data::
 
   ILAMB_sample/
   ├── DATA
@@ -51,8 +51,27 @@ Now that we have data, we need to setup a file which the ILAMB package
 will use to initiate a benchmark study. There is such a file which
 comes with the software package in the ``demo`` directory called
 ``sample.cfg``. Navigate to the demo directory and open this file or view it `online
-<https://bitbucket.org/ncollier/ilamb/src/79a261c2fc832dbe9b736cf8edcf8b941bea341b/demo/sample.cfg?at=master&fileviewer=file-view-default>`_. We
-note that while the ILAMB package is written in python, this file
+<https://bitbucket.org/ncollier/ilamb/src/79a261c2fc832dbe9b736cf8edcf8b941bea341b/demo/sample.cfg?at=master&fileviewer=file-view-default>`_. We also reproduce it here for the purpose of this tutorial::
+
+  # This configure file specifies the variables 
+
+  [h1: Radiation and Energy Cycle]
+  bgcolor  = "#FFECE6"              
+
+  [h2: Surface Upward SW Radiation]
+  variable = "rsus"
+
+  [CERES]
+  source   = "DATA/rsus/CERES/rsus_0.5x0.5.nc"
+
+  [h2: Albedo]
+  variable = "albedo"
+  derived  = "rsus/rsds"            
+
+  [CERES]
+  source   = "DATA/albedo/CERES/albedo_0.5x0.5.nc"
+
+We note that while the ILAMB package is written in python, this file
 contains no python and is written in a small configure language of our
 invention. Here we will go over this file line by line and explain how
 each entry functions.
