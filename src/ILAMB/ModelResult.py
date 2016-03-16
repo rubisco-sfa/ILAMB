@@ -1,57 +1,8 @@
-import glob
+from Variable import Variable
+from netCDF4 import Dataset
 import ilamblib as il
 import numpy as np
-from netCDF4 import Dataset
-import os
-from Variable import Variable
-
-def CombineVariables(V):
-    # checks on data
-    assert type(V) == type([])
-    for v in V: assert v.temporal
-    if len(V) == 1: return V[0]
-    
-    # Put list in order by initial time
-    V.sort(key=lambda v: v.time[0])
-
-    # Check the beginning and ends times for monotonicity
-    nV  = len(V)
-    t0  = np.zeros(nV)
-    tf  = np.zeros(nV)
-    nt  = np.zeros(nV,dtype=int)
-    ind = [0]
-    for i,v in enumerate(V):
-        t0[i] = v.time[ 0]
-        tf[i] = v.time[-1]
-        nt[i] = v.time.size
-        ind.append(nt[:(i+1)].sum())
-        
-    # Checks on monotonicity
-    assert (t0[1:]-t0[:-1]).min() >= 0
-    assert (tf[1:]-tf[:-1]).min() >= 0
-    assert (t0[1:]-tf[:-1]).min() >= 0
-
-    # Assemble the data
-    shp       = (nt.sum(),)+V[0].data.shape[1:]
-    time      = np.zeros(shp[0])
-    time_bnds = np.zeros(2,shp[0])
-    data      = np.zeros(shp)
-    mask      = np.zeros(shp,dtype=bool)
-    for i,v in enumerate(V):
-        time       [ind[i]:ind[i+1]]     = v.time
-        time_bnds[:,ind[i]:ind[i+1]]     = v.time_bnds
-        data       [ind[i]:ind[i+1],...] = v.data
-        mask       [ind[i]:ind[i+1],...] = v.data.mask
-    v = V[0]
-    return Variable(data      = np.ma.masked_array(data,mask=mask),
-                    unit      = v.unit,
-                    name      = v.name,
-                    time      = time,
-                    time_bnds = time_bnds,
-                    lat       = v.lat,
-                    lon       = v.lon,
-                    area      = v.area,
-                    ndata     = v.ndata)
+import glob,os
 
 class ModelResult():
     """A class for exploring model results.
@@ -75,6 +26,8 @@ class ModelResult():
         self._findVariables()
         
     def _findVariables(self):
+        """Loops through the netCDF4 files in a model's path and builds a dictionary of which variables are in which files.
+        """
         variables = {}
         for subdir, dirs, files in os.walk(self.path):
             for fileName in files:
@@ -101,7 +54,8 @@ class ModelResult():
         return fname
 
     def _getGridInformation(self):
-        # Look for a file named areacella...
+        """Looks in the model output for cell areas as well as land fractions. 
+        """
         fname = self._fileExists("areacella")
         if fname == "": return # there are no areas associated with this model result
 
@@ -133,18 +87,6 @@ class ModelResult():
         """Extracts a time series of the given variable from the model
         results given a latitude and longitude.
 
-        This routine will look for netCDF files with the "nc" suffix
-        in the model directory. It will open all such files looking
-        for the specified variable name. If the variable is found at
-        the given latitude and longitude as defined by
-        ILAMB.ilamblib.ExtractPointTimeSeries and at least partially
-        on the desired time interval, this data is added to a
-        list. Optionally a user may specify alternative variables, or
-        alternative names of variables and the function will look for
-        these also, giving preference to the given variable. After
-        examining all files, then the routine will sort the list in
-        ascending time and then check or disgard overlapping time
-        segments. Finally, a composite data array is returned.
 
         Parameters
         ----------
@@ -159,7 +101,11 @@ class ModelResult():
         output_unit : str, optional
             if specified, will try to convert the units of the variable 
             extract to these units given. 
-
+        lats : numpy.ndarray, optional
+            a 1D array of latitude locations at which to extract information
+        lons : numpy.ndarray, optional
+            a 1D array of longitude locations at which to extract information
+        
         Returns
         -------
         t : numpy.ndarray
@@ -176,7 +122,6 @@ class ModelResult():
 
         # create a list of datafiles which have a non-null intersection
         # over the desired time range
-
         V = []
         for v in altvars:
             if not self.variables.has_key(v): continue
@@ -188,11 +133,10 @@ class ModelResult():
                 if lats is not None: var = var.extractDatasites(lats,lons)
                 V.append(var)
             break
-        v = CombineVariables(V)
+        v = il.CombineVariables(V)
 
         return v
 
-        
     def derivedVariable(self,variable_name,expression,
                         lats=None,lons=None,initial_time=-1e20,final_time=1e20):
         from sympy import sympify

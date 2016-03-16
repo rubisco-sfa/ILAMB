@@ -989,3 +989,69 @@ def MakeComparable(ref,com,**keywords):
         ref.data.mask += mask.data.mask
             
     return ref,com
+
+
+def CombineVariables(V):
+    """Combines a list of variables into a single variable.
+
+    This routine is intended to be used to merge variables when
+    separate moments in time are scattered over several files.
+
+    Parameters
+    ----------
+    V : list of ILAMB.Variable.Variable
+        a list of variables to merge into a single variable
+    
+    Returns
+    -------
+    v : ILAMB.Variable.Variable
+        the merged variable
+    """
+    from Variable import Variable
+    
+    # checks on data
+    assert type(V) == type([])
+    for v in V: assert v.temporal
+    if len(V) == 1: return V[0]
+    
+    # Put list in order by initial time
+    V.sort(key=lambda v: v.time[0])
+
+    # Check the beginning and ends times for monotonicity
+    nV  = len(V)
+    t0  = np.zeros(nV)
+    tf  = np.zeros(nV)
+    nt  = np.zeros(nV,dtype=int)
+    ind = [0]
+    for i,v in enumerate(V):
+        t0[i] = v.time[ 0]
+        tf[i] = v.time[-1]
+        nt[i] = v.time.size
+        ind.append(nt[:(i+1)].sum())
+        
+    # Checks on monotonicity
+    assert (t0[1:]-t0[:-1]).min() >= 0
+    assert (tf[1:]-tf[:-1]).min() >= 0
+    assert (t0[1:]-tf[:-1]).min() >= 0
+
+    # Assemble the data
+    shp       = (nt.sum(),)+V[0].data.shape[1:]
+    time      = np.zeros(shp[0])
+    time_bnds = np.zeros(2,shp[0])
+    data      = np.zeros(shp)
+    mask      = np.zeros(shp,dtype=bool)
+    for i,v in enumerate(V):
+        time       [ind[i]:ind[i+1]]     = v.time
+        time_bnds[:,ind[i]:ind[i+1]]     = v.time_bnds
+        data       [ind[i]:ind[i+1],...] = v.data
+        mask       [ind[i]:ind[i+1],...] = v.data.mask
+    v = V[0]
+    return Variable(data      = np.ma.masked_array(data,mask=mask),
+                    unit      = v.unit,
+                    name      = v.name,
+                    time      = time,
+                    time_bnds = time_bnds,
+                    lat       = v.lat,
+                    lon       = v.lon,
+                    area      = v.area,
+                    ndata     = v.ndata)

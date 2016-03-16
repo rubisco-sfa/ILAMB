@@ -91,6 +91,7 @@ belong with any of the above objects.
    TrueError
    SympifyWithArgsUnits
    FromNetCDF4
+   CombineVariables
    Score
    ScoreSeasonalCycle
    MakeComparable
