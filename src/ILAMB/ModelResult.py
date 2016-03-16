@@ -143,22 +143,22 @@ class ModelResult():
         alternative names of variables and the function will look for
         these also, giving preference to the given variable. After
         examining all files, then the routine will sort the list in
-        ascending time and then check/disgard overlapping time
+        ascending time and then check or disgard overlapping time
         segments. Finally, a composite data array is returned.
 
         Parameters
         ----------
-        variable : string
+        variable : str
             name of the variable to extract
-        alt_vars: list of strings, optional
-            alternate variables to search for if `variable' is not found
+        alt_vars : list of str, optional
+            alternate variables to search for if *variable* is not found
         initial_time : float, optional
             include model results occurring after this time
         final_time : float, optional
             include model results occurring before this time
-        output_unit : string, optional
+        output_unit : str, optional
             if specified, will try to convert the units of the variable 
-            extract to these units given. (See convert in ILAMB.constants)
+            extract to these units given. 
 
         Returns
         -------

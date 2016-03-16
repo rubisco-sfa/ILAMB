@@ -515,16 +515,16 @@ class Variable:
     def convert(self,unit,density=998.2):
         """Convert the variable to a given unit.
 
-        Parameter
-        ---------
+        Parameters
+        ----------
         unit : str
             the desired converted unit
         density : float, optional
             the mass density in [kg m-3] to use when converting linear
             rates to area density rates
         
-        Return
-        ------
+        Returns
+        -------
         self : ILAMB.Variable.Variable
             this object with its unit converted
 
@@ -858,11 +858,11 @@ class Variable:
         region : str, optional
             The region over which to perform a spatial correlation
 
-        Notes
-        -----
+        Notes 
+        ----- 
         Need to better think about what correlation means when data
         are masked. The sums ignore the data but then the number of
-        items `n' is not constant and should be reduced for masked
+        items *n* is not constant and should be reduced for masked
         values.
 
         """

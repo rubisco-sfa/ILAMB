@@ -13,8 +13,8 @@ We are in the process of a redesign of the current codebase_. The following link
 .. _codebase: https://bitbucket.org/ncollier/ilamb
 
 .. toctree::
-   :maxdepth: 1
+   :maxdepth: 2
 
-   PACKAGEAPI
    TUTORIAL
-   RESULTS
+   PACKAGEAPI
+
