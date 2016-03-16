@@ -102,7 +102,7 @@ this::
 
 We will be looking at radiation here. The ``variable`` tag is the name
 of the variable inside the dataset which represents the variable of
-interest. Here ``rsus`` is the standard name used to represent
+interest. Here ``rsus`` is a standard name used to represent
 *Surface Upward Shortwave Radiation*. We use ``h2`` headings to
 represent a variable which we wish to compare.
 
