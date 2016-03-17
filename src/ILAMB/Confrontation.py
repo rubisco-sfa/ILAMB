@@ -144,24 +144,26 @@ class Confrontation:
         else:
             obs = self.data
         if obs.time is None: raise il.NotTemporalVariable()
+        t0 = obs.time_bnds[0, 0]
+        tf = obs.time_bnds[1,-1]
         
         if obs.spatial:
             try:
                 mod = m.extractTimeSeries(self.variable_name,
-                                          alt_vars     = self.alternate_vars)
+                                          alt_vars     = self.alternate_vars,initial_time=t0,final_time=tf)
             except:
-                mod = m.derivedVariable(self.variable_name,self.derived)
+                mod = m.derivedVariable(self.variable_name,self.derived,initial_time=t0,final_time=tf)
         else:
             try:
                 mod = m.extractTimeSeries(self.variable_name,
                                           alt_vars     = self.alternate_vars,
                                           lats         = obs.lat,
-                                          lons         = obs.lon)
+                                          lons         = obs.lon,initial_time=t0,final_time=tf)
             except:
                 mod = m.derivedVariable(self.variable_name,self.derived,
                                         lats         = obs.lat,
-                                        lons         = obs.lon)
-                
+                                        lons         = obs.lon,initial_time=t0,final_time=tf)
+
         obs,mod = il.MakeComparable(obs,mod,mask_ref=True,clip_ref=True)
         
         # Check the order of magnitude of the data and convert to help avoid roundoff errors

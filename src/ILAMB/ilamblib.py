@@ -323,7 +323,7 @@ def SympifyWithArgsUnits(expression,args,units):
     return args[ekey],units[ekey]
 
 
-def FromNetCDF4(filename,variable_name,alternate_vars=[]):
+def FromNetCDF4(filename,variable_name,alternate_vars=[],t0=None,tf=None):
     """Extracts data from a netCDF4 datafile for use in a Variable object.
     
     Intended to be used inside of the Variable constructor. Some of
@@ -338,6 +338,12 @@ def FromNetCDF4(filename,variable_name,alternate_vars=[]):
         Name of the variable to extract from the netCDF4 file
     alternate_vars : list of str, optional
         A list of possible alternate variable names to find
+    t0 : float, optional
+        If temporal, specifying the initial time can reduce memory
+        usage and speed up access time.
+    tf : float, optional
+        If temporal, specifying the final time can reduce memory
+        usage and speed up access time.
 
     Returns
     -------
@@ -426,15 +432,25 @@ def FromNetCDF4(filename,variable_name,alternate_vars=[]):
         if lat.size != data: lat = None
         if lon.size != data: lon = None
 
-    # handle incorrect or absent masking of arrays
-    if type(var[...]) == type(np.ma.empty([])):
-        v    = var[...]
+    # read in data array, roughly subset in time if bounds are
+    # provided for added effciency
+    if (t is not None) and (t0 is not None or tf is not None):
+        begin = 0; end = t.size-1
+        if t0 is not None: begin = max(t.searchsorted(t0)-1,begin)
+        if tf is not None: end   = min(t.searchsorted(tf)+1,end)
+        v = var[begin:end,...]
+        t = t  [begin:end]
+        if t_bnd is not None:
+            t_bnd = t_bnd[:,begin:end]
     else:
-        v    = var[...]
+        v = var[...]
+
+    # handle incorrect or absent masking of arrays
+    if type(v) != type(np.ma.empty([])):
         mask = np.zeros(v.shape,dtype=int)
         if "_FillValue"    in var.ncattrs(): mask += (np.abs(v-var._FillValue   )<1e-12)
         if "missing_value" in var.ncattrs(): mask += (np.abs(v-var.missing_value)<1e-12)
-        v    = np.ma.masked_array(v,mask=mask,copy=False)
+        v = np.ma.masked_array(v,mask=mask,copy=False)
 
     # handle units problems that cfunits doesn't
     units = var.units

@@ -129,7 +129,9 @@ class ModelResult():
                 var = Variable(filename       = pathName,
                                variable_name  = variable,
                                alternate_vars = altvars[1:],
-                               area           = self.land_areas)
+                               area           = self.land_areas,
+                               t0             = initial_time,
+                               tf             = final_time)
                 if lats is not None: var = var.extractDatasites(lats,lons)
                 V.append(var)
             break
@@ -155,7 +157,11 @@ class ModelResult():
 
         for arg in sympify(expression).free_symbols:
             try:
-                var  = self.extractTimeSeries(arg.name,lats=lats,lons=lons)
+                var  = self.extractTimeSeries(arg.name,
+                                              lats = lats,
+                                              lons = lons,
+                                              initial_time = initial_time,
+                                              final_time   = final_time)
             except:
                 raise il.VarNotInModel()
             

@@ -82,7 +82,9 @@ class Variable:
             assert unit is not None
         else:
             assert variable_name is not None
-            data,unit,name,time,time_bnds,lat,lon,ndata = il.FromNetCDF4(filename,variable_name,alternate_vars)
+            t0 = keywords.get("t0",None)
+            tf = keywords.get("tf",None)
+            data,unit,name,time,time_bnds,lat,lon,ndata = il.FromNetCDF4(filename,variable_name,alternate_vars,t0,tf)
                             
         if not np.ma.isMaskedArray(data): data = np.ma.masked_array(data)
         self.data  = data 
