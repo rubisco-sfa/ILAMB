@@ -11,7 +11,8 @@ requires = {
     "matplotlib"           : "1.4.3",
     "netCDF4"              : "1.1.4",
     "cfunits"              : "1.1.4",
-    "mpl_toolkits.basemap" : "1.0.7"
+    "mpl_toolkits.basemap" : "1.0.7",
+    "sympy"                : "0.7.6"
 }
 
 froms = {

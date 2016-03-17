@@ -104,6 +104,7 @@ following packages and their dependencies in some form:
 * netCDF4_, a python/numpy interface to the netCDF C library
 * cfunits_, a python interface to UNIDATA’s Udunits-2 library with CF extensions
 * basemap_, a matplotlib toolkit which is a library for plotting 2D data on maps
+* sympy_, a python library for symbolic mathematics
 
 While the ILAMB package itself is not built to exploit parallelism,
 the application we have written using the ILAMB package to perform
@@ -132,4 +133,5 @@ for which you search.
 .. _netCDF4:    https://github.com/Unidata/netcdf4-python
 .. _cfunits:    http://pythonhosted.org/cfunits/
 .. _basemap:    http://matplotlib.org/basemap/
+.. _sympy:      http://www.sympy.org/
 .. _mpi4py:     http://pythonhosted.org/mpi4py/
