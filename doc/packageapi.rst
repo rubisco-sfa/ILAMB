@@ -84,7 +84,6 @@ belong with any of the above objects.
    ClipTime
    ConvertCalendar
    ComposeSpatialGrids   
-   SpatiallyIntegratedTimeSeries
    CellAreas
    GlobalLatLonGrid
    NearestNeighborInterpolation
@@ -95,7 +94,7 @@ belong with any of the above objects.
    Score
    ScoreSeasonalCycle
    MakeComparable
-   AnalysisFluxrate
+   AnalysisMeanState
    AnalysisRelationship
    
 Post
@@ -114,5 +113,6 @@ organizations of the confrontation results.
    GlobalPlot
    ColorBar
    TaylorDiagram
+   WhittakerDiagram
    RegisterCustomColormaps
    BenchmarkSummaryFigure

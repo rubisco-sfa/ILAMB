@@ -23,8 +23,28 @@ def UnitStringToMatplotlib(unit,add_carbon=False):
     return unit
 
 def GlobalPlot(lat,lon,var,ax,region="global",shift=False,**keywords):
-    """
+    """Use basemap to plot data on the globe.
 
+    Parameters
+    ----------
+    lat : numpy.ndarray
+        a 1D array of latitudes
+    lon : numpy.ndarray
+        a 1D array of longitudes
+    var : numpy.ndarray
+        a 2D array of data
+    ax : matplotlib.axes._subplots.AxesSubplot
+        the matplotlib axes object onto which you wish to plot the variable
+    region : str, optional
+        the region on which to plot
+    shift : bool, optional
+        enable to move the first column of data to the international dateline
+    vmin : float, optional
+        the minimum plotted value
+    vmax : float, optional
+        the maximum plotted value
+    cmap : str, optional
+        the name of the colormap to be used in plotting the spatial variable
     """
     from mpl_toolkits.basemap import Basemap
     from constants import regions
@@ -70,6 +90,25 @@ def GlobalPlot(lat,lon,var,ax,region="global",shift=False,**keywords):
     bmap.drawcoastlines(linewidth=0.2,color="darkslategrey")
 
 def ColorBar(ax,**keywords):
+    """Plot a colorbar.
+
+    We plot colorbars separately so they can be rendered once and used
+    for multiple plots.
+
+    Parameters
+    ----------
+    ax : matplotlib.axes._subplots.AxesSubplot
+        the matplotlib axes object onto which you wish to plot the variable
+    vmin : float, optional
+        the minimum plotted value
+    vmax : float, optional
+        the maximum plotted value
+    cmap : str, optional
+        the name of the colormap to be used in plotting the spatial variable
+    label : str, optional
+        the text which appears with the colorbar
+
+    """
     from matplotlib import colorbar,colors
     vmin  = keywords.get("vmin",None)
     vmax  = keywords.get("vmax",None)
@@ -85,7 +124,27 @@ def ColorBar(ax,**keywords):
     if ticklabels is not None: cb.set_ticklabels(ticklabels)
 
 def TaylorDiagram(stddev,corrcoef,refstd,fig,colors,normalize=True):
-    """
+    """Plot a Taylor diagram.
+
+    This is adapted from the code by Yannick Copin found here:
+
+    https://gist.github.com/ycopin/3342888
+    
+    Parameters
+    ----------
+    stddev : numpy.ndarray
+        an array of standard deviations
+    corrcoeff : numpy.ndarray
+        an array of correlation coefficients
+    refstd : float
+        the reference standard deviation
+    fig : matplotlib figure
+        the matplotlib figure
+    colors : array
+        an array of colors for each element of the input arrays
+    normalize : bool, optional
+        disable to skip normalization of the standard deviation
+
     """
     from matplotlib.projections import PolarAxes
     import mpl_toolkits.axisartist.floating_axes as FA
@@ -788,3 +847,77 @@ def BenchmarkSummaryFigure(models,variables,data,figname,vcolor=None):
     # save figure
     fig.savefig(figname)
 
+def WhittakerDiagram(X,Y,Z,**keywords):
+    """Creates a Whittaker diagram.
+    
+    Parameters
+    ----------
+    X : ILAMB.Variable.Variable
+       the first independent axis, classically representing temperature
+    Y : ILAMB.Variable.Variable
+       the second independent axis, classically representing precipitation
+    Z : ILAMB.Variable.Variable
+       the dependent axis
+    X_plot_unit,Y_plot_unit,Z_plot_unit : str, optional
+       the string representing the units of the corresponding variable
+    region : str, optional
+       the string representing the region overwhich to plot the diagram
+    X_min,Y_min,Z_min : float, optional
+       the minimum plotted value of the corresponding variable
+    X_max,Y_max,Z_max : float, optional
+       the maximum plotted value of the corresponding variable
+    X_label,Y_label,Z_label : str, optional
+       the labels of the corresponding variable
+    filename : str, optional
+       the output filename
+    """
+    from mpl_toolkits.axes_grid1 import make_axes_locatable
+    
+    # possibly integrate in time
+    if X.temporal: X = X.integrateInTime(mean=True)
+    if Y.temporal: Y = Y.integrateInTime(mean=True)
+    if Z.temporal: Z = Z.integrateInTime(mean=True)
+    
+    # convert to plot units
+    X_plot_unit = keywords.get("X_plot_unit",X.unit)
+    Y_plot_unit = keywords.get("Y_plot_unit",Y.unit)
+    Z_plot_unit = keywords.get("Z_plot_unit",Z.unit)
+    if X_plot_unit is not None: X.convert(X_plot_unit)
+    if Y_plot_unit is not None: Y.convert(Y_plot_unit)
+    if Z_plot_unit is not None: Z.convert(Z_plot_unit)
+    
+    # flatten data, if any data is masked all the data is masked
+    mask   = (X.data.mask + Y.data.mask + Z.data.mask)==0
+
+    # mask outside region
+    from constants import regions as ILAMBregions
+    region    = keywords.get("region","global")
+    lats,lons = ILAMBregions[region]
+    mask     += (np.outer((X.lat>lats[0])*(X.lat<lats[1]),
+                          (X.lon>lons[0])*(X.lon<lons[1]))==0)
+    x    = X.data[mask].flatten()
+    y    = Y.data[mask].flatten()
+    z    = Z.data[mask].flatten()
+
+    # make plot
+    fig,ax = plt.subplots(figsize=(6,5.25),tight_layout=True)
+    sc     = ax.scatter(x,y,c=z,linewidths=0,
+                        vmin=keywords.get("Z_min",z.min()),
+                        vmax=keywords.get("Z_max",z.max()))
+    div    = make_axes_locatable(ax)
+    fig.colorbar(sc,cax=div.append_axes("right",size="5%",pad=0.05),
+                 orientation="vertical",
+                 label=keywords.get("Z_label","%s %s" % (Z.name,Z.unit)))
+    X_min = keywords.get("X_min",x.min())
+    X_max = keywords.get("X_max",x.max())
+    Y_min = keywords.get("Y_min",y.min())
+    Y_max = keywords.get("Y_max",y.max())
+    ax.set_xlim(X_min,X_max)
+    ax.set_ylim(Y_min,Y_max)
+    ax.set_xlabel(keywords.get("X_label","%s %s" % (X.name,X.unit)))
+    ax.set_ylabel(keywords.get("Y_label","%s %s" % (Y.name,Y.unit)))
+    #ax.grid()
+    fig.savefig(keywords.get("filename","whittaker.png"))
+    plt.close()
+
+    

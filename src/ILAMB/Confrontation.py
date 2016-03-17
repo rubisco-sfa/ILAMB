@@ -98,15 +98,9 @@ class Confrontation:
                        "shift_score":1.,
                        "iav_score"  :1.,
                        "sd_score"   :1.}
-
-    def dataSize(self):
-        if self.data: return self.data.size
-        return Variable(filename       = self.srcdata,
-                        variable_name  = self.variable_name,
-                        alternate_vars = self.alternate_vars).data.size        
         
     def stageData(self,m):
-        r"""Extracts model data which matches the observational dataset defined along with this confrontation.
+        r"""Extracts model data which matches the observational dataset.
         
         The datafile associated with this confrontation defines what
         is to be extracted from the model results. If the
@@ -120,9 +114,8 @@ class Confrontation:
         the maximum overlap time is computed and the datasets are
         clipped to match. If there is some disparity in the temporal
         scale (e.g. annual mean observational data and monthly mean
-        model results), then we look at the cell_methods attribute in
-        the netCDF4 dataset to determine how to operate on the model
-        result to make it commensurate with the observations.
+        model results) then we coarsen the model results automatically
+        to match the observational data.
 
         Parameters
         ----------
@@ -188,6 +181,13 @@ class Confrontation:
     def confront(self,m):
         r"""Confronts the input model with the observational data.
 
+        This routine performs a mean-state analysis the details of
+        which may be found in the documentation of
+        ILAMB.ilamblib.AnalysisMeanState. If relationship information
+        was provided, it will also perform the analysis documented in
+        ILAMB.ilamblib.AnalysisRelationship. Output from the analysis
+        is stored in a netCDF4 file in the output path.
+
         Parameters
         ----------
         m : ILAMB.ModelResult.ModelResult
@@ -209,8 +209,8 @@ class Confrontation:
 
         # Perform the standard fluxrate analysis
         try:
-            il.AnalysisFluxrate(obs,mod,dataset=results,regions=self.regions,benchmark_dataset=benchmark_results,
-                                table_unit=self.table_unit,plot_unit=self.plot_unit,space_mean=self.space_mean)
+            il.AnalysisMeanState(obs,mod,dataset=results,regions=self.regions,benchmark_dataset=benchmark_results,
+                                 table_unit=self.table_unit,plot_unit=self.plot_unit,space_mean=self.space_mean)
         except:
             results.close()
             os.system("rm -f %s/%s_%s.nc" % (self.output_path,self.name,m.name))
@@ -606,8 +606,6 @@ class Confrontation:
                                           legend = False,
                                           benchmark = True)
 
-
-                
         # Code to add a Whittaker diagram (FIX: this is messy, need to rethink data access, redundant computation)
         Ts = []; T_plot_units = []; T_labels = []
         Ps = []; P_plot_units = []; P_labels = []
@@ -660,20 +658,20 @@ class Confrontation:
                                                                                                   Z_labels):
                     Z = [k for k in data.variables.keys() if "timeint_of" in k]
 
-                    WhittakerDiagram(T,
-                                     P,
-                                     Variable(filename=filename,variable_name=Z[0]),
-                                     region      = region,
-                                     X_plot_unit =    T_plot_unit,
-                                     Y_plot_unit =    P_plot_unit,
-                                     Z_plot_unit = self.plot_unit,
-                                     X_label     =    T_label,
-                                     Y_label     =    P_label,
-                                     Z_label     = self.longname,
-                                     X_min = T_min, X_max = T_max,
-                                     Y_min = P_min, Y_max = P_max,
-                                     Z_min = V_min, Z_max = V_max,
-                                     filename    = "%s/%s_%s_whittaker.png" % (self.output_path,name,region))
+                    post.WhittakerDiagram(T,
+                                          P,
+                                          Variable(filename=filename,variable_name=Z[0]),
+                                          region      = region,
+                                          X_plot_unit =    T_plot_unit,
+                                          Y_plot_unit =    P_plot_unit,
+                                          Z_plot_unit = self.plot_unit,
+                                          X_label     =    T_label,
+                                          Y_label     =    P_label,
+                                          Z_label     = self.longname,
+                                          X_min = T_min, X_max = T_max,
+                                          Y_min = P_min, Y_max = P_max,
+                                          Z_min = V_min, Z_max = V_max,
+                                          filename    = "%s/%s_%s_whittaker.png" % (self.output_path,name,region))
                     
                 self.layout.addFigure("Period Mean Relationships",
                                       "whittaker",
@@ -757,56 +755,3 @@ class Confrontation:
         f.write(str(self.layout))
         f.close()
 
-def WhittakerDiagram(X,Y,Z,**keywords):
-    """FIX: move
-    """
-    from mpl_toolkits.axes_grid1 import make_axes_locatable
-    
-    # possibly integrate in time
-    if X.temporal: X = X.integrateInTime(mean=True)
-    if Y.temporal: Y = Y.integrateInTime(mean=True)
-    if Z.temporal: Z = Z.integrateInTime(mean=True)
-    
-    # convert to plot units
-    X_plot_unit = keywords.get("X_plot_unit",X.unit)
-    Y_plot_unit = keywords.get("Y_plot_unit",Y.unit)
-    Z_plot_unit = keywords.get("Z_plot_unit",Z.unit)
-    if X_plot_unit is not None: X.convert(X_plot_unit)
-    if Y_plot_unit is not None: Y.convert(Y_plot_unit)
-    if Z_plot_unit is not None: Z.convert(Z_plot_unit)
-    
-    # flatten data, if any data is masked all the data is masked
-    mask   = (X.data.mask + Y.data.mask + Z.data.mask)==0
-
-    # mask outside region
-    from constants import regions as ILAMBregions
-    region    = keywords.get("region","global")
-    lats,lons = ILAMBregions[region]
-    mask     += (np.outer((X.lat>lats[0])*(X.lat<lats[1]),
-                          (X.lon>lons[0])*(X.lon<lons[1]))==0)
-    x    = X.data[mask].flatten()
-    y    = Y.data[mask].flatten()
-    z    = Z.data[mask].flatten()
-
-    # make plot
-    fig,ax = plt.subplots(figsize=(6,5.25),tight_layout=True)
-    sc     = ax.scatter(x,y,c=z,linewidths=0,
-                        vmin=keywords.get("Z_min",z.min()),
-                        vmax=keywords.get("Z_max",z.max()))
-    div    = make_axes_locatable(ax)
-    fig.colorbar(sc,cax=div.append_axes("right",size="5%",pad=0.05),
-                 orientation="vertical",
-                 label=keywords.get("Z_label","%s %s" % (Z.name,Z.unit)))
-    X_min = keywords.get("X_min",x.min())
-    X_max = keywords.get("X_max",x.max())
-    Y_min = keywords.get("Y_min",y.min())
-    Y_max = keywords.get("Y_max",y.max())
-    ax.set_xlim(X_min,X_max)
-    ax.set_ylim(Y_min,Y_max)
-    ax.set_xlabel(keywords.get("X_label","%s %s" % (X.name,X.unit)))
-    ax.set_ylabel(keywords.get("Y_label","%s %s" % (Y.name,Y.unit)))
-    #ax.grid()
-    fig.savefig(keywords.get("filename","whittaker.png"))
-    plt.close()
-
-    

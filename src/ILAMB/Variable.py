@@ -299,9 +299,16 @@ class Variable:
             appropriate name and unit change.
 
         """
+        def _integrate(var,areas):
+            assert var.shape[-2:] == areas.shape
+            np.seterr(over='ignore',under='ignore')
+            vbar = (var*areas).sum(axis=-1).sum(axis=-1)
+            np.seterr(over='raise',under='raise')
+            return vbar
+
         if not self.spatial: raise il.NotSpatialVariable()
         if region is None:
-            integral = il.SpatiallyIntegratedTimeSeries(self.data,self.area)
+            integral = _integrate(self.data,self.area)
             if mean: integral /= np.ma.masked_array(self.area,mask=self.data.mask).sum()
             name = self.name + "_integrated_over_space"
         else:
@@ -310,7 +317,7 @@ class Variable:
             mask      = (np.outer((self.lat>lats[0])*(self.lat<lats[1]),
                                   (self.lon>lons[0])*(self.lon<lons[1]))==0)
             self.data.mask += mask
-            integral  = il.SpatiallyIntegratedTimeSeries(self.data,self.area)
+            integral  = _integrate(self.data,self.area)
             self.data.mask = rem_mask
             if mean:
                 mask = rem_mask+mask

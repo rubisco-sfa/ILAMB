@@ -15,7 +15,7 @@ class VarNotInModel(Exception):
     def __str__(self): return "VarNotInModel"
 
 class VarsNotComparable(Exception):
-    def __str__(self): return self.message
+    def __str__(self): return "VarNotComparable"
 
 class VarNotOnTimeScale(Exception):
     def __str__(self): return "VarNotOnTimeScale"
@@ -74,7 +74,7 @@ def ConvertCalendar(t,unit=None,calendar=None):
     This routine converts the representation of time to the ILAMB
     default: days since 1850-1-1 00:00:00 on a 365-day calendar. This
     is so we can make comparisons with data from other models and
-    benchmarks.
+    benchmarks. We use cfunits time conversion capability.
 
     Parameters
     ----------
@@ -97,39 +97,20 @@ def ConvertCalendar(t,unit=None,calendar=None):
     t  = Units.conform(t[...],t0,tf)
     return t
 
-def SpatiallyIntegratedTimeSeries(var,areas):
-    r"""Integrate a variable over space.
-    
-    Given a variable :math:`f(\mathbf{x},t)`, the spatially averaged
-    variable is then given as
-
-    .. math:: \overline{f}(t) = \int_A f(\mathbf{x},t)\ dA
-
-    where we approximate this integral by nodal integration.
-
-    Parameters
-    ----------
-    var : numpy.ndarray
-        an array assumed to be a monthly average of a variable where
-        there are at least two dimensions, (...,latitudes,longitudes)
-    area : numpy.ndarray
-        a two-dimensional array of areas of the form,
-        (latitudes,longitudes)
-
-    Returns
-    -------
-    vbar : numpy.array
-        the spatially integrated variable
-    """
-    assert var.shape[-2:] == areas.shape
-    np.seterr(over='ignore',under='ignore')
-    vbar = (var*areas).sum(axis=-1).sum(axis=-1)
-    np.seterr(over='raise',under='raise')
-    return vbar
-
 def CellAreas(lat,lon):
     """Given arrays of latitude and longitude, return cell areas in square meters.
 
+    Parameters
+    ----------
+    lat : numpy.ndarray
+        a 1D array of latitudes which represent cell centroids
+    lon : numpy.ndarray
+        a 1D array of longitudes which represent cell centroids
+
+    Returns
+    -------
+    areas : numpy.ndarray
+        a 2D array of cell areas in [m2]
     """
     from constants import earth_rad
 
@@ -263,8 +244,19 @@ def TrueError(lat1_bnd,lon1_bnd,lat1,lon1,data1,lat2_bnd,lon2_bnd,lat2,lon2,data
     return lat_bnd,lon_bnd,lat,lon,error
 
 def SympifyWithArgsUnits(expression,args,units):
-    """
+    """Uses symbolic algebra to determine the final unit of an expression.
     
+    Parameters
+    ----------
+    expression : str
+        the expression whose units you wish to simplify
+    args : dict
+        a dictionary of numpy arrays whose keys are the
+        variables written in the input expression
+    units : dict
+        a dictionary of strings representing units whose keys are the
+        variables written in the input expression
+
     """
     from sympy import sympify,postorder_traversal
 
@@ -433,7 +425,8 @@ def FromNetCDF4(filename,variable_name,alternate_vars=[],t0=None,tf=None):
         if lon.size != data: lon = None
 
     # read in data array, roughly subset in time if bounds are
-    # provided for added effciency
+    # provided for added effciency, what do we do if no time in this
+    # file falls within the time bounds?
     if (t is not None) and (t0 is not None or tf is not None):
         begin = 0; end = t.size-1
         if t0 is not None: begin = max(t.searchsorted(t0)-1,begin)
@@ -525,8 +518,10 @@ def ComposeSpatialGrids(var1,var2):
     return lat,lon
 
 def ScoreSeasonalCycle(phase_shift):
-    """
-    UNTESTED
+    """Computes the seasonal cycle score from the phase shift.
+
+    Possible remove this function as we do not compute other score
+    components via a ilamblib function.
     """
     from Variable import Variable
     return Variable(data  = (1+np.cos(np.abs(phase_shift.data)/365*2*np.pi))*0.5,
@@ -537,9 +532,33 @@ def ScoreSeasonalCycle(phase_shift):
                     lon   = phase_shift.lon,
                     area  = phase_shift.area)
 
-def AnalysisFluxrate(obs,mod,regions=['global'],dataset=None,benchmark_dataset=None,space_mean=True,table_unit=None,plot_unit=None):
-    """
-    UNTESTED
+def AnalysisMeanState(obs,mod,regions=['global'],dataset=None,benchmark_dataset=None,space_mean=True,table_unit=None,plot_unit=None):
+    """Perform a mean state analysis.
+
+    Expand to include specific details about what is done.
+
+    Parameters
+    ----------
+    obs : ILAMB.Variable.Variable
+        the observational (reference) variable
+    mod : ILAMB.Variable.Variable
+        the model (comparison) variable
+    regions : list of str, optional
+        the regions overwhich to apply the analysis
+    dataset : netCDF4.Dataset, optional
+        a open dataset in write mode for caching the results of the
+        analysis which pertain to the model
+    benchmark_dataset : netCDF4.Dataset, optional
+        a open dataset in write mode for caching the results of the
+        analysis which pertain to the observations
+    space_mean : bool, optional
+        disable to compute sums of the variable over space instead of
+        mean values
+    table_unit : str, optional
+        the unit to use when displaying output in tables on the HTML page
+    plots_unit : str, optional
+        the unit to use when displaying output on plots on the HTML page
+    
     """
     assert Units(obs.unit) == Units(mod.unit)
     spatial = obs.spatial
@@ -758,11 +777,28 @@ def AnalysisFluxrate(obs,mod,regions=['global'],dataset=None,benchmark_dataset=N
                 var.toNetCDF4(benchmark_dataset)
     
 def AnalysisRelationship(dep_var,ind_var,dataset,rname,**keywords):
-    r"""
+    """Perform a relationship analysis.
     
-    
+    Expand to provide details of what exactly is done.
+
+    Parameters
+    ----------
+    dep_var : ILAMB.Variable.Variable
+        the dependent variable
+    ind_var : ILAMB.Variable.Variable
+        the independent variable
+    dataset : netCDF4.Dataset
+        a open dataset in write mode for caching the results of the
+        analysis which pertain to the model
+    rname : str
+        the name of the relationship under study
+    regions : list of str, optional
+        a list of units over which to apply the analysis
+    dep_plot_unit,ind_plot_unit : str, optional
+        the name of the unit to use in the plots found on the HTML output
+        
     """    
-    def _extractMaxTemporalOverlap(v1,v2):  # should move to ilamblib?
+    def _extractMaxTemporalOverlap(v1,v2):  # should move?
         t0 = max(v1.time.min(),v2.time.min())
         tf = min(v1.time.max(),v2.time.max())
         for v in [v1,v2]:
@@ -858,7 +894,19 @@ def AnalysisRelationship(dep_var,ind_var,dataset,rname,**keywords):
         S[...] = ystd
 
 def ClipTime(v,t0,tf):
-    r"""
+    """Remove time from a variable based on input bounds.
+
+    Parameters
+    ----------
+    v : ILAMB.Variable.Variable
+        the variable to trim
+    t0,tf : float
+        the times at which to trim
+
+    Returns
+    -------
+    vtrim : ILAMB.Variable.Variable
+        the trimmed variable
     """
     begin = np.argmin(np.abs(v.time_bnds[0,:]-t0))
     end   = np.argmin(np.abs(v.time_bnds[1,:]-tf))

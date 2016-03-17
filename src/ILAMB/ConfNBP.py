@@ -7,15 +7,12 @@ import numpy as np
 import os
 
 class ConfNBP(Confrontation):
-    """A generic class for confronting model results with observational data.
+    """A confrontation for examining the global net ecosystem carbon balance.
 
-    This class is meant to provide the user with a simple way to
-    specify observational datasets and compare them to model
-    results. A generic analysis routine is called which checks mean
-    states of the variables, afterwhich the results are tabulated and
-    plotted automatically. A HTML page is built dynamically as plots
-    are created based on available information and successful
-    analysis.
+    This class is derived from the base Confrontation class and
+    implements a specialized version of the routines stageData() and
+    confront(). As the other routines are not implemented here, the
+    versions from the base class will be used.
 
     Parameters
     ----------
@@ -48,6 +45,7 @@ class ConfNBP(Confrontation):
         the colormap to use in rendering plots (default is 'jet')
     land : str, bool
         enable to force the masking of areas with no land (default is False)
+
     """
     def __init__(self,name,srcdata,variable_name,**keywords):
         
@@ -98,7 +96,7 @@ class ConfNBP(Confrontation):
                        "sd_score"   :1.}
             
     def stageData(self,m):
-        r"""Extracts model data which matches the observational dataset defined along with this confrontation.
+        r"""Extracts model data and integrates it over the globe to match the confrontation dataset.
 
         Parameters
         ----------
@@ -111,6 +109,7 @@ class ConfNBP(Confrontation):
             the variable context associated with the observational dataset
         mod : ILAMB.Variable.Variable
             the variable context associated with the model result
+
         """
         # get the observational data
         obs = Variable(filename       = self.srcdata,
@@ -133,10 +132,16 @@ class ConfNBP(Confrontation):
     def confront(self,m):
         r"""Confronts the input model with the observational data.
 
+        This analysis deviates from the standard
+        ILAMB.ilamblib.AnalysisMeanState. We will compare the bias and
+        RMSE as before, but many of the other comparisons are not
+        appropriate here.
+        
         Parameters
         ----------
         m : ILAMB.ModelResult.ModelResult
             the model results
+
         """
         # Grab the data
         obs,mod = self.stageData(m)
