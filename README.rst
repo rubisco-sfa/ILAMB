@@ -1,35 +1,27 @@
-ILAMB: A Prototype Model Benchmarking System
-============================================
+ILAMB: The ILAMB Benchmarking System
+====================================
 
-Installation
-------------
+The International Land Model Benchmarking (ILAMB) project is a
+model-data intercomparison and integration project designed to improve
+the performance of land models and, in parallel, improve the design of
+new measurement campaigns to reduce uncertainties associated with key
+land surface processes. Building upon past model evaluation studies,
+the goals of ILAMB are to:
 
-The project source code is being hosted via a `Git <http://git-scm.com/>`_ repository hosted at `Bitbucket <https://bitbucket.org/ncollier/ilamb>`_. You will need to clone this repository:
+* develop internationally accepted benchmarks for land model
+  performance, promote the use of these benchmarks by the
+  international community for model intercomparison,
+* strengthen linkages between experimental, remote sensing, and
+  climate modeling communities in the design of new model tests and
+  new measurement programs, and
+* support the design and development of a new, open source,
+  benchmarking software system for use by the international community.
 
-  $ git clone https://ncollier@bitbucket.org/ncollier/ilamb.git
-
-Enter the top level directory, next build and install the package using the standard distutils's ``setup.py`` script::
-
-  $ cd ilamb
-  $ python setup.py install --user
-
-Note that this project makes use of several other python packages. While many are standard, you may need to install some python packages. I would suggest using `pip <https://pypi.python.org/pypi/pip>`_.
-
-  $ pip install numpy matplotlib basemap netCDF4 mpi4py cfunits scipy --user
-
-You will note the ``--user`` flag in both install lines--this installs the packages into a local directory instead of the system directory. I suggest that you always install python packages this way as it keeps your system level python clean. Please send questions/problems about installation to nathaniel.collier@gmail.com.
-
-Next Steps
-----------
-
-The software project contains no data. To see if your installation works as intended you will need to download and extract a `sample <http://climate.ornl.gov/~ncf/ILAMB/minimal_ILAMB_data.tgz>`_ dataset. Then you need to set an environment variable to point to this dataset::
-
-  $ export ILAMB_ROOT=PATH_TO_THE_EXTRACTED_DATA
-
-Once you have done this, execute the driver script found in the directory of demos::
-
-  $ cd demo
-  $ python driver.py --config sample.cfg --model_root $ILAMB_ROOT/MODELS/ --regions global
-
-  
-
+It is the last of these goals to which this repository is
+concerned. We have developed a python-based generic benchmarking
+system. Please consult the `documentation
+<http://climate.ornl.gov/~ncf/ILAMB/docs/index.html>`_ for
+instructions on how to install the package and get started. To get an
+idea of the scope and magnitude of the project, see a sampling of the
+output `here
+<http://www.climatemodeling.org/~nate/ILAMB/index.html>`_.
