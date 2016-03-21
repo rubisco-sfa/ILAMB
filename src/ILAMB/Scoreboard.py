@@ -93,7 +93,9 @@ def SumWeightChildren(node):
     
 def NormalizeWeights(node):
     if node.parent is not None:
-        node.normalize_weight = node.weight/node.parent.sum_weight_children
+        sumw = 1.
+        if node.parent.sum_weight_children > 0: sumw = node.parent.sum_weight_children
+        node.normalize_weight = node.weight/sumw
 
 def OverallWeights(node):
     if node.isLeaf():
