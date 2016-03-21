@@ -7,4 +7,4 @@ Tutorials
 	      
    install
    first_steps
-	      
+   add_model
