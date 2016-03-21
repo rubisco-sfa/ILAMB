@@ -17,7 +17,7 @@ class Node(object):
         self.children = []
         self.parent   = None
         self.weight   = None
-        self.sum_weight_children = 1
+        self.sum_weight_children = 0
         self.normalize_weight    = 0
         self.overall_weight      = 0
         self.score    = 0
@@ -43,7 +43,7 @@ class Node(object):
         if self.isLeaf():
             s = "%s%s %d %.2f%%" % ("   "*(self.getDepth()-1),name,weight,100*self.overall_weight)
         else:
-            s = "%s%s %d" % ("   "*(self.getDepth()-1),name,weight)
+            s = "%s%s %f" % ("   "*(self.getDepth()-1),name,weight)
         return s
 
     def isLeaf(self):

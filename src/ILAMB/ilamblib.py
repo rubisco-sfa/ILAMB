@@ -535,7 +535,17 @@ def ScoreSeasonalCycle(phase_shift):
 def AnalysisMeanState(obs,mod,regions=['global'],dataset=None,benchmark_dataset=None,space_mean=True,table_unit=None,plot_unit=None):
     """Perform a mean state analysis.
 
-    Expand to include specific details about what is done.
+    This mean state analysis examines the model mean state in space
+    and time. We compute the mean variable value over the time period
+    at each spatial cell or data site as appropriate, as well as the
+    bias and RMSE relative to the observational variable. We will
+    output maps of the period mean values and bias. For each spatial
+    cell or data site we also estimate the phase of the variable by
+    finding the mean time of year when the maximum occurs and the
+    phase shift by computing the difference in phase with respect to
+    the observational variable. In the spatial dimension, we compute a
+    spatial mean for each of the desired regions and an average annual
+    cycle.    
 
     Parameters
     ----------
@@ -558,7 +568,7 @@ def AnalysisMeanState(obs,mod,regions=['global'],dataset=None,benchmark_dataset=
         the unit to use when displaying output in tables on the HTML page
     plots_unit : str, optional
         the unit to use when displaying output on plots on the HTML page
-    
+
     """
     assert Units(obs.unit) == Units(mod.unit)
     spatial = obs.spatial
