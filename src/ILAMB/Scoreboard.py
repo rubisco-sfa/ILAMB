@@ -16,11 +16,6 @@ class Node(object):
         self.name     = name
         self.children = []
         self.parent   = None
-        self.weight   = None
-        self.sum_weight_children = 0
-        self.normalize_weight    = 0
-        self.overall_weight      = 0
-        self.score    = 0
         self.source   = None
         self.colormap = None
         self.variable = None
@@ -35,6 +30,12 @@ class Node(object):
         self.space_mean = True
         self.relationships = None
         self.ctype         = None
+        
+        self.weight              = 1 # if a dataset has no weight specified, it is implicitly 1
+        self.sum_weight_children = 0 # what is the sum of the weights of my children?
+        self.normalize_weight    = 0 # my weight relative to my siblings
+        self.overall_weight      = 0 # the multiplication my normalized weight by all my parents' normalized weights
+        self.score               = 0 
         
     def __str__(self):
         if self.parent is None: return ""
@@ -78,18 +79,13 @@ def ConvertTypes(node):
     def _to_bool(a):
         if type(a) is type(True): return a
         if type(a) is type("")  : return a.lower() == "true"
-    if node.weight is not None: node.weight = float(node.weight)
+    node.weight     = float(node.weight)
     node.land       = _to_bool(node.land)
     node.space_mean = _to_bool(node.space_mean)
     if node.relationships is not None: node.relationships = node.relationships.split(",")
             
 def SumWeightChildren(node):
-    for child in node.children:
-        if child.weight is None:
-            node.sum_weight_children += child.sum_weight_children
-        else:
-            node.sum_weight_children += child.weight
-    if node.weight is None: node.weight = node.sum_weight_children
+    for child in node.children: node.sum_weight_children += child.weight
     
 def NormalizeWeights(node):
     if node.parent is not None:
