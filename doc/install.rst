@@ -45,7 +45,7 @@ as we do not yet have it listed in either package manager. To do this,
 first locate the package's source repository. For the ILAMB package,
 this amounts to cloning the repository_ found on bitbucket::
 
-  git clone git@bitbucket.org:ncollier/ilamb.git
+  git clone https://ncollier@bitbucket.org/ncollier/ilamb.git
 
 Enter into the cloned repository and you will find a python file named
 ``setup.py``. This is a common file in all python packages. Package
@@ -105,12 +105,13 @@ following packages and their dependencies in some form:
 * cfunits_, a python interface to UNIDATA’s Udunits-2 library with CF extensions
 * basemap_, a matplotlib toolkit which is a library for plotting 2D data on maps
 * sympy_, a python library for symbolic mathematics
+* mpi4py_, a python wrapper around the MPI library
 
 While the ILAMB package itself is not built to exploit parallelism,
 the application we have written using the ILAMB package to perform
-model-data comparisions does a basic map-reduce utilizing mpi4py_, a
-python wrapper around the MPI library. Thus while not a strict
-dependency, you should also install it as well.
+model-data comparisions does a basic map-reduce utilizing. Thus while
+mpi4py_ is not a strict dependency, you should also install it as
+well.
 
 If you are planning to run the ILAMB package on an institutional
 computing resource, many of our dependencies might be preinstalled but
