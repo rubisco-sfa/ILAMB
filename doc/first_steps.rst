@@ -160,7 +160,10 @@ using a python script in the demo directory called ``driver.py``. Executing the 
 
   python driver.py --config sample.cfg --model_root $ILAMB_ROOT/MODELS/ --regions global
 
-will yield output which resembles the following::
+If you are on some institutional resource, you may need to launch the
+above command using a submission script, or request an interactive
+node. As the driver runs, it will yield output which resembles the
+following::
 
   Searching for model results in /Users/ncf/sandbox/ILAMB_sample/MODELS/
   
