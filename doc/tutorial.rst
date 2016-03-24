@@ -8,3 +8,4 @@ Tutorials
    install
    first_steps
    add_model
+   add_data
