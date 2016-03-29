@@ -168,7 +168,9 @@ class Scoreboard():
 
         if not os.environ.has_key('ILAMB_ROOT'):
             raise ValueError("You must set the environment variable 'ILAMB_ROOT'")
-        
+
+        if (master and not os.path.isdir("./_build")): os.mkdir("./_build")        
+
         self.tree = ParseScoreboardConfigureFile(filename)
         max_name_len = 45
 
@@ -214,7 +216,6 @@ class Scoreboard():
             if not os.path.isdir(path) and master: os.mkdir(path)
             node.path = path
 
-        if not os.path.isdir("./_build"): os.mkdir("./_build")        
         TraversePreorder(self.tree,_buildDirectories)
         TraversePreorder(self.tree,_initConfrontation)
         
