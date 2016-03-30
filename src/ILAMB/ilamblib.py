@@ -695,7 +695,8 @@ def AnalysisMeanState(obs,mod,regions=['global'],dataset=None,benchmark_dataset=
 
     # The next analysis bit requires we are dealing with monthly mean data
     if not obs.monthly: return
-        
+    if obs.time.size < 12: return
+    
     # Compute of the phase shift. First we compute the mean
     # annual cycle over space/sites and then find the time where the
     # maxmimum occurs.
