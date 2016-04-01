@@ -262,7 +262,7 @@ class Variable:
                         area  = self.area,
                         ndata = self.ndata)
 
-    def integrateInSpace(self,region=None,mean=False):
+    def integrateInSpace(self,region=None,mean=False,weight=None):
         r"""Integrates the variable over a given region.
 
         Uses nodal integration to integrate to approximate 
@@ -281,9 +281,23 @@ class Variable:
         
         again by nodal integration. The spatial area which we divide
         by :math:`A(\Omega)` is the non-masked area of the given
-        region. This means that if a function has some values masked
-        or marked as invalid, we do not penalize the average value by
-        including this as a point at which data is expected.
+        region, also given by
+
+        .. math:: A(\Omega) = \int_{\Omega}\ d\Omega
+
+        This means that if a function has some values masked or marked
+        as invalid, we do not penalize the average value by including
+        this as a point at which data is expected. 
+
+        We also support the inclusion of an optional weighting
+        function :math:`w(\mathbf{x})` which is a function of space
+        only. In this case, we approximate the following integral
+
+        .. math:: \int_{\Omega} v(\mathbf{x},\dots)w(\mathbf{x})\ d\Omega
+
+        and if a mean value is desired, 
+
+        .. math:: \frac{1}{\int_{\Omega} w(\mathbf{x})\ d\Omega} \int_{\Omega} v(\mathbf{x},\dots)w(\mathbf{x})\ d\Omega
         
         Parameters
         ----------
@@ -291,7 +305,10 @@ class Variable:
             name of the region overwhich you wish to integrate
         mean : bool, optional
             enable to divide the integrand to get the mean function value
-        
+        weight : numpy.ndarray
+            a data array of the same shape as this variable's areas
+            representing an additional weight in the integrand
+
         Returns
         -------
         integral : ILAMB.Variable.Variable
@@ -307,35 +324,33 @@ class Variable:
             return vbar
 
         if not self.spatial: raise il.NotSpatialVariable()
-        if region is None:
-            integral = _integrate(self.data,self.area)
-            if mean: integral /= np.ma.masked_array(self.area,mask=self.data.mask).sum()
-            name = self.name + "_integrated_over_space"
-        else:
-            rem_mask  = np.copy(self.data.mask)
-            lats,lons = ILAMBregions[region]
-            mask      = (np.outer((self.lat>lats[0])*(self.lat<lats[1]),
-                                  (self.lon>lons[0])*(self.lon<lons[1]))==0)
-            self.data.mask += mask
-            integral  = _integrate(self.data,self.area)
-            self.data.mask = rem_mask
-            if mean:
-                mask = rem_mask+mask
-                if mask.ndim > 2: mask = np.all(mask,axis=0)
-                area = np.ma.masked_array(self.area,mask=mask)
-                integral /= area.sum()
-            name = self.name + "_integrated_over_%s" % region
 
-        # handle the unit
+        # determine the measure
+        measure = np.ma.masked_array(self.area,copy=True)
+        if weight is not None: measure *= weight
+
+        # if we want to integrate over a region, we need add to the
+        # measure's mask
+        if region is not None:
+            lats,lons     = ILAMBregions[region]
+            measure.mask += (np.outer((self.lat>lats[0])*(self.lat<lats[1]),
+                                      (self.lon>lons[0])*(self.lon<lons[1]))==0)
+
+        # approximate the integral
+        integral = _integrate(self.data,measure)
+        if mean: integral /= measure.sum()
+
+        # handle the name and unit
+        name = self.name + "_integrated_over_space"
+        if region is not None: name = name.replace("space",region)            
         unit = Units(self.unit)
         if mean:
-
+            
             # we have already divided thru by the non-masked area in
             # units of m^2, which are the same units of the integrand.
-            name += "_and_divided_by_area"
-            
+            name += "_and_divided_by_area"            
         else:
-
+            
             # if not a mean, we need to potentially handle unit conversions
             unit0    = Units("m2")*unit
             unit     = Units(unit0.formatted().split()[-1])
