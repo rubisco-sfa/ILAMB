@@ -700,8 +700,8 @@ def AnalysisMeanState(obs,mod,regions=['global'],dataset=None,benchmark_dataset=
     # Compute of the phase shift. First we compute the mean
     # annual cycle over space/sites and then find the time where the
     # maxmimum occurs.
-    obs_cycle,junk,junk,junk = obs.annualCycle()
-    mod_cycle,junk,junk,junk = mod.annualCycle()
+    obs_cycle       = obs.annualCycle()
+    mod_cycle       = mod.annualCycle()
     obs_maxt_map    = obs_cycle.timeOfExtrema(etype="max")
     mod_maxt_map    = mod_cycle.timeOfExtrema(etype="max")
     shift_map       = obs_maxt_map.phaseShift(mod_maxt_map)

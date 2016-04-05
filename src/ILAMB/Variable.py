@@ -406,42 +406,26 @@ class Variable:
     def annualCycle(self):
         """Computes mean annual cycle information (climatology) for the variable.
         
-        For each site/cell in the variable, computes the mean,
-        standard deviation, maximum and minimum values for each month
-        of the year across all years.
+        For each site/cell/depth in the variable, compute the mean annual cycle.
         
         Returns
         -------
         mean : ILAMB.Variable.Variable
             The annual cycle mean values
-        std : ILAMB.Variable.Variable
-            The annual cycle standard deviations corresponding to the mean
-        mx : ILAMB.Variable.Variable
-            The annual cycle maximum values
-        mn : ILAMB.Variable.Variable
-            The annual cycle minimum values
         """
         if not self.temporal: raise il.NotTemporalVariable()
         assert self.monthly
+        assert self.time.size > 11
         begin = np.argmin(self.time[:11]%365)
         end   = begin+int(self.time[begin:].size/12.)*12
         shp   = (-1,12) + self.data.shape[1:]
         v     = self.data[begin:end,...].reshape(shp)
         np.seterr(over='ignore',under='ignore')
         mean  = v.mean(axis=0)
-        std   = v.std (axis=0)
         np.seterr(over='raise',under='raise')
-        mx    = v.max (axis=0)
-        mn    = v.min (axis=0)
         mean  = Variable(data=mean,unit=self.unit,name="annual_cycle_mean_of_%s" % self.name,
                          time=mid_months,lat=self.lat,lon=self.lon,ndata=self.ndata)
-        std   = Variable(data=std ,unit=self.unit,name="annual_cycle_std_of_%s" % self.name,
-                         time=mid_months,lat=self.lat,lon=self.lon,ndata=self.ndata)
-        mx    = Variable(data=mx  ,unit=self.unit,name="annual_cycle_max_of_%s" % self.name,
-                         time=mid_months,lat=self.lat,lon=self.lon,ndata=self.ndata)
-        mn    = Variable(data=mn  ,unit=self.unit,name="annual_cycle_min_of_%s" % self.name,
-                         time=mid_months,lat=self.lat,lon=self.lon,ndata=self.ndata)
-        return mean,std,mx,mn
+        return mean
 
     def timeOfExtrema(self,etype="max"):
         """Returns the time of the specified extrema.
@@ -887,8 +871,8 @@ class Variable:
             # dimension is 12 we assume the variables are already the
             # annual cycles. If not, we compute the cycles and then
             # compute the extrema.
-            if self.time.size != 12: v1,junk,junk,junk = self.annualCycle()
-            if  var.time.size != 12: v2,junk,junk,junk = var .annualCycle()
+            if self.time.size != 12: v1 = self.annualCycle()
+            if  var.time.size != 12: v2 = var .annualCycle()
             e1 = v1.timeOfExtrema(etype=method[:3])
             e2 = v2.timeOfExtrema(etype=method[:3])
         if e1.spatial:
