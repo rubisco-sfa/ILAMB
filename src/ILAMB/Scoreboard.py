@@ -176,10 +176,18 @@ class Scoreboard():
 
         def _initConfrontation(node):
             if not node.isLeaf(): return
-            
+
+            # pick the confrontation to use, is it a built-in confrontation?
+            if ConfrontationTypes.has_key(node.ctype):
+                Constructor = ConfrontationTypes[node.ctype]
+            else:
+                # try importing the confrontation
+                conf = __import__(node.ctype)
+                Constructor = conf.__dict__[node.ctype]                    
+                
             try:
                 if node.colormap is None: node.colormap = "jet"
-                Constructor = ConfrontationTypes[node.ctype]
+                    
                 node.confrontation = Constructor(node.name,
                                                  "%s/%s" % (os.environ["ILAMB_ROOT"],node.source),
                                                  node.variable,
