@@ -357,7 +357,8 @@ def FromNetCDF4(filename,variable_name,alternate_vars=[],t0=None,tf=None):
         A 2D array of the cell areas
     ndata : int
         Number of data sites this data represents
-
+    depth_bnds : numpy.ndarray
+        A 1D array of the depth boundaries of each cell
     """
     try:
         f = Dataset(filename,mode="r")
@@ -382,7 +383,8 @@ def FromNetCDF4(filename,variable_name,alternate_vars=[],t0=None,tf=None):
     lat_name      = None
     lon_name      = None
     data_name     = None
-           
+    dpth_bnd_name = None
+    
     for key in var.dimensions:
         if "time" in key:
             time_name = key
@@ -392,6 +394,11 @@ def FromNetCDF4(filename,variable_name,alternate_vars=[],t0=None,tf=None):
         if "lat"  in key: lat_name  = key
         if "lon"  in key: lon_name  = key
         if "data" in key: data_name = key
+        if "depth" in key:
+            d = f.variables[key]
+            if "bounds" in d.ncattrs():
+                dpth_bnd_name = d.getncattr("bounds")
+        
     if time_name is None:
         t = None
     else:
@@ -423,7 +430,11 @@ def FromNetCDF4(filename,variable_name,alternate_vars=[],t0=None,tf=None):
         if lon_name is not None: lon = f.variables[lon_name][...]
         if lat.size != data: lat = None
         if lon.size != data: lon = None
-
+    if dpth_bnd_name is None:
+        dpth_bnd = None
+    else:
+        dpth_bnd = f.variables[dpth_bnd_name][...]
+        
     # read in data array, roughly subset in time if bounds are
     # provided for added effciency, what do we do if no time in this
     # file falls within the time bounds?
@@ -449,7 +460,7 @@ def FromNetCDF4(filename,variable_name,alternate_vars=[],t0=None,tf=None):
     units = var.units
     if units == "unitless": units = "1"
     
-    return v,units,variable_name,t,t_bnd,lat,lon,data
+    return v,units,variable_name,t,t_bnd,lat,lon,data,dpth_bnd
 
         
 def Score(var,normalizer,eps=1e-12,theta=0.5,error=1.0):

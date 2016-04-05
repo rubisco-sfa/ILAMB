@@ -46,6 +46,8 @@ class Variable:
         number of data sites this data represents
     alternate_vars : list of str, optional
         a list of alternate acceptable variable names
+    depth_bnds : numpy.ndarray, optional
+        a 2D array representing the boundaries of the cells in the vertical dimension
 
     Examples
     --------
@@ -78,19 +80,21 @@ class Variable:
             lat   = keywords.get("lat"  ,None)
             lon   = keywords.get("lon"  ,None)
             ndata = keywords.get("ndata",None)
+            dbnds = keywords.get("depth_bnds",None)
             assert data is not None
             assert unit is not None
         else:
             assert variable_name is not None
             t0 = keywords.get("t0",None)
             tf = keywords.get("tf",None)
-            data,unit,name,time,time_bnds,lat,lon,ndata = il.FromNetCDF4(filename,variable_name,alternate_vars,t0,tf)
+            data,unit,name,time,time_bnds,lat,lon,ndata,dbnds = il.FromNetCDF4(filename,variable_name,alternate_vars,t0,tf)
                             
         if not np.ma.isMaskedArray(data): data = np.ma.masked_array(data)
         self.data  = data 
         self.ndata = ndata
         self.unit  = unit
         self.name  = name
+        self.depth_bnds = dbnds
         
         # Handle time data
         self.time      = time      # time data
