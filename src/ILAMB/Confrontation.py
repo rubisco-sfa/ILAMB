@@ -23,7 +23,7 @@ class Confrontation:
     ----------
     name : str
         a name for the confrontation
-    srcdata : str
+    source : str
         full path to the observational dataset
     variable_name : str
         name of the variable to extract from the source dataset
@@ -51,13 +51,13 @@ class Confrontation:
     land : str, bool
         enable to force the masking of areas with no land (default is False)
     """
-    def __init__(self,name,srcdata,variable_name,**keywords):
+    def __init__(self,**keywords):
         
         # Initialize
         self.master         = True
-        self.name           = name
-        self.srcdata        = srcdata
-        self.variable_name  = variable_name
+        self.name           = keywords.get("name",None)
+        self.source         = keywords.get("source",None)
+        self.variable       = keywords.get("variable",None)
         self.output_path    = keywords.get("output_path","_build/%s/" % self.name)
         self.alternate_vars = keywords.get("alternate_vars",[])
         self.derived        = keywords.get("derived",None)
@@ -74,13 +74,14 @@ class Confrontation:
         self.plot_unit      = keywords.get("plot_unit",None)
         self.space_mean     = keywords.get("space_mean",True)        
         self.relationships  = keywords.get("relationships",None)
+        self.keywords       = keywords
         
         # Make sure the source data exists
         try:
-            os.stat(self.srcdata)
+            os.stat(self.source)
         except:
             msg  = "\n\nI am looking for data for the %s confrontation here\n\n" % self.name
-            msg += "%s\n\nbut I cannot find it. " % self.srcdata
+            msg += "%s\n\nbut I cannot find it. " % self.source
             msg += "Did you download the data? Have you set the ILAMB_ROOT envronment variable?\n"
             raise il.MisplacedData(msg)
 
@@ -130,8 +131,8 @@ class Confrontation:
             the variable context associated with the model result
         """
         if self.data is None:
-            obs = Variable(filename       = self.srcdata,
-                           variable_name  = self.variable_name,
+            obs = Variable(filename       = self.source,
+                           variable_name  = self.variable,
                            alternate_vars = self.alternate_vars)
             self.data = obs
         else:
@@ -139,23 +140,31 @@ class Confrontation:
         if obs.time is None: raise il.NotTemporalVariable()
         t0 = obs.time_bnds[0, 0]
         tf = obs.time_bnds[1,-1]
-        
+
         if obs.spatial:
             try:
-                mod = m.extractTimeSeries(self.variable_name,
-                                          alt_vars     = self.alternate_vars,initial_time=t0,final_time=tf)
+                mod = m.extractTimeSeries(self.variable,
+                                          alt_vars     = self.alternate_vars,
+                                          initial_time = t0,
+                                          final_time   = tf)
             except:
-                mod = m.derivedVariable(self.variable_name,self.derived,initial_time=t0,final_time=tf)
+                mod = m.derivedVariable  (self.variable,self.derived,
+                                          initial_time = t0,
+                                          final_time   = tf)
         else:
             try:
-                mod = m.extractTimeSeries(self.variable_name,
+                mod = m.extractTimeSeries(self.variable,
                                           alt_vars     = self.alternate_vars,
                                           lats         = obs.lat,
-                                          lons         = obs.lon,initial_time=t0,final_time=tf)
+                                          lons         = obs.lon,
+                                          initial_time = t0,
+                                          final_time   = tf)
             except:
-                mod = m.derivedVariable(self.variable_name,self.derived,
-                                        lats         = obs.lat,
-                                        lons         = obs.lon,initial_time=t0,final_time=tf)
+                mod = m.derivedVariable  (self.variable,self.derived,
+                                          lats         = obs.lat,
+                                          lons         = obs.lon,
+                                          initial_time = t0,
+                                          final_time   = tf)
 
         obs,mod = il.MakeComparable(obs,mod,mask_ref=True,clip_ref=True)
         

@@ -17,24 +17,24 @@ class Node(object):
         self.children            = []
         self.parent              = None
         self.source              = None
-        self.colormap            = None
+        self.cmap                = None
         self.variable            = None
-        self.alternate_variable  = None
+        self.alternate_vars      = None
         self.derived             = None
         self.land                = False
         self.confrontation       = None
-        self.path                = None
+        self.output_path         = None
         self.bgcolor             = None
         self.table_unit          = None
         self.plot_unit           = None
         self.space_mean          = True
         self.relationships       = None
         self.ctype               = None
-        self.weight              = 1 # if a dataset has no weight specified, it is implicitly 1
-        self.sum_weight_children = 0 # what is the sum of the weights of my children?
-        self.normalize_weight    = 0 # my weight relative to my siblings
-        self.overall_weight      = 0 # the multiplication my normalized weight by all my parents' normalized weights
-        self.score               = 0 
+        self.weight              = 1    # if a dataset has no weight specified, it is implicitly 1
+        self.sum_weight_children = 0    # what is the sum of the weights of my children?
+        self.normalize_weight    = 0    # my weight relative to my siblings
+        self.overall_weight      = 0    # the multiplication my normalized weight by all my parents' normalized weights
+        self.score               = 0    # placeholder
         
     def __str__(self):
         if self.parent is None: return ""
@@ -81,8 +81,12 @@ def ConvertTypes(node):
     node.weight     = float(node.weight)
     node.land       = _to_bool(node.land)
     node.space_mean = _to_bool(node.space_mean)
-    if node.relationships is not None: node.relationships = node.relationships.split(",")
-            
+    if node.relationships  is not None: node.relationships  = node.relationships.split(",")
+    if node.alternate_vars is not None:
+        node.alternate_vars = [node.alternate_vars]
+    else:
+        node.alternate_vars = []
+        
 def SumWeightChildren(node):
     for child in node.children: node.sum_weight_children += child.weight
     
@@ -102,11 +106,11 @@ def OverallWeights(node):
 
 def InheritVariableNames(node):
     if node.parent             is None: return
-    if node.variable           is None: node.variable           = node.parent.variable
-    if node.alternate_variable is None: node.alternate_variable = node.parent.alternate_variable
-    if node.derived            is None: node.derived            = node.parent.derived
-    if node.colormap           is None: node.colormap           = node.parent.colormap
-    if node.ctype              is None: node.ctype              = node.parent.ctype
+    if node.variable           is None: node.variable       = node.parent.variable
+    if node.derived            is None: node.derived        = node.parent.derived
+    if node.cmap               is None: node.cmap           = node.parent.cmap
+    if node.ctype              is None: node.ctype          = node.parent.ctype
+    node.alternate_vars = node.parent.alternate_vars
     
 def ParseScoreboardConfigureFile(filename):
     root = Node(None)
@@ -142,7 +146,7 @@ def ParseScoreboardConfigureFile(filename):
         if m3:
             keyword = m3.group(1).strip()
             value   = m3.group(2).strip().replace('"','')
-            if keyword not in node.__dict__.keys(): continue
+            #if keyword not in node.__dict__.keys(): continue
             try:
                 node.__dict__[keyword] = value
             except:
@@ -185,28 +189,16 @@ class Scoreboard():
                 Constructor = conf.__dict__[node.ctype]                    
                 
             try:
-                if node.colormap is None: node.colormap = "jet"
-                
-                node.confrontation = Constructor(node.name,
-                                                 "%s/%s" % (os.environ["ILAMB_ROOT"],node.source),
-                                                 node.variable,
-                                                 alternate_vars=[node.alternate_variable],
-                                                 regions=regions,
-                                                 cmap=node.colormap,
-                                                 output_path=node.path,
-                                                 land=node.land,
-                                                 derived=node.derived,
-                                                 space_mean=node.space_mean,
-                                                 table_unit=node.table_unit,
-                                                 plot_unit=node.plot_unit,
-                                                 relationships=node.relationships)
+                if node.cmap is None: node.cmap = "jet"
+                node.source = "%s/%s" % (os.environ["ILAMB_ROOT"],node.source)
+                node.confrontation = Constructor(**(node.__dict__))
 
                 if verbose and master: print ("    {0:>%d}\033[92m Initialized\033[0m" % max_name_len).format(node.confrontation.longname)
                 
             except MisplacedData:
 
                 if (master and verbose): 
-                    longname = node.path
+                    longname = node.output_path
                     longname = longname.replace("//","/").replace("./","").replace("_build/","")
                     if longname[-1] == "/": longname = longname[:-1]
                     longname = "/".join(longname.split("/")[1:])
@@ -221,7 +213,7 @@ class Scoreboard():
                 parent = parent.parent
             path = "./_build/%s" % path
             if not os.path.isdir(path) and master: os.mkdir(path)
-            node.path = path
+            node.output_path = path
 
         TraversePreorder(self.tree,_buildDirectories)
         TraversePreorder(self.tree,_initConfrontation)
