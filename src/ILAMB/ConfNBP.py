@@ -47,53 +47,6 @@ class ConfNBP(Confrontation):
         enable to force the masking of areas with no land (default is False)
 
     """
-    def __init__(self,name,srcdata,variable_name,**keywords):
-        
-        # Initialize
-        self.master         = True
-        self.name           = name
-        self.srcdata        = srcdata
-        self.variable_name  = variable_name
-        self.output_path    = keywords.get("output_path","_build/%s/" % self.name)
-        self.alternate_vars = keywords.get("alternate_vars",[])
-        self.derived        = keywords.get("derived",None)
-        self.regions        = ["global"]
-        self.data           = None
-        self.cmap           = keywords.get("cmap","jet")
-        self.land           = keywords.get("land",False)
-        self.limits         = None
-        self.longname       = self.output_path
-        self.longname       = self.longname.replace("//","/").replace("./","").replace("_build/","")
-        if self.longname[-1] == "/": self.longname = self.longname[:-1]
-        self.longname       = "/".join(self.longname.split("/")[1:])
-        self.table_unit     = keywords.get("table_unit",None)
-        self.plot_unit      = keywords.get("plot_unit",None)
-        self.space_mean     = keywords.get("space_mean",True)        
-        self.relationships  = keywords.get("relationships",None)
-
-        # Make sure the source data exists
-        try:
-            os.stat(self.srcdata)
-        except:
-            msg  = "\n\nI am looking for data for the %s confrontation here\n\n" % self.name
-            msg += "%s\n\nbut I cannot find it. " % self.srcdata
-            msg += "Did you download the data? Have you set the ILAMB_ROOT envronment variable?\n"
-            raise il.MisplacedData(msg)
-
-        # Setup a html layout for generating web views of the results
-        self.layout = post.HtmlLayout(self,regions=self.regions)
-        self.layout.setHeader("CNAME / RNAME / MNAME")
-        self.layout.setSections(["Temporally integrated period mean",
-                                 "Spatially integrated regional mean",
-                                 "Period Mean Relationships"])
-
-        # Define relative weights of each score in the overall score
-        # (FIX: need some way for the user to modify this)
-        self.weight = {"bias_score" :1.,
-                       "rmse_score" :2.,
-                       "shift_score":1.,
-                       "iav_score"  :1.,
-                       "sd_score"   :1.}
             
     def stageData(self,m):
         r"""Extracts model data and integrates it over the globe to match the confrontation dataset.
