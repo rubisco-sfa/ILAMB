@@ -450,7 +450,7 @@ def FromNetCDF4(filename,variable_name,alternate_vars=[],t0=None,tf=None):
         v = var[...]
 
     # handle incorrect or absent masking of arrays
-    if type(v) != type(np.ma.empty([])):
+    if type(v) != type(np.ma.empty(1)):
         mask = np.zeros(v.shape,dtype=int)
         if "_FillValue"    in var.ncattrs(): mask += (np.abs(v-var._FillValue   )<1e-12)
         if "missing_value" in var.ncattrs(): mask += (np.abs(v-var.missing_value)<1e-12)

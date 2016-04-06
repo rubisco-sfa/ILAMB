@@ -15,7 +15,7 @@ dpy_gregorian    = 365.25  # days per year
 dpy_360          = 360.0   # days per year (for 30 days/month)
 dpm_noleap       = asarray([31,28,31,30,31,30,31,31,30,31,30,31],dtype='float') # days per month
 dpm_gregorian    = npcopy(dpm_noleap) ; dpm_gregorian[1] = dpm_gregorian[1] + 0.25
-dpm_360          = ones(mpy)*30.
+dpm_360          = ones(int(mpy))*30.
 mid_months       = asarray([15.5,45.,74.5,105.,135.5,166.,196.5,227.5,258.,288.5,319.,349.5],dtype='float')
 lbl_months       = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]
 bnd_months       = asarray([0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334, 365],dtype='int')
