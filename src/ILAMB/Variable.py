@@ -1266,3 +1266,40 @@ class Variable:
                         area      = self.area)
 
     
+    def trim(self,lat=None,lon=None,t=None,d=None):
+        """Trim away a variable in space/time in place.
+
+        Parameters
+        ----------
+        lat,lon,t,d : tuple or list
+            a 2-tuple containing the lower and upper limits beyond which we trim
+        """
+        if lat is not None:
+            assert len(lat) == 2
+            if not self.spatial: raise il.NotSpatialVariable
+            i = max(self.lat.searchsorted(lat[0])-1,            0)
+            j = min(self.lat.searchsorted(lat[1])  ,self.lat.size)
+            self.lat  = self.lat[i:j]
+            self.data = self.data[...,i:j,:]
+            self.area = self.area[    i:j,:]
+        if lon is not None:
+            assert len(lon) == 2
+            if not self.spatial: raise il.NotSpatialVariable
+            i = max(self.lon.searchsorted(lon[0])-1,            0)
+            j = min(self.lon.searchsorted(lon[1])  ,self.lon.size)
+            self.lon  = self.lon[i:j]
+            self.data = self.data[...,i:j,:]
+            self.area = self.area[    i:j,:]
+        if t is not None:
+            assert len(t) == 2
+            if not self.temporal: raise il.NotTemporalVariable
+            self = il.ClipTime(self,t[0],t[1])
+        if d is not None:
+            assert len(d) == 2
+            if self.depth_bnds is None: raise ValueError
+            keep = (self.depth_bnds[:,1] >= d[0])*(self.depth_bnds[:,0] <= d[1])
+            ind  = np.where(keep)[0]
+            self.depth_bnds = self.depth_bnds[ind,:]
+            self.data       = self.data[...,ind,:,:]
+            
+        return self
