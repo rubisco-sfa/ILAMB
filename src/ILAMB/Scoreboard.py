@@ -13,24 +13,23 @@ global_model_list         = []
 class Node(object):
     
     def __init__(self, name):
-        self.name     = name
-        self.children = []
-        self.parent   = None
-        self.source   = None
-        self.colormap = None
-        self.variable = None
-        self.alternate_variable = None
-        self.derived  = None
-        self.land     = False
-        self.confrontation = None
-        self.path      = None
-        self.bgcolor   = None
-        self.table_unit = None
-        self.plot_unit  = None
-        self.space_mean = True
-        self.relationships = None
-        self.ctype         = None
-        
+        self.name                = name
+        self.children            = []
+        self.parent              = None
+        self.source              = None
+        self.colormap            = None
+        self.variable            = None
+        self.alternate_variable  = None
+        self.derived             = None
+        self.land                = False
+        self.confrontation       = None
+        self.path                = None
+        self.bgcolor             = None
+        self.table_unit          = None
+        self.plot_unit           = None
+        self.space_mean          = True
+        self.relationships       = None
+        self.ctype               = None
         self.weight              = 1 # if a dataset has no weight specified, it is implicitly 1
         self.sum_weight_children = 0 # what is the sum of the weights of my children?
         self.normalize_weight    = 0 # my weight relative to my siblings
@@ -187,7 +186,7 @@ class Scoreboard():
                 
             try:
                 if node.colormap is None: node.colormap = "jet"
-                    
+                
                 node.confrontation = Constructor(node.name,
                                                  "%s/%s" % (os.environ["ILAMB_ROOT"],node.source),
                                                  node.variable,

@@ -428,7 +428,8 @@ class Variable:
         mean  = v.mean(axis=0)
         np.seterr(over='raise',under='raise')
         mean  = Variable(data=mean,unit=self.unit,name="annual_cycle_mean_of_%s" % self.name,
-                         time=mid_months,lat=self.lat,lon=self.lon,ndata=self.ndata)
+                         time=mid_months,lat=self.lat,lon=self.lon,ndata=self.ndata,
+                        depth_bnds = self.depth_bnds)
         return mean
 
     def timeOfExtrema(self,etype="max"):
@@ -1010,7 +1011,8 @@ class Variable:
         bias = Variable(data=np.ma.masked_array(data,mask=mask),
                         name="bias_of_%s" % self.name,time=self.time,time_bnds=self.time_bnds,
                         unit=self.unit,ndata=self.ndata,
-                        lat=lat,lon=lon,area=area).integrateInTime(mean=True)
+                        lat=lat,lon=lon,area=area,
+                        depth_bnds = self.depth_bnds).integrateInTime(mean=True)
         bias.name = bias.name.replace("_integrated_over_time_and_divided_by_time_period","")
         return bias
     
@@ -1067,7 +1069,8 @@ class Variable:
         rmse = Variable(data=np.ma.masked_array(data,mask=mask),
                         name="rmse_of_%s" % self.name,time=self.time,time_bnds=self.time_bnds,
                         unit=self.unit,ndata=self.ndata,
-                        lat=lat,lon=lon,area=area).integrateInTime(mean=True)
+                        lat=lat,lon=lon,area=area,
+                        depth_bnds = self.depth_bnds).integrateInTime(mean=True)
         rmse.name = rmse.name.replace("_integrated_over_time_and_divided_by_time_period","")
         rmse.data = np.sqrt(rmse.data)
         return rmse
@@ -1090,7 +1093,8 @@ class Variable:
         return Variable(data=data,
                         name="iav_of_%s" % self.name,
                         unit=self.unit,ndata=self.ndata,
-                        lat=self.lat,lon=self.lon,area=self.area)
+                        lat=self.lat,lon=self.lon,area=self.area,
+                        depth_bnds = self.depth_bnds)
 
     def spatialDistribution(self,var,region="global"):
         r"""Evaluates how well the input variable is spatially distributed relative to this variable.
@@ -1212,14 +1216,15 @@ class Variable:
             time[i]     = 0.5*(t0+tf)
             mean        = self.integrateInTime(mean=True,t0=t0,tf=tf).convert(self.unit)
             data[i,...] = mean.data
-        return Variable(name      = "coarsened_%s" % self.name,
-                        unit      = self.unit,
-                        time      = time,
-                        time_bnds = intervals,
-                        data      = data,
-                        lat       = self.lat,
-                        lon       = self.lon,
-                        area      = self.area)
+        return Variable(name       = "coarsened_%s" % self.name,
+                        unit       = self.unit,
+                        time       = time,
+                        time_bnds  = intervals,
+                        data       = data,
+                        lat        = self.lat,
+                        lon        = self.lon,
+                        area       = self.area,
+                        depth_bnds = self.depth_bnds)
         
     def accumulateInTime(self):
         r"""For each time interval, accumulate variable from the beginning.
@@ -1259,3 +1264,5 @@ class Variable:
                         lat       = self.lat,
                         lon       = self.lon,
                         area      = self.area)
+
+    
