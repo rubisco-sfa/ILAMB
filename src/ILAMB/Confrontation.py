@@ -318,6 +318,7 @@ class Confrontation:
             except:
                 continue
             for g in dataset.groups.keys():
+                if "relationship" not in g: continue
                 grp = dataset.groups[g]
                 if not limits.has_key(g):
                     limits[g] = {}
@@ -701,38 +702,44 @@ class Confrontation:
         if not self.master: return
 
         # build the metric dictionary
-        metrics      = {}
-        metric_names = { "period_mean"   : "Period Mean",
-                         "bias_of"       : "Bias",
-                         "rmse_of"       : "RMSE",
-                         "shift_of"      : "Phase Shift",
-                         "bias_score"    : "Bias Score",
-                         "rmse_score"    : "RMSE Score",
-                         "shift_score"   : "Phase Score",
-                         "iav_score"     : "Interannual Variability Score",
-                         "sd_score"      : "Spatial Distribution Score",
-                         "overall_score" : "Overall Score" }
+        metrics = {}
+        
         for fname in glob.glob("%s/*.nc" % self.output_path):
             try:
-                dataset   = Dataset(fname)
+                dataset = Dataset(fname)
             except:
                 continue
-            variables = [v for v in dataset.variables.keys() if v not in dataset.dimensions.keys()]
-            mname     = dataset.getncattr("name")
+
+            # if the dataset opens, we need to add the model (table row)
+            mname = dataset.getncattr("name")
             metrics[mname] = {}
-            for vname in variables:
-                if dataset.variables[vname][...].size > 1: continue
-                var  = Variable(filename=fname,variable_name=vname)
-                name = "_".join(var.name.split("_")[:2])
-                if not metric_names.has_key(name): continue
-                metname = metric_names[name]
+
+            # each model will need to have all regions
+            for region in self.regions: metrics[mname][region] = {}
+            
+            # columns in the table will be in the scalars group
+            if not dataset.groups.has_key("scalars"): continue
+
+            # we add scalars to the model/region based on the region
+            # name being in the variable name. If no region is found,
+            # we assume it is the global region.
+            grp = dataset.groups["scalars"]
+            for vname in grp.variables.keys():
+                found = False
                 for region in self.regions:
-                    if region not in metrics[mname].keys(): metrics[mname][region] = {}
-                    if region in var.name: metrics[mname][region][metname] = var
+                    if region in vname: 
+                        found = True
+                        var   = grp.variables[vname]
+                        name  = vname.replace(region,"")
+                        metrics[mname][region][name] = Variable(name = name,
+                                                                unit = var.units,
+                                                                data = var[...])
+                if not found:
+                    var = grp.variables[vname]
+                    metrics[mname]["global"][vname] = Variable(name = vname,
+                                                               unit = var.units,
+                                                               data = var[...])
                     
-        # write the HTML page
-        f = file("%s/%s.html" % (self.output_path,self.name),"w")
-        self.layout.setMetrics(metrics)
 
         """
         print "\n\n",self.longname
@@ -746,7 +753,7 @@ class Confrontation:
                         print >> output, '%s%s:' % ((nested_level + 1) * spacing, k)
                         dump(v, nested_level + 1, output)
                     else:
-                        print >> output, '%s%s: %s' % ((nested_level + 1) * spacing, k, v.name)
+                        print >> output, '%s%s: %g' % ((nested_level + 1) * spacing, k, v.data)
                 print >> output, '%s}' % (nested_level * spacing)
             elif type(obj) == list:
                 print >> output, '%s[' % ((nested_level) * spacing)
@@ -761,6 +768,9 @@ class Confrontation:
         dump(metrics)
         """
         
+        # write the HTML page
+        f = file("%s/%s.html" % (self.output_path,self.name),"w")
+        self.layout.setMetrics(metrics)
         f.write(str(self.layout))
         f.close()
 

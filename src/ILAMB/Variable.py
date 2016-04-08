@@ -714,8 +714,16 @@ class Variable:
         if self.spatial:
             dim.append(_checkLat(self.lat,dataset))
             dim.append(_checkLon(self.lon,dataset))
+
+
+        grp = dataset
+        if self.data.size == 1:
+            if not dataset.groups.has_key("scalars"):
+                grp = dataset.createGroup("scalars")
+            else:
+                grp = dataset.groups["scalars"]
             
-        V = dataset.createVariable(self.name,"double",dim,zlib=True)
+        V = grp.createVariable(self.name,"double",dim,zlib=True)
         V.setncattr("units",self.unit)
         try:
             V.setncattr("max",self.data.max())

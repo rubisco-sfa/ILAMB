@@ -286,6 +286,7 @@ class HtmlLayout():
         self.header   = "CNAME"
         self.figures  = {}
         self.sections = None
+        self.priority = ["Bias","RMSE","Phase","Seasonal","Interannual","Spatial","Score","Overall"]
         
     def setSections(self,sections):
 
@@ -308,10 +309,14 @@ class HtmlLayout():
 
         self.metrics = metrics
 
+    def setMetricPriority(self,priority):
+
+        self.priority = priority
+        
     def generateMetricTable(self):
 
         # Sorting function
-        def _sortMetrics(name,priority=["Bias","RMSE","Phase","Seasonal","Interannual","Spatial","Score","Overall"]):
+        def _sortMetrics(name,priority=self.priority):
             val = 1.
             for i,pname in enumerate(priority):
                 if pname in name: val += 2**i
