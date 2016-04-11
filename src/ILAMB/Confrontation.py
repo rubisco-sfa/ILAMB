@@ -566,7 +566,7 @@ class Confrontation:
             names.append("Benchmark")
             
         for data,name in zip(datasets,names):
-            groups = [g for g in data.groups.keys()]
+            groups = [g for g in data.groups.keys() if "relationship" in g]
             if name == "Benchmark":
                 dep_name = self.longname
             else:
