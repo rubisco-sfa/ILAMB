@@ -658,17 +658,15 @@ def AnalysisMeanState(obs,mod,regions=['global'],dataset=None,benchmark_dataset=
         std[region],R[region],sd_score[region] = obs_timeint.spatialDistribution(mod_timeint,region=region)
         
         # Change variable names to make things easier to parse later.
-        obs_period_mean[region].name = "period_mean_of_%s_over_%s" % (obs.name,region)
+        obs_period_mean[region].name = "Period Mean %s"            % (region)
+        mod_period_mean[region].name = "Period Mean %s"            % (region)
+        bias           [region].name = "Bias %s"                   % (region)
+        rmse           [region].name = "RMSE %s"                   % (region)
+        bias_score     [region].name = "Bias Score %s"             % (region)
+        rmse_score     [region].name = "RMSE Score %s"             % (region)
+        sd_score       [region].name = "Spatial Distribution Score %s"    % (region)
         obs_spaceint   [region].name = "spaceint_of_%s_over_%s"    % (obs.name,region)
-        mod_period_mean[region].name = "period_mean_of_%s_over_%s" % (obs.name,region)
-        bias           [region].name = "bias_of_%s_over_%s"        % (obs.name,region)
-        rmse           [region].name = "rmse_of_%s_over_%s"        % (obs.name,region)
-        bias_score     [region].name = "bias_score_of_%s_over_%s"  % (obs.name,region)
-        rmse_score     [region].name = "rmse_score_of_%s_over_%s"  % (obs.name,region)
-        sd_score       [region].name = "sd_score_of_%s_over_%s"    % (obs.name,region)
         mod_spaceint   [region].name = "spaceint_of_%s_over_%s"    % (obs.name,region)
-        std            [region].name = "std_of_%s_over_%s"         % (obs.name,region)
-        R              [region].name = "corr_of_%s_over_%s"        % (obs.name,region)
         
     # More variable name changes
     obs_timeint.name  = "timeint_of_%s"   % obs.name
@@ -692,7 +690,7 @@ def AnalysisMeanState(obs,mod,regions=['global'],dataset=None,benchmark_dataset=
     # Optionally dump results to a NetCDF file
     if dataset is not None:
         for var in [mod_period_mean,bias,rmse,bias_score,rmse_score,sd_score,
-                    mod_timeint,bias_map,std,R,mod_spaceint]:
+                    mod_timeint,bias_map,mod_spaceint]:
             if type(var) == type({}):
                 for key in var.keys(): var[key].toNetCDF4(dataset)
             else:
@@ -763,11 +761,11 @@ def AnalysisMeanState(obs,mod,regions=['global'],dataset=None,benchmark_dataset=
             mod_mean_cycle [region],junk = mod_cycle      .siteStats(region=region)
         
         # Change variable names to make things easier to parse later.
-        obs_mean_cycle [region].name = "cycle_of_%s_over_%s"       % (obs.name,region)
-        shift          [region].name = "shift_of_%s_over_%s"       % (obs.name,region)
-        shift_score    [region].name = "shift_score_of_%s_over_%s" % (obs.name,region)
-        iav_score      [region].name = "iav_score_of_%s_over_%s"   % (obs.name,region)
-        mod_mean_cycle [region].name = "cycle_of_%s_over_%s"       % (obs.name,region)
+        shift          [region].name = "Phase Shift %s"          % (region)
+        shift_score    [region].name = "Phase Shift Score %s"    % (region)
+        iav_score      [region].name = "Interannual Variability Score %s" % (region)
+        obs_mean_cycle [region].name = "cycle_of_%s_over_%s"     % (obs.name,region)
+        mod_mean_cycle [region].name = "cycle_of_%s_over_%s"     % (obs.name,region)
         
     # More variable name changes
     obs_maxt_map.name = "phase_map_of_%s" % obs.name

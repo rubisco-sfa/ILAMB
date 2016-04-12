@@ -8,7 +8,7 @@ import pylab as plt
 from matplotlib.colors import LogNorm
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
-class Confrontation:
+class Confrontation(object):
     """A generic class for confronting model results with observational data.
 
     This class is meant to provide the user with a simple way to
@@ -94,11 +94,11 @@ class Confrontation:
 
         # Define relative weights of each score in the overall score
         # (FIX: need some way for the user to modify this)
-        self.weight = {"bias_score" :1.,
-                       "rmse_score" :2.,
-                       "shift_score":1.,
-                       "iav_score"  :1.,
-                       "sd_score"   :1.}
+        self.weight = {"Bias Score"                    :1.,
+                       "RMSE Score"                    :2.,
+                       "Phase Shift Score"             :1.,
+                       "Interannual Variability Score" :1.,
+                       "Spatial Distribution Score"    :1.}
         
     def stageData(self,m):
         r"""Extracts model data which matches the observational dataset.
@@ -330,7 +330,8 @@ class Confrontation:
                 limits[g]["xmax"] = max(limits[g]["xmax"],grp.variables["ind_bnd"][-1,-1])
                 limits[g]["ymin"] = min(limits[g]["ymin"],grp.variables["dep_bnd"][ 0, 0])
                 limits[g]["ymax"] = max(limits[g]["ymax"],grp.variables["dep_bnd"][-1,-1])
-                
+            dataset.close()
+            
         self.limits = limits
 
     def computeOverallScore(self,m):
@@ -347,22 +348,24 @@ class Confrontation:
             dataset = Dataset(fname,mode="r+")
         except:
             return
-        variables = [v for v in dataset.variables.keys() if "score" in v and "overall" not in v]
+        if "scalars" not in dataset.groups.keys(): return
+        grp       = dataset.groups["scalars"]
+        variables = [v for v in grp.variables.keys() if "Score" in v and "Overall" not in v]
         for region in self.regions:
             overall_score  = 0.
             sum_of_weights = 0.
             for v in variables:
                 if region not in v: continue
-                score = "_".join(v.split("_")[:2])
+                score = v.replace(region,"").strip()
                 if not self.weight.has_key(score): continue
-                overall_score  += self.weight[score]*dataset.variables[v][...]
+                overall_score  += self.weight[score]*grp.variables[v][...]
                 sum_of_weights += self.weight[score]        
             overall_score /= max(sum_of_weights,1e-12)
-            name = "overall_score_over_%s" % region
-            if name in dataset.variables.keys():
-                dataset.variables[name][0] = overall_score
+            name = "Overall Score %s" % region
+            if name in grp.variables.keys():
+                grp.variables[name][0] = overall_score
             else:
-                Variable(data=overall_score,name=name,unit="-").toNetCDF4(dataset)
+                Variable(data=overall_score,name=name,unit="1").toNetCDF4(dataset)
         dataset.close()
 
     def compositePlots(self):

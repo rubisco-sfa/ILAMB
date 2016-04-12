@@ -30,6 +30,7 @@ class Node(object):
         self.space_mean          = True
         self.relationships       = None
         self.ctype               = None
+        self.regions             = None
         self.weight              = 1    # if a dataset has no weight specified, it is implicitly 1
         self.sum_weight_children = 0    # what is the sum of the weights of my children?
         self.normalize_weight    = 0    # my weight relative to my siblings
@@ -81,6 +82,7 @@ def ConvertTypes(node):
     node.weight     = float(node.weight)
     node.land       = _to_bool(node.land)
     node.space_mean = _to_bool(node.space_mean)
+    if node.regions        is not None: node.regions        = node.regions.split(",")
     if node.relationships  is not None: node.relationships  = node.relationships.split(",")
     if node.alternate_vars is not None:
         node.alternate_vars = [node.alternate_vars]
@@ -180,6 +182,9 @@ class Scoreboard():
         def _initConfrontation(node):
             if not node.isLeaf(): return
 
+            # if the user hasn't set regions, use the globally defined ones
+            if node.regions is None: node.regions = regions
+            
             # pick the confrontation to use, is it a built-in confrontation?
             if ConfrontationTypes.has_key(node.ctype):
                 Constructor = ConfrontationTypes[node.ctype]
@@ -192,7 +197,7 @@ class Scoreboard():
                 if node.cmap is None: node.cmap = "jet"
                 node.source = "%s/%s" % (os.environ["ILAMB_ROOT"],node.source)
                 node.confrontation = Constructor(**(node.__dict__))
-
+                
                 if verbose and master: print ("    {0:>%d}\033[92m Initialized\033[0m" % max_name_len).format(node.confrontation.longname)
                 
             except MisplacedData:
@@ -429,10 +434,11 @@ def CompositeScores(tree,M):
                 if os.path.isfile(fname):
                     try:
                         dataset = Dataset(fname)
+                        grp     = dataset.groups["scalars"]
                     except:
                         continue
-                    if dataset.variables.has_key("overall_score_over_global"):
-                        data[ind] = dataset.variables["overall_score_over_global"][0]
+                    if grp.variables.has_key("Overall Score global"):
+                        data[ind] = grp.variables["Overall Score global"][0]
                         mask[ind] = 0
                     else:
                         data[ind] = -999.
