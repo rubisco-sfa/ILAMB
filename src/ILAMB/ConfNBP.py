@@ -20,7 +20,7 @@ class ConfNBP(Confrontation):
         a name for the confrontation
     srcdata : str
         full path to the observational dataset
-    variable_name : str
+    variable : str
         name of the variable to extract from the source dataset
     
     Other Parameters
@@ -65,12 +65,12 @@ class ConfNBP(Confrontation):
 
         """
         # get the observational data
-        obs = Variable(filename       = self.srcdata,
-                       variable_name  = self.variable_name,
+        obs = Variable(filename       = self.source,
+                       variable_name  = self.variable,
                        alternate_vars = self.alternate_vars)
 
         # the model data needs integrated over the globe
-        mod = m.extractTimeSeries(self.variable_name,
+        mod = m.extractTimeSeries(self.variable,
                                   alt_vars = self.alternate_vars)
         mod = mod.integrateInSpace().convert(obs.unit)
         
