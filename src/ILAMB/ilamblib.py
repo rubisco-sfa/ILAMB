@@ -598,6 +598,19 @@ def AnalysisMeanState(obs,mod,regions=['global'],dataset=None,benchmark_dataset=
     bias_map = obs_timeint.bias(mod_timeint)
     rmse_map = obs        .rmse(mod)
     if spatial:
+        # The above maps use spatial interpolation to a composed
+        # grid. When we do this, we have to compute cell areas based
+        # on the new lat/lon grid which discards the land
+        # fractions. So, here we find the land fraction of the model,
+        # interpolate it to the new grid, and replace the new grid
+        # areas with the land area.
+        land_fraction = mod_timeint.area / CellAreas(mod_timeint.lat,mod_timeint.lon)
+        land_fraction = land_fraction.clip(0,1)
+        area = NearestNeighborInterpolation(mod_timeint.lat,mod_timeint.lon,land_fraction,
+                                            bias_map.lat,bias_map.lon)*bias_map.area
+        bias_map.area = area
+        rmse_map.area = area
+        
         period_mean      = obs_timeint.integrateInSpace(mean=True)
         bias_score_map   = Score(bias_map,period_mean)
         rmse_mean        = rmse_map.integrateInSpace(mean=True)
