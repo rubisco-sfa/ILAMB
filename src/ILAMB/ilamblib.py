@@ -463,7 +463,7 @@ def FromNetCDF4(filename,variable_name,alternate_vars=[],t0=None,tf=None):
     return v,units,variable_name,t,t_bnd,lat,lon,data,dpth_bnd
 
         
-def Score(var,normalizer,eps=1e-12,theta=0.5,error=1.0):
+def Score(var,normalizer,FC=0.999999):
     """Remaps a normalized variable to the interval [0,1].
 
     Parameters
@@ -480,9 +480,7 @@ def Score(var,normalizer,eps=1e-12,theta=0.5,error=1.0):
     score = deepcopy(var)
     np.seterr(over='ignore',under='ignore')
     # Compute the absolute relative error
-    score.data = np.abs(score.data/(np.abs(normalizer.data)+eps))
-    # Remap the error to [0,1]
-    score.data = np.exp(np.log(theta)/error*score.data)
+    score.data = np.exp(-np.abs(score.data/(normalizer.data - normalizer.data.min()*FC)))
     np.seterr(over='raise',under='raise')
     score.name = score.name.replace("bias","bias_score")
     score.name = score.name.replace("rmse","rmse_score")
@@ -543,7 +541,7 @@ def ScoreSeasonalCycle(phase_shift):
                     lon   = phase_shift.lon,
                     area  = phase_shift.area)
 
-def AnalysisMeanState(obs,mod,regions=['global'],dataset=None,benchmark_dataset=None,space_mean=True,table_unit=None,plot_unit=None):
+def AnalysisMeanState(obs,mod,**keywords):
     """Perform a mean state analysis.
 
     This mean state analysis examines the model mean state in space
@@ -581,6 +579,15 @@ def AnalysisMeanState(obs,mod,regions=['global'],dataset=None,benchmark_dataset=
         the unit to use when displaying output on plots on the HTML page
 
     """
+    regions           = keywords.get("regions"          ,["global"])
+    dataset           = keywords.get("dataset"          ,None)
+    benchmark_dataset = keywords.get("benchmark_dataset",None)
+    space_mean        = keywords.get("space_mean"       ,True)
+    table_unit        = keywords.get("table_unit"       ,None)
+    plot_unit         = keywords.get("plot_unit"        ,None)
+    mass_weighting    = keywords.get("mass_weighting"   ,True)
+    skip_rmse         = keywords.get("skip_rmse"        ,True)
+    
     assert Units(obs.unit) == Units(mod.unit)
     spatial = obs.spatial
     
@@ -596,7 +603,7 @@ def AnalysisMeanState(obs,mod,regions=['global'],dataset=None,benchmark_dataset=
     # data and avoid extra averaging. We also compute maps of the
     # scores, each normalized in their respective manner.
     bias_map = obs_timeint.bias(mod_timeint)
-    rmse_map = obs        .rmse(mod)
+    if not skip_rmse: rmse_map = obs.rmse(mod)
     if spatial:
         # The above maps use spatial interpolation to a composed
         # grid. When we do this, we have to compute cell areas based
@@ -609,17 +616,27 @@ def AnalysisMeanState(obs,mod,regions=['global'],dataset=None,benchmark_dataset=
         area = NearestNeighborInterpolation(mod_timeint.lat,mod_timeint.lon,land_fraction,
                                             bias_map.lat,bias_map.lon)*bias_map.area
         bias_map.area = area
-        rmse_map.area = area
-        
+        if not skip_rmse: rmse_map.area = area
+
+        # If we are mass weighting, we need to get the observational
+        # annual mean on the same composed grid as the bias.
+        normalizer = None
+        if mass_weighting:
+            normalizer = obs_timeint.interpolate(lat=bias_map.lat,lon=bias_map.lon)
+            normalizer = normalizer.data
+            
         period_mean      = obs_timeint.integrateInSpace(mean=True)
-        bias_score_map   = Score(bias_map,period_mean)
-        rmse_mean        = rmse_map.integrateInSpace(mean=True)
-        rmse_score_map   = Score(rmse_map,rmse_mean)
+        bias_score_map   = Score(bias_map,normalizer)
+        if not skip_rmse:
+            rmse_mean      = rmse_map.integrateInSpace(mean=True)
+            rmse_score_map = Score(rmse_map,rmse_mean)
+
     else:
         period_mean,junk = obs_timeint.siteStats()
         bias_score_map   = Score(bias_map,period_mean)
-        rmse_mean,junk   = rmse_map.siteStats()
-        rmse_score_map   = Score(rmse_map,rmse_mean)
+        if not skip_rmse:
+            rmse_mean,junk   = rmse_map.siteStats()
+            rmse_score_map   = Score(rmse_map,rmse_mean)
 
     # Perform analysis over regions. We will store these in
     # dictionaries of variables where the keys are the region names.
@@ -639,15 +656,16 @@ def AnalysisMeanState(obs,mod,regions=['global'],dataset=None,benchmark_dataset=
         if spatial:
 
             # Compute the scalar integral over the specified region.
-            obs_period_mean[region] = obs_timeint    .integrateInSpace(region=region,mean=space_mean) ##
+            obs_period_mean[region] = obs_timeint    .integrateInSpace(region=region,mean=space_mean)
             obs_spaceint   [region] = obs            .integrateInSpace(region=region,mean=True)
-            mod_period_mean[region] = mod_timeint    .integrateInSpace(region=region,mean=space_mean) ##
+            mod_period_mean[region] = mod_timeint    .integrateInSpace(region=region,mean=space_mean)
             
             # Compute the scalar means over the specified region.
-            bias           [region] = bias_map       .integrateInSpace(region=region,mean=space_mean) ##
-            rmse           [region] = rmse_map       .integrateInSpace(region=region,mean=space_mean) ##
-            bias_score     [region] = bias_score_map .integrateInSpace(region=region,mean=True)
-            rmse_score     [region] = rmse_score_map .integrateInSpace(region=region,mean=True)
+            bias           [region] = bias_map       .integrateInSpace(region=region,mean=space_mean)
+            bias_score     [region] = bias_score_map .integrateInSpace(region=region,mean=True,weight=normalizer)
+            if not skip_rmse:
+                rmse       [region] = rmse_map       .integrateInSpace(region=region,mean=space_mean)            
+                rmse_score [region] = rmse_score_map .integrateInSpace(region=region,mean=True)
             mod_spaceint   [region] = mod            .integrateInSpace(region=region,mean=True)
             
         else:
@@ -674,9 +692,10 @@ def AnalysisMeanState(obs,mod,regions=['global'],dataset=None,benchmark_dataset=
         obs_period_mean[region].name = "Period Mean %s"            % (region)
         mod_period_mean[region].name = "Period Mean %s"            % (region)
         bias           [region].name = "Bias %s"                   % (region)
-        rmse           [region].name = "RMSE %s"                   % (region)
         bias_score     [region].name = "Bias Score %s"             % (region)
-        rmse_score     [region].name = "RMSE Score %s"             % (region)
+        if not skip_rmse:
+            rmse       [region].name = "RMSE %s"                   % (region)
+            rmse_score [region].name = "RMSE Score %s"             % (region)
         sd_score       [region].name = "Spatial Distribution Score %s"    % (region)
         obs_spaceint   [region].name = "spaceint_of_%s_over_%s"    % (obs.name,region)
         mod_spaceint   [region].name = "spaceint_of_%s_over_%s"    % (obs.name,region)
@@ -701,15 +720,24 @@ def AnalysisMeanState(obs,mod,regions=['global'],dataset=None,benchmark_dataset=
                 var.convert(plot_unit)
 
     # Optionally dump results to a NetCDF file
+    out_vars = [mod_period_mean,
+                bias,
+                bias_score,
+                sd_score,
+                mod_timeint,
+                bias_map]
+    if not skip_rmse:
+        out_vars.append(rmse)
+        out_vars.append(rmse_score)
+        
     if dataset is not None:
-        for var in [mod_period_mean,bias,rmse,bias_score,rmse_score,sd_score,
-                    mod_timeint,bias_map,mod_spaceint]:
+        for var in out_vars:
             if type(var) == type({}):
                 for key in var.keys(): var[key].toNetCDF4(dataset)
             else:
                 var.toNetCDF4(dataset)
     if benchmark_dataset is not None:
-        for var in [obs_period_mean,obs_timeint,obs_spaceint]:
+        for var in [obs_period_mean,obs_timeint]:
             if type(var) == type({}):
                 for key in var.keys(): var[key].toNetCDF4(benchmark_dataset)
             else:
