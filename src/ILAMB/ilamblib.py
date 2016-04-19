@@ -680,9 +680,10 @@ def AnalysisMeanState(obs,mod,**keywords):
             obs_spaceint   [region],junk = obs            .siteStats(region=region)
             mod_period_mean[region],junk = mod_timeint    .siteStats(region=region)
             bias           [region],junk = bias_map       .siteStats(region=region)
-            rmse           [region],junk = rmse_map       .siteStats(region=region)
             bias_score     [region],junk = bias_score_map .siteStats(region=region)
-            rmse_score     [region],junk = rmse_score_map .siteStats(region=region)
+            if not skip_rmse:
+                rmse       [region],junk = rmse_map       .siteStats(region=region)
+                rmse_score [region],junk = rmse_score_map .siteStats(region=region)
             mod_spaceint   [region],junk = mod            .siteStats(region=region)
 
         # Compute the spatial variability.
