@@ -330,7 +330,9 @@ class Variable:
         if not self.spatial: raise il.NotSpatialVariable()
 
         # determine the measure
-        measure = np.ma.masked_array(self.area,copy=True)
+        mask = self.data.mask
+        if mask.ndim > 2: mask = np.all(mask,axis=0)
+        measure = np.ma.masked_array(self.area,mask=mask,copy=True)
         if weight is not None: measure *= weight
 
         # if we want to integrate over a region, we need add to the
