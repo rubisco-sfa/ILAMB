@@ -31,6 +31,9 @@ class Node(object):
         self.relationships       = None
         self.ctype               = None
         self.regions             = None
+        self.skip_rmse           = False
+        self.skip_iav            = False
+        self.mass_weighting      = False
         self.weight              = 1    # if a dataset has no weight specified, it is implicitly 1
         self.sum_weight_children = 0    # what is the sum of the weights of my children?
         self.normalize_weight    = 0    # my weight relative to my siblings
@@ -108,10 +111,13 @@ def OverallWeights(node):
 
 def InheritVariableNames(node):
     if node.parent             is None: return
-    if node.variable           is None: node.variable       = node.parent.variable
-    if node.derived            is None: node.derived        = node.parent.derived
-    if node.cmap               is None: node.cmap           = node.parent.cmap
-    if node.ctype              is None: node.ctype          = node.parent.ctype
+    if node.variable           is None:  node.variable       = node.parent.variable
+    if node.derived            is None:  node.derived        = node.parent.derived
+    if node.cmap               is None:  node.cmap           = node.parent.cmap
+    if node.ctype              is None:  node.ctype          = node.parent.ctype
+    if node.skip_rmse          is False: node.skip_rmse      = node.parent.skip_rmse
+    if node.skip_iav           is False: node.skip_iav       = node.parent.skip_iav 
+    if node.mass_weighting     is False: node.mass_weighting = node.parent.mass_weighting
     node.alternate_vars = node.parent.alternate_vars
     
 def ParseScoreboardConfigureFile(filename):

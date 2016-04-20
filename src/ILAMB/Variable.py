@@ -366,7 +366,7 @@ class Variable:
                         time_bnds = self.time_bnds,
                         name      = name)
 
-    def siteStats(self,region=None):
+    def siteStats(self,region=None,weight=None):
         """Computes the mean and standard deviation of the variable over all data sites.
 
         Parameters
@@ -378,8 +378,6 @@ class Variable:
         -------
         mean : ILAMB.Variable.Variable
             a Variable instace with the mean values
-        std : ILAMB.Variable.Variable
-            a Variable instace with the standard deviation values
 
         """
         if self.ndata is None: raise il.NotDatasiteVariable()
@@ -391,21 +389,14 @@ class Variable:
             self.data.mask += mask
             rname = "_over_%s" % region
         np.seterr(over='ignore',under='ignore')
-        mean = self.data.mean(axis=-1)
-        std  = self.data.std (axis=-1)
+        mean = np.ma.average(self.data,axis=-1,weights=weight)
         np.seterr(over='raise',under='raise')
         self.data.mask = rem_mask
-        mean = Variable(data      = mean,
+        return Variable(data      = mean,
                         unit      = self.unit,
                         time      = self.time,
                         time_bnds = self.time_bnds,
                         name      = "mean_%s%s" % (self.name,rname))
-        std  = Variable(data      = std ,
-                        unit      = self.unit,
-                        time      = self.time,
-                        time_bnds = self.time_bnds,
-                        name      = "std_%s%s" % (self.name,rname))
-        return mean,std
     
     def annualCycle(self):
         """Computes mean annual cycle information (climatology) for the variable.

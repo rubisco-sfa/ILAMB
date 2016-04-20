@@ -96,7 +96,7 @@ class Confrontation(object):
         # (FIX: need some way for the user to modify this)
         self.weight = {"Bias Score"                    :1.,
                        "RMSE Score"                    :2.,
-                       "Phase Shift Score"             :1.,
+                       "Seasonal Cycle Score"          :1.,
                        "Interannual Variability Score" :1.,
                        "Spatial Distribution Score"    :1.}
         
@@ -140,7 +140,7 @@ class Confrontation(object):
         if obs.time is None: raise il.NotTemporalVariable()
         t0 = obs.time_bnds[0, 0]
         tf = obs.time_bnds[1,-1]
-
+        
         if obs.spatial:
             try:
                 mod = m.extractTimeSeries(self.variable,
@@ -217,9 +217,19 @@ class Confrontation(object):
             benchmark_results.setncatts({"name" :"Benchmark", "color":np.asarray([0.5,0.5,0.5])})
 
         # Perform the standard fluxrate analysis
+        mass_weighting = self.keywords.get("mass_weighting",False)
+        skip_rmse      = self.keywords.get("skip_rmse"     ,False)
+        skip_iav       = self.keywords.get("skip_iav"      ,False)
         try:
-            il.AnalysisMeanState(obs,mod,dataset=results,regions=self.regions,benchmark_dataset=benchmark_results,
-                                 table_unit=self.table_unit,plot_unit=self.plot_unit,space_mean=self.space_mean)
+            il.AnalysisMeanState(obs,mod,dataset   = results,
+                                 regions           = self.regions,
+                                 benchmark_dataset = benchmark_results,
+                                 table_unit        = self.table_unit,
+                                 plot_unit         = self.plot_unit,
+                                 space_mean        = self.space_mean,
+                                 skip_rmse         = skip_rmse,
+                                 skip_iav          = skip_iav,
+                                 mass_weighting    = mass_weighting)
         except:
             results.close()
             os.system("rm -f %s/%s_%s.nc" % (self.output_path,self.name,m.name))
@@ -359,7 +369,7 @@ class Confrontation(object):
                 score = v.replace(region,"").strip()
                 if not self.weight.has_key(score): continue
                 overall_score  += self.weight[score]*grp.variables[v][...]
-                sum_of_weights += self.weight[score]        
+                sum_of_weights += self.weight[score]
             overall_score /= max(sum_of_weights,1e-12)
             name = "Overall Score %s" % region
             if name in grp.variables.keys():

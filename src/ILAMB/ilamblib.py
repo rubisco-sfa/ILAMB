@@ -472,15 +472,16 @@ def Score(var,normalizer,FC=0.999999):
         The variable to normalize, usually represents an error of some sort
     normalizer : ILAMB.Variable.Variable
         The variable by which we normalize 
-    eps : float, optional
-        A small parameter used to avoid division by zero, defaults to 1e-12
-    theta,error : float, optional
-        Parameters which control the mapping, see the notes.
     """
     score = deepcopy(var)
     np.seterr(over='ignore',under='ignore')
-    # Compute the absolute relative error
-    score.data = np.exp(-np.abs(score.data/(normalizer.data - normalizer.data.min()*FC)))
+
+    if "bias" in score.name:
+        score.data = np.exp(-np.abs(score.data/(normalizer.data - normalizer.data.min()*FC)))
+    elif "rmse" in score.name:
+        score.data = np.exp(-score.data/normalizer.data)
+    elif "iav" in score.name:
+        score.data = np.exp(-np.abs(score.data/normalizer.data))
     np.seterr(over='raise',under='raise')
     score.name = score.name.replace("bias","bias_score")
     score.name = score.name.replace("rmse","rmse_score")
@@ -585,8 +586,9 @@ def AnalysisMeanState(obs,mod,**keywords):
     space_mean        = keywords.get("space_mean"       ,True)
     table_unit        = keywords.get("table_unit"       ,None)
     plot_unit         = keywords.get("plot_unit"        ,None)
-    mass_weighting    = keywords.get("mass_weighting"   ,True)
-    skip_rmse         = keywords.get("skip_rmse"        ,True)
+    mass_weighting    = keywords.get("mass_weighting"   ,False)
+    skip_rmse         = keywords.get("skip_rmse"        ,False)
+    skip_iav          = keywords.get("skip_iav"         ,False)
     
     assert Units(obs.unit) == Units(mod.unit)
     spatial = obs.spatial
@@ -604,7 +606,9 @@ def AnalysisMeanState(obs,mod,**keywords):
     # scores, each normalized in their respective manner.
     bias_map = obs_timeint.bias(mod_timeint)
     if not skip_rmse: rmse_map = obs.rmse(mod)
+    normalizer = None
     if spatial:
+        
         # The above maps use spatial interpolation to a composed
         # grid. When we do this, we have to compute cell areas based
         # on the new lat/lon grid which discards the land
@@ -620,37 +624,38 @@ def AnalysisMeanState(obs,mod,**keywords):
 
         # If we are mass weighting, we need to get the observational
         # annual mean on the same composed grid as the bias.
-        normalizer = None
-        if mass_weighting:
-            normalizer = obs_timeint.interpolate(lat=bias_map.lat,lon=bias_map.lon)
-            normalizer = normalizer.data
+        obs_timeint_int = obs_timeint.interpolate(lat=bias_map.lat,lon=bias_map.lon) 
+        if mass_weighting: normalizer = obs_timeint_int.data
             
         period_mean      = obs_timeint.integrateInSpace(mean=True)
-        bias_score_map   = Score(bias_map,normalizer)
+        bias_score_map   = Score(bias_map,obs_timeint_int)
         if not skip_rmse:
             rmse_mean      = rmse_map.integrateInSpace(mean=True)
             rmse_score_map = Score(rmse_map,rmse_mean)
 
     else:
-        period_mean,junk = obs_timeint.siteStats()
-        bias_score_map   = Score(bias_map,period_mean)
+        normalizer     = obs_timeint.data
+        bias_score_map = Score(bias_map,obs_timeint)
         if not skip_rmse:
-            rmse_mean,junk   = rmse_map.siteStats()
-            rmse_score_map   = Score(rmse_map,rmse_mean)
+            rmse_mean      = rmse_map.siteStats()
+            rmse_score_map = Score(rmse_map,rmse_mean)
 
     # Perform analysis over regions. We will store these in
     # dictionaries of variables where the keys are the region names.
     obs_period_mean = {}
-    obs_mean_cycle  = {}
     obs_spaceint    = {}
     mod_period_mean = {}
-    mod_mean_cycle  = {}
     mod_spaceint    = {}
-    bias  = {}; bias_score  = {}
-    rmse  = {}; rmse_score  = {}
-    shift = {}; shift_score = {}
-    iav_score = {};
-    std = {}; R = {}; sd_score = {}
+    bias            = {}
+    bias_score      = {}
+    rmse            = {}
+    rmse_score      = {}
+    shift           = {}
+    shift_score     = {}
+    iav_score       = {}
+    std             = {}
+    R               = {}
+    sd_score        = {}
     for region in regions:
         
         if spatial:
@@ -665,7 +670,7 @@ def AnalysisMeanState(obs,mod,**keywords):
             bias_score     [region] = bias_score_map .integrateInSpace(region=region,mean=True,weight=normalizer)
             if not skip_rmse:
                 rmse       [region] = rmse_map       .integrateInSpace(region=region,mean=space_mean)            
-                rmse_score [region] = rmse_score_map .integrateInSpace(region=region,mean=True)
+                rmse_score [region] = rmse_score_map .integrateInSpace(region=region,mean=True,weight=normalizer)
             mod_spaceint   [region] = mod            .integrateInSpace(region=region,mean=True)
             
         else:
@@ -676,15 +681,15 @@ def AnalysisMeanState(obs,mod,**keywords):
             if ((obs.lat>lats[0])*(obs.lat<lats[1])*(obs.lon>lons[0])*(obs.lon<lons[1])).sum() == 0: continue
             
             # Compute the scalar period mean over sites in the specified region.
-            obs_period_mean[region],junk = obs_timeint    .siteStats(region=region)
-            obs_spaceint   [region],junk = obs            .siteStats(region=region)
-            mod_period_mean[region],junk = mod_timeint    .siteStats(region=region)
-            bias           [region],junk = bias_map       .siteStats(region=region)
-            bias_score     [region],junk = bias_score_map .siteStats(region=region)
+            obs_period_mean[region] = obs_timeint    .siteStats(region=region)
+            obs_spaceint   [region] = obs            .siteStats(region=region)
+            mod_period_mean[region] = mod_timeint    .siteStats(region=region)
+            bias           [region] = bias_map       .siteStats(region=region)
+            bias_score     [region] = bias_score_map .siteStats(region=region,weight=normalizer)
             if not skip_rmse:
-                rmse       [region],junk = rmse_map       .siteStats(region=region)
-                rmse_score [region],junk = rmse_score_map .siteStats(region=region)
-            mod_spaceint   [region],junk = mod            .siteStats(region=region)
+                rmse       [region] = rmse_map       .siteStats(region=region)
+                rmse_score [region] = rmse_score_map .siteStats(region=region)
+            mod_spaceint   [region] = mod            .siteStats(region=region)
 
         # Compute the spatial variability.
         std[region],R[region],sd_score[region] = obs_timeint.spatialDistribution(mod_timeint,region=region)
@@ -756,25 +761,30 @@ def AnalysisMeanState(obs,mod,**keywords):
     obs_maxt_map    = obs_cycle.timeOfExtrema(etype="max")
     mod_maxt_map    = mod_cycle.timeOfExtrema(etype="max")
     shift_map       = obs_maxt_map.phaseShift(mod_maxt_map)
+    if spatial: shift_map.area = area
     shift_score_map = ScoreSeasonalCycle(shift_map)
 
     # Compute a map of interannual variability score.
-    obs_iav_map   = obs.interannualVariability()
-    mod_iav_map   = mod.interannualVariability()
-    iav_score_map = obs_iav_map.spatialDifference(mod_iav_map)
-    iav_score_map.name = obs_iav_map.name
-    if spatial:
-        obs_iav_mean      = obs_iav_map.integrateInSpace(mean=True)
-    else:
-        obs_iav_mean,junk = obs_iav_map.siteStats()
-    iav_score_map = Score(iav_score_map,obs_iav_mean)
-    
+    if not skip_iav:
+        obs_iav_map   = obs.interannualVariability()
+        mod_iav_map   = mod.interannualVariability()
+        iav_score_map = obs_iav_map.spatialDifference(mod_iav_map)
+        iav_score_map.name = obs_iav_map.name
+        if spatial:
+            obs_iav_map_int = obs_iav_map.interpolate(lat=iav_score_map.lat,
+                                                      lon=iav_score_map.lon)
+            iav_score_map.area = area
+            iav_score_map = Score(iav_score_map,obs_iav_map_int)
+        else:
+            iav_score_map = Score(iav_score_map,obs_iav_map)
+            
     # Perform analysis over regions. We will store these in
     # dictionaries of variables where the keys are the region names.
     obs_mean_cycle  = {}
     mod_mean_cycle  = {}
-    shift = {}; shift_score = {}
-    iav_score = {};
+    shift           = {}
+    shift_score     = {}
+    iav_score       = {}
     for region in regions:
         
         if spatial:
@@ -784,8 +794,9 @@ def AnalysisMeanState(obs,mod,**keywords):
             
             # Compute the scalar means over the specified region.
             shift          [region] = shift_map      .integrateInSpace(region=region,mean=True)
-            shift_score    [region] = shift_score_map.integrateInSpace(region=region,mean=True)
-            iav_score      [region] = iav_score_map  .integrateInSpace(region=region,mean=True)
+            shift_score    [region] = shift_score_map.integrateInSpace(region=region,mean=True,weight=normalizer)
+            if not skip_iav:
+                iav_score  [region] = iav_score_map  .integrateInSpace(region=region,mean=True,weight=normalizer)
             mod_mean_cycle [region] = mod_cycle      .integrateInSpace(region=region,mean=True)
             
         else:
@@ -796,16 +807,18 @@ def AnalysisMeanState(obs,mod,**keywords):
             if ((obs.lat>lats[0])*(obs.lat<lats[1])*(obs.lon>lons[0])*(obs.lon<lons[1])).sum() == 0: continue
             
             # Compute the scalar period mean over sites in the specified region.
-            obs_mean_cycle [region],junk = obs_cycle      .siteStats(region=region)
-            shift          [region],junk = shift_map      .siteStats(region=region)
-            shift_score    [region],junk = shift_score_map.siteStats(region=region)
-            iav_score      [region],junk = iav_score_map  .siteStats(region=region)
-            mod_mean_cycle [region],junk = mod_cycle      .siteStats(region=region)
+            obs_mean_cycle [region] = obs_cycle      .siteStats(region=region)
+            shift          [region] = shift_map      .siteStats(region=region)
+            shift_score    [region] = shift_score_map.siteStats(region=region)
+            if not skip_iav:
+                iav_score  [region] = iav_score_map  .siteStats(region=region)
+            mod_mean_cycle [region] = mod_cycle      .siteStats(region=region)
         
         # Change variable names to make things easier to parse later.
         shift          [region].name = "Phase Shift %s"          % (region)
-        shift_score    [region].name = "Phase Shift Score %s"    % (region)
-        iav_score      [region].name = "Interannual Variability Score %s" % (region)
+        shift_score    [region].name = "Seasonal Cycle Score %s"    % (region)
+        if not skip_iav:
+            iav_score  [region].name = "Interannual Variability Score %s" % (region)
         obs_mean_cycle [region].name = "cycle_of_%s_over_%s"     % (obs.name,region)
         mod_mean_cycle [region].name = "cycle_of_%s_over_%s"     % (obs.name,region)
         
@@ -824,9 +837,13 @@ def AnalysisMeanState(obs,mod,**keywords):
 
     # Optionally dump results to a NetCDF file
     if dataset is not None:
-        for var in [shift,shift_score,iav_score,
-                    mod_maxt_map,shift_map,
-                    mod_mean_cycle]:
+        out_vars = [shift,
+                    shift_score,
+                    mod_maxt_map,
+                    shift_map,
+                    mod_mean_cycle]
+        if not skip_iav: out_vars.append(iav_score)
+        for var in out_vars:
             if type(var) == type({}):
                 for key in var.keys(): var[key].toNetCDF4(dataset)
             else:
