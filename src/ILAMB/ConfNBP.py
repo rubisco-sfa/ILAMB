@@ -114,12 +114,12 @@ class ConfNBP(Confrontation):
         mod       .name = "spaceint_of_nbp_over_global"
         obs_sum   .name = "accumulate_of_nbp_over_global"
         mod_sum   .name = "accumulate_of_nbp_over_global"
-        obs_mean  .name = "period_mean_of_nbp_over_global"
-        mod_mean  .name = "period_mean_of_nbp_over_global"
-        bias      .name = "bias_of_nbp_over_global"       
-        rmse      .name = "rmse_of_nbp_over_global"       
-        bias_score.name = "bias_score_of_nbp_over_global" 
-        rmse_score.name = "rmse_score_of_nbp_over_global" 
+        obs_mean  .name = "Period Mean global"
+        mod_mean  .name = "Period Mean global"
+        bias      .name = "Bias global"       
+        rmse      .name = "RMSE global"       
+        bias_score.name = "Bias Score global" 
+        rmse_score.name = "RMSE Score global" 
 
         # Dump to files
         results = Dataset("%s/%s_%s.nc" % (self.output_path,self.name,m.name),mode="w")
