@@ -286,7 +286,7 @@ class HtmlLayout():
         self.header   = "CNAME"
         self.figures  = {}
         self.sections = None
-        self.priority = ["Bias","RMSE","Phase","Seasonal","Interannual","Spatial","Score","Overall"]
+        self.priority = ["Bias","RMSE","Phase","Seasonal","Spatial","Interannual","Score","Overall"]
         
     def setSections(self,sections):
 
