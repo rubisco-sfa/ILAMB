@@ -418,12 +418,13 @@ class Confrontation(object):
                     cycle[region].append(Variable(filename=fname,variable_name=key[0]))
                 
         # composite annual cycle plot
-        if has_cycle:
+        if has_cycle and len(models) > 2:
             self.layout.addFigure("Spatially integrated regional mean",
                                   "compcycle",
                                   "RNAME_compcycle.png",
                                   side   = "CYCLES",
                                   legend = True)
+
         for region in self.regions:
             if not cycle.has_key(region): continue
             fig,ax = plt.subplots(figsize=(6.8,2.8),tight_layout=True)

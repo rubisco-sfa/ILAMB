@@ -731,6 +731,7 @@ def AnalysisMeanState(obs,mod,**keywords):
                 bias_score,
                 sd_score,
                 mod_timeint,
+                mod_spaceint,
                 bias_map]
     if not skip_rmse:
         out_vars.append(rmse)
@@ -743,7 +744,7 @@ def AnalysisMeanState(obs,mod,**keywords):
             else:
                 var.toNetCDF4(dataset)
     if benchmark_dataset is not None:
-        for var in [obs_period_mean,obs_timeint]:
+        for var in [obs_period_mean,obs_timeint,obs_spaceint]:
             if type(var) == type({}):
                 for key in var.keys(): var[key].toNetCDF4(benchmark_dataset)
             else:
