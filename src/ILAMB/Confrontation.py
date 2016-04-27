@@ -284,7 +284,7 @@ class Confrontation(object):
                 var   = dataset.variables[vname]
                 pname = vname.split("_")[0]
                 if var[...].size <= 1: continue
-                if not space_opts.has_key(pname): continue
+                if not (space_opts.has_key(pname) or time_opts.has_key(pname)): continue
                 if not limits.has_key(pname):
                     limits[pname] = {}
                     limits[pname]["min"]  = +1e20
@@ -296,8 +296,12 @@ class Confrontation(object):
         
         # Second pass to plot legends (FIX: only for master?)
         for pname in limits.keys():
-            opts = space_opts[pname]
 
+            try:
+                opts = space_opts[pname]
+            except:
+                continue
+            
             # Determine plot limits and colormap
             if opts["sym"]:
                 vabs =  max(abs(limits[pname]["min"]),abs(limits[pname]["min"]))
@@ -426,7 +430,9 @@ class Confrontation(object):
             for name,color,var in zip(models,colors,cycle[region]):
                 var.plot(ax,lw=2,color=color,label=name,
                          ticks      = time_opts["cycle"]["ticks"],
-                         ticklabels = time_opts["cycle"]["ticklabels"])
+                         ticklabels = time_opts["cycle"]["ticklabels"],
+                         vmin       = self.limits["cycle"]["min"],
+                         vmax       = self.limits["cycle"]["max"])
                 ylbl = time_opts["cycle"]["ylabel"]
                 if ylbl == "unit": ylbl = post.UnitStringToMatplotlib(var.unit)
                 ax.set_ylabel(ylbl)
@@ -565,7 +571,9 @@ class Confrontation(object):
                     obs.plot(ax,lw=2,color='k',alpha=0.5)
                     var.plot(ax,lw=2,color=color,label=m.name,
                              ticks     =opts["ticks"],
-                             ticklabels=opts["ticklabels"])
+                             ticklabels=opts["ticklabels"],
+                             vmin      = self.limits[pname]["min"],
+                             vmax      = self.limits[pname]["max"])
                     ylbl = opts["ylabel"]
                     if ylbl == "unit": ylbl = post.UnitStringToMatplotlib(var.unit)
                     ax.set_ylabel(ylbl)

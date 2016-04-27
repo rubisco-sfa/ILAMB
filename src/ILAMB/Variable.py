@@ -779,6 +779,7 @@ class Variable:
                     color=color,lw=lw,alpha=alpha,label=label)
             if ticks      is not None: ax.set_xticks(ticks)
             if ticklabels is not None: ax.set_xticklabels(ticklabels)
+            ax.set_ylim(vmin,vmax)
         elif not self.temporal and self.spatial:
             ax = post.GlobalPlot(self.lat,self.lon,self.data,ax,
                                  vmin   = vmin  , vmax = vmax,
