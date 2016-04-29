@@ -609,6 +609,23 @@ class Variable:
             return self
         except:
             pass
+
+        # assuming substance is water, try to convert (M / L^2) / (M / L^3) == (L) 
+        try:
+            linear       = Units("m")
+            area_density = Units("kg m-2")
+            mass_density = Units("kg m-3")
+            if not (src_unit.equivalent(area_density) and
+                    tar_unit.equivalent(linear)): raise
+            np.seterr(over='ignore',under='ignore')
+            self.data /= density
+            np.seterr(over='raise',under='raise')
+            self.data  = Units.conform(self.data,src_unit/mass_density,tar_unit)
+            self.data  = np.ma.masked_array(self.data,mask=mask)
+            self.unit  = unit
+            return self
+        except:
+            pass
         
         # if no conversions pass, then raise this exception
         print "var_name = %s, var_unit = %s, convert_unit = %s " % (self.name,self.unit,unit)

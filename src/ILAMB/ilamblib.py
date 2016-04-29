@@ -476,7 +476,7 @@ def Score(var,normalizer,FC=0.999999):
     score = deepcopy(var)
     np.seterr(over='ignore',under='ignore')
 
-    if "bias" in score.name:
+    if "bias" in score.name or "diff" in score.name:
         score.data = np.exp(-np.abs(score.data/(normalizer.data - normalizer.data.min()*FC)))
     elif "rmse" in score.name:
         score.data = np.exp(-score.data/normalizer.data)
@@ -484,6 +484,7 @@ def Score(var,normalizer,FC=0.999999):
         score.data = np.exp(-np.abs(score.data/normalizer.data))
     np.seterr(over='raise',under='raise')
     score.name = score.name.replace("bias","bias_score")
+    score.name = score.name.replace("diff","diff_score")
     score.name = score.name.replace("rmse","rmse_score")
     score.name = score.name.replace("iav" ,"iav_score")
     score.unit = "1"
