@@ -553,8 +553,8 @@ class Confrontation(object):
             if not (var.spatial or (var.ndata is not None)) and var.temporal:
                 
                 # grab the benchmark dataset to plot along with
-                obs = Variable(filename=bname,variable_name=vname)
-
+                obs = Variable(filename=bname,variable_name=vname).convert(var.unit)
+                
                 # grab plotting options
                 opts = time_opts[pname]
 
@@ -572,9 +572,9 @@ class Confrontation(object):
                     obs.plot(ax,lw=2,color='k',alpha=0.5)
                     var.plot(ax,lw=2,color=color,label=m.name,
                              ticks     =opts["ticks"],
-                             ticklabels=opts["ticklabels"],
-                             vmin      = self.limits[pname]["min"],
-                             vmax      = self.limits[pname]["max"])
+                             ticklabels=opts["ticklabels"])
+                    ax.set_ylim(self.limits[pname]["min"],
+                                self.limits[pname]["max"])
                     ylbl = opts["ylabel"]
                     if ylbl == "unit": ylbl = post.UnitStringToMatplotlib(var.unit)
                     ax.set_ylabel(ylbl)
