@@ -73,10 +73,6 @@ def GlobalPlot(lat,lon,var,ax,region="global",shift=False,**keywords):
     lats = lats.clip(-90,90)
     lons = lons.clip(-180,180)
 
-    bmap = Basemap(projection='cyl',
-                   llcrnrlon=lons[ 0],llcrnrlat=lats[ 0],
-                   urcrnrlon=lons[-1],urcrnrlat=lats[-1],
-                   resolution='c',ax=ax)
     if shift:
         nroll = np.argmin(np.abs(lon-180))
         alon  = np.roll(lon,nroll); alon[:nroll] -= 360
@@ -84,9 +80,23 @@ def GlobalPlot(lat,lon,var,ax,region="global",shift=False,**keywords):
     else:
         alon = lon
         tmp  = var
-    x,y = bmap(alon,lat)
-    ax  = bmap.pcolormesh(x,y,tmp,zorder=2,vmin=vmin,vmax=vmax,cmap=cmap)
 
+    if region is None or region == "global":
+        bmap = Basemap(projection = 'robin',
+                       lon_0      = 0.,
+                       resolution = 'c',
+                       ax         = ax)        
+        x,y = np.meshgrid(alon,lat)
+        ax  = bmap.pcolormesh(x,y,tmp,latlon=True,vmin=vmin,vmax=vmax,cmap=cmap)
+    else:
+        bmap = Basemap(projection = 'cyl',
+                       llcrnrlon  = lons[ 0],
+                       llcrnrlat  = lats[ 0],
+                       urcrnrlon  = lons[-1],
+                       urcrnrlat  = lats[-1],
+                       resolution = 'c',
+                       ax         = ax)  
+        ax  = bmap.pcolormesh(alon,lat,tmp,latlon=True,vmin=vmin,vmax=vmax,cmap=cmap)
     bmap.drawcoastlines(linewidth=0.2,color="darkslategrey")
 
 def ColorBar(ax,**keywords):
