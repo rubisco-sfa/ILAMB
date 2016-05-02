@@ -87,11 +87,15 @@ class ConfTWSA(Confrontation):
         # Get the standard deviation of the anomaly for both the
         # observation and the model
         obs_std       = deepcopy(obs)
+        np.seterr(under='ignore',over='ignore')
         obs_std.data *= obs_std.data
+        np.seterr(under='raise',over='raise')
         obs_std       = obs_std.integrateInTime(mean=True)
         obs_std.data  = np.ma.sqrt(obs_std.data)
         mod_std       = deepcopy(mod)
+        np.seterr(under='ignore',over='ignore')
         mod_std.data *= mod_std.data
+        np.seterr(under='raise',over='raise')
         mod_std       = mod_std.integrateInTime(mean=True)
         mod_std.data  = np.ma.sqrt(mod_std.data)
 
