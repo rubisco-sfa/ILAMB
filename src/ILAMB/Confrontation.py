@@ -609,9 +609,11 @@ class Confrontation(object):
                 ind_edges = np.zeros(ind_bnd.shape[0]+1); ind_edges[:-1] = ind_bnd[:,0]; ind_edges[-1] = ind_bnd[-1,1]
                 dep_edges = np.zeros(dep_bnd.shape[0]+1); dep_edges[:-1] = dep_bnd[:,0]; dep_edges[-1] = dep_bnd[-1,1]
                 fig,ax    = plt.subplots(figsize=(6,5.25),tight_layout=True)
+                cmap      = 'plasma'
+                if not plt.cm.cmap_d.has_key(cmap): cmap = 'summer'
                 pc        = ax.pcolormesh(ind_edges,dep_edges,histogram,
                                           norm=LogNorm(),
-                                          cmap='plasma')
+                                          cmap=cmap)
                 x,y = grp.variables["ind_mean"],grp.variables["dep_mean"]
                 ax.plot(x,y,'-w',lw=3,alpha=0.75)
                 #ax.fill_between(grp.variables["ind_mean"][...],
