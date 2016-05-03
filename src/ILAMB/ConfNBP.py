@@ -1,6 +1,7 @@
 from Confrontation import Confrontation
 from Variable import Variable
 from netCDF4 import Dataset
+from copy import deepcopy
 import ilamblib as il
 import Post as post
 import numpy as np
@@ -9,45 +10,15 @@ import os
 class ConfNBP(Confrontation):
     """A confrontation for examining the global net ecosystem carbon balance.
 
-    This class is derived from the base Confrontation class and
-    implements a specialized version of the routines stageData() and
-    confront(). As the other routines are not implemented here, the
-    versions from the base class will be used.
-
-    Parameters
-    ----------
-    name : str
-        a name for the confrontation
-    srcdata : str
-        full path to the observational dataset
-    variable : str
-        name of the variable to extract from the source dataset
-    
-    Other Parameters
-    ----------------
-    output_path : str, optional
-        path into which all output from this confrontation will be generated
-    alternate_vars : list of str, optional
-        other accepted variable names when extracting from models
-    derived : str, optional
-        an algebraic expression which captures how the confrontation variable may be generated
-    regions : list of str, optional
-        a list of regions over which the spatial analysis will be performed (default is global)
-    table_unit : str, optional
-        the unit to use in the output HTML table
-    plot_unit : str, optional
-        the unit to use in the output images
-    space_mean : bool, optional
-        enable to take spatial means (as opposed to spatial integrals) in the analysis (enabled by default)
-    relationships : list of ILAMB.Confrontation.Confrontation, optional
-        a list of confrontations with whose data we use to study relationships
-    cmap : str, optional
-        the colormap to use in rendering plots (default is 'jet')
-    land : str, bool
-        enable to force the masking of areas with no land (default is False)
-
     """
-            
+    def __init__(self,**keywords):
+        
+        # Ugly, but this is how we call the Confrontation constructor
+        super(ConfNBP,self).__init__(**keywords)
+
+        # Now we overwrite some things which are different here
+        self.regions = ['global']
+        
     def stageData(self,m):
         r"""Extracts model data and integrates it over the globe to match the confrontation dataset.
 
@@ -84,11 +55,6 @@ class ConfNBP(Confrontation):
 
     def confront(self,m):
         r"""Confronts the input model with the observational data.
-
-        This analysis deviates from the standard
-        ILAMB.ilamblib.AnalysisMeanState. We will compare the bias and
-        RMSE as before, but many of the other comparisons are not
-        appropriate here.
         
         Parameters
         ----------
@@ -100,26 +66,41 @@ class ConfNBP(Confrontation):
         obs,mod = self.stageData(m)
         
         obs_sum  = obs.accumulateInTime().convert("Pg")
-        mod_sum  = mod.accumulateInTime().convert("Pg")
-        
-        obs_mean   = obs.integrateInTime(mean=True)
-        mod_mean   = mod.integrateInTime(mean=True)
-        bias       = obs.bias(mod)
-        rmse       = obs.rmse(mod)
-        bias_score = il.Score(bias,obs_mean)
-        rmse_score = il.Score(rmse,obs_mean)
+        mod_sum  = mod.accumulateInTime().convert("Pg")        
+        obs_mean = obs.integrateInTime(mean=True)
+        mod_mean = mod.integrateInTime(mean=True)
+        bias     = obs.bias(mod)
+        rmse     = obs.rmse(mod)
+
+        # bias score = exp( abs( relative L1 norm of obs-mod ) )
+        obs_L1       = obs.integrateInTime()
+        dif_L1       = deepcopy(obs)
+        dif_L1.data -= mod.data
+        dif_L1       = dif_L1.integrateInTime()
+        bias_score   = Variable(name = "Bias Score global",
+                                unit = "1",
+                                data = np.exp(-np.abs(dif_L1.data/obs_L1.data)))
+
+        # rmse score = exp( relative L2 norm of obs-mod )
+        obs_L2       = deepcopy(obs)
+        obs_L2.data *= obs_L2.data
+        obs_L2       = obs_L2.integrateInTime()
+        dif_L2       = deepcopy(obs)
+        dif_L2.data  = (dif_L2.data-mod.data)**2
+        dif_L2       = dif_L2.integrateInTime()
+        rmse_score   = Variable(name = "RMSE Score global",
+                                unit = "1",
+                                data = np.exp(-np.sqrt(dif_L2.data/obs_L2.data)))
         
         # change names to make things easier to parse later
-        obs       .name = "spaceint_of_nbp_over_global"
-        mod       .name = "spaceint_of_nbp_over_global"
-        obs_sum   .name = "accumulate_of_nbp_over_global"
-        mod_sum   .name = "accumulate_of_nbp_over_global"
-        obs_mean  .name = "Period Mean global"
-        mod_mean  .name = "Period Mean global"
-        bias      .name = "Bias global"       
-        rmse      .name = "RMSE global"       
-        bias_score.name = "Bias Score global" 
-        rmse_score.name = "RMSE Score global" 
+        obs     .name = "spaceint_of_nbp_over_global"
+        mod     .name = "spaceint_of_nbp_over_global"
+        obs_sum .name = "accumulate_of_nbp_over_global"
+        mod_sum .name = "accumulate_of_nbp_over_global"
+        obs_mean.name = "Period Mean global"
+        mod_mean.name = "Period Mean global"
+        bias    .name = "Bias global"       
+        rmse    .name = "RMSE global"       
 
         # Dump to files
         results = Dataset("%s/%s_%s.nc" % (self.output_path,self.name,m.name),mode="w")
