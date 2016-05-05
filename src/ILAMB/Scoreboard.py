@@ -427,7 +427,15 @@ class Scoreboard():
 
     def createSummaryFigure(self,M):
         GenerateSummaryFigure(self.tree,M)
-    
+
+    def dumpScores(self,M,filename):
+        out = file(filename,"w")
+        out.write("Variables,%s\n" % (",".join([m.name for m in M])))
+        for cat in self.tree.children:
+            for v in cat.children:
+                out.write("%s,%s\n" % (v.name,','.join([str(s) for s in v.score])))
+        out.close()
+
 def CompositeScores(tree,M):
     global global_model_list
     global_model_list = M

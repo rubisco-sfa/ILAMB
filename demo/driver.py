@@ -329,4 +329,9 @@ WorkPost(M,C,W,S,not args.quiet)
 
 sys.stdout.flush(); comm.Barrier()
 
+if rank==0: S.dumpScores(M,"scores.csv")
+    
 if rank==0 and not args.quiet: print "\nCompleted in {0:>5.1f} s\n".format(time.time()-T0)
+
+
+
