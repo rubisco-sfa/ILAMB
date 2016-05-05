@@ -58,7 +58,7 @@ class Confrontation(object):
         self.name           = keywords.get("name",None)
         self.source         = keywords.get("source",None)
         self.variable       = keywords.get("variable",None)
-        self.output_path    = keywords.get("output_path","_build/%s/" % self.name)
+        self.output_path    = keywords.get("output_path","./" % self.name)
         self.alternate_vars = keywords.get("alternate_vars",[])
         self.derived        = keywords.get("derived",None)
         self.regions        = keywords.get("regions",["global"])
