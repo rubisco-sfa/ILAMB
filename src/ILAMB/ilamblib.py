@@ -618,7 +618,7 @@ def AnalysisMeanState(obs,mod,**keywords):
         # fractions. So, here we find the land fraction of the model,
         # interpolate it to the new grid, and replace the new grid
         # areas with the land area.
-        land_fraction = mod_timeint.area / CellAreas(mod_timeint.lat,mod_timeint.lon)
+        land_fraction = mod_timeint.area / CellAreas(mod_timeint.lat,mod_timeint.lon).clip(1)
         land_fraction = land_fraction.clip(0,1)
         area = NearestNeighborInterpolation(mod_timeint.lat,mod_timeint.lon,land_fraction,
                                             bias_map.lat,bias_map.lon)*bias_map.area
