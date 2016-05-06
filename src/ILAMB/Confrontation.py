@@ -27,9 +27,6 @@ class Confrontation(object):
         full path to the observational dataset
     variable_name : str
         name of the variable to extract from the source dataset
-    
-    Other Parameters
-    ----------------
     output_path : str, optional
         path into which all output from this confrontation will be generated
     alternate_vars : list of str, optional

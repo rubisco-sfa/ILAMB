@@ -30,3 +30,4 @@ package!
    :maxdepth: 1
 	      
    overview
+   confront
