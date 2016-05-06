@@ -74,11 +74,12 @@ which will display::
 
 The returned value is another ``Variable`` object, which now has lost
 its temporal dimension because this was integrated out. It represents
-the average in time at each grid cell in the original data.
-
-The ``Variable`` object has a lot of functionality and will be
-expanded to meet needs of developers. However, the point at this point
-in the tutorial is that we use the ``Variable`` object to perform
+the average in time at each grid cell in the original data. The
+``Variable`` object has a lot of functionality and will be expanded to
+meet needs of developers. For a more complete explanation of the
+interface, consult the `documentation
+<_generated/ILAMB.Variable.Variable.html>`_. However, the point of
+this tutorial is that we use the ``Variable`` object to perform
 analysis operations in a uniform and flexible manner. Its full
 functionality will be covered in more detail in a future tutorial.
 
@@ -95,10 +96,11 @@ point to the top-level directory where the results are contained::
   m = ModelResult(os.environ["ILAMB_ROOT"] + "/MODELS/CLM40cn",
                  name = "CLM40cn")
 
-When we instantiate the model result, we search for all variables
-found in all netCDF files contained underneath this top-level
-directory. This makes extracting variables simple. We can extract the
-same variable as above, but in a much more simple manner::
+When we instantiate the model result, internally we search for all
+variables found in all netCDF files contained underneath this
+top-level directory. This makes extracting variables simple. We can
+extract the same variable as above, but in a much more simple manner
+once the model result has been defined::
 
   v = m.extractTimeSeries("rsus")
   print v
@@ -118,9 +120,13 @@ yields the folling screen output::
   
 In addition to making the aquisition of model data simpler, if land
 fractions and areas are relevant (that is, the variable is spatial),
-we will apply them to the variable automatically. Extracting the
-variables from the ``ModelResult`` object ensures that we handle model
-data consistently.
+we will apply them to the variable automatically. The user is only
+responsible for having the appropriate datafiles (``areacella`` and
+``sftlf``) in the model's directory. Extracting the variables from the
+``ModelResult`` object ensures that we handle model data
+consistently. The ``ModelResult`` `interface
+<_generated/ILAMB.ModelResult.ModelResult.html>`_ is much smaller, and
+will be expanded in the future.
 
 The Confrontation Object
 ------------------------
@@ -178,14 +184,20 @@ find two netCDF4 files in your directory: ``CERES_Benchmark.nc`` and
 ``CERES_CLM40cn.nc``. You can use ``ncdump`` or ``ncview`` (from
 NetCDF Tools) to examine the contents of these files.
 
+The ``Confrontation`` also handles the plotting and generation of HTML
+output pages, but this is a more advanced aspect of the object,
+detailed in its interface, shown `here
+<_generated/ILAMB.Confrontation.Confrontation.html>`_.
+
 Summary
 -------
 
 While there is much more to learn in understanding the ILAMB python
 package, these are the basic objects and concepts you will need to
-master to implement new benchmarks and analysis. The basic idea is
-that we have encapsulated the notion of benchmark datasets and their
-accompanying analysis into a class which operates on the results of a
-model run. What we have done here manually is part of what happens
-inside ``driver.py`` which we executed in previous tutorials.
+grasp to implement new benchmarks and analysis. The basic idea is that
+we have encapsulated the notion of benchmark datasets and their
+accompanying analysis into a ``Confrontation`` class which operates on
+the ``ModelResult`` represented as a ``Variable``. What we have done
+here manually is part of what happens inside ``driver.py`` which we
+executed in previous tutorials. 
   
