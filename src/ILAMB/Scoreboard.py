@@ -337,7 +337,6 @@ class Scoreboard():
       </div>
       <div data-role="main" class="ui-content">
 	<img class="displayed" src="./overview.png"></img>
-	<img class="displayed" src="./contribution.png"></img>
       </div>
       <div data-role="footer">
 	<h1> </h1>
