@@ -152,7 +152,7 @@ class ModelResult():
                                tf             = final_time)
                 if lats is not None: var = var.extractDatasites(lats,lons)
                 V.append(var)
-            break
+            if len(V) > 0: break
         if len(V) == 0: raise il.VarNotInModel()
         v = il.CombineVariables(V)
         return v
