@@ -15,7 +15,7 @@ OK   = '\033[92m'
 FAIL = '\033[91m'
 ENDC = '\033[0m'
 
-def InitializeModels(model_root,models=[],verbose=False):
+def InitializeModels(model_root,models=[],verbose=False,filter=""):
     """Initializes a list of models
 
     Initializes a list of models where each model is the subdirectory
@@ -44,7 +44,7 @@ def InitializeModels(model_root,models=[],verbose=False):
     for subdir, dirs, files in os.walk(model_root):
         for mname in dirs:
             if len(models) > 0 and mname not in models: continue
-            M.append(ModelResult(subdir + "/" + mname, modelname = mname))            
+            M.append(ModelResult(subdir + "/" + mname, modelname = mname, filter=filter))            
             max_model_name_len = max(max_model_name_len,len(mname))
         break
     M = sorted(M,key=lambda m: m.name.upper())
@@ -285,6 +285,8 @@ parser.add_argument('--clean', dest="clean", action="store_true",
                     help='enable to remove analysis files and recompute')
 parser.add_argument('-q','--quiet', dest="quiet", action="store_true",
                     help='enable to silence screen output')
+parser.add_argument('--filter', dest="filter", metavar='filter', type=str, nargs=1, default="",
+                    help='a string which much be in the model filenames')
 
 args = parser.parse_args()
 if args.config is None:
@@ -293,8 +295,8 @@ if args.config is None:
     comm.Barrier()
     comm.Abort(1)
 
-T0 = time.time()    
-M  = InitializeModels(args.model_root[0],args.models,not args.quiet)
+T0 = time.time()
+M  = InitializeModels(args.model_root[0],args.models,not args.quiet,filter=args.filter[0])
 if rank == 0 and not args.quiet: print "\nParsing config file %s...\n" % args.config[0]
 S = Scoreboard(args.config[0],
                regions = args.regions,
