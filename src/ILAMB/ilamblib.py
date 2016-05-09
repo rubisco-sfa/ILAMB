@@ -94,7 +94,14 @@ def ConvertCalendar(t,unit=None,calendar=None):
             calendar = "365_day"
     t0 = Units(unit,calendar=calendar)
     tf = Units("days since 1850-1-1",calendar="365_day")
-    t  = Units.conform(t[...],t0,tf)
+    try:
+        t  = Units.conform(t[...],t0,tf)
+    except:
+        # If we are here, cfunits doesn't know how to convert
+        # calendars so we will do something ourselves.
+        t = t[...]
+        if calendar == "gregorian": t *= (365./365.25)
+        if calendar == "360_day"  : t *= (365./360.  )
     return t
 
 def CellAreas(lat,lon):
