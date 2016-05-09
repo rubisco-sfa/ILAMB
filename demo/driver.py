@@ -285,7 +285,7 @@ parser.add_argument('--clean', dest="clean", action="store_true",
                     help='enable to remove analysis files and recompute')
 parser.add_argument('-q','--quiet', dest="quiet", action="store_true",
                     help='enable to silence screen output')
-parser.add_argument('--filter', dest="filter", metavar='filter', type=str, nargs=1, default="",
+parser.add_argument('--filter', dest="filter", metavar='filter', type=str, nargs=1, default=[""],
                     help='a string which much be in the model filenames')
 
 args = parser.parse_args()
