@@ -740,6 +740,14 @@ class Variable:
             V.setncattr("min",self.data.min())
         except:
             pass
+
+        data = self.data[self.data.mask==False]
+        data.sort()
+        lo = int(round(0.01*data.size))
+        hi = min(int(round(0.99*data.size)),data.size-1)
+        V.setncattr("up99",data[hi])
+        V.setncattr("dn99",data[lo])
+        
         if type(self.data) is np.ma.core.MaskedConstant:
             V[...] = np.nan
         else:

@@ -290,8 +290,8 @@ class Confrontation(object):
                     limits[pname]["min"]  = +1e20
                     limits[pname]["max"]  = -1e20
                     limits[pname]["unit"] = post.UnitStringToMatplotlib(var.getncattr("units"))
-                limits[pname]["min"] = min(limits[pname]["min"],var.getncattr("min"))
-                limits[pname]["max"] = max(limits[pname]["max"],var.getncattr("max"))
+                limits[pname]["min"] = min(limits[pname]["min"],var.getncattr("dn99"))
+                limits[pname]["max"] = max(limits[pname]["max"],var.getncattr("up99"))
             dataset.close()
         
         # Second pass to plot legends (FIX: only for master?)
