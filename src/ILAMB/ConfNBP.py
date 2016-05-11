@@ -17,7 +17,8 @@ class ConfNBP(Confrontation):
         super(ConfNBP,self).__init__(**keywords)
 
         # Now we overwrite some things which are different here
-        self.regions = ['global']
+        self.regions        = ['global']
+        self.layout.regions = self.regions
         
     def stageData(self,m):
         r"""Extracts model data and integrates it over the globe to match the confrontation dataset.
