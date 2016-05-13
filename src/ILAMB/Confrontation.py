@@ -55,7 +55,7 @@ class Confrontation(object):
         self.name           = keywords.get("name",None)
         self.source         = keywords.get("source",None)
         self.variable       = keywords.get("variable",None)
-        self.output_path    = keywords.get("output_path","./" % self.name)
+        self.output_path    = keywords.get("output_path","./")
         self.alternate_vars = keywords.get("alternate_vars",[])
         self.derived        = keywords.get("derived",None)
         self.regions        = keywords.get("regions",["global"])
@@ -64,8 +64,7 @@ class Confrontation(object):
         self.land           = keywords.get("land",False)
         self.limits         = None
         self.longname       = self.output_path
-        self.longname       = self.longname.replace("//","/").replace("./","").replace("_build/","")
-        if self.longname[-1] == "/": self.longname = self.longname[:-1]
+        self.longname       = self.longname.replace("//","/").replace("./","").replace("_build/","").rstrip("/")
         self.longname       = "/".join(self.longname.split("/")[1:])
         self.table_unit     = keywords.get("table_unit",None)
         self.plot_unit      = keywords.get("plot_unit",None)
