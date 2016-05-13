@@ -81,7 +81,8 @@ def GlobalPlot(lat,lon,var,ax,region="global",shift=False,**keywords):
         alon = lon
         tmp  = var
 
-    if region is None or region == "global":
+    #if region is None or region == "global":
+    if False:
         bmap = Basemap(projection = 'robin',
                        lon_0      = 0.,
                        resolution = 'c',
