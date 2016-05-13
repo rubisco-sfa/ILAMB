@@ -27,9 +27,6 @@ class Confrontation(object):
         full path to the observational dataset
     variable_name : str
         name of the variable to extract from the source dataset
-    
-    Other Parameters
-    ----------------
     output_path : str, optional
         path into which all output from this confrontation will be generated
     alternate_vars : list of str, optional
@@ -58,7 +55,7 @@ class Confrontation(object):
         self.name           = keywords.get("name",None)
         self.source         = keywords.get("source",None)
         self.variable       = keywords.get("variable",None)
-        self.output_path    = keywords.get("output_path","_build/%s/" % self.name)
+        self.output_path    = keywords.get("output_path","./" % self.name)
         self.alternate_vars = keywords.get("alternate_vars",[])
         self.derived        = keywords.get("derived",None)
         self.regions        = keywords.get("regions",["global"])

@@ -45,8 +45,8 @@ as we do not yet have it listed in either package manager. To do this,
 first locate the package's source repository. For the ILAMB package,
 this amounts to cloning the repository_ found on bitbucket::
 
-  git clone https://ncollier@bitbucket.org/ncollier/ilamb.git
-
+  git clone https://bitbucket.org/ncollier/ilamb.git
+  
 Enter into the cloned repository and you will find a python file named
 ``setup.py``. This is a common file in all python packages. Package
 developers use it to put information about how their package is
