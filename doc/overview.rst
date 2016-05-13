@@ -94,7 +94,7 @@ point to the top-level directory where the results are contained::
 
   from ILAMB.ModelResult import ModelResult
   m = ModelResult(os.environ["ILAMB_ROOT"] + "/MODELS/CLM40cn",
-                 name = "CLM40cn")
+                 modelname = "CLM40cn")
 
 When we instantiate the model result, internally we search for all
 variables found in all netCDF files contained underneath this
