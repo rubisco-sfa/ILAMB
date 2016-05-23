@@ -1,5 +1,5 @@
-ILAMB: The ILAMB Benchmarking System
-====================================
+The ILAMB Benchmarking System
+=============================
 
 The International Land Model Benchmarking (ILAMB) project is a
 model-data intercomparison and integration project designed to improve
@@ -19,9 +19,25 @@ the goals of ILAMB are to:
 
 It is the last of these goals to which this repository is
 concerned. We have developed a python-based generic benchmarking
-system. Please consult the `documentation
-<http://climate.ornl.gov/~ncf/ILAMB/docs/index.html>`_ for
-instructions on how to install the package and get started. To get an
-idea of the scope and magnitude of the project, see a sampling of the
-output `here
-<http://www.climatemodeling.org/~nate/ILAMB/index.html>`_.
+system, initially focused on assessing land model performance.
+
+Useful Information
+------------------
+
+* `Documentation
+  <http://climate.ornl.gov/~ncf/ILAMB/docs/index.html>`_ of the public
+  API is included in the repository, but also hosted if you follow the
+  link.
+* `Sample output
+  <http://www.climatemodeling.org/~nate/ILAMB/index.html>`_ gives you
+  an idea of the scope and magnitude of the package capabilities.
+* You may cite the software package by using the following reference (DOI:10.18139/ILAMB.v002.00/1251621).
+
+Funding
+-------
+
+This research was performed for the Biogeochemistry--Climate Feedbacks
+Scientific Focus Area, which is sponsored by the Regional and Global
+Climate Modeling (RGCM) Program in the Climate and Environmental
+Sciences Division (CESD) of the Biological and Environmental Research
+(BER) Program in the U.S. Department of Energy Office of Science.
