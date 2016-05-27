@@ -741,7 +741,7 @@ class Variable:
         except:
             pass
 
-        data = self.data[self.data.mask==False]
+        data = self.data[self.data.mask==False].reshape((-1))
         data.sort()
         lo = int(round(0.01*data.size))
         hi = min(int(round(0.99*data.size)),data.size-1)
