@@ -47,6 +47,8 @@ class Confrontation(object):
         the colormap to use in rendering plots (default is 'jet')
     land : str, bool
         enable to force the masking of areas with no land (default is False)
+    limit_type : str
+        change the types of plot limits, one of ['minmax' (default), '99per']
     """
     def __init__(self,**keywords):
         
@@ -268,6 +270,12 @@ class Confrontation(object):
         called before calling any plotting routine.
 
         """
+        max_str = "max"
+        min_str = "min"
+        if self.keywords.get("limit_type","minmax") == "99per":
+            max_str = "up99"
+            min_str = "dn99"
+            
         # Determine the min/max of variables over all models
         limits = {}
         for fname in glob.glob("%s/*.nc" % self.output_path):
@@ -286,8 +294,8 @@ class Confrontation(object):
                     limits[pname]["min"]  = +1e20
                     limits[pname]["max"]  = -1e20
                     limits[pname]["unit"] = post.UnitStringToMatplotlib(var.getncattr("units"))
-                limits[pname]["min"] = min(limits[pname]["min"],var.getncattr("min"))
-                limits[pname]["max"] = max(limits[pname]["max"],var.getncattr("max"))
+                limits[pname]["min"] = min(limits[pname]["min"],var.getncattr(min_str))
+                limits[pname]["max"] = max(limits[pname]["max"],var.getncattr(max_str))
             dataset.close()
         
         # Second pass to plot legends (FIX: only for master?)
