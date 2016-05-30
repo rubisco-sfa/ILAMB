@@ -632,13 +632,15 @@ class Variable:
         raise il.UnitConversionError()
 
     
-    def toNetCDF4(self,dataset):
+    def toNetCDF4(self,dataset,attributes=None):
         """Adds the variable to the specified netCDF4 dataset.
 
         Parameters
         ----------
         dataset : netCDF4.Dataset
             a dataset into which you wish to save this variable
+        attributes : dict of scalars, option
+            a dictionary of additional scalars to encode as ncattrs
         """
         def _checkTime(t,dataset):
             """A local function for ensuring the time dimension is saved in the dataset."""
@@ -747,7 +749,12 @@ class Variable:
         hi = min(int(round(0.99*data.size)),data.size-1)
         V.setncattr("up99",data[hi])
         V.setncattr("dn99",data[lo])
-        
+
+        # optionally write out more attributes
+        if attributes:
+            for key in attributes.keys():
+                V.setncattr(key,attributes[key])
+            
         if type(self.data) is np.ma.core.MaskedConstant:
             V[...] = np.nan
         else:

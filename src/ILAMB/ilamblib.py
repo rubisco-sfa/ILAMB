@@ -739,7 +739,6 @@ def AnalysisMeanState(obs,mod,**keywords):
     out_vars = [mod_period_mean,
                 bias,
                 bias_score,
-                sd_score,
                 mod_timeint,
                 mod_spaceint,
                 bias_map]
@@ -753,6 +752,9 @@ def AnalysisMeanState(obs,mod,**keywords):
                 for key in var.keys(): var[key].toNetCDF4(dataset)
             else:
                 var.toNetCDF4(dataset)
+    for key in sd_score.keys():
+        sd_score[key].toNetCDF4(dataset,attributes={"std":std[region].data,
+                                                    "R"  :R  [region].data})
     if benchmark_dataset is not None:
         for var in [obs_period_mean,obs_timeint,obs_spaceint]:
             if type(var) == type({}):
