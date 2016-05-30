@@ -433,7 +433,10 @@ class Scoreboard():
         out.write("Variables,%s\n" % (",".join([m.name for m in M])))
         for cat in self.tree.children:
             for v in cat.children:
-                out.write("%s,%s\n" % (v.name,','.join([str(s) for s in v.score])))
+                try:
+                    out.write("%s,%s\n" % (v.name,','.join([str(s) for s in v.score])))
+                except:
+                    out.write("%s,%s\n" % (v.name,','.join(["~"]*len(M))))
         out.close()
 
 def CompositeScores(tree,M):
