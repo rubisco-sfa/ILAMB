@@ -741,15 +741,22 @@ class Variable:
             V.setncattr("max",self.data.max())
             V.setncattr("min",self.data.min())
         except:
-            pass
+            V.setncattr("max",0)
+            V.setncattr("min",1)
 
-        data = self.data[self.data.mask==False].reshape((-1))
-        data.sort()
-        lo = int(round(0.01*data.size))
-        hi = min(int(round(0.99*data.size)),data.size-1)
-        V.setncattr("up99",data[hi])
-        V.setncattr("dn99",data[lo])
 
+        try:
+            data = self.data[self.data.mask==False].reshape((-1))
+            data.sort()
+            lo = int(round(0.01*data.size))
+            hi = min(int(round(0.99*data.size)),data.size-1)
+            V.setncattr("up99",data[hi])
+            V.setncattr("dn99",data[lo])
+        except:
+            V.setncattr("up99",0)
+            V.setncattr("dn99",1)
+            
+            
         # optionally write out more attributes
         if attributes:
             for key in attributes.keys():
