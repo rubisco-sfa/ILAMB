@@ -344,7 +344,10 @@ class Variable:
 
         # approximate the integral
         integral = _integrate(self.data,measure)
-        if mean: integral /= measure.sum()
+        if mean:
+            np.seterr(under='ignore')
+            integral /= measure.sum()
+            np.seterr(under='raise')
 
         # handle the name and unit
         name = self.name + "_integrated_over_space"
