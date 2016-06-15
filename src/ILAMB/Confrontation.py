@@ -128,13 +128,9 @@ class Confrontation(object):
         mod : ILAMB.Variable.Variable
             the variable context associated with the model result
         """
-        if self.data is None:
-            obs = Variable(filename       = self.source,
-                           variable_name  = self.variable,
-                           alternate_vars = self.alternate_vars)
-            self.data = obs
-        else:
-            obs = self.data
+        obs = Variable(filename       = self.source,
+                       variable_name  = self.variable,
+                       alternate_vars = self.alternate_vars)
         if obs.time is None: raise il.NotTemporalVariable()
         t0 = obs.time_bnds[0, 0]
         tf = obs.time_bnds[1,-1]
