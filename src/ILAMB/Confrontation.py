@@ -403,19 +403,21 @@ class Confrontation(object):
             models.append(dataset.getncattr("name"))
             colors.append(dataset.getncattr("color"))
             for region in self.regions:
-                if not std.  has_key(region): std  [region] = []
-                if not corr. has_key(region): corr [region] = []
+                
                 if not cycle.has_key(region): cycle[region] = []
-                key = [v for v in dataset.variables.keys() if ("corr_" in v and region in v)]
-                if len(key)>0: corr [region].append(Variable(filename=fname,variable_name=key[0]).data.data)
-                key = [v for v in dataset.variables.keys() if ("std_"  in v and region in v)]
-                if len(key)>0:
-                    has_std = True
-                    std  [region].append(Variable(filename=fname,variable_name=key[0]).data.data)
                 key = [v for v in dataset.variables.keys() if ("cycle_"  in v and region in v)]
                 if len(key)>0:
                     has_cycle = True
                     cycle[region].append(Variable(filename=fname,variable_name=key[0]))
+
+                if not std.  has_key(region): std  [region] = []
+                if not corr. has_key(region): corr [region] = []
+                key = [v for v in dataset.groups["scalars"].variables.keys() if ("Spatial Distribution Score" in v and region in v)]
+                if len(key) > 0:
+                    has_std = True
+                    sds     = dataset.groups["scalars"].variables[key[0]]
+                    corr[region].append(sds.getncattr("R"  ))
+                    std [region].append(sds.getncattr("std"))
                 
         # composite annual cycle plot
         if has_cycle and len(models) > 2:
