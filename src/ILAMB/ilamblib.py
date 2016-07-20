@@ -448,7 +448,7 @@ def FromNetCDF4(filename,variable_name,alternate_vars=[],t0=None,tf=None):
     # provided for added effciency, what do we do if no time in this
     # file falls within the time bounds?
     if (t is not None) and (t0 is not None or tf is not None):
-        begin = 0; end = t.size-1
+        begin = 0; end = t.size
         if t0 is not None: begin = max(t.searchsorted(t0)-1,begin)
         if tf is not None: end   = min(t.searchsorted(tf)+1,end)
         v = var[begin:end,...]
@@ -1193,7 +1193,7 @@ def CombineVariables(V):
     # Assemble the data
     shp       = (nt.sum(),)+V[0].data.shape[1:]
     time      = np.zeros(shp[0])
-    time_bnds = np.zeros(2,shp[0])
+    time_bnds = np.zeros((2,shp[0]))
     data      = np.zeros(shp)
     mask      = np.zeros(shp,dtype=bool)
     for i,v in enumerate(V):
