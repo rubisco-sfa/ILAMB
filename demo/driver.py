@@ -287,6 +287,8 @@ parser.add_argument('-q','--quiet', dest="quiet", action="store_true",
                     help='enable to silence screen output')
 parser.add_argument('--filter', dest="filter", metavar='filter', type=str, nargs=1, default=[""],
                     help='a string which much be in the model filenames')
+parser.add_argument('--build_dir', dest="build_dir", metavar='build_dir', type=str, nargs=1,default=["./_build"],
+                    help='path of where to save the output')
 
 args = parser.parse_args()
 if args.config is None:
@@ -299,9 +301,10 @@ T0 = time.time()
 M  = InitializeModels(args.model_root[0],args.models,not args.quiet,filter=args.filter[0])
 if rank == 0 and not args.quiet: print "\nParsing config file %s...\n" % args.config[0]
 S = Scoreboard(args.config[0],
-               regions = args.regions,
-               master  = rank==0,
-               verbose = not args.quiet)
+               regions   = args.regions,
+               master    = rank==0,
+               verbose   = not args.quiet,
+               build_dir = args.build_dir[0])
 C  = MatchRelationshipConfrontation(S.list())
 Cf = FilterConfrontationList(C,args.confront)
 

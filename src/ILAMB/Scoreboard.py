@@ -177,12 +177,13 @@ class Scoreboard():
     """
     A class for managing confrontations
     """
-    def __init__(self,filename,regions=["global"],verbose=False,master=True):
-
+    def __init__(self,filename,regions=["global"],verbose=False,master=True,build_dir="./_build"):
+        
         if not os.environ.has_key('ILAMB_ROOT'):
             raise ValueError("You must set the environment variable 'ILAMB_ROOT'")
-
-        if (master and not os.path.isdir("./_build")): os.mkdir("./_build")        
+        self.build_dir = build_dir
+        
+        if (master and not os.path.isdir(self.build_dir)): os.mkdir(self.build_dir)        
 
         self.tree = ParseScoreboardConfigureFile(filename)
         max_name_len = 45
@@ -212,7 +213,7 @@ class Scoreboard():
 
                 if (master and verbose): 
                     longname = node.output_path
-                    longname = longname.replace("//","/").replace("./","").replace("_build/","")
+                    longname = longname.replace("//","/").replace(self.build_dir,"")
                     if longname[-1] == "/": longname = longname[:-1]
                     longname = "/".join(longname.split("/")[1:])
                     print ("    {0:>%d}\033[91m MisplacedData\033[0m" % max_name_len).format(longname)
@@ -224,7 +225,7 @@ class Scoreboard():
             while parent.name is not None:
                 path   = "%s/%s" % (parent.name.replace(" ",""),path)
                 parent = parent.parent
-            path = "./_build/%s" % path
+            path = "%s/%s" % (self.build_dir,path)
             if not os.path.isdir(path) and master: os.mkdir(path)
             node.output_path = path
 
@@ -247,16 +248,15 @@ class Scoreboard():
         TraversePreorder(self.tree,_hasConfrontation)
         return global_confrontation_list
         
-    def createHtml(self,M,filename="./_build/index.html"):
+    def createHtml(self,M,filename="index.html"):
 
         # Create html assets
         from pylab import imsave
-        path   = "/".join(filename.split("/")[:-1]) + "/"
         arrows = np.zeros((32,16,4))
         for i in range(7):
             arrows[ 4+i,(7-i):(7+i+1),3] = 1
             arrows[27-i,(7-i):(7+i+1),3] = 1
-        imsave(path + "arrows.png",arrows)
+        imsave("%s/arrows.png" % self.build_dir,arrows)
         
         html = r"""
 <html>
@@ -370,7 +370,7 @@ class Scoreboard():
 	  </thead>
           <tbody>"""
         
-        for tree in self.tree.children: html += GenerateTable(tree,M)
+        for tree in self.tree.children: html += GenerateTable(tree,M,self)
         html += """
           </tbody>
         </table>
@@ -420,16 +420,16 @@ class Scoreboard():
 
 </body>
 </html>"""
-        file(filename,"w").write(html)
+        file("%s/%s" % (self.build_dir,filename),"w").write(html)
         
-    def createBarCharts(self,M,filename="./_build/models.html"):
+    def createBarCharts(self,M):
         html = GenerateBarCharts(self.tree,M)
 
     def createSummaryFigure(self,M):
-        GenerateSummaryFigure(self.tree,M)
+        GenerateSummaryFigure(self.tree,M,self.build_dir)
 
     def dumpScores(self,M,filename):
-        out = file(filename,"w")
+        out = file("%s/%s" % (self.build_dir,filename),"w")
         out.write("Variables,%s\n" % (",".join([m.name for m in M])))
         for cat in self.tree.children:
             for v in cat.children:
@@ -439,6 +439,7 @@ class Scoreboard():
                     out.write("%s,%s\n" % (v.name,','.join(["~"]*len(M))))
         out.close()
 
+        
 def CompositeScores(tree,M):
     global global_model_list
     global_model_list = M
@@ -492,7 +493,7 @@ def DarkenRowColor(clr,fraction=0.9):
     rgb = tuple(np.asarray(np.asarray(rgb)*255.,dtype=int))
     return rgb_to_hex(rgb)
 
-def BuildHTMLTable(tree,M):
+def BuildHTMLTable(tree,M,build_dir):
     global global_model_list
     global_model_list = M
     def _genHTML(node):
@@ -511,7 +512,7 @@ def BuildHTMLTable(tree,M):
                 global_html += """
       <tr class="child" bgcolor="%s">
         <td>&nbsp;&nbsp;&nbsp;<a href="%s/%s.html" rel="external">%s</a>&nbsp;(%.1f%%)</td>""" % (ccolor,
-                                                                                   c.output_path.replace("_build/",""),
+                                                                                   c.output_path.replace(build_dir,"").lstrip("/"),
                                                                                    c.name,c.name,weight)
                 try:
                     for ind in range(node.score.size):
@@ -536,7 +537,7 @@ def BuildHTMLTable(tree,M):
       </tr>"""
     TraversePreorder(tree,_genHTML)
     
-def GenerateTable(tree,M):
+def GenerateTable(tree,M,S):
     global global_html
     global global_model_list
     global global_table_color
@@ -544,7 +545,7 @@ def GenerateTable(tree,M):
     global_model_list = M
     global_table_color = tree.bgcolor
     global_html = ""
-    for cat in tree.children: BuildHTMLTable(cat,M)
+    for cat in tree.children: BuildHTMLTable(cat,M,S.build_dir)
     return global_html
 
 """
@@ -571,7 +572,7 @@ def GenerateBarCharts(tree,M):
     file('gen.html',"w").write(outputText)
 """
 
-def GenerateSummaryFigure(tree,M):
+def GenerateSummaryFigure(tree,M,build_dir):
 
     models    = [m.name for m in M]
     variables = []
@@ -591,4 +592,4 @@ def GenerateSummaryFigure(tree,M):
             except:
                 data[row,:] = np.nan
                 
-    BenchmarkSummaryFigure(models,variables,data,"_build/overview.png",vcolor=vcolors)
+    BenchmarkSummaryFigure(models,variables,data,"%s/overview.png" % build_dir,vcolor=vcolors)

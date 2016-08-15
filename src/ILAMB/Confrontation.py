@@ -66,8 +66,7 @@ class Confrontation(object):
         self.land           = keywords.get("land",False)
         self.limits         = None
         self.longname       = self.output_path
-        self.longname       = self.longname.replace("//","/").replace("./","").replace("_build/","").rstrip("/")
-        self.longname       = "/".join(self.longname.split("/")[1:])
+        self.longname       = "/".join(self.longname.replace("//","/").rstrip("/").split("/")[-2:])
         self.table_unit     = keywords.get("table_unit",None)
         self.plot_unit      = keywords.get("plot_unit",None)
         self.space_mean     = keywords.get("space_mean",True)        

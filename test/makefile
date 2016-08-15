@@ -6,7 +6,7 @@ test_sample:
         --model_root ${ILAMB_ROOT}/MODELS/CLM/    \
 	--models CLM45bgc_CRUNCEP CLM45bgc_GSWP3  \
         --regions global shsa
-	python score_diff.py scores_test.csv.gold scores.csv
+	python score_diff.py scores_test.csv.gold _build/scores.csv
 
 clean:
 	@rm -rf _build
