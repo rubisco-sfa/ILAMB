@@ -82,13 +82,19 @@ def GlobalPlot(lat,lon,var,ax,region="global",shift=False,**keywords):
         tmp  = var
 
     #if region is None or region == "global":
-    if False:
-        bmap = Basemap(projection = 'robin',
-                       lon_0      = 0.,
-                       resolution = 'c',
-                       ax         = ax)        
-        x,y = np.meshgrid(alon,lat)
-        ax  = bmap.pcolormesh(x,y,tmp,latlon=True,vmin=vmin,vmax=vmax,cmap=cmap)
+    #if False:
+    #    bmap = Basemap(projection = 'robin',
+    #                   lon_0      = 0.,
+    #                   resolution = 'c',
+    #                   ax         = ax)        
+    #    x,y = np.meshgrid(alon,lat)
+    #    ax  = bmap.pcolormesh(x,y,tmp,latlon=True,vmin=vmin,vmax=vmax,cmap=cmap)
+    if region == "arctic":
+        mp = Basemap(projection='npstere',boundinglat=60,lon_0=180,resolution='c')
+        #mp = Basemap(projection='ortho',lat_0=90.,lon_0=180.,resolution='c')
+        X,Y = np.meshgrid(lat,alon,indexing='ij')
+        mp.pcolormesh(Y,X,tmp,latlon=True,cmap=cmap,vmin=vmin,vmax=vmax)
+        mp.drawlsmask(land_color='lightgrey',ocean_color='grey',lakes=True)
     else:
         bmap = Basemap(projection = 'cyl',
                        llcrnrlon  = lons[ 0],
@@ -98,7 +104,7 @@ def GlobalPlot(lat,lon,var,ax,region="global",shift=False,**keywords):
                        resolution = 'c',
                        ax         = ax)  
         ax  = bmap.pcolormesh(alon,lat,tmp,latlon=True,vmin=vmin,vmax=vmax,cmap=cmap)
-    bmap.drawcoastlines(linewidth=0.2,color="darkslategrey")
+        bmap.drawcoastlines(linewidth=0.2,color="darkslategrey")
 
 def ColorBar(ax,**keywords):
     """Plot a colorbar.
