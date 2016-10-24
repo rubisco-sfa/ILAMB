@@ -72,15 +72,18 @@ class Variable:
         variable_name  = keywords.get("variable_name",None)
         alternate_vars = keywords.get("alternate_vars",[])
         if filename is None: # if not pull data from other arguments
-            data  = keywords.get("data" ,None)
-            unit  = keywords.get("unit" ,None)
-            name  = keywords.get("name" ,"unnamed")
-            time  = keywords.get("time" ,None)
-            time_bnds = keywords.get("time_bnds" ,None)
-            lat   = keywords.get("lat"  ,None)
-            lon   = keywords.get("lon"  ,None)
-            ndata = keywords.get("ndata",None)
-            dbnds = keywords.get("depth_bnds",None)
+            data       = keywords.get("data"       ,None)
+            unit       = keywords.get("unit"       ,None)
+            name       = keywords.get("name"       ,"unnamed")
+            time       = keywords.get("time"       ,None)
+            time_bnds  = keywords.get("time_bnds"  ,None)
+            lat        = keywords.get("lat"        ,None)
+            lat_bnds   = keywords.get("lat_bnds"   ,None)
+            lon        = keywords.get("lon"        ,None)
+            lon_bnds   = keywords.get("lon_bnds"   ,None)
+            depth      = keywords.get("depth"      ,None)
+            depth_bnds = keywords.get("depth_bnds" ,None)
+            ndata      = keywords.get("ndata"      ,None)
             assert data is not None
             assert unit is not None
         else:
@@ -94,7 +97,14 @@ class Variable:
         self.ndata = ndata
         self.unit  = unit
         self.name  = name
-        self.depth_bnds = dbnds
+
+        def _createBnds(x):
+            x_bnds = np.zeros((x.size,2))
+            x_bnds[+1:,0] = 0.5*(x[:-1]+x[+1:])
+            x_bnds[:-1,1] = 0.5*(x[:-1]+x[+1:])
+            if x.size > 1:
+                x_bnds[ 0,0] = x[ 0] - 0.5*(x[ 1]-x[ 0])
+                x_bnds[-1,1] = x[-1] + 0.5*(x[-1]-x[-2])
         
         # Handle time data
         self.time      = time      # time data
@@ -104,42 +114,56 @@ class Variable:
         self.monthly   = False     # flag for monthly means
         if time is not None: 
             self.temporal = True
-            if self.time_bnds is None:
-                self.time_bnds = np.zeros((2,time.size))
-                self.time_bnds[0,+1:] = 0.5*(time[:-1]+time[+1:])
-                self.time_bnds[1,:-1] = 0.5*(time[:-1]+time[+1:])
-                if time.size > 1:
-                    self.time_bnds[0,  0] = time[ 0] - 0.5*(time[ 1]-time[ 0])
-                    self.time_bnds[1, -1] = time[-1] + 0.5*(time[-1]-time[-2])
-            self.dt = (self.time_bnds[1,:]-self.time_bnds[0,:]).mean()
+            if self.time_bnds is None: self.time_bnds = _createBnds(self.time)
+            self.dt = (self.time_bnds[:,1]-self.time_bnds[:,0]).mean()
             if np.allclose(self.dt,30,atol=3): self.monthly = True
             assert (2*self.time.size) == (self.time_bnds.size)
             
         # Handle space or multimember data
-        self.spatial = False
-        self.lat     = lat
-        self.lon     = lon
-        self.area    = keywords.get("area",None)
-        if ((lat is     None) and (lon is     None)): return
+        self.spatial  = False
+        self.lat      = lat
+        self.lon      = lon
+        self.lat_bnds = lat_bnds
+        self.lon_bnds = lon_bnds
+        self.area     = keywords.get("area",None)
         if ((lat is     None) and (lon is not None) or
             (lat is not None) and (lon is     None)):
             raise ValueError("If one of lat or lon is specified, they both must specified")
-        self.lon = (self.lon<=180)*self.lon+(self.lon>180)*(self.lon-360)
-        if data.ndim < 2: return
-        if (data.shape[-2] == lat.size and data.shape[-1] == lon.size):
-            self.spatial = True
-            if self.area is None: self.area = il.CellAreas(self.lat,self.lon)
+        
+        # Shift possible values on [0,360] to [-180,180]
+        if self.lon       is not None:
+            self.lon      = (self.lon     <=180)*self.lon     +(self.lon     >180)*(self.lon     -360)
+        if  self.lon_bnds is not None:   
+            self.lon_bnds = (self.lon_bnds<=180)*self.lon_bnds+(self.lon_bnds>180)*(self.lon_bnds-360)
+
+        # If the last dimensions are lat and lon, this is spatial data
+        if lat is not None and lon is not None:
+            if (data.shape[-2] == lat.size and data.shape[-1] == lon.size): self.spatial = True
+
+        if self.spatial is True:
+            if self.lat_bnds is None: self.lat_bnds = _createBnds(self.lat)
+            if self.lon_bnds is None: self.lon_bnds = _createBnds(self.lon)
+            if self.area     is None: self.area     = il.CellAreas(self.lat,self.lon)
             # Some data arrays are arranged such that the first column
             # of data is arranged at the prime meridian. This does not
             # work well with some of the plotting and/or analysis
             # operations we will need to perform. These require that
             # the first column be coincident with the international
             # dateline. Thus we roll the data the required amount.
-            shift     = self.lon.argmin()
-            self.lon  = np.roll(self.lon ,-shift)
-            self.data = np.roll(self.data,-shift,axis=-1)
-            self.area = np.roll(self.area,-shift,axis=-1)
-            
+            shift         = self.lon.argmin()
+            self.lon      = np.roll(self.lon     ,-shift)
+            self.lon_bnds = np.roll(self.lon_bnds,-shift,axis= 0)
+            self.data     = np.roll(self.data    ,-shift,axis=-1)
+            self.area     = np.roll(self.area    ,-shift,axis=-1)
+
+        # Is the data layered
+        self.layered    = False
+        self.depth      = depth
+        self.depth_bnds = depth_bnds
+        if data.ndim > (self.temporal + 2*self.spatial + (self.ndata is not None)):
+            self.layered    = True
+            if depth_bnds is None: self.depth_bnds = _createBnds(self.depth)
+                
     def __str__(self):
         if self.data  is None: return "Uninitialized Variable"
         if self.ndata is None:
@@ -154,11 +178,16 @@ class Variable:
             space = ""
         else:
             space = " (%d,%d)" % (self.lat.size,self.lon.size)
+        if self.depth is None:
+            layer = ""
+        else:
+            layer = " (%d)" % (self.depth.size)
         s  = "Variable: %s\n" % self.name
         s += "-"*(len(self.name)+10) + "\n"
         s += "{0:>20}: ".format("unit")       + self.unit          + "\n"
         s += "{0:>20}: ".format("isTemporal") + str(self.temporal) + time  + "\n"
         s += "{0:>20}: ".format("isSpatial")  + str(self.spatial)  + space + "\n"
+        s += "{0:>20}: ".format("isLayered")  + str(self.layered)  + layer + "\n"
         s += "{0:>20}: ".format("nDatasites") + ndata              + "\n"
         s += "{0:>20}: ".format("dataShape")  + "%s\n" % (self.data.shape,)
         np.seterr(over='ignore',under='ignore')
@@ -258,13 +287,17 @@ class Variable:
             unit     = Units(unit0.formatted().split()[-1])
             integral = Units.conform(integral,unit0,unit)
         
-        return Variable(data  = integral,
-                        unit  = unit.units,
-                        name  = name,
-                        lat   = self.lat,
-                        lon   = self.lon,
-                        area  = self.area,
-                        ndata = self.ndata)
+        return Variable(data       = integral,
+                        unit       = unit.units,
+                        name       = name,
+                        lat        = self.lat,
+                        lat_bnds   = self.lat_bnds,
+                        lon        = self.lon,
+                        lon_bnds   = self.lon_bnds,
+                        depth      = self.depth,
+                        depth_bnds = self.depth_bnds,
+                        area       = self.area,
+                        ndata      = self.ndata)
 
     def integrateInSpace(self,region=None,mean=False,weight=None):
         r"""Integrates the variable over a given region.
@@ -365,11 +398,13 @@ class Variable:
             unit     = Units(unit0.formatted().split()[-1])
             integral = Units.conform(integral,unit0,unit)
             
-        return Variable(data      = np.ma.masked_array(integral),
-                        unit      = unit.units,
-                        time      = self.time,
-                        time_bnds = self.time_bnds,
-                        name      = name)
+        return Variable(data       = np.ma.masked_array(integral),
+                        unit       = unit.units,
+                        time       = self.time,
+                        time_bnds  = self.time_bnds,
+                        depth      = self.depth,
+                        depth_bnds = self.depth_bnds,
+                        name       = name)
 
     def siteStats(self,region=None,weight=None):
         """Computes the mean and standard deviation of the variable over all data sites.
