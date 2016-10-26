@@ -8,6 +8,19 @@ import pylab as plt
 from matplotlib.colors import LogNorm
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
+def getVariableList(dataset):
+    """Extracts the list of variables in the dataset that aren't
+    dimensions or the bounds of dimensions.
+
+    """
+    variables = [v for v in dataset.variables.keys() if v not in dataset.dimensions.keys()]
+    for d in dataset.dimensions.keys():
+        try:
+            variables.pop(variables.index(dataset.variables[d].getncattr("bounds")))
+        except:
+            pass
+    return variables
+
 class Confrontation(object):
     """A generic class for confronting model results with observational data.
 
@@ -131,8 +144,8 @@ class Confrontation(object):
                        variable_name  = self.variable,
                        alternate_vars = self.alternate_vars)
         if obs.time is None: raise il.NotTemporalVariable()
-        t0 = obs.time_bnds[0, 0]
-        tf = obs.time_bnds[1,-1]
+        t0 = obs.time_bnds[ 0,0]
+        tf = obs.time_bnds[-1,1]
         
         if obs.spatial:
             try:
@@ -475,8 +488,7 @@ class Confrontation(object):
             post.TaylorDiagram(np.asarray(std[region]),np.asarray(corr[region]),1.0,fig,colors)
             fig.savefig("%s/%s_spatial_variance.png" % (self.output_path,region))
             plt.close()
-
-        
+            
     def modelPlots(self,m):
         """For a given model, create the plots of the analysis results.
 
@@ -492,7 +504,7 @@ class Confrontation(object):
             dataset   = Dataset(fname)
         except:
             return
-        variables = [v for v in dataset.variables.keys() if v not in dataset.dimensions.keys()]
+        variables = getVariableList(dataset)
         color     = dataset.getncattr("color")
         for vname in variables:
 
