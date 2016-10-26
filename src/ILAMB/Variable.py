@@ -90,12 +90,9 @@ class Variable:
             assert variable_name is not None
             t0 = keywords.get("t0",None)
             tf = keywords.get("tf",None)
-            lat_bnds   = None
-            lon_bnds   = None
-            depth      = None
-            depth_bnds = None
-            data,unit,name,time,time_bnds,lat,lon,ndata,dbnds = il.FromNetCDF4(filename,variable_name,alternate_vars,t0,tf)
-                            
+            out = il.FromNetCDF4(filename,variable_name,alternate_vars,t0,tf)            
+            data,unit,name,time,time_bnds,lat,lat_bnds,lon,lon_bnds,depth,depth_bnds,ndata = out
+            
         if not np.ma.isMaskedArray(data): data = np.ma.masked_array(data)
         self.data  = data 
         self.ndata = ndata
