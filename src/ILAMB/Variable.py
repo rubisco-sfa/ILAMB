@@ -570,70 +570,42 @@ class Variable:
         tar_unit  = Units(     unit)
         mask      = self.data.mask
 
-        # standard units convert
+        # Define some generic quantities
+        linear            = Units("m")
+        linear_rate       = Units("m s-1")
+        area_density      = Units("kg m-2")
+        area_density_rate = Units("kg m-2 s-1")
+        mass_density      = Units("kg m-3")
+        volume_conc       = Units("mol m-3")
+        mass_conc         = Units("mol kg-1")
+
+        # Do we need to multiply by density?
+        if ( (src_unit.equivalent(linear_rate) and tar_unit.equivalent(area_density_rate)) or
+             (src_unit.equivalent(linear     ) and tar_unit.equivalent(area_density     )) or
+             (src_unit.equivalent(mass_conc  ) and tar_unit.equivalent(volume_conc      )) ):
+            np.seterr(over='ignore',under='ignore')
+            self.data *= density
+            np.seterr(over='raise',under='raise')
+            src_unit *= mass_density
+            
+        # Do we need to divide by density?
+        if ( (tar_unit.equivalent(linear_rate) and src_unit.equivalent(area_density_rate)) or
+             (tar_unit.equivalent(linear     ) and src_unit.equivalent(area_density     )) or
+             (tar_unit.equivalent(mass_conc  ) and src_unit.equivalent(volume_conc      )) ):
+            np.seterr(over='ignore',under='ignore')
+            self.data /= density
+            np.seterr(over='raise',under='raise')
+            src_unit /= mass_density
+            
+        # Convert units
         try:
             self.data = Units.conform(self.data,src_unit,tar_unit)
             self.data = np.ma.masked_array(self.data,mask=mask)
             self.unit = unit
-            return self
         except:
-            pass
-        
-        # assuming substance is water, try to convert (L / T) * (M / L^3) == (M / L^2 / T)
-        try:
-            linear_rate       = Units("m s-1")
-            area_density_rate = Units("kg m-2 s-1")
-            mass_density      = Units("kg m-3")
-            if not (src_unit.equivalent(linear_rate) and
-                    tar_unit.equivalent(area_density_rate)): raise
-            np.seterr(over='ignore',under='ignore')
-            self.data *= density
-            np.seterr(over='raise',under='raise')
-            self.data  = Units.conform(self.data,src_unit*mass_density,tar_unit)
-            self.data  = np.ma.masked_array(self.data,mask=mask)
-            self.unit  = unit
-            return self
-        except:
-            pass
-
-        # assuming substance is water, try to convert (M / L^2 / T) / (M / L^3) == (L / T) 
-        try:
-            linear_rate       = Units("m s-1")
-            area_density_rate = Units("kg m-2 s-1")
-            mass_density      = Units("kg m-3")
-            if not (src_unit.equivalent(area_density_rate) and
-                    tar_unit.equivalent(linear_rate)): raise
-            np.seterr(over='ignore',under='ignore')
-            self.data /= density
-            np.seterr(over='raise',under='raise')
-            self.data  = Units.conform(self.data,src_unit/mass_density,tar_unit)
-            self.data  = np.ma.masked_array(self.data,mask=mask)
-            self.unit  = unit
-            return self
-        except:
-            pass
-
-        # assuming substance is water, try to convert (M / L^2) / (M / L^3) == (L) 
-        try:
-            linear       = Units("m")
-            area_density = Units("kg m-2")
-            mass_density = Units("kg m-3")
-            if not (src_unit.equivalent(area_density) and
-                    tar_unit.equivalent(linear)): raise
-            np.seterr(over='ignore',under='ignore')
-            self.data /= density
-            np.seterr(over='raise',under='raise')
-            self.data  = Units.conform(self.data,src_unit/mass_density,tar_unit)
-            self.data  = np.ma.masked_array(self.data,mask=mask)
-            self.unit  = unit
-            return self
-        except:
-            pass
-        
-        # if no conversions pass, then raise this exception
-        print "var_name = %s, var_unit = %s, convert_unit = %s " % (self.name,self.unit,unit)
-        raise il.UnitConversionError()
-
+            print "var_name = %s, src_unit = %s, target_unit = %s " % (self.name,src_unit,tar_unit)
+            raise il.UnitConversionError()
+        return self
     
     def toNetCDF4(self,dataset,attributes=None):
         """Adds the variable to the specified netCDF4 dataset.
