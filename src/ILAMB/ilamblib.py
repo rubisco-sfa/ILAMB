@@ -387,48 +387,42 @@ def FromNetCDF4(filename,variable_name,alternate_vars=[],t0=None,tf=None):
     if found == False:
         alternate_vars.insert(0,variable_name)
         raise RuntimeError("Unable to find [%s] in the file: %s" % (",".join(alternate_vars),filename))
-    time_name     = None
-    time_bnd_name = None
-    lat_name      = None
-    lon_name      = None
-    data_name     = None
-    dpth_bnd_name = None
-    
+
+    # Initialize names/values of dimensions to None
+    time_name  = None; time_bnd_name  = None; t     = None; t_bnd     = None
+    lat_name   = None; lat_bnd_name   = None; lat   = None; lat_bnd   = None
+    lon_name   = None; lon_bnd_name   = None; lon   = None; lon_bnd   = None
+    depth_name = None; depth_bnd_name = None; depth = None; depth_bnd = None
+    data_name  = None;                        data  = None;
+
+    # Read in possible dimension information and their bounds
+    def _get(key,dset):
+        dim_name = key
+        try:
+            v = dset.variables[key]
+            dim_bnd_name = v.getncattr("bounds")
+        except:
+            dim_bnd_name = None
+        return dim_name,dim_bnd_name    
     for key in var.dimensions:
-        if "time" in key:
-            time_name = key
-            t = f.variables[key]
-            if "bounds" in t.ncattrs():
-                time_bnd_name = t.getncattr("bounds")
-        if "lat"  in key: lat_name  = key
-        if "lon"  in key: lon_name  = key
-        if "data" in key: data_name = key
-        if "depth" in key:
-            d = f.variables[key]
-            if "bounds" in d.ncattrs():
-                dpth_bnd_name = d.getncattr("bounds")
-        
-    if time_name is None:
-        t = None
-    else:
-        t = ConvertCalendar(f.variables[time_name])
-    if time_bnd_name is None:
-        t_bnd = None
-    else:
-        t_bnd = ConvertCalendar(f.variables[time_bnd_name],
-                                unit     = f.variables[time_name].units,
-                                calendar = f.variables[time_name].calendar).T
-    if lat_name is None:
-        lat = None
-    else:
-        lat = f.variables[lat_name][...]
-    if lon_name is None:
-        lon = None
-    else:
-        lon = f.variables[lon_name][...]
-    if data_name is None:
-        data = None
-    else:
+        if "time"  in key.lower(): time_name ,time_bnd_name  = _get(key,f)
+        if "lat"   in key.lower(): lat_name  ,lat_bnd_name   = _get(key,f)
+        if "lon"   in key.lower(): lon_name  ,lon_bnd_name   = _get(key,f)
+        if "data"  in key.lower(): data_name ,junk           = _get(key,f)
+        if "layer" in key.lower(): depth_name,depth_bnd_name = _get(key,f)
+    
+    # Based on present values, get dimensions and bounds
+    if time_name      is not None: t     = ConvertCalendar(f.variables[time_name])
+    if time_bnd_name  is not None: t_bnd = ConvertCalendar(f.variables[time_bnd_name],
+                                                           unit     = f.variables[time_name].units,
+                                                           calendar = f.variables[time_name].calendar)
+    if lat_name       is not None: lat       = f.variables[lat_name]      [...]
+    if lat_bnd_name   is not None: lat_bnd   = f.variables[lat_bnd_name]  [...]
+    if lon_name       is not None: lon       = f.variables[lon_name]      [...]
+    if lon_bnd_name   is not None: lon_bnd   = f.variables[lon_bnd_name]  [...]
+    if depth_name     is not None: depth     = f.variables[depth_name]    [...]
+    if depth_bnd_name is not None: depth_bnd = f.variables[depth_bnd_name][...]
+    if data_name      is not None:
         data = len(f.dimensions[data_name])
         # if we have data sites, there may be lat/lon data to come
         # along with them although not a dimension of the variable
@@ -439,10 +433,6 @@ def FromNetCDF4(filename,variable_name,alternate_vars=[],t0=None,tf=None):
         if lon_name is not None: lon = f.variables[lon_name][...]
         if lat.size != data: lat = None
         if lon.size != data: lon = None
-    if dpth_bnd_name is None:
-        dpth_bnd = None
-    else:
-        dpth_bnd = f.variables[dpth_bnd_name][...]
         
     # read in data array, roughly subset in time if bounds are
     # provided for added effciency, what do we do if no time in this
@@ -454,7 +444,7 @@ def FromNetCDF4(filename,variable_name,alternate_vars=[],t0=None,tf=None):
         v = var[begin:end,...]
         t = t  [begin:end]
         if t_bnd is not None:
-            t_bnd = t_bnd[:,begin:end]
+            t_bnd = t_bnd[begin:end,:]
     else:
         v = var[...]
 
@@ -469,7 +459,7 @@ def FromNetCDF4(filename,variable_name,alternate_vars=[],t0=None,tf=None):
     units = var.units
     if units == "unitless": units = "1"
     
-    return v,units,variable_name,t,t_bnd,lat,lon,data,dpth_bnd
+    return v,units,variable_name,t,t_bnd,lat,lat_bnd,lon,lon_bnd,depth,depth_bnd,data
 
         
 def Score(var,normalizer,FC=0.999999):
@@ -1000,21 +990,21 @@ def ClipTime(v,t0,tf):
     vtrim : ILAMB.Variable.Variable
         the trimmed variable
     """
-    begin = np.argmin(np.abs(v.time_bnds[0,:]-t0))
-    end   = np.argmin(np.abs(v.time_bnds[1,:]-tf))
-    while v.time_bnds[0,begin] > t0:
+    begin = np.argmin(np.abs(v.time_bnds[:,0]-t0))
+    end   = np.argmin(np.abs(v.time_bnds[:,1]-tf))
+    while v.time_bnds[begin,0] > t0:
         begin    -= 1
         if begin <= 0:
             begin = 0
             break
-    while v.time_bnds[1,  end] < tf:
+    while v.time_bnds[end,  1] < tf:
         end      += 1
         if end   >= v.time.size-1:
             end   = v.time.size-1
             break
-    v.time      = v.time     [  begin:(end+1)    ]
-    v.time_bnds = v.time_bnds[:,begin:(end+1)    ]
-    v.data      = v.data     [  begin:(end+1),...]
+    v.time      = v.time     [begin:(end+1)    ]
+    v.time_bnds = v.time_bnds[begin:(end+1),...]
+    v.data      = v.data     [begin:(end+1),...]
     return v
     
 def MakeComparable(ref,com,**keywords):
@@ -1104,8 +1094,8 @@ def MakeComparable(ref,com,**keywords):
             com = com.coarsenInTime(ref.time_bnds,window=window)
         
         # Time bounds of the reference dataset
-        t0  = ref.time_bnds[0, 0]
-        tf  = ref.time_bnds[1,-1]
+        t0  = ref.time_bnds[ 0,0]
+        tf  = ref.time_bnds[-1,1]
 
         # Find the comparison time range which fully encompasses the reference
         com = ClipTime(com,t0,tf)
@@ -1113,15 +1103,15 @@ def MakeComparable(ref,com,**keywords):
         if clip_ref:
 
             # We will clip the reference dataset too
-            t0  = max(t0,com.time_bnds[0, 0])
-            tf  = min(tf,com.time_bnds[1,-1])
+            t0  = max(t0,com.time_bnds[ 0,0])
+            tf  = min(tf,com.time_bnds[-1,1])
             ref = ClipTime(ref,t0,tf)
 
         else:
             
             # The comparison dataset needs to fully cover the reference in time
-            if (com.time_bnds[0, 0] > (t0+eps) or
-                com.time_bnds[1,-1] < (tf-eps)):
+            if (com.time_bnds[ 0,0] > (t0+eps) or
+                com.time_bnds[-1,1] < (tf-eps)):
                 msg  = "\n  Comparison dataset does not cover the time frame of the reference:\n"
                 msg += "    t0: %.16e <= %.16e (%s)\n" % (com.time_bnds[0, 0],t0+eps,com.time_bnds[0, 0] <= (t0+eps))
                 msg += "    tf: %.16e >= %.16e (%s)\n" % (com.time_bnds[1,-1],tf-eps,com.time_bnds[1,-1] >= (tf-eps))
