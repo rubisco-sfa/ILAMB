@@ -1065,7 +1065,12 @@ def MakeComparable(ref,com,**keywords):
     if ref.spatial and not com.spatial:
         msg = "\n  The reference data is spatial but the comparison data is not\n"
         raise VarsNotComparable(msg)
-    
+
+    # If the reference is layered, the comparison must be
+    if ref.layered and not com.layered:
+        msg = "\n  The reference data is layered but the comparison data is not\n"
+        raise ValueError(msg)
+        
     # If the reference represents observation sites, extract them from
     # the comparison
     if ref.ndata is not None and com.spatial: com = com.extractDatasites(ref.lat,ref.lon)
@@ -1084,7 +1089,6 @@ def MakeComparable(ref,com,**keywords):
             msg += "    Maximum difference lat = %.f, lon = %.f" % (np.abs((ref.lat-com.lat)).max(),
                                                                     np.abs((ref.lon-com.lon)).max())
             raise VarsNotComparable(msg)
-
     
     if ref.temporal:
 
@@ -1125,7 +1129,23 @@ def MakeComparable(ref,com,**keywords):
         if not np.allclose(ref.time_bnds,com.time_bnds,atol=0.75*ref.dt):
             msg  = "\n  Datasets are defined on different time intervals"
             raise VarsNotComparable(msg)
-                                   
+
+    if ref.layered:
+
+        # Try to resolve if the layers from the two quantities are
+        # different
+        if ref.depth.size != com.depth.size:
+            # Compute the mean values from the comparison over the
+            # layer breaks of the reference.
+            if ref.depth.size == 1 and com.depth.size > 1:
+                com = com.integrateInDepth(z0=ref.depth_bnds[ 0,0],
+                                           zf=ref.depth_bnds[-1,1],
+                                           mean = True)
+                ref = ref.integrateInDepth(mean = True) # just removing the depth dimension         
+        else:
+            msg  = "\n  Datasets are defined on different layers"
+            raise VarsNotComparable(msg)
+        
     # Apply the reference mask to the comparison dataset and
     # optionally vice-versa
     mask = ref.interpolate(time=com.time,lat=com.lat,lon=com.lon)

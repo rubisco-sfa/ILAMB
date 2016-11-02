@@ -303,6 +303,126 @@ class Variable:
                         area       = self.area,
                         ndata      = self.ndata)
 
+    def integrateInDepth(self,**keywords):
+        r"""Integrates the variable over a given layer limits.
+
+        Uses nodal integration to integrate to approximate 
+
+        .. math:: \int_{z_0}^{z_f} v(z,\dots)\ dz
+
+        The arguments of the integrand reflect that while it must be
+        at least defined in depth, the remaining arguments are
+        flexible. If :math:`z_0` or :math:`z_f` are not specified, the
+        variable will be integrated over the extent of its depth
+        domain. If the mean function value over depth is desired, this
+        routine will approximate
+
+        .. math:: \frac{1}{z_f-z_0} \int_{z_0}^{z_f} v(z,\dots)\ dz
+        
+        again by nodal integration. The amount of depth which we
+        divide by is the non-masked amount of depth. This means that
+        if a function has some values masked or marked as invalid, we
+        do not penalize the average value by including this as a depth
+        at which data is expected.
+
+        Parameters
+        ----------
+        z0 : float, optional
+            initial depth in m
+        zf : float, optional
+            final depth in m
+        mean : boolean, optional
+            enable to divide the integrand to get the mean function value
+
+        Returns
+        -------
+        integral : ILAMB.Variable.Variable
+            a Variable instance with the integrated value along with the
+            appropriate name and unit change
+
+        """
+        if not self.layered: raise il.NotLayeredVariable()
+        z0   = keywords.get("z0",self.depth_bnds[:,0].min())
+        zf   = keywords.get("zf",self.depth_bnds[:,1].max())
+        mean = keywords.get("mean",False)
+        
+        # find which time bounds are included even partially in the interval [z0,zf]
+        depth_bnds = np.copy(self.depth_bnds)
+        ind        = np.where((z0<depth_bnds[:,1])*(zf>depth_bnds[:,0]))[0]
+        depth_bnds[(z0>depth_bnds[:,0])*(z0<depth_bnds[:,1]),0] = z0
+        depth_bnds[(zf>depth_bnds[:,0])*(zf<depth_bnds[:,1]),1] = zf
+        depth_bnds = depth_bnds[ind,:]
+        dz         = (depth_bnds[:,1]-depth_bnds[:,0])
+        
+        # now expand this dz to the other dimensions of the data array (i.e. space or datasites)
+        for i in range(self.data.ndim-1): dz = np.expand_dims(dz,axis=-1)
+
+        # 
+        args = []
+        if self.temporal: args.append(range(self.time.size))
+        if self.layered:  args.append(ind)
+        if self.ndata:    args.append(range(self.ndata))
+        if self.spatial:
+            args.append(range(self.lat.size))
+            args.append(range(self.lon.size))
+        ind = np.ix_(*args)
+        
+        # which axis is the depth axis?
+        start =  0
+        axis  = -1
+        if self.temporal: start = 1
+        for i in range(start,self.data.ndim):
+            if self.data.shape[i] == self.depth.size: axis = i
+
+        # approximate the integral by nodal integration (rectangle rule)
+        shp = self.data[ind].shape
+        np.seterr(over='ignore',under='ignore')
+        integral = (self.data[ind]*dz).sum(axis=axis)
+        np.seterr(over='raise',under='raise')
+        
+        # the integrated array should be masked where *all* data in depth was previously masked
+        mask = False
+        if self.data.ndim > 1 and self.data.mask.size > 1:
+            mask = np.apply_along_axis(np.all,axis,self.data.mask[ind])
+        integral = np.ma.masked_array(integral,mask=mask,copy=False)
+        
+        # handle units
+        unit = Units(self.unit)
+        name = self.name + "_integrated_over_depth"
+        
+        if mean:
+            
+            # divide thru by the non-masked amount of time, the units
+            # can remain as input because we integrate over time and
+            # then divide by the time interval in the same units
+            name     += "_and_divided_by_depth"
+            if self.data.mask.size > 1:
+                dz = (dz*(self.data.mask[ind]==0)).sum(axis=axis)
+            else:
+                dz = dz.sum(axis=axis)   
+            np.seterr(over='ignore',under='ignore')
+            integral /= dz
+            np.seterr(over='raise' ,under='raise' )
+            
+        else:
+
+            # if not a mean, we need to potentially handle unit conversions
+            unit0    = Units("m")*unit
+            unit     = Units(unit0.formatted().split()[-1])
+            integral = Units.conform(integral,unit0,unit)
+        
+        return Variable(data       = integral,
+                        unit       = unit.units,
+                        name       = name,
+                        time       = self.time,
+                        time_bnds  = self.time_bnds,
+                        lat        = self.lat,
+                        lat_bnds   = self.lat_bnds,
+                        lon        = self.lon,
+                        lon_bnds   = self.lon_bnds,
+                        area       = self.area,
+                        ndata      = self.ndata)
+    
     def integrateInSpace(self,region=None,mean=False,weight=None):
         r"""Integrates the variable over a given region.
 
@@ -971,12 +1091,14 @@ class Variable:
             if lon is None: lon = self.lon
             rows  = np.apply_along_axis(np.argmin,1,np.abs(lat[:,np.newaxis]-self.lat))
             cols  = np.apply_along_axis(np.argmin,1,np.abs(lon[:,np.newaxis]-self.lon))
-            if self.data.ndim == 2:
-                mask  = data.mask[np.ix_(rows,cols)]
-                data  = data.data[np.ix_(rows,cols)]
-            else:
-                mask  = data.mask[np.ix_(range(self.time.size),rows,cols)]
-                data  = data.data[np.ix_(range(self.time.size),rows,cols)]
+            args  = []
+            if self.temporal: args.append(range(self.time.size))
+            if self.layered:  args.append(range(self.depth.size))
+            args.append(rows)
+            args.append(cols)
+            ind   = np.ix_(*args)
+            mask  = data.mask[ind]
+            data  = data.data[ind]
             data  = np.ma.masked_array(data,mask=mask)
         if self.temporal and time is not None:
             times = np.apply_along_axis(np.argmin,1,np.abs(time[:,np.newaxis]-self.time))
