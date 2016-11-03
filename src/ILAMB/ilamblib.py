@@ -41,6 +41,9 @@ class UnitConversionError(Exception):
 class AnalysisError(Exception):
     def __str__(self): return "AnalysisError"
 
+class NotLayeredVariable(Exception):
+    def __str__(self): return "NotLayeredVariable"
+
     
 def GenerateDistinctColors(N,saturation=0.67,value=0.67):
     r"""Generates a series of distinct colors.

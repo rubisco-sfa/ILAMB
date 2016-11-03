@@ -223,7 +223,8 @@ def WorkConfront(W,verbose=False,clean=False):
                 il.NotTemporalVariable,
                 il.UnitConversionError,
                 il.AnalysisError,
-                il.VarsNotComparable) as ex:
+                il.VarsNotComparable,
+                il.NotLayeredVariable) as ex:
             if verbose:
                 print ("    {0:>%d} {1:<%d} %s%s%s" % (maxCL,maxML,FAIL,ex,ENDC)).format(c.longname,m.name)
 
