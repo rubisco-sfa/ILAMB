@@ -89,7 +89,7 @@ def ConvertTypes(node):
     if node.regions        is not None: node.regions        = node.regions.split(",")
     if node.relationships  is not None: node.relationships  = node.relationships.split(",")
     if node.alternate_vars is not None:
-        node.alternate_vars = [node.alternate_vars]
+        node.alternate_vars = node.alternate_vars.split(",")
     else:
         node.alternate_vars = []
         
