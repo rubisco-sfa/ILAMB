@@ -1072,7 +1072,7 @@ def MakeComparable(ref,com,**keywords):
     # If the reference is layered, the comparison must be
     if ref.layered and not com.layered:
         msg = "\n  The reference data is layered but the comparison data is not\n"
-        raise ValueError(msg)
+        raise NotLayeredVariable(msg)
         
     # If the reference represents observation sites, extract them from
     # the comparison
