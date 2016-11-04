@@ -822,7 +822,7 @@ def BenchmarkSummaryFigure(models,variables,data,figname,vcolor=None):
     fig,ax = plt.subplots(figsize=(w,h),ncols=2,tight_layout=True)
     cmap   = plt.get_cmap('stoplight')
     cmap.set_bad('k',bad)
-    qc     = ax[0].pcolormesh(data[::-1,:],cmap=cmap,vmin=0,vmax=1,linewidth=0)
+    qc     = ax[0].pcolormesh(np.ma.masked_invalid(data[::-1,:]),cmap=cmap,vmin=0,vmax=1,linewidth=0)
     div    = make_axes_locatable(ax[0])
     fig.colorbar(qc,
                  ticks=(0,0.25,0.5,0.75,1.0),
@@ -847,6 +847,7 @@ def BenchmarkSummaryFigure(models,variables,data,figname,vcolor=None):
     std  = data.std (axis=1)
     np.seterr(invalid='ignore')
     Z    = (data-mean[:,np.newaxis])/std[:,np.newaxis]
+    Z    = np.ma.masked_invalid(Z)
     np.seterr(invalid='warn')
     cmap = plt.get_cmap('RdGn')
     cmap.set_bad('k',bad)
