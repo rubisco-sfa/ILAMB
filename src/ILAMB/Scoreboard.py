@@ -587,9 +587,9 @@ def GenerateSummaryFigure(tree,M,build_dir):
     for cat in tree.children:
         for var in cat.children:
             row += 1
-            try:
-                data[row,:] = var.score
-            except:
+            if type(var.score) == float:
                 data[row,:] = np.nan
-                
+            else:
+                data[row,:] = var.score
+
     BenchmarkSummaryFigure(models,variables,data,"%s/overview.png" % build_dir,vcolor=vcolors)
