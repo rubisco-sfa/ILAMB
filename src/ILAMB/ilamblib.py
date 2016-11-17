@@ -102,9 +102,16 @@ def ConvertCalendar(t,unit=None,calendar=None):
     except:
         # If we are here, cfunits doesn't know how to convert
         # calendars so we will do something ourselves.
+    
+        # scale the by the length of a year
         t = t[...]
-        if calendar == "gregorian": t *= (365./365.25)
-        if calendar == "360_day"  : t *= (365./360.  )
+        if t0.calendar == "gregorian": t *= (365./365.25)
+        if t0.calendar == "360_day"  : t *= (365./360.  )
+
+        # shift to the new datum
+        tm = Units(t0.units,calendar=tf.calendar)
+        t  = Units.conform(t,tm,tf) 
+        
     return t
 
 def CellAreas(lat,lon):
