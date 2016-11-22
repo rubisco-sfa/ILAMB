@@ -415,11 +415,12 @@ def FromNetCDF4(filename,variable_name,alternate_vars=[],t0=None,tf=None):
             dim_bnd_name = None
         return dim_name,dim_bnd_name    
     for key in var.dimensions:
-        if "time"  in key.lower(): time_name ,time_bnd_name  = _get(key,f)
-        if "lat"   in key.lower(): lat_name  ,lat_bnd_name   = _get(key,f)
-        if "lon"   in key.lower(): lon_name  ,lon_bnd_name   = _get(key,f)
-        if "data"  in key.lower(): data_name ,junk           = _get(key,f)
-        if "layer" in key.lower(): depth_name,depth_bnd_name = _get(key,f)
+        if  "time"  in key.lower():  time_name ,time_bnd_name  = _get(key,f)
+        if  "lat"   in key.lower():  lat_name  ,lat_bnd_name   = _get(key,f)
+        if  "lon"   in key.lower():  lon_name  ,lon_bnd_name   = _get(key,f)
+        if  "data"  in key.lower():  data_name ,junk           = _get(key,f)
+        if ("layer" in key.lower() or
+            "lev"   in key.lower()): depth_name,depth_bnd_name = _get(key,f)
     
     # Based on present values, get dimensions and bounds
     if time_name      is not None: t     = ConvertCalendar(f.variables[time_name])
@@ -1057,7 +1058,7 @@ def MakeComparable(ref,com,**keywords):
     mask_ref = keywords.get("mask_ref",False)
     eps      = keywords.get("eps"     ,30./60./24.)
     window   = keywords.get("window"  ,0.)
-
+    
     # The reference might be a time series only and not have any site
     # or spatial data associated with it
     if ((ref.spatial is False and ref.ndata is     None) and
@@ -1078,8 +1079,18 @@ def MakeComparable(ref,com,**keywords):
 
     # If the reference is layered, the comparison must be
     if ref.layered and not com.layered:
-        msg = "\n  The reference data is layered but the comparison data is not\n"
-        raise NotLayeredVariable(msg)
+        if ref.depth.size == 1:
+            com.layered    = True
+            com.depth      = ref.depth
+            com.depth_bnds = ref.depth_bnds
+            shp            = list(com.data.shape)
+            insert         = 0
+            if com.temporal: insert = 1
+            shp.insert(insert,1)
+            com.data       = com.data.reshape(shp)
+        else:
+            msg = "\n  The reference data is layered but the comparison data is not\n"
+            raise NotLayeredVariable(msg)
         
     # If the reference represents observation sites, extract them from
     # the comparison
@@ -1153,9 +1164,16 @@ def MakeComparable(ref,com,**keywords):
                                            mean = True)
                 ref = ref.integrateInDepth(mean = True) # just removing the depth dimension         
         else:
-            msg  = "\n  Datasets are defined on different layers"
-            raise VarsNotComparable(msg)
-        
+            if not np.allclose(ref.depth,com.depth):
+                msg  = "\n  Datasets are defined on different layers"
+                raise VarsNotComparable(msg)
+
+        # If there is only 1 layer, just remove the dimension by integrating
+        if ref.depth.size == com.depth.size == 1:
+            ref = ref.integrateInDepth(mean = True) 
+            com = com.integrateInDepth(mean = True) 
+
+
     # Apply the reference mask to the comparison dataset and
     # optionally vice-versa
     mask = ref.interpolate(time=com.time,lat=com.lat,lon=com.lon)
@@ -1195,7 +1213,7 @@ def CombineVariables(V):
     
     # Put list in order by initial time
     V.sort(key=lambda v: v.time[0])
-
+    
     # Check the beginning and ends times for monotonicity
     nV  = len(V)
     t0  = np.zeros(nV)
@@ -1207,7 +1225,7 @@ def CombineVariables(V):
         tf[i] = v.time[-1]
         nt[i] = v.time.size
         ind.append(nt[:(i+1)].sum())
-        
+
     # Checks on monotonicity
     assert (t0[1:]-t0[:-1]).min() >= 0
     assert (tf[1:]-tf[:-1]).min() >= 0
@@ -1216,14 +1234,14 @@ def CombineVariables(V):
     # Assemble the data
     shp       = (nt.sum(),)+V[0].data.shape[1:]
     time      = np.zeros(shp[0])
-    time_bnds = np.zeros((2,shp[0]))
+    time_bnds = np.zeros((shp[0],2))
     data      = np.zeros(shp)
     mask      = np.zeros(shp,dtype=bool)
     for i,v in enumerate(V):
-        time       [ind[i]:ind[i+1]]     = v.time
-        time_bnds[:,ind[i]:ind[i+1]]     = v.time_bnds
-        data       [ind[i]:ind[i+1],...] = v.data
-        mask       [ind[i]:ind[i+1],...] = v.data.mask
+        time     [ind[i]:ind[i+1]]     = v.time
+        time_bnds[ind[i]:ind[i+1],...] = v.time_bnds
+        data     [ind[i]:ind[i+1],...] = v.data
+        mask     [ind[i]:ind[i+1],...] = v.data.mask
     v = V[0]
     return Variable(data      = np.ma.masked_array(data,mask=mask),
                     unit      = v.unit,
