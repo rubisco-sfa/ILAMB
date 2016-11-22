@@ -149,8 +149,8 @@ class Confrontation(object):
         mod = m.extractTimeSeries(self.variable,
                                   alt_vars     = self.alternate_vars,
                                   expression   = self.derived,
-                                  initial_time = obs.time_bnds[0, 0],
-                                  final_time   = obs.time_bnds[1,-1],
+                                  initial_time = obs.time_bnds[ 0,0],
+                                  final_time   = obs.time_bnds[-1,1],
                                   lats         = None if obs.spatial else obs.lat,
                                   lons         = None if obs.spatial else obs.lon)
         obs,mod = il.MakeComparable(obs,mod,mask_ref=True,clip_ref=True)
