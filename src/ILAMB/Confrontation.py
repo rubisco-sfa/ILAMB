@@ -192,62 +192,55 @@ class Confrontation(object):
         # Grab the data
         obs,mod = self.stageData(m)
 
-        # Open a dataset for recording the results of this
-        # confrontation, record for the benchmark if we are the master
-        # process.
-        results = Dataset("%s/%s_%s.nc" % (self.output_path,self.name,m.name),mode="w")
-        results.setncatts({"name" :m.name, "color":m.color})
-        benchmark_results = None
-        fname = "%s/%s_Benchmark.nc" % (self.output_path,self.name)
-        if self.master:
-            benchmark_results = Dataset(fname,mode="w")
-            benchmark_results.setncatts({"name" :"Benchmark", "color":np.asarray([0.5,0.5,0.5])})
+                
+        mod_file = "%s/%s_%s.nc"        % (self.output_path,self.name,m.name)
+        obs_file = "%s/%s_Benchmark.nc" % (self.output_path,self.name       )
+        with FileContextManager(self.master,mod_file,obs_file) as fcm:
 
-        # Perform the standard fluxrate analysis
-        mass_weighting = self.keywords.get("mass_weighting",False)
-        skip_rmse      = self.keywords.get("skip_rmse"     ,False)
-        skip_iav       = self.keywords.get("skip_iav"      ,False)
-        try:
-            il.AnalysisMeanState(obs,mod,dataset   = results,
-                                 regions           = self.regions,
-                                 benchmark_dataset = benchmark_results,
-                                 table_unit        = self.table_unit,
-                                 plot_unit         = self.plot_unit,
-                                 space_mean        = self.space_mean,
-                                 skip_rmse         = skip_rmse,
-                                 skip_iav          = skip_iav,
-                                 mass_weighting    = mass_weighting)
-        except:
-            results.close()
-            os.system("rm -f %s/%s_%s.nc" % (self.output_path,self.name,m.name))
+            # Encode some names and colors
+            fcm.mod_dset.setncatts({"name" :m.name,
+                                    "color":m.color})
             if self.master:
-                benchmark_results.close()
-                os.system("rm -f %s" % fname)
-            raise il.AnalysisError()
-        
-        # Perform relationship analysis
-        obs_dep,mod_dep = obs,mod
-        dep_name        = self.longname.split("/")[0]
-        dep_plot_unit   = self.plot_unit
-        if (dep_plot_unit is None): dep_plot_unit = obs_dep.unit
+                fcm.obs_dset.setncatts({"name" :"Benchmark",
+                                        "color":np.asarray([0.5,0.5,0.5])})
+                
+            # Read in some options and run the mean state analysis
+            mass_weighting = self.keywords.get("mass_weighting",False)
+            skip_rmse      = self.keywords.get("skip_rmse"     ,False)
+            skip_iav       = self.keywords.get("skip_iav"      ,False)
+            try:
+                il.AnalysisMeanState(obs,mod,dataset   = fcm.mod_dset,
+                                     regions           = self.regions,
+                                     benchmark_dataset = fcm.obs_dset,
+                                     table_unit        = self.table_unit,
+                                     plot_unit         = self.plot_unit,
+                                     space_mean        = self.space_mean,
+                                     skip_rmse         = skip_rmse,
+                                     skip_iav          = skip_iav,
+                                     mass_weighting    = mass_weighting)
+            except:
+                raise il.AnalysisError()
 
-        if self.relationships is not None:
-            for c in self.relationships:
-                obs_ind,mod_ind = c.stageData(m) # independent variable
-                ind_name = c.longname.split("/")[0]            
-                ind_plot_unit = c.plot_unit
-                if (ind_plot_unit is None): ind_plot_unit = obs_ind.unit
-                if self.master:
-                    il.AnalysisRelationship(obs_dep,obs_ind,benchmark_results,ind_name,
+            # Setup and perform relationship analysis
+            obs_dep,mod_dep = obs,mod
+            dep_name        = self.longname.split("/")[0]
+            dep_plot_unit   = self.plot_unit
+            if (dep_plot_unit is None): dep_plot_unit = obs_dep.unit
+            if self.relationships is not None:
+                for c in self.relationships:
+                    obs_ind,mod_ind = c.stageData(m) # independent variable
+                    ind_name = c.longname.split("/")[0]            
+                    ind_plot_unit = c.plot_unit
+                    if (ind_plot_unit is None): ind_plot_unit = obs_ind.unit
+                    if self.master:
+                        il.AnalysisRelationship(obs_dep,obs_ind,fcm.obs_dset,ind_name,
+                                                dep_plot_unit=dep_plot_unit,ind_plot_unit=ind_plot_unit,
+                                                regions=self.regions)
+                    il.AnalysisRelationship(mod_dep,mod_ind,fcm.mod_dset,ind_name,
                                             dep_plot_unit=dep_plot_unit,ind_plot_unit=ind_plot_unit,
                                             regions=self.regions)
-                il.AnalysisRelationship(mod_dep,mod_ind,results,ind_name,
-                                        dep_plot_unit=dep_plot_unit,ind_plot_unit=ind_plot_unit,
-                                        regions=self.regions)
 
-        # close files
-        results.close()
-        if self.master: benchmark_results.close()
+            
                 
     def determinePlotLimits(self):
         """Determine the limits of all plots which are inclusive of all ranges.
@@ -792,3 +785,32 @@ class Confrontation(object):
         f.write(str(self.layout))
         f.close()
 
+
+class FileContextManager():
+
+    def __init__(self,master,mod_results,obs_results):
+        
+        self.master       = master
+        self.mod_results  = mod_results
+        self.obs_results  = obs_results
+        self.mod_dset     = None
+        self.obs_dset     = None
+        
+    def __enter__(self):
+
+        # Open the file on entering, both if you are the master
+        self.mod_dset                 = Dataset(self.mod_results,mode="w")
+        if self.master: self.obs_dset = Dataset(self.obs_results,mode="w")
+        return self
+    
+    def __exit__(self, exc_type, exc_value, traceback):
+
+        # Always close the file(s) on exit
+        self.mod_dset.close()
+        if self.master: self.obs_dset.close()
+
+        # If an exception occurred, also remove the files
+        if exc_type is not None:
+            system("rm -f %s" % self.mod_results)
+            if self.master: system("rm -f %s" % self.obs_results)
+    
