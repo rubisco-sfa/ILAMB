@@ -1150,7 +1150,10 @@ def MakeComparable(ref,com,**keywords):
     if mask_ref:
         mask = com.interpolate(time=ref.time,lat=ref.lat,lon=ref.lon)
         ref.data.mask += mask.data.mask
-            
+
+    # Convert the comparison to the units of the reference
+    com = com.convert(ref.unit)
+    
     return ref,com
 
 
