@@ -107,7 +107,7 @@ class ModelResult():
         self.land_area = np.ma.sum(self.land_areas)
         return
                 
-    def extractTimeSeries(self,variable,lats=None,lons=None,alt_vars=[],initial_time=-1e20,final_time=1e20,output_unit=""):
+    def extractTimeSeries(self,variable,lats=None,lons=None,alt_vars=[],initial_time=-1e20,final_time=1e20,output_unit="",expression=None):
         """Extracts a time series of the given variable from the model.
 
         Parameters
@@ -127,7 +127,9 @@ class ModelResult():
             a 1D array of latitude locations at which to extract information
         lons : numpy.ndarray, optional
             a 1D array of longitude locations at which to extract information
-        
+        expression : str, optional
+            an algebraic expression describing how to combine model outputs
+
         Returns
         -------
         var : ILAMB.Variable.Variable
@@ -153,8 +155,21 @@ class ModelResult():
                 if lats is not None: var = var.extractDatasites(lats,lons)
                 V.append(var)
             if len(V) > 0: break
-        if len(V) == 0: raise il.VarNotInModel()
-        v = il.CombineVariables(V)
+
+        # If we didn't find any files, try to put together the
+        # variable from a given expression
+        if len(V) == 0:
+            if expression is not None:
+                v = self.derivedVariable(variable,
+                                         expression,
+                                         lats         = lats,
+                                         lons         = lons,
+                                         initial_time = initial_time,
+                                         final_time   = final_time)
+            else:
+                raise il.VarNotInModel()
+        else:
+            v = il.CombineVariables(V)
         return v
 
     def derivedVariable(self,variable_name,expression,lats=None,lons=None,initial_time=-1e20,final_time=1e20):

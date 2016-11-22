@@ -144,34 +144,15 @@ class Confrontation(object):
                        variable_name  = self.variable,
                        alternate_vars = self.alternate_vars)
         if obs.time is None: raise il.NotTemporalVariable()
-        t0 = obs.time_bnds[ 0,0]
-        tf = obs.time_bnds[-1,1]
-        
-        if obs.spatial:
-            try:
-                mod = m.extractTimeSeries(self.variable,
-                                          alt_vars     = self.alternate_vars,
-                                          initial_time = t0,
-                                          final_time   = tf)
-            except:
-                mod = m.derivedVariable  (self.variable,self.derived,
-                                          initial_time = t0,
-                                          final_time   = tf)
-        else:
-            try:
-                mod = m.extractTimeSeries(self.variable,
-                                          alt_vars     = self.alternate_vars,
-                                          lats         = obs.lat,
-                                          lons         = obs.lon,
-                                          initial_time = t0,
-                                          final_time   = tf)
-            except:
-                mod = m.derivedVariable  (self.variable,self.derived,
-                                          lats         = obs.lat,
-                                          lons         = obs.lon,
-                                          initial_time = t0,
-                                          final_time   = tf)
 
+        # Try to extract a commensurate quantity from the model
+        mod = m.extractTimeSeries(self.variable,
+                                  alt_vars     = self.alternate_vars,
+                                  expression   = self.derived,
+                                  initial_time = obs.time_bnds[0, 0],
+                                  final_time   = obs.time_bnds[1,-1],
+                                  lats         = None if obs.spatial else obs.lat,
+                                  lons         = None if obs.spatial else obs.lon)
         obs,mod = il.MakeComparable(obs,mod,mask_ref=True,clip_ref=True)
         
         # Check the order of magnitude of the data and convert to help avoid roundoff errors
