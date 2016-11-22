@@ -811,6 +811,6 @@ class FileContextManager():
 
         # If an exception occurred, also remove the files
         if exc_type is not None:
-            system("rm -f %s" % self.mod_results)
-            if self.master: system("rm -f %s" % self.obs_results)
+            os.system("rm -f %s" % self.mod_results)
+            if self.master: os.system("rm -f %s" % self.obs_results)
     
