@@ -1155,7 +1155,10 @@ def MakeComparable(ref,com,**keywords):
 
         # Try to resolve if the layers from the two quantities are
         # different
-        if ref.depth.size != com.depth.size:
+        if ref.depth.size == com.depth.size == 1:
+            ref = ref.integrateInDepth(mean = True) 
+            com = com.integrateInDepth(mean = True) 
+        elif ref.depth.size != com.depth.size:
             # Compute the mean values from the comparison over the
             # layer breaks of the reference.
             if ref.depth.size == 1 and com.depth.size > 1:
@@ -1167,12 +1170,6 @@ def MakeComparable(ref,com,**keywords):
             if not np.allclose(ref.depth,com.depth):
                 msg  = "\n  Datasets are defined on different layers"
                 raise VarsNotComparable(msg)
-
-        # If there is only 1 layer, just remove the dimension by integrating
-        if ref.depth.size == com.depth.size == 1:
-            ref = ref.integrateInDepth(mean = True) 
-            com = com.integrateInDepth(mean = True) 
-
 
     # Apply the reference mask to the comparison dataset and
     # optionally vice-versa
