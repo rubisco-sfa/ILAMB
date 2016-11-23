@@ -843,12 +843,15 @@ def BenchmarkSummaryFigure(models,variables,data,figname,vcolor=None):
             t.set_backgroundcolor(vcolor[::-1][i])
     
     # compute and plot the variable z-scores
+    np.seterr(invalid='ignore',under='ignore')
+    data = np.ma.masked_invalid(data)
+    data.data[data.mask] = 1.
+    data = np.ma.masked_values(data,1.)
     mean = data.mean(axis=1)
     std  = data.std (axis=1)
-    np.seterr(invalid='ignore')
     Z    = (data-mean[:,np.newaxis])/std[:,np.newaxis]
     Z    = np.ma.masked_invalid(Z)
-    np.seterr(invalid='warn')
+    np.seterr(invalid='warn',under='raise')
     cmap = plt.get_cmap('RdGn')
     cmap.set_bad('k',bad)
     qc   = ax[1].pcolormesh(Z[::-1],cmap=cmap,vmin=-2,vmax=2,linewidth=0)

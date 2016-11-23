@@ -582,7 +582,7 @@ def GenerateSummaryFigure(tree,M,build_dir):
             variables.append(var.name)
             vcolors.append(cat.bgcolor)
             
-    data = np.zeros((len(variables),len(models)))
+    data = np.ma.zeros((len(variables),len(models)))
     row  = -1
     for cat in tree.children:
         for var in cat.children:
