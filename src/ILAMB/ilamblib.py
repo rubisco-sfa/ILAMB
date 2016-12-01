@@ -616,7 +616,10 @@ def AnalysisMeanState(obs,mod,**keywords):
     # data and avoid extra averaging. We also compute maps of the
     # scores, each normalized in their respective manner.
     bias_map = obs_timeint.bias(mod_timeint)
-    if not skip_rmse: rmse_map = obs.rmse(mod)
+    if not skip_rmse:
+        rmse_map = obs.rmse(mod)
+        rms_map  = obs.rms()
+        
     normalizer = None
     if spatial:
         
@@ -631,7 +634,11 @@ def AnalysisMeanState(obs,mod,**keywords):
         area = NearestNeighborInterpolation(mod_timeint.lat,mod_timeint.lon,land_fraction,
                                             bias_map.lat,bias_map.lon)*bias_map.area
         bias_map.area = area
-        if not skip_rmse: rmse_map.area = area
+        if not skip_rmse:
+            rmse_map.area = area
+            rms_map       = rms_map.interpolate(lat = rmse_map.lat,
+                                                lon = rmse_map.lon)
+            rms_map .area = area
 
         # If we are mass weighting, we need to get the observational
         # annual mean on the same composed grid as the bias.
@@ -641,15 +648,13 @@ def AnalysisMeanState(obs,mod,**keywords):
         period_mean      = obs_timeint.integrateInSpace(mean=True)
         bias_score_map   = Score(bias_map,obs_timeint_int)
         if not skip_rmse:
-            rmse_mean      = rmse_map.integrateInSpace(mean=True)
-            rmse_score_map = Score(rmse_map,rmse_mean)
+            rmse_score_map = Score(rmse_map,rms_map)
 
     else:
         normalizer     = obs_timeint.data
         bias_score_map = Score(bias_map,obs_timeint)
         if not skip_rmse:
-            rmse_mean      = rmse_map.siteStats()
-            rmse_score_map = Score(rmse_map,rmse_mean)
+            rmse_score_map = Score(rmse_map,rms_map)
 
     # Perform analysis over regions. We will store these in
     # dictionaries of variables where the keys are the region names.

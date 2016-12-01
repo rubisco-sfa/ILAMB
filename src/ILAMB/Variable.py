@@ -1342,6 +1342,35 @@ class Variable:
         rmse.name = rmse.name.replace("_integrated_over_time_and_divided_by_time_period","")
         rmse.data = np.sqrt(rmse.data)
         return rmse
+
+    def rms(self):
+        """Computes the RMS of this variable.
+
+        Returns
+        -------
+        RMS : ILAMB.Variable.Variable
+            the RMS
+
+        """
+        if not self.temporal: raise il.NotTemporalVariable()
+        unit = self.unit
+        np.seterr(over='ignore',under='ignore')
+        data = self.data**2
+        np.seterr(over='raise',under='raise')        
+        rms  = Variable(data  = data,
+                        unit  = "1",    # will change later
+                        name  = "tmp",  # will change later
+                        ndata = self.ndata,
+                        lat   = self.lat,
+                        lon   = self.lon,
+                        area  = self.area,
+                        time  = self.time).integrateInTime(mean=True)
+        np.seterr(over='ignore',under='ignore')
+        rms.data = np.sqrt(rms.data)
+        np.seterr(over='raise',under='raise')
+        rms.unit = unit
+        rms.name = "rms_of_%s" % self.name
+        return rms
     
     def interannualVariability(self):
         """Computes the interannual variability.
