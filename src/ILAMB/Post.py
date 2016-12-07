@@ -1,6 +1,6 @@
 import pylab as plt
 import numpy as np
-from constants import region_names
+from constants import region_names,regions as ILAMBregions
 import re
 
 def UseLatexPltOptions(fsize=18):
@@ -81,7 +81,12 @@ def GlobalPlot(lat,lon,var,ax,region="global",shift=False,**keywords):
         alon = lon
         tmp  = var
 
-    #if region is None or region == "global":
+    if region is not None:
+        rem_mask   = np.copy(var.mask)
+        mlat,mlon  = ILAMBregions[region]
+        var.mask  += (np.outer((lat>mlat[0])*(lat<mlat[1]),
+                               (lon>mlon[0])*(lon<mlon[1]))==0)
+        
     #if False:
     #    bmap = Basemap(projection = 'robin',
     #                   lon_0      = 0.,
@@ -90,8 +95,8 @@ def GlobalPlot(lat,lon,var,ax,region="global",shift=False,**keywords):
     #    x,y = np.meshgrid(alon,lat)
     #    ax  = bmap.pcolormesh(x,y,tmp,latlon=True,vmin=vmin,vmax=vmax,cmap=cmap)
     if region == "arctic":
-        mp = Basemap(projection='npstere',boundinglat=60,lon_0=180,resolution='c')
-        #mp = Basemap(projection='ortho',lat_0=90.,lon_0=180.,resolution='c')
+        #mp = Basemap(projection='npstere',boundinglat=60,lon_0=180,resolution='c')
+        mp  = Basemap(projection='ortho',lat_0=90.,lon_0=180.,resolution='c')
         X,Y = np.meshgrid(lat,alon,indexing='ij')
         mp.pcolormesh(Y,X,tmp,latlon=True,cmap=cmap,vmin=vmin,vmax=vmax)
         mp.drawlsmask(land_color='lightgrey',ocean_color='grey',lakes=True)
@@ -106,6 +111,8 @@ def GlobalPlot(lat,lon,var,ax,region="global",shift=False,**keywords):
         ax  = bmap.pcolormesh(alon,lat,tmp,latlon=True,vmin=vmin,vmax=vmax,cmap=cmap)
         bmap.drawcoastlines(linewidth=0.2,color="darkslategrey")
 
+    if region is not None: var.mask = rem_mask
+        
 def ColorBar(ax,**keywords):
     """Plot a colorbar.
 
