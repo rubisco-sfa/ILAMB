@@ -426,6 +426,7 @@ class HtmlLayout():
                         if metrics[model].has_key(region):
                             if header in metrics[model][region]:
                                 value = ",%.03f" % metrics[model][region][header].data
+                                value = value.lower().replace("nan","null")
                     code += value
             code += "],"
         code += """
