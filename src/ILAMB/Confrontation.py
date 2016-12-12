@@ -73,7 +73,7 @@ class Confrontation(object):
         self.output_path    = keywords.get("output_path","./")
         self.alternate_vars = keywords.get("alternate_vars",[])
         self.derived        = keywords.get("derived",None)
-        self.regions        = keywords.get("regions",["global"])
+        self.regions        = list(keywords.get("regions",["global"]))
         self.data           = None
         self.cmap           = keywords.get("cmap","jet")
         self.land           = keywords.get("land",False)
@@ -109,6 +109,23 @@ class Confrontation(object):
                        "Seasonal Cycle Score"          :1.,
                        "Interannual Variability Score" :1.,
                        "Spatial Distribution Score"    :1.}
+
+    def _checkRegions(self,var):
+        """
+        """
+        data = (var.data.mask == 0).any(axis=0) # flagged 1 if data present at all
+        to_remove = []
+        for region in self.regions:
+            lats,lons = ILAMBregions[region]
+            if var.ndata is None:
+                rdata = np.outer((var.lat>lats[0])*(var.lat<lats[1]),
+                                 (var.lon>lons[0])*(var.lon<lons[1]))            
+            else:
+                rdata  = (var.lat>lats[0])*(var.lat<lats[1])
+                rdata *= (var.lon>lons[0])*(var.lon<lons[1])
+            if ((data*rdata).sum() == 0): to_remove.append(region)
+        for region in to_remove: self.regions.remove(region)
+        
         
     def stageData(self,m):
         r"""Extracts model data which matches the observational dataset.
@@ -144,6 +161,7 @@ class Confrontation(object):
                        variable_name  = self.variable,
                        alternate_vars = self.alternate_vars)
         if obs.time is None: raise il.NotTemporalVariable()
+        self._checkRegions(obs)
 
         # Try to extract a commensurate quantity from the model
         mod = m.extractTimeSeries(self.variable,
