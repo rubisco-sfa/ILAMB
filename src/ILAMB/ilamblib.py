@@ -721,7 +721,7 @@ def AnalysisMeanState(obs,mod,**keywords):
         sd_score       [region].name = "Spatial Distribution Score %s"    % (region)
         obs_spaceint   [region].name = "spaceint_of_%s_over_%s"    % (obs.name,region)
         mod_spaceint   [region].name = "spaceint_of_%s_over_%s"    % (obs.name,region)
-        
+
     # More variable name changes
     obs_timeint.name  = "timeint_of_%s"   % obs.name
     mod_timeint.name  = "timeint_of_%s"   % obs.name
@@ -746,8 +746,9 @@ def AnalysisMeanState(obs,mod,**keywords):
                 bias,
                 bias_score,
                 mod_timeint,
-                mod_spaceint,
                 bias_map]
+    # Only output spaceint if it isn't a scalar so it doesn't appear in the table
+    if mod_spaceint[mod_spaceint.keys()[0]].data.size > 1: out_vars.append(mod_spaceint)
     if not skip_rmse:
         out_vars.append(rmse)
         out_vars.append(rmse_score)
@@ -762,7 +763,9 @@ def AnalysisMeanState(obs,mod,**keywords):
         sd_score[key].toNetCDF4(dataset,attributes={"std":std[region].data,
                                                     "R"  :R  [region].data})
     if benchmark_dataset is not None:
-        for var in [obs_period_mean,obs_timeint,obs_spaceint]:
+        out_vars = [obs_period_mean,obs_timeint]
+        if obs_spaceint[obs_spaceint.keys()[0]].data.size > 1: out_vars.append(obs_spaceint)
+        for var in out_vars:
             if type(var) == type({}):
                 for key in var.keys(): var[key].toNetCDF4(benchmark_dataset)
             else:
