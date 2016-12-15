@@ -255,9 +255,9 @@ def WorkPost(M,C,W,S,verbose=False):
         
     for w in W:
         m,c = w
-        t0  = time.time()    
-        c.computeOverallScore(m)
+        t0  = time.time()   
         c.modelPlots(m)
+        c.computeOverallScore(m)
         dt = time.time()-t0
         if verbose: print ("    {0:>%d} {1:<%d} %sCompleted%s {2:>5.1f} s" % (maxCL,maxML,OK,ENDC)).format(c.longname,m.name,dt)
         sys.stdout.flush()

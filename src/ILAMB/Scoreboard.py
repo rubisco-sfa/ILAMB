@@ -399,7 +399,6 @@ class Scoreboard():
                     out.write("%s,%s\n" % (v.name,','.join(["~"]*len(M))))
         out.close()
 
-        
 def CompositeScores(tree,M):
     global global_model_list
     global_model_list = M
@@ -413,7 +412,7 @@ def CompositeScores(tree,M):
                 if os.path.isfile(fname):
                     try:
                         dataset = Dataset(fname)
-                        grp     = dataset.groups["scalars"]
+                        grp     = dataset.groups["MeanState"].groups["scalars"]
                     except:
                         continue
                     if grp.variables.has_key("Overall Score global"):

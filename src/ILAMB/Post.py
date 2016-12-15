@@ -109,7 +109,7 @@ def GlobalPlot(lat,lon,var,ax,region="global",shift=False,**keywords):
                        resolution = 'c',
                        ax         = ax)  
         ax  = bmap.pcolormesh(alon,lat,tmp,latlon=True,vmin=vmin,vmax=vmax,cmap=cmap)
-        bmap.drawcoastlines(linewidth=0.2,color="darkslategrey")
+    bmap.drawcoastlines(linewidth=0.2,color="darkslategrey")
 
     if region is not None: var.mask = rem_mask
         
@@ -299,19 +299,84 @@ class HtmlFigure():
         </div><br>"""
         return code
 
-class HtmlLayout():
 
-    def __init__(self,c,regions=None):
+class HtmlPage():
 
-        self.c        = c
-        self.metrics  = None
-        self.regions  = regions
-        if self.regions is not None: self.regions.sort()
-        self.header   = "CNAME"
-        self.figures  = {}
-        self.sections = None
-        self.priority = ["Bias","RMSE","Phase","Seasonal","Spatial","Interannual","Score","Overall"]
+    def __init__(self,name,title):
+        self.name  = name
+        self.title = title
+        self.cname = ""
+        self.pages = []
+        self.metric_dict = None
+        self.models      = None
+        self.regions     = None
+        self.metrics     = None
+        self.units       = None
+        self.priority    = ["Bias","RMSE","Phase","Seasonal","Spatial","Interannual","Score","Overall"]
+        self.header      = "CNAME"
+        self.sections    = []
+        self.figures     = {}
         
+    def __str__(self):
+        
+        def _sortFigures(figure,priority=["benchmark_timeint","timeint","bias","benchmark_phase","phase","shift","spatial_variance","spaceint","cycle","compcycle"]):
+            val = 1.
+            for i,pname in enumerate(priority):
+                if pname == figure.name: val += 2**i
+            return val
+        
+        code = """
+    <div data-role="page" id="%s">
+      <div data-role="header">
+        <h1 id="%sHead">%s</h1>""" % (self.name,self.name,self.title)
+        if self.pages:
+	    code += """
+        <div data-role="navbar">
+	  <ul>""" 
+            for page in self.pages:
+                opts = ""
+                if page == self: opts = " class=ui-btn-active ui-state-persist"
+                code += """
+            <li><a href='#%s'%s>%s</a></li>""" % (page.name,opts,page.title)
+            code += """
+	  </ul>"""
+        code += """
+	</div>
+      </div>"""
+
+        if self.regions:
+            code += """
+      <select id="%sRegion" onchange="%sTable()">""" % (self.name,self.name)
+            for region in self.regions:
+                opts  = ''
+                if region == "global" or len(self.regions) == 1:
+                    opts  = ' selected="selected"'
+                code += """
+        <option value='%s'%s>%s</option>""" % (region,opts,region)
+            code += """
+      </select>"""
+                
+        if self.metric_dict:
+            code += """
+      <div id="%s_table" align="center"></div>""" % self.name
+
+        for section in self.sections:
+            if len(self.figures[section]) == 0: continue
+            self.figures[section].sort(key=_sortFigures)
+            code += """
+        <div data-role="collapsible" data-collapsed="false"><h1>%s</h1>""" % section
+            for figure in self.figures[section]:
+                code += "%s" % (figure)
+            code += """
+        </div>"""
+            
+        code += """
+    </div>"""
+        return code
+    
+    def setHeader(self,header):
+        self.header = header
+
     def setSections(self,sections):
 
         assert type(sections) == type([])
@@ -324,239 +389,152 @@ class HtmlLayout():
         for fig in self.figures[section]:
             if fig.name == name: return
         self.figures[section].append(HtmlFigure(name,pattern,side=side,legend=legend,benchmark=benchmark))
-
-    def setHeader(self,header):
-
-        self.header = header
-
-    def setMetrics(self,metrics):
-
-        self.metrics = metrics
-
+    
     def setMetricPriority(self,priority):
-
         self.priority = priority
-        
-    def generateMetricTable(self):
 
-        # Sorting function
+    def metricTable(self):
+        if not self.metric_dict: return
+        models  = self.models
+        regions = self.regions
+        metrics = self.metrics
+        units   = self.units
+        head    = """
+    <script type="text/javascript" src="https://www.google.com/jsapi"></script>
+    <script type="text/javascript">
+      google.load("visualization", "1", {packages:["table"]});
+      google.setOnLoadCallback(%sTable);
+      function %sTable() {
+        var data = new google.visualization.DataTable();
+        data.addColumn('string','Model');
+        data.addColumn('string','Data');""" % (self.name,self.name)
+        for region in regions:
+            for metric in metrics:
+                head += """
+        data.addColumn('number','<span title="%s">%s [%s]</span>');""" % (metric,metric,units[metric])
+        head += """
+        data.addRows(["""
+        for model in models:
+            head += """
+          ['%s','<a href="%s_%s.nc" download>[-]</a>'""" % (model,self.cname,model)
+            for region in regions:
+                for metric in metrics:
+                    add = ", null"
+                    try:
+                        add = ",%.03f" % self.metric_dict[model][region][metric].data
+                    except:
+                        pass
+                    head += add
+            head += "],"
+        head += """
+        ]);"""
+
+        n     = len(metrics)
+        cols  = (str(range(2,n+2))[1:]).replace(", ",", %d*rid+" % n)
+        cols  = "%d*rid+2" % n + cols[1:]
+        head += """
+        var view  = new google.visualization.DataView(data);
+        var rid   = document.getElementById("%sRegion").selectedIndex
+        view.setColumns([0,1,%s);""" % (self.name,cols)
+
+        head += """
+        var table = new google.visualization.Table(document.getElementById('%s_table'));
+        table.draw(view, {showRowNumber: false,allowHtml: true});""" % self.name
+
+        head += """
+        function clickRow() {
+          var header = "%s";
+          var CNAME  = "%s";
+          header     = header.replace("CNAME",CNAME);
+          var rid    = document.getElementById("%s").selectedIndex;
+          var RNAME  = document.getElementById("%s").options[rid].value;
+          header     = header.replace("RNAME",RNAME);
+          var select = table.getSelection()
+          row = select[0].row;""" % (self.header,self.cname,self.name+"Region",self.name+"Region")
+        if "Benchmark" in models:
+            head += """
+          if (row == 0) {
+            table.setSelection([{'row': 1}]);
+            clickRow();
+            return;
+          }"""
+        head += """
+          var MNAME  = data.getValue(row,0);
+          header     = header.replace("MNAME",MNAME);
+          $("#%sHead").text(header);""" % (self.name) 
+        for section in self.sections:
+            for figure in self.figures[section]:
+                head += figure.generateClickRow()
+        head += """
+        }
+        google.visualization.events.addListener(table, 'select', clickRow);
+      table.setSelection([{'row': 0}]);
+      clickRow();
+      }
+    </script>"""
+        return head
+
+    def setRegions(self,regions):
+        assert type(regions) == type([])
+        self.regions = regions
+    
+    def setMetrics(self,metric_dict):
+
+        # Sorting function        
         def _sortMetrics(name,priority=self.priority):
             val = 1.
             for i,pname in enumerate(priority):
                 if pname in name: val += 2**i
             return val
 
-        # Convenience redefinition
-        c       = self.c
-        metrics = self.metrics
-        regions = self.regions
-        models  = metrics.keys()
+        assert type(metric_dict) == type({})
+        self.metric_dict = metric_dict
         
-        # Grab the data
-        if regions is None: regions = ['']
-        data = []
+        # Build and sort models, regions, and metrics
+        models  = self.metric_dict.keys()
+        regions = []
+        metrics = []
+        units   = {}
         for model in models:
-            for region in regions:
-                if not metrics[model].has_key(region): continue
-                for key in metrics[model][region].keys():
-                    if data.count(key) == 0: data.append(key)
-
-        # Sorts
-        models.sort(key=lambda key: key.upper())
-        try:
-            models.insert(0,models.pop(models.index("Benchmark")))
-        except:
-            pass
+            for region in self.metric_dict[model].keys():
+                if region not in regions: regions.append(region)
+                for metric in self.metric_dict[model][region].keys():
+                    units[metric] = self.metric_dict[model][region][metric].unit
+                    if metric not in metrics: metrics.append(metric)
+        models.sort(key=lambda key: key.lower())
+        if "Benchmark" in models: models.insert(0,models.pop(models.index("Benchmark")))
         regions.sort()
-        data.sort(key=_sortMetrics)
-
-        # List of plots for the 'All Models' page
-        plots = []
-        bench = []
-        if self.sections is not None:
-            for section in self.sections:
-                if len(self.figures[section]) == 0: continue
-                for figure in self.figures[section]:
-                    if figure.name in ['timeint','bias','phase','shift']:
-                        if figure not in plots: plots.append(figure)
-                    if "benchmark" in figure.name:
-                        if figure.name not in bench: bench.append(figure.name)
-        nobench = [plot.name for plot in plots if "benchmark_%s" % (plot.name) not in bench]        
+        metrics.sort(key=_sortMetrics)
+        self.models  = models
+        self.regions = regions
+        self.metrics = metrics
+        self.units   = units
         
-        # Generate the Google DataTable Javascript code
-        code = """
-    <script type="text/javascript" src="https://www.google.com/jsapi"></script>
-    <script type="text/javascript">
-      google.load("visualization", "1", {packages:["table"]});
-      google.setOnLoadCallback(drawTable);
-      function drawTable() {
-        var data = new google.visualization.DataTable();
-        data.addColumn('string','Model');
-        data.addColumn('string','Data');"""
-        for region in regions:
-            for header in data:
-                metric = None
-                if region == '':
-                    if header in metrics[models[1]]:
-                        metric = metrics[models[1]][header]
-                else:
-                    if header in metrics[models[1]][region]:
-                        metric = metrics[models[1]][region][header]
-                if metric is None:
-                    metric_name = ""
-                    metric_unit = ""
-                else:
-                    metric_name = metric.name
-                    metric_unit = metric.unit.replace(" " ,r"&thinsp;")
-                    metric_unit = metric.unit.replace("-1",r"<sup>-1</sup>")
-                    metric_unit = metric.unit.replace("-2",r"<sup>-2</sup>")
-                code += """
-        data.addColumn('number','<span title="%s">%s [%s]</span>');""" % (metric_name,header,metric_unit)
-        code += """
-        data.addRows(["""
-        for model in models:
-            code += """
-          ['%s','<a href="%s_%s.nc" download>[-]</a>'""" % (model,c.name,model)
-            for region in regions:
-                for header in data:
-                    value = ", null"
-                    if region == '':
-                        assert False
-                    else:
-                        if metrics[model].has_key(region):
-                            if header in metrics[model][region]:
-                                value = ",%.03f" % metrics[model][region][header].data
-                                value = value.lower().replace("nan","null")
-                    code += value
-            code += "],"
-        code += """
-        ]);"""
+class HtmlLayout():
 
-        # Setup the view
-        code += """
-        var view  = new google.visualization.DataView(data);"""
-        line = str(range(2,len(data)+2))[1:]
-        if regions[0] == '':
-            code += """
-        view.setColumns([0, 1, %s);""" % line
-        else:
-            line  = line.replace(", ",", %d*rid+" % len(data))
-            line  = "%d*rid+2" % len(data) + line[1:]
-            code += """
-        var rid = document.getElementById("region").selectedIndex
-        view.setColumns([0, 1, %s);""" % line
+    def __init__(self,pages,cname):
 
-        # Draw the table
-        code += """
-        var table = new google.visualization.Table(document.getElementById('table_div'));
-        table.draw(view, {showRowNumber: false,allowHtml: true});"""
-
-        # clickRow feedback function
-        code += """
-        function clickRow() {
-          var header = "%s";
-          var CNAME  = "%s";
-          header     = header.replace("CNAME",CNAME);"""  % (self.header,self.c.longname.replace("/"," / "))
-        if regions[0] is not '':
-            code += """
-          var rid    = document.getElementById("region").selectedIndex;
-          var RNAME  = document.getElementById("region").options[rid].value;
-          header     = header.replace("RNAME",RNAME);"""
-        code += """
-          var select = table.getSelection()
-          row = select[0].row;
-          if (row == 0) {
-            table.setSelection([{'row': 1}]);
-            clickRow();
-            return;
-          }
-          var MNAME  = data.getValue(row,0);
-          header     = header.replace("MNAME",MNAME);"""
-        code += """
-          $("#header h1 #header_txt").text(header);"""
-
-        if self.sections is not None:
-            for section in self.sections:
-                for figure in self.figures[section]:
-                    code += figure.generateClickRow()
-
-        code += """
-        }
-        google.visualization.events.addListener(table, 'select', clickRow);
-      table.setSelection([{'row': 0}]);
-      clickRow();
-
-    }
-    </script>"""
-
-        code += """
-    
-    <script>
-      function select2() {
-        var header = "%s";
-        var CNAME  = "%s";
-        header     = header.replace("CNAME",CNAME);
-        var rid    = document.getElementById("region2").selectedIndex;
-        var RNAME  = document.getElementById("region2").options[rid].value;
-        var pid    = document.getElementById("plot"  ).selectedIndex;
-        var PNAME  = document.getElementById("plot"  ).options[pid].value;
-        header     = header.replace("RNAME",RNAME);
-        $("#header h1 #header_txt").text(header);""" % (self.header.replace(" / MNAME",""),self.c.longname.replace("/"," / "))
-
-
-        code += """
-        if(%s){
-          document.getElementById("Benchmark_div").style.display = 'none'
-        }else{
-          document.getElementById("Benchmark_div").style.display = 'block'
-          document.getElementById('Benchmark').src = 'Benchmark_' + RNAME + '_' + PNAME + '.png'
-        }
-        document.getElementById('legend').src = 'legend_' + PNAME + '.png'""" % (" || ".join(['PNAME == "%s"' % n for n in nobench]))
-
-        for model in models:
-            code += """
-        document.getElementById('%s').src = '%s_' + RNAME + '_' + PNAME + '.png'""" % (model,model)
+        self.pages = pages
+        self.cname = cname.replace("/"," / ")
+        for page in self.pages:
+            page.pages = self.pages
+            page.cname = self.cname
         
-        code += """
-      }
-    </script>
-    <script>
-      $(document).on('pageshow', '[data-role="page"]', function(){ 
-        select2()
-      });
-    </script>"""
-
-        return code
-
     def __str__(self):
-        
-        def _sortFigures(figure,priority=["benchmark_timeint","timeint","bias","benchmark_phase","phase","shift","spatial_variance","spaceint","cycle","compcycle"]):
-            val = 1.
-            for i,pname in enumerate(priority):
-                if pname == figure.name: val += 2**i
-            return val
-
-        # Open the html and head
         code = """<html>
   <head>"""
 
-        # Add needed Javascript sources
         code += """
-    <link rel="stylesheet" href="http://code.jquery.com/mobile/1.4.5/jquery.mobile-1.4.5.min.css">
-    <script src="http://code.jquery.com/jquery-1.11.2.min.js"></script>
-    <script>
-      $(document).bind('mobileinit',function(){
-        $.mobile.changePage.defaults.changeHash = false;
-        $.mobile.hashListeningEnabled = false;
-        $.mobile.pushStateEnabled = false;
-      });
-    </script>
-    <script src="http://code.jquery.com/mobile/1.4.5/jquery.mobile-1.4.5.min.js"></script>"""
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="https://code.jquery.com/mobile/1.4.5/jquery.mobile-1.4.5.min.css">
+    <script src="https://code.jquery.com/jquery-1.11.3.min.js"></script>
+    <script src="https://code.jquery.com/mobile/1.4.5/jquery.mobile-1.4.5.min.js"></script>"""
 
-        # Add Google table of metrics
-        code += self.generateMetricTable()
-
-        # Add a CSS style I will use for vertical labels
+        ### stick in javascript stuff here
+        for page in self.pages:
+            if page.metric_dict: code += page.metricTable()
+            
+        ### stick in css stuff here
         code += """
     <style type="text/css">
       .outer {
@@ -590,142 +568,18 @@ class HtmlLayout():
       }
     </style>"""
 
-        # Head finished, open body and a first page
         code += """
   </head>
-  <body>
-    <div data-role="page" id="page1">"""
+  <body>"""
 
-        # Page header
-        code += """
-      <div id="header" data-role="header" data-position="fixed" data-tap-toggle="false">
-        <h1><span id="header_txt"></span></h1>
-	<div data-role="navbar">
-	  <ul>
-	    <li><a href="#page1" class="ui-btn-active ui-state-persist">Single Model</a></li>
-	    <li><a href="#page2">All Models</a></li>
-	  </ul>
-	</div>
-      </div>"""
-
-        # Add optional regions pulldown
-        if self.regions is not None:
-            code += """
-      <select id="region" onchange="drawTable()">"""
-            for r in self.regions:
-                if "global" in r:
-                    opt = 'selected="selected"'
-                else:
-                    opt = ''
-                code += """
-        <option value="%s" %s>%s</option>""" % (r,opt,r)
-            code += """
-      </select>"""
-
-        # Add the table div
-        code += """
-      <div id="table_div" align="center"></div>"""
-
-        # Build user-defined sections
-        if self.sections is not None:
-            for section in self.sections:
-                if len(self.figures[section]) == 0: continue
-                self.figures[section].sort(key=_sortFigures)
-                code += """
-      <div data-role="collapsible" data-collapsed="false"><h1>%s</h1>""" % section
-                for figure in self.figures[section]:
-                    code += "%s" % (figure)
-                code += """
-      </div>"""
-
-        # End the first and html page
-        code += """
-    </div>"""
-
-        # Second page
-        code += """
-    <div data-role="page" id="page2">
-      <div id="header" data-role="header" data-position="fixed" data-tap-toggle="false">
-        <h1><span id="header_txt"></span></h1>
-	<div data-role="navbar">
-	  <ul>
-	    <li><a href="#page1">Single Model</a></li>
-	    <li><a href="#page2" class="ui-btn-active ui-state-persist">All Models</a></li>
-	  </ul>
-	</div>
-      </div>"""
-        
-        # Add optional regions pulldown
-        if self.regions is not None:
-            code += """
-      <select id="region2" onchange="select2()">"""
-            for r in self.regions:
-                if "global" in r:
-                    opt = 'selected="selected"'
-                else:
-                    opt = ''
-                code += """
-        <option value="%s" %s>%s</option>""" % (r,opt,r)
-            code += """
-      </select>"""
-
-        # Add a plot for each model
-        models = self.metrics.keys()
-        models.sort(key=lambda key: key.upper())
-        try:
-            models.insert(0,models.pop(models.index("Benchmark")))
-        except:
-            pass
-
-        # Which plots to add?
-        figs = []
-        if self.sections is not None:
-            for section in self.sections:
-                if len(self.figures[section]) == 0: continue
-                for figure in self.figures[section]:
-                    if (figure.name in ['timeint','bias','phase','shift','whittaker'] or
-                        "rel_" in figure.name):
-                        if figure not in figs: figs.append(figure)
+        ### loop over pages
+        for page in self.pages: code += "%s" % (page)
 
         code += """
-      <select id="plot" onchange="select2()">"""
-        from constants import space_opts
-        for f in figs:
-            opt = ''
-            if "timeint" is f.name: opt = 'selected="selected"'
-            name = ""
-            if space_opts.has_key(f.name): name = space_opts[f.name]["name"]
-            if "rel_" in f.name: name = f.name.replace("rel_","Relationship with ")
-            if "whittaker" == f.name: name = "Whittaker"
-            code += """
-        <option value="%s" %s>%s</option>""" % (f.name,opt,name)
-        code += """
-      </select>"""
-
-        if len(figs) > 0:
-            fig = figs[0]
-            rem_legend = fig.legend; fig.legend = False
-            rem_side   = fig.side;   fig.side   = "MNAME"
-            img = "%s" % (fig)
-            img = img.replace("%s" % fig.name,"MNAME")
-            fig.legend = rem_legend
-            fig.side   = rem_side
-            for model in models:
-                code += img.replace("MNAME",model)
-
-            code += """
-        <div class="outer" id="legend_div">
-              <div class="inner rotate"> </div>
-              <div class="second"><img src="" id="legend" alt="Data not available"></img></div>
-        </div><br>"""
-        
-        # close page 2 and end
-        code += """
-    </div>
   </body>
 </html>"""
         return code
-
+    
 def RegisterCustomColormaps():
     """Adds the 'stoplight' and 'RdGn' colormaps to matplotlib's database
 
@@ -857,6 +711,7 @@ def BenchmarkSummaryFigure(models,variables,data,figname,vcolor=None):
     data = np.ma.masked_values(data,1.)
     mean = data.mean(axis=1)
     std  = data.std (axis=1)
+    np.seterr(invalid='ignore',under='ignore')
     Z    = (data-mean[:,np.newaxis])/std[:,np.newaxis]
     Z    = np.ma.masked_invalid(Z)
     np.seterr(invalid='warn',under='raise')

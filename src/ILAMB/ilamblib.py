@@ -334,7 +334,7 @@ def SympifyWithArgsUnits(expression,args,units):
     return args[ekey],units[ekey]
 
 
-def FromNetCDF4(filename,variable_name,alternate_vars=[],t0=None,tf=None):
+def FromNetCDF4(filename,variable_name,alternate_vars=[],t0=None,tf=None,group=None):
     """Extracts data from a netCDF4 datafile for use in a Variable object.
     
     Intended to be used inside of the Variable constructor. Some of
@@ -380,24 +380,28 @@ def FromNetCDF4(filename,variable_name,alternate_vars=[],t0=None,tf=None):
         A 1D array of the depth boundaries of each cell
     """
     try:
-        f = Dataset(filename,mode="r")
+        dset = Dataset(filename,mode="r")
+        if group is None:
+            grp = dset
+        else:
+            grp = dset.groups[group]
     except RuntimeError:
         raise RuntimeError("Unable to open the file: %s" % filename)
-    
+
     found     = False
-    if variable_name in f.variables.keys():
+    if variable_name in grp.variables.keys():
         found = True
-        var   = f.variables[variable_name]
+        var   = grp.variables[variable_name]
     else:
         while alternate_vars.count(None) > 0: alternate_vars.pop(alternate_vars.index(None))
         for var_name in alternate_vars:
-            if var_name in f.variables.keys():
+            if var_name in grp.variables.keys():
                 found = True
-                var   = f.variables[var_name]
+                var   = grp.variables[var_name]
     if found == False:
         alternate_vars.insert(0,variable_name)
         raise RuntimeError("Unable to find [%s] in the file: %s" % (",".join(alternate_vars),filename))
-
+    
     # Initialize names/values of dimensions to None
     time_name  = None; time_bnd_name  = None; t     = None; t_bnd     = None
     lat_name   = None; lat_bnd_name   = None; lat   = None; lat_bnd   = None
@@ -415,36 +419,37 @@ def FromNetCDF4(filename,variable_name,alternate_vars=[],t0=None,tf=None):
             dim_bnd_name = None
         return dim_name,dim_bnd_name    
     for key in var.dimensions:
-        if  "time"  in key.lower():  time_name ,time_bnd_name  = _get(key,f)
-        if  "lat"   in key.lower():  lat_name  ,lat_bnd_name   = _get(key,f)
-        if  "lon"   in key.lower():  lon_name  ,lon_bnd_name   = _get(key,f)
-        if  "data"  in key.lower():  data_name ,junk           = _get(key,f)
+        if  "time"  in key.lower():  time_name ,time_bnd_name  = _get(key,grp)
+        if  "lat"   in key.lower():  lat_name  ,lat_bnd_name   = _get(key,grp)
+        if  "lon"   in key.lower():  lon_name  ,lon_bnd_name   = _get(key,grp)
+        if  "data"  in key.lower():  data_name ,junk           = _get(key,grp)
         if ("layer" in key.lower() or
-            "lev"   in key.lower()): depth_name,depth_bnd_name = _get(key,f)
+            "lev"   in key.lower()): depth_name,depth_bnd_name = _get(key,grp)
     
     # Based on present values, get dimensions and bounds
-    if time_name      is not None: t     = ConvertCalendar(f.variables[time_name])
-    if time_bnd_name  is not None: t_bnd = ConvertCalendar(f.variables[time_bnd_name],
-                                                           unit     = f.variables[time_name].units,
-                                                           calendar = f.variables[time_name].calendar)
-    if lat_name       is not None: lat       = f.variables[lat_name]      [...]
-    if lat_bnd_name   is not None: lat_bnd   = f.variables[lat_bnd_name]  [...]
-    if lon_name       is not None: lon       = f.variables[lon_name]      [...]
-    if lon_bnd_name   is not None: lon_bnd   = f.variables[lon_bnd_name]  [...]
-    if depth_name     is not None: depth     = f.variables[depth_name]    [...]
-    if depth_bnd_name is not None: depth_bnd = f.variables[depth_bnd_name][...]
+    if time_name      is not None: t     = ConvertCalendar(grp.variables[time_name])
+    if time_bnd_name  is not None: t_bnd = ConvertCalendar(grp.variables[time_bnd_name],
+                                                           unit     = grp.variables[time_name].units,
+                                                           calendar = grp.variables[time_name].calendar)
+    if lat_name       is not None: lat       = grp.variables[lat_name]      [...]
+    if lat_bnd_name   is not None: lat_bnd   = grp.variables[lat_bnd_name]  [...]
+    if lon_name       is not None: lon       = grp.variables[lon_name]      [...]
+    if lon_bnd_name   is not None: lon_bnd   = grp.variables[lon_bnd_name]  [...]
+    if depth_name     is not None: depth     = grp.variables[depth_name]    [...]
+    if depth_bnd_name is not None: depth_bnd = grp.variables[depth_bnd_name][...]
     if data_name      is not None:
-        data = len(f.dimensions[data_name])
+        data = len(grp.dimensions[data_name])
         # if we have data sites, there may be lat/lon data to come
         # along with them although not a dimension of the variable
-        for key in f.variables.keys():
+        for key in grp.variables.keys():
             if "lat" in key: lat_name = key
             if "lon" in key: lon_name = key
-        if lat_name is not None: lat = f.variables[lat_name][...]
-        if lon_name is not None: lon = f.variables[lon_name][...]
+        if lat_name is not None: lat = grp.variables[lat_name][...]
+        if lon_name is not None: lon = grp.variables[lon_name][...]
         if lat.size != data: lat = None
         if lon.size != data: lon = None
-        
+
+    
     # read in data array, roughly subset in time if bounds are
     # provided for added effciency, what do we do if no time in this
     # file falls within the time bounds?
@@ -469,6 +474,7 @@ def FromNetCDF4(filename,variable_name,alternate_vars=[],t0=None,tf=None):
     # handle units problems that cfunits doesn't
     units = var.units
     if units == "unitless": units = "1"
+    dset.close()
     
     return v,units,variable_name,t,t_bnd,lat,lat_bnd,lon,lon_bnd,depth,depth_bnd,data
 
@@ -756,20 +762,21 @@ def AnalysisMeanState(obs,mod,**keywords):
     if dataset is not None:
         for var in out_vars:
             if type(var) == type({}):
-                for key in var.keys(): var[key].toNetCDF4(dataset)
+                for key in var.keys(): var[key].toNetCDF4(dataset,group="MeanState")
             else:
-                var.toNetCDF4(dataset)
+                var.toNetCDF4(dataset,group="MeanState")
     for key in sd_score.keys():
-        sd_score[key].toNetCDF4(dataset,attributes={"std":std[region].data,
-                                                    "R"  :R  [region].data})
+        sd_score[key].toNetCDF4(dataset,group="MeanState",
+                                attributes={"std":std[region].data,
+                                            "R"  :R  [region].data})
     if benchmark_dataset is not None:
         out_vars = [obs_period_mean,obs_timeint]
         if obs_spaceint[obs_spaceint.keys()[0]].data.size > 1: out_vars.append(obs_spaceint)
         for var in out_vars:
             if type(var) == type({}):
-                for key in var.keys(): var[key].toNetCDF4(benchmark_dataset)
+                for key in var.keys(): var[key].toNetCDF4(benchmark_dataset,group="MeanState")
             else:
-                var.toNetCDF4(benchmark_dataset)
+                var.toNetCDF4(benchmark_dataset,group="MeanState")
 
     # The next analysis bit requires we are dealing with monthly mean data
     if not obs.monthly: return
@@ -867,15 +874,15 @@ def AnalysisMeanState(obs,mod,**keywords):
         if not skip_iav: out_vars.append(iav_score)
         for var in out_vars:
             if type(var) == type({}):
-                for key in var.keys(): var[key].toNetCDF4(dataset)
+                for key in var.keys(): var[key].toNetCDF4(dataset,group="MeanState")
             else:
-                var.toNetCDF4(dataset)
+                var.toNetCDF4(dataset,group="MeanState")
     if benchmark_dataset is not None:
         for var in [obs_maxt_map,obs_mean_cycle]:
             if type(var) == type({}):
-                for key in var.keys(): var[key].toNetCDF4(benchmark_dataset)
+                for key in var.keys(): var[key].toNetCDF4(benchmark_dataset,group="MeanState")
             else:
-                var.toNetCDF4(benchmark_dataset)
+                var.toNetCDF4(benchmark_dataset,group="MeanState")
     
 def AnalysisRelationship(dep_var,ind_var,dataset,rname,**keywords):
     """Perform a relationship analysis.
@@ -1066,7 +1073,7 @@ def MakeComparable(ref,com,**keywords):
     mask_ref = keywords.get("mask_ref",False)
     eps      = keywords.get("eps"     ,30./60./24.)
     window   = keywords.get("window"  ,0.)
-    
+
     # The reference might be a time series only and not have any site
     # or spatial data associated with it
     if ((ref.spatial is False and ref.ndata is     None) and
@@ -1218,7 +1225,7 @@ def CombineVariables(V):
     
     # Put list in order by initial time
     V.sort(key=lambda v: v.time[0])
-    
+
     # Check the beginning and ends times for monotonicity
     nV  = len(V)
     t0  = np.zeros(nV)
@@ -1230,7 +1237,7 @@ def CombineVariables(V):
         tf[i] = v.time[-1]
         nt[i] = v.time.size
         ind.append(nt[:(i+1)].sum())
-
+        
     # Checks on monotonicity
     assert (t0[1:]-t0[:-1]).min() >= 0
     assert (tf[1:]-tf[:-1]).min() >= 0

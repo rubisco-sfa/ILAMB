@@ -69,6 +69,7 @@ class Variable:
         """
         # See if the user specified a netCDF4 file and variable
         filename       = keywords.get("filename"     ,None)
+        groupname      = keywords.get("groupname"    ,None)
         variable_name  = keywords.get("variable_name",None)
         alternate_vars = keywords.get("alternate_vars",[])
         if filename is None: # if not pull data from other arguments
@@ -90,7 +91,7 @@ class Variable:
             assert variable_name is not None
             t0 = keywords.get("t0",None)
             tf = keywords.get("tf",None)
-            out = il.FromNetCDF4(filename,variable_name,alternate_vars,t0,tf)            
+            out = il.FromNetCDF4(filename,variable_name,alternate_vars,t0,tf,group=groupname)            
             data,unit,name,time,time_bnds,lat,lat_bnds,lon,lon_bnds,depth,depth_bnds,ndata = out
             
         if not np.ma.isMaskedArray(data): data = np.ma.masked_array(data)
@@ -798,29 +799,31 @@ class Variable:
             raise il.UnitConversionError()
         return self
     
-    def toNetCDF4(self,dataset,attributes=None):
+    def toNetCDF4(self,dataset,attributes=None,group=None):
         """Adds the variable to the specified netCDF4 dataset.
 
         Parameters
         ----------
         dataset : netCDF4.Dataset
             a dataset into which you wish to save this variable
-        attributes : dict of scalars, option
+        attributes : dict of scalars, optional
             a dictionary of additional scalars to encode as ncattrs
+        group : str, optional
+            the name of the netCDF4 group to to which we add this variable
         """
-        def _checkTime(t,dataset):
+        def _checkTime(t,dset):
             """A local function for ensuring the time dimension is saved in the dataset."""
             time_name = "time"
             while True:
-                if time_name in dataset.dimensions.keys():
-                    if (t.shape    == dataset.variables[time_name][...].shape and
-                        np.allclose(t,dataset.variables[time_name][...],atol=0.5*self.dt)): 
+                if time_name in dset.dimensions.keys():
+                    if (t.shape    == dset.variables[time_name][...].shape and
+                        np.allclose(t,dset.variables[time_name][...],atol=0.5*self.dt)): 
                         return time_name
                     else:
                         time_name += "_"
                 else:
-                    dataset.createDimension(time_name)
-                    T = dataset.createVariable(time_name,"double",(time_name))
+                    dset.createDimension(time_name)
+                    T = dset.createVariable(time_name,"double",(time_name))
                     T.setncattr("units","days since 1850-01-01 00:00:00")
                     T.setncattr("calendar","noleap")
                     T.setncattr("axis","T")
@@ -830,27 +833,27 @@ class Variable:
                     if self.time_bnds is not None:
                         bnd_name = time_name.replace("time","time_bnds")
                         T.setncattr("bounds",bnd_name)
-                        if "nb" not in dataset.dimensions.keys():
-                            D = dataset.createDimension("nb",size=2)
-                        if bnd_name not in dataset.variables.keys():
-                            B = dataset.createVariable(bnd_name,"double",(time_name,"nb"))
+                        if "nb" not in dset.dimensions.keys():
+                            D = dset.createDimension("nb",size=2)
+                        if bnd_name not in dset.variables.keys():
+                            B = dset.createVariable(bnd_name,"double",(time_name,"nb"))
                             B.setncattr("units","days since 1850-01-01 00:00:00")
                             B[...] = self.time_bnds                    
                     return time_name
 
-        def _checkLat(lat,dataset):
+        def _checkLat(lat,dset):
             """A local function for ensuring the lat dimension is saved in the dataset."""
             lat_name = "lat"
             while True:
-                if lat_name in dataset.dimensions.keys():
-                    if (lat.shape == dataset.variables[lat_name][...].shape and
-                        np.allclose(lat,dataset.variables[lat_name][...])): 
+                if lat_name in dset.dimensions.keys():
+                    if (lat.shape == dset.variables[lat_name][...].shape and
+                        np.allclose(lat,dset.variables[lat_name][...])): 
                         return lat_name
                     else:
                         lat_name += "_"
                 else:
-                    dataset.createDimension(lat_name,size=lat.size)
-                    Y = dataset.createVariable(lat_name,"double",(lat_name))
+                    dset.createDimension(lat_name,size=lat.size)
+                    Y = dset.createVariable(lat_name,"double",(lat_name))
                     Y.setncattr("units","degrees_north")
                     Y.setncattr("axis","Y")
                     Y.setncattr("long_name","latitude")
@@ -859,54 +862,54 @@ class Variable:
                     if self.lat_bnds is not None:
                         bnd_name = lat_name.replace("lat","lat_bnds")
                         Y.setncattr("bounds",bnd_name)
-                        if "nb" not in dataset.dimensions.keys():
-                            D = dataset.createDimension("nb",size=2)
-                        if bnd_name not in dataset.variables.keys():
-                            B = dataset.createVariable(bnd_name,"double",(lat_name,"nb"))
+                        if "nb" not in dset.dimensions.keys():
+                            D = dset.createDimension("nb",size=2)
+                        if bnd_name not in dset.variables.keys():
+                            B = dset.createVariable(bnd_name,"double",(lat_name,"nb"))
                             B.setncattr("units","degrees_north")
                             B[...] = self.lat_bnds
                     return lat_name
 
-        def _checkLon(lon,dataset):
+        def _checkLon(lon,dset):
             """A local function for ensuring the lon dimension is saved in the dataset."""
             lon_name = "lon"
             while True:
-                if lon_name in dataset.dimensions.keys():
-                    if (lon.shape == dataset.variables[lon_name][...].shape and
-                    np.allclose(lon,dataset.variables[lon_name][...])): 
+                if lon_name in dset.dimensions.keys():
+                    if (lon.shape == dset.variables[lon_name][...].shape and
+                    np.allclose(lon,dset.variables[lon_name][...])): 
                         return lon_name
                     else:
                         lon_name += "_"
                 else:
-                    dataset.createDimension(lon_name,size=lon.size)
-                    X = dataset.createVariable(lon_name,"double",(lon_name))
+                    dset.createDimension(lon_name,size=lon.size)
+                    X = dset.createVariable(lon_name,"double",(lon_name))
                     X.setncattr("units","degrees_east")
                     X.setncattr("axis","X")
                     X.setncattr("long_name","longitude")
-                    X.setncattr("standard_name","longitude")                    
+                    X.setncattr("standard_name","longitude")
                     X[...] = lon
                     if self.lon_bnds is not None:
                         bnd_name = lon_name.replace("lon","lon_bnds")
                         X.setncattr("bounds",bnd_name)
-                        if "nb" not in dataset.dimensions.keys():
-                            D = dataset.createDimension("nb",size=2)
-                        if bnd_name not in dataset.variables.keys():
-                            B = dataset.createVariable(bnd_name,"double",(lon_name,"nb"))
+                        if "nb" not in dset.dimensions.keys():
+                            D = dset.createDimension("nb",size=2)
+                        if bnd_name not in dset.variables.keys():
+                            B = dset.createVariable(bnd_name,"double",(lon_name,"nb"))
                             B.setncattr("units","degrees_east")
                             B[...] = self.lon_bnds
                     return lon_name
 
-        def _checkData(ndata,dataset):
+        def _checkData(ndata,dset):
             """A local function for ensuring the data dimension is saved in the dataset."""
             data_name = "data"
             while True:
-                if data_name in dataset.dimensions.keys():
-                    if (ndata == len(dataset.dimensions[data_name])): 
+                if data_name in dset.dimensions.keys():
+                    if (ndata == len(dset.dimensions[data_name])): 
                         return data_name
                     else:
                         data_name += "_"
                 else:
-                    dataset.createDimension(data_name,size=ndata)
+                    dset.createDimension(data_name,size=ndata)
                     return data_name
 
         def _checkLayer(layer,dataset):
@@ -937,28 +940,36 @@ class Variable:
                             B.setncattr("units","m")
                             B[...] = self.depth_bnds                    
                     return layer_name
-                
 
+        # if not group is desired, just write to the dataset...
+        if group is None:
+            dset = dataset
+        else:
+            # if a group is desired, check to see it exists and write into group
+            if not dataset.groups.has_key(group):
+                dset = dataset.createGroup(group)
+            else:
+                dset = dataset.groups[group]
+                
         dim = []
         if self.temporal:
-            dim.append(_checkTime(self.time,dataset))
+            dim.append(_checkTime(self.time,dset))
         if self.layered:
-            dim.append(_checkLayer(self.depth,dataset))
+            dim.append(_checkLayer(self.depth,dset))
         if self.ndata is not None:
-            dim.append(_checkData(self.ndata,dataset))
-            dlat = _checkLat(self.lat,dataset)
-            dlon = _checkLon(self.lon,dataset)
+            dim.append(_checkData(self.ndata,dset))
+            dlat = _checkLat(self.lat,dset)
+            dlon = _checkLon(self.lon,dset)
         if self.spatial:
-            dim.append(_checkLat(self.lat,dataset))
-            dim.append(_checkLon(self.lon,dataset))
-        
+            dim.append(_checkLat(self.lat,dset))
+            dim.append(_checkLon(self.lon,dset))
 
-        grp = dataset
+        grp = dset
         if self.data.size == 1:
-            if not dataset.groups.has_key("scalars"):
-                grp = dataset.createGroup("scalars")
+            if not dset.groups.has_key("scalars"):
+                grp = dset.createGroup("scalars")
             else:
-                grp = dataset.groups["scalars"]
+                grp = dset.groups["scalars"]
             
         V = grp.createVariable(self.name,"double",dim,zlib=True)
         V.setncattr("units",self.unit)
