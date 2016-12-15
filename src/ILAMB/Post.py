@@ -700,6 +700,7 @@ def BenchmarkSummaryFigure(models,variables,data,figname,vcolor=None):
     ax[0].set_yticklabels(variables[::-1])
     ax[0].set_ylim(0,nvariables)
     ax[0].tick_params('both',length=0,width=0,which='major')
+    ax[0].tick_params(axis='y', pad=10)
     if vcolor is not None:
         for i,t in enumerate(ax[0].yaxis.get_ticklabels()):
             t.set_backgroundcolor(vcolor[::-1][i])
