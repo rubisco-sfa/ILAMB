@@ -771,6 +771,15 @@ class Variable:
         volume_conc       = Units("mol m-3")
         mass_conc         = Units("mol kg-1")
 
+        # cfunits doesn't handle frequently found temperature expressions
+        synonyms = {"K":"degK",
+                    "R":"degR",
+                    "C":"degC",
+                    "F":"degF"}
+        for syn in synonyms.keys():
+            if src_unit.units == syn: src_unit = Units(synonyms[syn])
+            if tar_unit.units == syn: tar_unit = Units(synonyms[syn])
+        
         # Do we need to multiply by density?
         if ( (src_unit.equivalent(linear_rate) and tar_unit.equivalent(area_density_rate)) or
              (src_unit.equivalent(linear     ) and tar_unit.equivalent(area_density     )) or
