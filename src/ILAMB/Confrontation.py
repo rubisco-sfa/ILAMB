@@ -240,28 +240,7 @@ class Confrontation(object):
                                      skip_iav          = skip_iav,
                                      mass_weighting    = mass_weighting)
             except:
-                raise il.AnalysisError()
-
-            # Setup and perform relationship analysis
-            obs_dep,mod_dep = obs,mod
-            dep_name        = self.longname.split("/")[0]
-            dep_plot_unit   = self.plot_unit
-            if (dep_plot_unit is None): dep_plot_unit = obs_dep.unit
-            if self.relationships is not None:
-                for c in self.relationships:
-                    obs_ind,mod_ind = c.stageData(m) # independent variable
-                    ind_name = c.longname.split("/")[0]            
-                    ind_plot_unit = c.plot_unit
-                    if (ind_plot_unit is None): ind_plot_unit = obs_ind.unit
-                    if self.master:
-                        il.AnalysisRelationship(obs_dep,obs_ind,fcm.obs_dset,ind_name,
-                                                dep_plot_unit=dep_plot_unit,ind_plot_unit=ind_plot_unit,
-                                                regions=self.regions)
-                    il.AnalysisRelationship(mod_dep,mod_ind,fcm.mod_dset,ind_name,
-                                            dep_plot_unit=dep_plot_unit,ind_plot_unit=ind_plot_unit,
-                                            regions=self.regions)
-
-            
+                raise il.AnalysisError()        
                 
     def determinePlotLimits(self):
         """Determine the limits of all plots which are inclusive of all ranges.
