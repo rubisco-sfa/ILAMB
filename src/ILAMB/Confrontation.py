@@ -650,7 +650,7 @@ class Confrontation(object):
         f.write(str(self.layout))
         f.close()
 
-    def _relationship(self,m,nbin=50):
+    def _relationship(self,m,nbin=25):
         """This needs moved somehow into ilamblib to replace the current
         function. But too much of this is tied to the confrontation
         object and so for now it is more helpful here.
@@ -671,7 +671,6 @@ class Confrontation(object):
         # get the HTML page
         page = [page for page in self.layout.pages if "Relationships" in page.name][0]
         
-        
         # try to get the dependent data from the model and obs
         try:
             obs_dep  = _retrieveData("%s/%s_%s.nc" % (self.output_path,self.name,"Benchmark"))
@@ -681,7 +680,6 @@ class Confrontation(object):
             dep_max  = self.limits["timeint"]["max"]
         except:
             return
-
 
         # Open a dataset for recording the results of this
         # confrontation, record for the benchmark if we are the
@@ -721,15 +719,18 @@ class Confrontation(object):
                     rmask    += mask
                     x         = ind_var.data[rmask==0].flatten()
                     y         = dep_var.data[rmask==0].flatten()
-                
+
+                    # determine the discrete distribution
                     counts,xedges,yedges = np.histogram2d(x,y,
                                                           bins  = [nbin,nbin],
                                                           range = [[ind_min,ind_max],[dep_min,dep_max]])
+                    counts  = np.ma.masked_values(counts.T,0)
+                    counts /= float(counts.sum())
                     if name == "Benchmark":
-                        pk[region] = counts.clip(1e-16).flatten()
+                        pk[region] = counts
                     else:
-                        qk[region] = counts.clip(1e-16).flatten()
-                    counts = np.ma.masked_values(counts.T,0)/float(x.size)
+                        qk[region] = counts
+                    
                         
                     # render the figure
                     fig,ax = plt.subplots(figsize=(6,5.25),tight_layout=True)
@@ -739,7 +740,9 @@ class Confrontation(object):
                                            yedges,
                                            counts,
                                            norm = LogNorm(),
-                                           cmap = cmap)
+                                           cmap = cmap,
+                                           vmin = 1e-4,
+                                           vmax = 1e-1)
                     div    = make_axes_locatable(ax)
                     fig.colorbar(pc,cax=div.append_axes("right",size="5%",pad=0.05),
                                  orientation="vertical",
@@ -761,8 +764,6 @@ class Confrontation(object):
                                        legend = False,
                                        benchmark = True)
                         
-
-            from scipy.stats import entropy
             group = None
             if "Relationships" not in results.groups:
                 group = results.createGroup("Relationships")
@@ -773,11 +774,12 @@ class Confrontation(object):
             else:
                 scalars = group.groups["scalars"]
             
-            
             for region in self.regions:
-                e = 0.5*(entropy(pk[region],qk=qk[region])+
-                         entropy(qk[region],qk=pk[region]))
-                vname = '%s Entropy Score %s' % (c.longname.split('/')[0],region)
+                p = pk[region]
+                q = qk[region]
+                # 1 - (Hellinger distance)
+                e = 1.-np.sqrt(((np.sqrt(p)-np.sqrt(q))**2).sum())/np.sqrt(2)
+                vname = '%s Score %s' % (c.longname.split('/')[0],region)
                 if vname in scalars.variables:
                     scalars.variables[vname][0] = e
                 else:
