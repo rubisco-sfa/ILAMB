@@ -949,7 +949,7 @@ class Variable:
                             B.setncattr("units","m")
                             B[...] = self.depth_bnds                    
                     return layer_name
-
+        
         # if not group is desired, just write to the dataset...
         if group is None:
             dset = dataset
@@ -989,9 +989,14 @@ class Variable:
             V.setncattr("max",0)
             V.setncattr("min",1)
 
-
         try:
-            data = self.data[self.data.mask==False].reshape((-1))
+            if self.data.mask.size == 1:
+                if not self.data.mask:
+                    data = self.data.reshape((-1))
+                else:
+                    data = np.zeros(1)
+            else:
+                data = self.data[self.data.mask==False].reshape((-1))
             data.sort()
             lo = int(round(0.01*data.size))
             hi = min(int(round(0.99*data.size)),data.size-1)
