@@ -266,6 +266,7 @@ def WorkPost(M,C,W,S,verbose=False):
         c.compositePlots()
         c.generateHtml()
     
+    comm.Barrier()
     if rank==0:
         S.createHtml(M)
         S.createSummaryFigure(M)
