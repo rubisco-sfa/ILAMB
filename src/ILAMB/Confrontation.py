@@ -97,12 +97,19 @@ class Confrontation(object):
 
         # Setup a html layout for generating web views of the results
         pages = [post.HtmlPage("MeanState","Mean State"),
-                 post.HtmlPage("Relationships","Relationships")]
+                 post.HtmlPage("Relationships","Relationships"),
+                 post.HtmlPage("DataInformation","Data Information")]
         pages[0].setHeader("CNAME / RNAME / MNAME")
         pages[0].setSections(["Temporally integrated period mean",
                               "Spatially integrated regional mean"])
         pages[1].setHeader("CNAME / RNAME / MNAME")
         pages[1].setSections(["Period Mean Relationships"])
+        pages[2].setHeader("CNAME / RNAME / MNAME")
+        pages[2].setSections([])
+        pages[2].text = "\n"
+        with Dataset(self.source) as dset:
+            for attr in dset.ncattrs():
+                pages[2].text += "<p><b>&nbsp;&nbsp;%s:&nbsp;</b>%s</p>\n" % (attr,dset.getncattr(attr).encode('ascii','ignore'))
         self.layout = post.HtmlLayout(pages,self.longname)
 
         # Define relative weights of each score in the overall score

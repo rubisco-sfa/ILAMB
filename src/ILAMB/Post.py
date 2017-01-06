@@ -316,6 +316,7 @@ class HtmlPage():
         self.header      = "CNAME"
         self.sections    = []
         self.figures     = {}
+        self.text        = None
         
     def __str__(self):
         
@@ -360,6 +361,10 @@ class HtmlPage():
             code += """
       <div id="%s_table" align="center"></div>""" % self.name
 
+        if self.text is not None:
+            code += """
+      %s""" % self.text
+            
         for section in self.sections:
             if len(self.figures[section]) == 0: continue
             self.figures[section].sort(key=_sortFigures)
