@@ -511,7 +511,9 @@ class Confrontation(object):
         self._relationship(m)
         bname     = "%s/%s_Benchmark.nc" % (self.output_path,self.name)
         fname     = "%s/%s_%s.nc" % (self.output_path,self.name,m.name)
-
+        if not os.path.isfile(bname): return
+        if not os.path.isfile(fname): return
+        
         # get the HTML page
         page = [page for page in self.layout.pages if "MeanState" in page.name][0]  
         
