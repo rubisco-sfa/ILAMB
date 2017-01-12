@@ -3,7 +3,11 @@ from netCDF4 import Dataset,num2date,date2num
 from datetime import datetime
 from cfunits import Units
 from copy import deepcopy
+from mpi4py import MPI
 import numpy as np
+import logging
+
+logger = logging.getLogger("%i" % MPI.COMM_WORLD.rank)
 
 class VarNotInFile(Exception):
     def __str__(self): return "VarNotInFile"
@@ -1067,30 +1071,27 @@ def MakeComparable(ref,com,**keywords):
     com : ILAMB.Variable.Variable
         the modified comparison variable object
 
-    """
+    """    
     # Process keywords
-    clip_ref = keywords.get("clip_ref",False)
-    mask_ref = keywords.get("mask_ref",False)
-    eps      = keywords.get("eps"     ,30./60./24.)
-    window   = keywords.get("window"  ,0.)
-
-    # The reference might be a time series only and not have any site
-    # or spatial data associated with it
-    if ((ref.spatial is False and ref.ndata is     None) and
-        (com.spatial is True  or  com.ndata is not None)):
-        msg = "\n  The reference dataset contains no spatial information:\n"
-        raise VarsNotComparable(msg)
+    clip_ref  = keywords.get("clip_ref" ,False)
+    mask_ref  = keywords.get("mask_ref" ,False)
+    eps       = keywords.get("eps"      ,30./60./24.)
+    window    = keywords.get("window"   ,0.)
+    logstring = keywords.get("logstring","")
     
     # If one variable is temporal, then they both must be
     if ref.temporal != com.temporal:
-        msg  = "\n  The datasets are not both uniformly temporal:\n"
-        msg += "    reference = %s, comparison = %s\n" % (ref.temporal,com.temporal)
-        raise VarsNotComparable(msg)
+        msg  = "%s Datasets are not uniformly temporal: " % logstring
+        msg += "reference = %s, comparison = %s" % (ref.temporal,com.temporal)
+        logger.debug(msg)
+        raise VarsNotComparable()
 
     # If the reference is spatial, the comparison must be
     if ref.spatial and not com.spatial:
-        msg = "\n  The reference data is spatial but the comparison data is not\n"
-        raise VarsNotComparable(msg)
+        msg  = "%s Datasets are not uniformly spatial: " % logstring
+        msg += "reference = %s, comparison = %s" % (ref.spatial,com.spatial)
+        logger.debug(msg)
+        raise VarsNotComparable()
 
     # If the reference is layered, the comparison must be
     if ref.layered and not com.layered:
@@ -1104,8 +1105,10 @@ def MakeComparable(ref,com,**keywords):
             shp.insert(insert,1)
             com.data       = com.data.reshape(shp)
         else:
-            msg = "\n  The reference data is layered but the comparison data is not\n"
-            raise NotLayeredVariable(msg)
+            msg  = "%s Datasets are not uniformly layered: " % logstring
+            msg += "reference = %s, comparison = %s" % (ref.layered,com.layered)
+            logger.debug(msg)
+            raise NotLayeredVariable()
         
     # If the reference represents observation sites, extract them from
     # the comparison
@@ -1116,15 +1119,17 @@ def MakeComparable(ref,com,**keywords):
     # location. Note this is after the above extraction so at this
     # point the ndata field of both variables should be equal.
     if ref.ndata != com.ndata:
-        msg  = "\n  One or both datasets are understood as site data but differ in number of sites.\n"
-        msg += "    number of sites of reference = %d, comparison = %d\n" % (ref.ndata,com.ndata)
-        raise VarsNotComparable(msg)
+        msg  = "%s One or both datasets are understood as site data but differ in number of sites: " % logstring
+        msg += "reference = %d, comparison = %d" % (ref.ndata,com.ndata)
+        logger.debug(msg)
+        raise VarsNotComparable()
     if ref.ndata is not None:
         if not (np.allclose(ref.lat,com.lat) or np.allclose(ref.lon,com.lon)):
-            msg  = "\n  Both datasets represent sites, but the locations are different:"
-            msg += "    Maximum difference lat = %.f, lon = %.f" % (np.abs((ref.lat-com.lat)).max(),
-                                                                    np.abs((ref.lon-com.lon)).max())
-            raise VarsNotComparable(msg)
+            msg  = "%s Datasets represent sites, but the locations are different: " % logstring
+            msg += "maximum difference lat = %.f, lon = %.f" % (np.abs((ref.lat-com.lat)).max(),
+                                                                np.abs((ref.lon-com.lon)).max())
+            logger.debug(msg)
+            raise VarsNotComparable()
     
     if ref.temporal:
 
@@ -1152,19 +1157,22 @@ def MakeComparable(ref,com,**keywords):
             # The comparison dataset needs to fully cover the reference in time
             if (com.time_bnds[ 0,0] > (t0+eps) or
                 com.time_bnds[-1,1] < (tf-eps)):
-                msg  = "\n  Comparison dataset does not cover the time frame of the reference:\n"
-                msg += "    t0: %.16e <= %.16e (%s)\n" % (com.time_bnds[0, 0],t0+eps,com.time_bnds[0, 0] <= (t0+eps))
-                msg += "    tf: %.16e >= %.16e (%s)\n" % (com.time_bnds[1,-1],tf-eps,com.time_bnds[1,-1] >= (tf-eps))
-                raise VarsNotComparable(msg)
+                msg  = "%s Comparison dataset does not cover the time frame of the reference: " % logstring
+                msg += " t0: %.16e <= %.16e (%s)" % (com.time_bnds[0, 0],t0+eps,com.time_bnds[0, 0] <= (t0+eps))
+                msg += " tf: %.16e >= %.16e (%s)" % (com.time_bnds[1,-1],tf-eps,com.time_bnds[1,-1] >= (tf-eps))
+                logger.debug(msg)
+                raise VarsNotComparable()
 
         # Check that we now are on the same time intervals
         if ref.time.size != com.time.size:
-            msg  = "\n  Datasets have differing numbers of time intervals:\n"
-            msg += "    reference = %d, comparison = %d\n" % (ref.time.size,com.time.size)
-            raise VarsNotComparable(msg)        
+            msg  = "%s Datasets have differing numbers of time intervals: " % logstring
+            msg += "reference = %d, comparison = %d" % (ref.time.size,com.time.size)
+            logger.debug(msg)
+            raise VarsNotComparable()        
         if not np.allclose(ref.time_bnds,com.time_bnds,atol=0.75*ref.dt):
-            msg  = "\n  Datasets are defined on different time intervals"
-            raise VarsNotComparable(msg)
+            msg  = "%s Datasets are defined at different times" % logstring
+            logger.debug(msg)
+            raise VarsNotComparable()
 
     if ref.layered:
 
@@ -1183,8 +1191,9 @@ def MakeComparable(ref,com,**keywords):
                 ref = ref.integrateInDepth(mean = True) # just removing the depth dimension         
         else:
             if not np.allclose(ref.depth,com.depth):
-                msg  = "\n  Datasets are defined on different layers"
-                raise VarsNotComparable(msg)
+                msg  = "%s Datasets have a different layering scheme" % logstring
+                logger.debug(msg)
+                raise VarsNotComparable()
 
     # Apply the reference mask to the comparison dataset and
     # optionally vice-versa

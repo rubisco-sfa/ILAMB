@@ -1,14 +1,17 @@
+import logging
 from ILAMB.ModelResult import ModelResult
 from ILAMB.Scoreboard import Scoreboard
 from ILAMB import ilamblib as il
 import os,time,sys,argparse
 from mpi4py import MPI
 import numpy as np
+import datetime,glob
 
 # MPI stuff
 comm = MPI.COMM_WORLD
 size = comm.Get_size()
 rank = comm.Get_rank()
+proc = np.zeros(size)
 
 # Some color constants for printing to the terminal
 OK   = '\033[92m'
@@ -211,6 +214,7 @@ def WorkConfront(W,verbose=False,clean=False):
             t0 = time.time()
             c.confront(m)  
             dt = time.time()-t0
+            proc[rank] += dt
             if verbose:
                 print ("    {0:>%d} {1:<%d} %sCompleted%s {2:>5.1f} s" % (maxCL,maxML,OK,ENDC)).format(c.longname,m.name,dt)
                 sys.stdout.flush()
@@ -259,6 +263,7 @@ def WorkPost(M,C,W,S,verbose=False):
         c.modelPlots(m)
         c.computeOverallScore(m)
         dt = time.time()-t0
+        proc[rank] += dt
         if verbose: print ("    {0:>%d} {1:<%d} %sCompleted%s {2:>5.1f} s" % (maxCL,maxML,OK,ENDC)).format(c.longname,m.name,dt)
         sys.stdout.flush()
         
@@ -271,6 +276,50 @@ def WorkPost(M,C,W,S,verbose=False):
         S.createHtml(M)
         S.createSummaryFigure(M)
 
+class MPIStream():
+    """
+    The MPI.File stream doesn't have the functions we need, so we will
+    wrap what we need in a simple class.
+    """
+    def __init__(self, comm, filename, mode):
+        self.fh = MPI.File.Open(comm, filename, mode)
+        self.fh.Set_atomicity(True)
+        
+    def write(self,buf):
+        self.fh.Write_shared(buf)
+
+    def flush(self):
+        self.fh.Sync()
+
+    def close(self):
+        self.fh.Close()
+    
+class MPIFileHandler(logging.FileHandler):
+    """
+    A handler class which writes formatted logging records to disk files.
+    """
+    def __init__(self, filename, mode = MPI.MODE_WRONLY|MPI.MODE_CREATE, delay = 0, comm = MPI.COMM_WORLD):
+        """
+        Open the specified file and use it as the stream for logging.
+        """
+        self.baseFilename = os.path.abspath(filename)
+        self.mode         = mode
+        self.encoding     = None
+        self.delay        = delay
+        self.comm         = comm
+        if delay:
+            logging.Handler.__init__(self)
+            self.stream = None
+        else:
+            logging.StreamHandler.__init__(self, self._open())
+            
+    def _open(self):
+        """
+        Open the current base file with the (original) mode and encoding.
+        Return the resulting stream.
+        """
+        stream = MPIStream(self.comm, self.baseFilename, self.mode )
+        return stream
 
 parser = argparse.ArgumentParser(description='')
 parser.add_argument('--model_root', dest="model_root", metavar='root', type=str, nargs=1, default=["./"],
@@ -310,6 +359,21 @@ S = Scoreboard(args.config[0],
 C  = MatchRelationshipConfrontation(S.list())
 Cf = FilterConfrontationList(C,args.confront)
 
+# Setup logging
+logger    = logging.getLogger("%i" % comm.rank)
+mh        = MPIFileHandler('%s/ILAMB%02d.log' % (S.build_dir,len(glob.glob("%s/*.log" % S.build_dir))+1))
+formatter = logging.Formatter('[%(levelname)s][%(name)s][%(funcName)s]%(message)s')
+logger.setLevel(logging.DEBUG)
+mh.setFormatter(formatter)
+logger.addHandler(mh)
+
+if rank == 0:
+    logger.info(" " + " ".join(os.uname()))
+    for key in ["ILAMB","numpy","matplotlib","netCDF4","cfunits","sympy","mpi4py"]:
+        pkg = __import__(key)
+        logger.info(" %s (%s)" % (pkg.__path__[0],pkg.__version__))
+    logger.info(" %s" % datetime.datetime.now())
+    
 if rank == 0 and not args.quiet and len(Cf) != len(C):
     print "\nWe filtered some confrontations, actually running...\n"
     for c in Cf: print ("    {0:>45}").format(c.longname)
@@ -334,6 +398,19 @@ WorkPost(M,C,W,S,not args.quiet)
 
 sys.stdout.flush(); comm.Barrier()
 
+# Runtime information
+proc_reduced = np.zeros(proc.shape)
+comm.Reduce(proc,proc_reduced,root=0)
+if size > 1: logger.info("[process time] %.1f s" % proc[rank])
+if rank==0:
+    logger.info("[total time] %.1f s" % (time.time()-T0))
+    if size > 1:
+        if proc_reduced.min() > 1e-6:
+            logger.info("[process balance] %.2f" % (proc_reduced.max()/proc_reduced.min()))
+        else:
+            logger.info("[process balance] nan")
+        logger.info("[parallel efficiency] %.0f%%" % (100.*proc_reduced.sum()/float(size)/(time.time()-T0)))
+                
 if rank==0: S.dumpScores(M,"scores.csv")
     
 if rank==0 and not args.quiet: print "\nCompleted in {0:>5.1f} s\n".format(time.time()-T0)

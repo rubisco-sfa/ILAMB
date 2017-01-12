@@ -3,6 +3,10 @@ from netCDF4 import Dataset
 import ilamblib as il
 import numpy as np
 import glob,os
+from mpi4py import MPI
+import logging
+
+logger = logging.getLogger("%i" % MPI.COMM_WORLD.rank)
 
 class ModelResult():
     """A class for exploring model results.
@@ -167,6 +171,7 @@ class ModelResult():
                                          initial_time = initial_time,
                                          final_time   = final_time)
             else:
+                logger.debug("[%s] Could not find [%s] in the model resuls" % (self.name,",".join(altvars)))
                 raise il.VarNotInModel()
         else:
             v = il.CombineVariables(V)
@@ -213,15 +218,12 @@ class ModelResult():
         dbnds = None
         
         for arg in sympify(expression).free_symbols:
-            try:
-                var  = self.extractTimeSeries(arg.name,
-                                              lats = lats,
-                                              lons = lons,
-                                              initial_time = initial_time,
-                                              final_time   = final_time)
-            except:
-                raise il.VarNotInModel()
             
+            var  = self.extractTimeSeries(arg.name,
+                                          lats = lats,
+                                          lons = lons,
+                                          initial_time = initial_time,
+                                          final_time   = final_time)            
             units[arg.name] = var.unit
             args [arg.name] = var.data.data
 

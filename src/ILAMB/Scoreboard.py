@@ -231,7 +231,7 @@ class Scoreboard():
 
         TraversePreorder(self.tree,_buildDirectories)
         TraversePreorder(self.tree,_initConfrontation)
-        
+
     def __str__(self):
         global global_print_node_string
         global_print_node_string = ""

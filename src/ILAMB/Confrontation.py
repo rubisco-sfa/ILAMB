@@ -7,6 +7,10 @@ import Post as post
 import pylab as plt
 from matplotlib.colors import LogNorm
 from mpl_toolkits.axes_grid1 import make_axes_locatable
+from mpi4py import MPI
+
+import logging
+logger = logging.getLogger("%i" % MPI.COMM_WORLD.rank)	
 
 def getVariableList(dataset):
     """Extracts the list of variables in the dataset that aren't
@@ -181,7 +185,10 @@ class Confrontation(object):
                                   final_time   = obs.time_bnds[-1,1],
                                   lats         = None if obs.spatial else obs.lat,
                                   lons         = None if obs.spatial else obs.lon)
-        obs,mod = il.MakeComparable(obs,mod,mask_ref=True,clip_ref=True)
+        obs,mod = il.MakeComparable(obs,mod,
+                                    mask_ref  = True,
+                                    clip_ref  = True,
+                                    logstring = "[%s][%s]" % (self.longname,m.name))
         
         # Check the order of magnitude of the data and convert to help avoid roundoff errors
         def _reduceRoundoffErrors(var):
@@ -247,8 +254,10 @@ class Confrontation(object):
                                      skip_iav          = skip_iav,
                                      mass_weighting    = mass_weighting)
             except:
-                raise il.AnalysisError()        
-                
+                raise il.AnalysisError()
+
+        logger.info("[%s][%s] Success" % (self.longname,m.name))
+
     def determinePlotLimits(self):
         """Determine the limits of all plots which are inclusive of all ranges.
 
@@ -597,7 +606,8 @@ class Confrontation(object):
 	                    ax.set_ylabel(ylbl)
 	                    fig.savefig("%s/%s_%s_%s.png" % (self.output_path,m.name,region,pname))
 	                    plt.close()
-	
+
+        logger.info("[%s][%s] Success" % (self.longname,m.name))
                 
     def generateHtml(self):
         """Generate the HTML for the results of this confrontation.
