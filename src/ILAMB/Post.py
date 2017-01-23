@@ -427,6 +427,7 @@ class HtmlPage():
                     add = ", null"
                     try:
                         add = ",%.03f" % self.metric_dict[model][region][metric].data
+                        add = add.lower().replace("nan","null")
                     except:
                         pass
                     head += add
