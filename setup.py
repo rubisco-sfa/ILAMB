@@ -19,7 +19,8 @@ def setup_package():
           description=DESCR, long_description=DESCR,
           url=URL, download_url=DLURL,
           packages = ['ILAMB'],
-          package_dir = {'ILAMB' : 'src/ILAMB'}
+          package_dir = {'ILAMB' : 'src/ILAMB'},
+          scripts=['bin/ilamb-run']
           )
 
 if __name__ == "__main__":
