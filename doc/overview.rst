@@ -198,6 +198,6 @@ grasp to implement new benchmarks and analysis. The basic idea is that
 we have encapsulated the notion of benchmark datasets and their
 accompanying analysis into a ``Confrontation`` class which operates on
 the ``ModelResult`` represented as a ``Variable``. What we have done
-here manually is part of what happens inside ``driver.py`` which we
-executed in previous tutorials. 
-  
+here manually is part of what happens inside of the ``ilamb-run``
+script, which we executed in previous tutorials.
+

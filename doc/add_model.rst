@@ -11,8 +11,8 @@ mean values at least partially over the time period of the source data
 tutorial will copy the CLM40cn results data and treat it as another
 model as a demonstration only.
 
-The main concept you need to understand is how ``driver.py`` finds and
-classifies model results. When running ``driver.py`` in the previous
+The main concept you need to understand is how ``ilamb-run`` finds and
+classifies model results. When executing ``ilamb-run`` in the previous
 tutorial, we specified an option ``--model_root
 $ILAMB_ROOT/MODELS/``. This tells the script where to look for model
 results. The script will consider each subdirectory of the specified
@@ -32,9 +32,9 @@ tree::
       └── rsus
           └── rsus_Amon_CLM40cn_historical_r1i1p1_185001-201012.nc
 	  
-Then when we run the same driver command as before::
+Then when we execute the same ``ilamb-run`` command as before::
 
-  python driver.py --config sample.cfg --model_root $ILAMB_ROOT/MODELS/ --regions global
+  ilamb-run --config sample.cfg --model_root $ILAMB_ROOT/MODELS/ --regions global
 
 We observe that the new model is indeed found and the confrontations
 are run. Here we reproduce the screen output::
@@ -65,7 +65,7 @@ are run. Here we reproduce the screen output::
 
   Completed in 92.8 s
 
-You will notice that on running the driver again, we did not have to
+You will notice that on executing the run script again, we did not have to
 perform the analysis step for the model we ran in the previous
 tutorial. When a model-confrontation pair is run, we save the analysis
 information in a netCDF4 file. If this file is detected in the setup
@@ -89,7 +89,7 @@ example, move the sample data around in the following way::
       └── rsds_Amon_CLM40cn_historical_r1i1p1_185001-201012.nc
       └── rsus_Amon_CLM40cn_historical_r1i1p1_185001-201012.nc
 
-and the driver will interpret the model in exactly the same
+and the run script will interpret the model in exactly the same
 manner. The variables can even be in the same file or across multiple
 files representing different sections of the simulation time. We will
 detect which variables are in which files, and combine them
@@ -110,7 +110,7 @@ from a CLM45bgc run saved. So I can create a symbolic link from my
       └── rsds_Amon_CLM40cn_historical_r1i1p1_185001-201012.nc
       └── rsus_Amon_CLM40cn_historical_r1i1p1_185001-201012.nc
 
-and the driver will follow this link and perform the analysis on the
+and the run script will follow this link and perform the analysis on the
 result files it finds there. This allows you to create a group of
 models which you wish to study without having to move results around
 your machine.
