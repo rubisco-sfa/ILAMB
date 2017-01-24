@@ -1,7 +1,7 @@
 NP = 1
 
 test_sample:
-	@mpirun -n ${NP} python ../demo/driver.py  \
+	@mpirun -n ${NP} ilamb-run                \
         --config test.cfg                         \
         --model_root ${ILAMB_ROOT}/MODELS/CLM/    \
 	--models CLM45bgc_CRUNCEP CLM45bgc_GSWP3  \
