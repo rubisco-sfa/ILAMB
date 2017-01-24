@@ -8,5 +8,8 @@ test_sample:
         --regions global shsa
 	python score_diff.py scores_test.csv.gold _build/scores.csv
 
+test_run_script:
+	nosetests test_run_script.py
+
 clean:
 	@rm -rf _build
