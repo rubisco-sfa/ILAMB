@@ -37,9 +37,9 @@ dataset addition::
   [WRMC.BSRN]
   source   = "DATA/rsus/WRMC.BSRN/rsus.nc"
 
-Now if we run the driver script as before::
+Now if we execute the ``ilamb-run`` script as before::
 
-  python driver.py --config sample.cfg --model_root $ILAMB_ROOT/MODELS/ --regions global
+  ilamb-run --config sample.cfg --model_root $ILAMB_ROOT/MODELS/ --regions global
 
 we will see the following output to the screen::
   
@@ -67,7 +67,7 @@ we will see the following output to the screen::
 
   Completed in  29.0 s
 
-You will notice that on running the driver again, we did not have to
+You will notice that on running the script again, we did not have to
 perform the analysis step for the confrontations we ran
 previously. When a model-confrontation pair is run, we save the
 analysis information in a netCDF4 file. If this file is detected in
@@ -129,7 +129,7 @@ of the configuration file::
   source   = "DATA/rsus/WRMC.BSRN/rsus.nc"
   weight   = 1
 
-and then running the driver as before. This will run quickly as we do
+and then running the script as before. This will run quickly as we do
 not require a reanalysis for a mere change of weights. Once the run is
 complete, open again or reload ``_build/index.html`` and navigate to
 the same section of the results table. You should see the change in

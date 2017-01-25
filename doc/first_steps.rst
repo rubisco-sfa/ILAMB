@@ -155,14 +155,14 @@ will be covered in a more advanced tutorial.
 Running the Study
 -----------------
 
-Now that we have the configuration file setup, you can run the study
-using a python script in the demo directory called ``driver.py``. Executing the command::
+Now that we have the configuration file set up, you can run the study
+using the ``ilamb-run`` script. Executing the command::
 
-  python driver.py --config sample.cfg --model_root $ILAMB_ROOT/MODELS/ --regions global
+  ilamb-run --config sample.cfg --model_root $ILAMB_ROOT/MODELS/ --regions global
 
 If you are on some institutional resource, you may need to launch the
 above command using a submission script, or request an interactive
-node. As the driver runs, it will yield output which resembles the
+node. As the script runs, it will yield output which resembles the
 following::
 
   Searching for model results in /Users/ncf/sandbox/ILAMB_sample/MODELS/
@@ -186,7 +186,7 @@ following::
 
   Completed in  91.8 s
 
-What happened here? First, the driver looks for model results in the
+What happened here? First, the script looks for model results in the
 directory you specified in the ``--model_root`` option. It will treat
 each subdirectory of the specified directory as a separate model
 result. Here since we only have one such directory, ``CLM40cn``, it
