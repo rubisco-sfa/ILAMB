@@ -93,6 +93,11 @@ This means that we require the ``numpy`` module but you do not have it
 installed at all. Again, use conda_ or pip_ to resolve this
 problem.
 
+Note that if you installed ILAMB using the ``--user`` option, the
+executeable script ``ilamb-run`` will be placed inside
+``${HOME}/.local/bin``. You may need to postpend this location to your
+``PATH`` environment variable.
+
 Dependencies
 ------------
 
