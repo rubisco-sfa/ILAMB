@@ -89,7 +89,7 @@ def ConvertTypes(node):
     if node.regions        is not None: node.regions        = node.regions.split(",")
     if node.relationships  is not None: node.relationships  = node.relationships.split(",")
     if node.alternate_vars is not None:
-        node.alternate_vars = [node.alternate_vars]
+        node.alternate_vars = node.alternate_vars.split(",")
     else:
         node.alternate_vars = []
         
@@ -231,7 +231,7 @@ class Scoreboard():
 
         TraversePreorder(self.tree,_buildDirectories)
         TraversePreorder(self.tree,_initConfrontation)
-        
+
     def __str__(self):
         global global_print_node_string
         global_print_node_string = ""
@@ -399,7 +399,6 @@ class Scoreboard():
                     out.write("%s,%s\n" % (v.name,','.join(["~"]*len(M))))
         out.close()
 
-        
 def CompositeScores(tree,M):
     global global_model_list
     global_model_list = M
@@ -413,7 +412,7 @@ def CompositeScores(tree,M):
                 if os.path.isfile(fname):
                     try:
                         dataset = Dataset(fname)
-                        grp     = dataset.groups["scalars"]
+                        grp     = dataset.groups["MeanState"].groups["scalars"]
                     except:
                         continue
                     if grp.variables.has_key("Overall Score global"):
@@ -542,14 +541,14 @@ def GenerateSummaryFigure(tree,M,build_dir):
             variables.append(var.name)
             vcolors.append(cat.bgcolor)
             
-    data = np.zeros((len(variables),len(models)))
+    data = np.ma.zeros((len(variables),len(models)))
     row  = -1
     for cat in tree.children:
         for var in cat.children:
             row += 1
-            try:
-                data[row,:] = var.score
-            except:
+            if type(var.score) == float:
                 data[row,:] = np.nan
-                
+            else:
+                data[row,:] = var.score
+
     BenchmarkSummaryFigure(models,variables,data,"%s/overview.png" % build_dir,vcolor=vcolors)

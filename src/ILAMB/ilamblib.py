@@ -3,7 +3,11 @@ from netCDF4 import Dataset,num2date,date2num
 from datetime import datetime
 from cfunits import Units
 from copy import deepcopy
+from mpi4py import MPI
 import numpy as np
+import logging
+
+logger = logging.getLogger("%i" % MPI.COMM_WORLD.rank)
 
 class VarNotInFile(Exception):
     def __str__(self): return "VarNotInFile"
@@ -40,6 +44,9 @@ class UnitConversionError(Exception):
 
 class AnalysisError(Exception):
     def __str__(self): return "AnalysisError"
+
+class NotLayeredVariable(Exception):
+    def __str__(self): return "NotLayeredVariable"
 
     
 def GenerateDistinctColors(N,saturation=0.67,value=0.67):
@@ -99,9 +106,16 @@ def ConvertCalendar(t,unit=None,calendar=None):
     except:
         # If we are here, cfunits doesn't know how to convert
         # calendars so we will do something ourselves.
+    
+        # scale the by the length of a year
         t = t[...]
-        if calendar == "gregorian": t *= (365./365.25)
-        if calendar == "360_day"  : t *= (365./360.  )
+        if t0.calendar == "gregorian": t *= (365./365.25)
+        if t0.calendar == "360_day"  : t *= (365./360.  )
+
+        # shift to the new datum
+        tm = Units(t0.units,calendar=tf.calendar)
+        t  = Units.conform(t,tm,tf) 
+        
     return t
 
 def CellAreas(lat,lon):
@@ -324,7 +338,7 @@ def SympifyWithArgsUnits(expression,args,units):
     return args[ekey],units[ekey]
 
 
-def FromNetCDF4(filename,variable_name,alternate_vars=[],t0=None,tf=None):
+def FromNetCDF4(filename,variable_name,alternate_vars=[],t0=None,tf=None,group=None):
     """Extracts data from a netCDF4 datafile for use in a Variable object.
     
     Intended to be used inside of the Variable constructor. Some of
@@ -370,80 +384,76 @@ def FromNetCDF4(filename,variable_name,alternate_vars=[],t0=None,tf=None):
         A 1D array of the depth boundaries of each cell
     """
     try:
-        f = Dataset(filename,mode="r")
+        dset = Dataset(filename,mode="r")
+        if group is None:
+            grp = dset
+        else:
+            grp = dset.groups[group]
     except RuntimeError:
         raise RuntimeError("Unable to open the file: %s" % filename)
-    
+
     found     = False
-    if variable_name in f.variables.keys():
+    if variable_name in grp.variables.keys():
         found = True
-        var   = f.variables[variable_name]
+        var   = grp.variables[variable_name]
     else:
         while alternate_vars.count(None) > 0: alternate_vars.pop(alternate_vars.index(None))
         for var_name in alternate_vars:
-            if var_name in f.variables.keys():
+            if var_name in grp.variables.keys():
                 found = True
-                var   = f.variables[var_name]
+                var   = grp.variables[var_name]
     if found == False:
         alternate_vars.insert(0,variable_name)
         raise RuntimeError("Unable to find [%s] in the file: %s" % (",".join(alternate_vars),filename))
-    time_name     = None
-    time_bnd_name = None
-    lat_name      = None
-    lon_name      = None
-    data_name     = None
-    dpth_bnd_name = None
     
+    # Initialize names/values of dimensions to None
+    time_name  = None; time_bnd_name  = None; t     = None; t_bnd     = None
+    lat_name   = None; lat_bnd_name   = None; lat   = None; lat_bnd   = None
+    lon_name   = None; lon_bnd_name   = None; lon   = None; lon_bnd   = None
+    depth_name = None; depth_bnd_name = None; depth = None; depth_bnd = None
+    data_name  = None;                        data  = None;
+
+    # Read in possible dimension information and their bounds
+    def _get(key,dset):
+        dim_name = key
+        try:
+            v = dset.variables[key]
+            dim_bnd_name = v.getncattr("bounds")
+        except:
+            dim_bnd_name = None
+        return dim_name,dim_bnd_name    
     for key in var.dimensions:
-        if "time" in key:
-            time_name = key
-            t = f.variables[key]
-            if "bounds" in t.ncattrs():
-                time_bnd_name = t.getncattr("bounds")
-        if "lat"  in key: lat_name  = key
-        if "lon"  in key: lon_name  = key
-        if "data" in key: data_name = key
-        if "depth" in key:
-            d = f.variables[key]
-            if "bounds" in d.ncattrs():
-                dpth_bnd_name = d.getncattr("bounds")
-        
-    if time_name is None:
-        t = None
-    else:
-        t = ConvertCalendar(f.variables[time_name])
-    if time_bnd_name is None:
-        t_bnd = None
-    else:
-        t_bnd = ConvertCalendar(f.variables[time_bnd_name],
-                                unit     = f.variables[time_name].units,
-                                calendar = f.variables[time_name].calendar).T
-    if lat_name is None:
-        lat = None
-    else:
-        lat = f.variables[lat_name][...]
-    if lon_name is None:
-        lon = None
-    else:
-        lon = f.variables[lon_name][...]
-    if data_name is None:
-        data = None
-    else:
-        data = len(f.dimensions[data_name])
+        if  "time"  in key.lower():  time_name ,time_bnd_name  = _get(key,grp)
+        if  "lat"   in key.lower():  lat_name  ,lat_bnd_name   = _get(key,grp)
+        if  "lon"   in key.lower():  lon_name  ,lon_bnd_name   = _get(key,grp)
+        if  "data"  in key.lower():  data_name ,junk           = _get(key,grp)
+        if ("layer" in key.lower() or
+            "lev"   in key.lower()): depth_name,depth_bnd_name = _get(key,grp)
+    
+    # Based on present values, get dimensions and bounds
+    if time_name      is not None: t     = ConvertCalendar(grp.variables[time_name])
+    if time_bnd_name  is not None: t_bnd = ConvertCalendar(grp.variables[time_bnd_name],
+                                                           unit     = grp.variables[time_name].units,
+                                                           calendar = grp.variables[time_name].calendar)
+    if lat_name       is not None: lat       = grp.variables[lat_name]      [...]
+    if lat_bnd_name   is not None: lat_bnd   = grp.variables[lat_bnd_name]  [...]
+    if lon_name       is not None: lon       = grp.variables[lon_name]      [...]
+    if lon_bnd_name   is not None: lon_bnd   = grp.variables[lon_bnd_name]  [...]
+    if depth_name     is not None: depth     = grp.variables[depth_name]    [...]
+    if depth_bnd_name is not None: depth_bnd = grp.variables[depth_bnd_name][...]
+    if data_name      is not None:
+        data = len(grp.dimensions[data_name])
         # if we have data sites, there may be lat/lon data to come
         # along with them although not a dimension of the variable
-        for key in f.variables.keys():
+        for key in grp.variables.keys():
             if "lat" in key: lat_name = key
             if "lon" in key: lon_name = key
-        if lat_name is not None: lat = f.variables[lat_name][...]
-        if lon_name is not None: lon = f.variables[lon_name][...]
+        if lat_name is not None: lat = grp.variables[lat_name][...]
+        if lon_name is not None: lon = grp.variables[lon_name][...]
         if lat.size != data: lat = None
         if lon.size != data: lon = None
-    if dpth_bnd_name is None:
-        dpth_bnd = None
-    else:
-        dpth_bnd = f.variables[dpth_bnd_name][...]
-        
+
+    
     # read in data array, roughly subset in time if bounds are
     # provided for added effciency, what do we do if no time in this
     # file falls within the time bounds?
@@ -454,7 +464,7 @@ def FromNetCDF4(filename,variable_name,alternate_vars=[],t0=None,tf=None):
         v = var[begin:end,...]
         t = t  [begin:end]
         if t_bnd is not None:
-            t_bnd = t_bnd[:,begin:end]
+            t_bnd = t_bnd[begin:end,:]
     else:
         v = var[...]
 
@@ -468,8 +478,9 @@ def FromNetCDF4(filename,variable_name,alternate_vars=[],t0=None,tf=None):
     # handle units problems that cfunits doesn't
     units = var.units
     if units == "unitless": units = "1"
+    dset.close()
     
-    return v,units,variable_name,t,t_bnd,lat,lon,data,dpth_bnd
+    return v,units,variable_name,t,t_bnd,lat,lat_bnd,lon,lon_bnd,depth,depth_bnd,data
 
         
 def Score(var,normalizer,FC=0.999999):
@@ -755,20 +766,21 @@ def AnalysisMeanState(obs,mod,**keywords):
     if dataset is not None:
         for var in out_vars:
             if type(var) == type({}):
-                for key in var.keys(): var[key].toNetCDF4(dataset)
+                for key in var.keys(): var[key].toNetCDF4(dataset,group="MeanState")
             else:
-                var.toNetCDF4(dataset)
+                var.toNetCDF4(dataset,group="MeanState")
     for key in sd_score.keys():
-        sd_score[key].toNetCDF4(dataset,attributes={"std":std[region].data,
-                                                    "R"  :R  [region].data})
+        sd_score[key].toNetCDF4(dataset,group="MeanState",
+                                attributes={"std":std[region].data,
+                                            "R"  :R  [region].data})
     if benchmark_dataset is not None:
         out_vars = [obs_period_mean,obs_timeint]
         if obs_spaceint[obs_spaceint.keys()[0]].data.size > 1: out_vars.append(obs_spaceint)
         for var in out_vars:
             if type(var) == type({}):
-                for key in var.keys(): var[key].toNetCDF4(benchmark_dataset)
+                for key in var.keys(): var[key].toNetCDF4(benchmark_dataset,group="MeanState")
             else:
-                var.toNetCDF4(benchmark_dataset)
+                var.toNetCDF4(benchmark_dataset,group="MeanState")
 
     # The next analysis bit requires we are dealing with monthly mean data
     if not obs.monthly: return
@@ -866,15 +878,15 @@ def AnalysisMeanState(obs,mod,**keywords):
         if not skip_iav: out_vars.append(iav_score)
         for var in out_vars:
             if type(var) == type({}):
-                for key in var.keys(): var[key].toNetCDF4(dataset)
+                for key in var.keys(): var[key].toNetCDF4(dataset,group="MeanState")
             else:
-                var.toNetCDF4(dataset)
+                var.toNetCDF4(dataset,group="MeanState")
     if benchmark_dataset is not None:
         for var in [obs_maxt_map,obs_mean_cycle]:
             if type(var) == type({}):
-                for key in var.keys(): var[key].toNetCDF4(benchmark_dataset)
+                for key in var.keys(): var[key].toNetCDF4(benchmark_dataset,group="MeanState")
             else:
-                var.toNetCDF4(benchmark_dataset)
+                var.toNetCDF4(benchmark_dataset,group="MeanState")
     
 def AnalysisRelationship(dep_var,ind_var,dataset,rname,**keywords):
     """Perform a relationship analysis.
@@ -1008,21 +1020,21 @@ def ClipTime(v,t0,tf):
     vtrim : ILAMB.Variable.Variable
         the trimmed variable
     """
-    begin = np.argmin(np.abs(v.time_bnds[0,:]-t0))
-    end   = np.argmin(np.abs(v.time_bnds[1,:]-tf))
-    while v.time_bnds[0,begin] > t0:
+    begin = np.argmin(np.abs(v.time_bnds[:,0]-t0))
+    end   = np.argmin(np.abs(v.time_bnds[:,1]-tf))
+    while v.time_bnds[begin,0] > t0:
         begin    -= 1
         if begin <= 0:
             begin = 0
             break
-    while v.time_bnds[1,  end] < tf:
+    while v.time_bnds[end,  1] < tf:
         end      += 1
         if end   >= v.time.size-1:
             end   = v.time.size-1
             break
-    v.time      = v.time     [  begin:(end+1)    ]
-    v.time_bnds = v.time_bnds[:,begin:(end+1)    ]
-    v.data      = v.data     [  begin:(end+1),...]
+    v.time      = v.time     [begin:(end+1)    ]
+    v.time_bnds = v.time_bnds[begin:(end+1),...]
+    v.data      = v.data     [begin:(end+1),...]
     return v
     
 def MakeComparable(ref,com,**keywords):
@@ -1059,31 +1071,45 @@ def MakeComparable(ref,com,**keywords):
     com : ILAMB.Variable.Variable
         the modified comparison variable object
 
-    """
+    """    
     # Process keywords
-    clip_ref = keywords.get("clip_ref",False)
-    mask_ref = keywords.get("mask_ref",False)
-    eps      = keywords.get("eps"     ,30./60./24.)
-    window   = keywords.get("window"  ,0.)
-
-    # The reference might be a time series only and not have any site
-    # or spatial data associated with it
-    if ((ref.spatial is False and ref.ndata is     None) and
-        (com.spatial is True  or  com.ndata is not None)):
-        msg = "\n  The reference dataset contains no spatial information:\n"
-        raise VarsNotComparable(msg)
+    clip_ref  = keywords.get("clip_ref" ,False)
+    mask_ref  = keywords.get("mask_ref" ,False)
+    eps       = keywords.get("eps"      ,30./60./24.)
+    window    = keywords.get("window"   ,0.)
+    logstring = keywords.get("logstring","")
     
     # If one variable is temporal, then they both must be
     if ref.temporal != com.temporal:
-        msg  = "\n  The datasets are not both uniformly temporal:\n"
-        msg += "    reference = %s, comparison = %s\n" % (ref.temporal,com.temporal)
-        raise VarsNotComparable(msg)
+        msg  = "%s Datasets are not uniformly temporal: " % logstring
+        msg += "reference = %s, comparison = %s" % (ref.temporal,com.temporal)
+        logger.debug(msg)
+        raise VarsNotComparable()
 
     # If the reference is spatial, the comparison must be
     if ref.spatial and not com.spatial:
-        msg = "\n  The reference data is spatial but the comparison data is not\n"
-        raise VarsNotComparable(msg)
-    
+        msg  = "%s Datasets are not uniformly spatial: " % logstring
+        msg += "reference = %s, comparison = %s" % (ref.spatial,com.spatial)
+        logger.debug(msg)
+        raise VarsNotComparable()
+
+    # If the reference is layered, the comparison must be
+    if ref.layered and not com.layered:
+        if ref.depth.size == 1:
+            com.layered    = True
+            com.depth      = ref.depth
+            com.depth_bnds = ref.depth_bnds
+            shp            = list(com.data.shape)
+            insert         = 0
+            if com.temporal: insert = 1
+            shp.insert(insert,1)
+            com.data       = com.data.reshape(shp)
+        else:
+            msg  = "%s Datasets are not uniformly layered: " % logstring
+            msg += "reference = %s, comparison = %s" % (ref.layered,com.layered)
+            logger.debug(msg)
+            raise NotLayeredVariable()
+        
     # If the reference represents observation sites, extract them from
     # the comparison
     if ref.ndata is not None and com.spatial: com = com.extractDatasites(ref.lat,ref.lon)
@@ -1093,16 +1119,17 @@ def MakeComparable(ref,com,**keywords):
     # location. Note this is after the above extraction so at this
     # point the ndata field of both variables should be equal.
     if ref.ndata != com.ndata:
-        msg  = "\n  One or both datasets are understood as site data but differ in number of sites.\n"
-        msg += "    number of sites of reference = %d, comparison = %d\n" % (ref.ndata,com.ndata)
-        raise VarsNotComparable(msg)
+        msg  = "%s One or both datasets are understood as site data but differ in number of sites: " % logstring
+        msg += "reference = %d, comparison = %d" % (ref.ndata,com.ndata)
+        logger.debug(msg)
+        raise VarsNotComparable()
     if ref.ndata is not None:
         if not (np.allclose(ref.lat,com.lat) or np.allclose(ref.lon,com.lon)):
-            msg  = "\n  Both datasets represent sites, but the locations are different:"
-            msg += "    Maximum difference lat = %.f, lon = %.f" % (np.abs((ref.lat-com.lat)).max(),
-                                                                    np.abs((ref.lon-com.lon)).max())
-            raise VarsNotComparable(msg)
-
+            msg  = "%s Datasets represent sites, but the locations are different: " % logstring
+            msg += "maximum difference lat = %.f, lon = %.f" % (np.abs((ref.lat-com.lat)).max(),
+                                                                np.abs((ref.lon-com.lon)).max())
+            logger.debug(msg)
+            raise VarsNotComparable()
     
     if ref.temporal:
 
@@ -1112,8 +1139,8 @@ def MakeComparable(ref,com,**keywords):
             com = com.coarsenInTime(ref.time_bnds,window=window)
         
         # Time bounds of the reference dataset
-        t0  = ref.time_bnds[0, 0]
-        tf  = ref.time_bnds[1,-1]
+        t0  = ref.time_bnds[ 0,0]
+        tf  = ref.time_bnds[-1,1]
 
         # Find the comparison time range which fully encompasses the reference
         com = ClipTime(com,t0,tf)
@@ -1121,29 +1148,53 @@ def MakeComparable(ref,com,**keywords):
         if clip_ref:
 
             # We will clip the reference dataset too
-            t0  = max(t0,com.time_bnds[0, 0])
-            tf  = min(tf,com.time_bnds[1,-1])
+            t0  = max(t0,com.time_bnds[ 0,0])
+            tf  = min(tf,com.time_bnds[-1,1])
             ref = ClipTime(ref,t0,tf)
 
         else:
             
             # The comparison dataset needs to fully cover the reference in time
-            if (com.time_bnds[0, 0] > (t0+eps) or
-                com.time_bnds[1,-1] < (tf-eps)):
-                msg  = "\n  Comparison dataset does not cover the time frame of the reference:\n"
-                msg += "    t0: %.16e <= %.16e (%s)\n" % (com.time_bnds[0, 0],t0+eps,com.time_bnds[0, 0] <= (t0+eps))
-                msg += "    tf: %.16e >= %.16e (%s)\n" % (com.time_bnds[1,-1],tf-eps,com.time_bnds[1,-1] >= (tf-eps))
-                raise VarsNotComparable(msg)
+            if (com.time_bnds[ 0,0] > (t0+eps) or
+                com.time_bnds[-1,1] < (tf-eps)):
+                msg  = "%s Comparison dataset does not cover the time frame of the reference: " % logstring
+                msg += " t0: %.16e <= %.16e (%s)" % (com.time_bnds[0, 0],t0+eps,com.time_bnds[0, 0] <= (t0+eps))
+                msg += " tf: %.16e >= %.16e (%s)" % (com.time_bnds[1,-1],tf-eps,com.time_bnds[1,-1] >= (tf-eps))
+                logger.debug(msg)
+                raise VarsNotComparable()
 
         # Check that we now are on the same time intervals
         if ref.time.size != com.time.size:
-            msg  = "\n  Datasets have differing numbers of time intervals:\n"
-            msg += "    reference = %d, comparison = %d\n" % (ref.time.size,com.time.size)
-            raise VarsNotComparable(msg)        
+            msg  = "%s Datasets have differing numbers of time intervals: " % logstring
+            msg += "reference = %d, comparison = %d" % (ref.time.size,com.time.size)
+            logger.debug(msg)
+            raise VarsNotComparable()        
         if not np.allclose(ref.time_bnds,com.time_bnds,atol=0.75*ref.dt):
-            msg  = "\n  Datasets are defined on different time intervals"
-            raise VarsNotComparable(msg)
-                                   
+            msg  = "%s Datasets are defined at different times" % logstring
+            logger.debug(msg)
+            raise VarsNotComparable()
+
+    if ref.layered:
+
+        # Try to resolve if the layers from the two quantities are
+        # different
+        if ref.depth.size == com.depth.size == 1:
+            ref = ref.integrateInDepth(mean = True) 
+            com = com.integrateInDepth(mean = True) 
+        elif ref.depth.size != com.depth.size:
+            # Compute the mean values from the comparison over the
+            # layer breaks of the reference.
+            if ref.depth.size == 1 and com.depth.size > 1:
+                com = com.integrateInDepth(z0=ref.depth_bnds[ 0,0],
+                                           zf=ref.depth_bnds[-1,1],
+                                           mean = True)
+                ref = ref.integrateInDepth(mean = True) # just removing the depth dimension         
+        else:
+            if not np.allclose(ref.depth,com.depth):
+                msg  = "%s Datasets have a different layering scheme" % logstring
+                logger.debug(msg)
+                raise VarsNotComparable()
+
     # Apply the reference mask to the comparison dataset and
     # optionally vice-versa
     mask = ref.interpolate(time=com.time,lat=com.lat,lon=com.lon)
@@ -1204,14 +1255,14 @@ def CombineVariables(V):
     # Assemble the data
     shp       = (nt.sum(),)+V[0].data.shape[1:]
     time      = np.zeros(shp[0])
-    time_bnds = np.zeros((2,shp[0]))
+    time_bnds = np.zeros((shp[0],2))
     data      = np.zeros(shp)
     mask      = np.zeros(shp,dtype=bool)
     for i,v in enumerate(V):
-        time       [ind[i]:ind[i+1]]     = v.time
-        time_bnds[:,ind[i]:ind[i+1]]     = v.time_bnds
-        data       [ind[i]:ind[i+1],...] = v.data
-        mask       [ind[i]:ind[i+1],...] = v.data.mask
+        time     [ind[i]:ind[i+1]]     = v.time
+        time_bnds[ind[i]:ind[i+1],...] = v.time_bnds
+        data     [ind[i]:ind[i+1],...] = v.data
+        mask     [ind[i]:ind[i+1],...] = v.data.mask
     v = V[0]
     return Variable(data      = np.ma.masked_array(data,mask=mask),
                     unit      = v.unit,

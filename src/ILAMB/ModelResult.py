@@ -3,6 +3,10 @@ from netCDF4 import Dataset
 import ilamblib as il
 import numpy as np
 import glob,os
+from mpi4py import MPI
+import logging
+
+logger = logging.getLogger("%i" % MPI.COMM_WORLD.rank)
 
 class ModelResult():
     """A class for exploring model results.
@@ -167,6 +171,7 @@ class ModelResult():
                                          initial_time = initial_time,
                                          final_time   = final_time)
             else:
+                logger.debug("[%s] Could not find [%s] in the model results" % (self.name,",".join(altvars)))
                 raise il.VarNotInModel()
         else:
             v = il.CombineVariables(V)
@@ -209,17 +214,16 @@ class ModelResult():
         lon   = None
         ndata = None
         area  = None
-
+        depth = None
+        dbnds = None
+        
         for arg in sympify(expression).free_symbols:
-            try:
-                var  = self.extractTimeSeries(arg.name,
-                                              lats = lats,
-                                              lons = lons,
-                                              initial_time = initial_time,
-                                              final_time   = final_time)
-            except:
-                raise il.VarNotInModel()
             
+            var  = self.extractTimeSeries(arg.name,
+                                          lats = lats,
+                                          lons = lons,
+                                          initial_time = initial_time,
+                                          final_time   = final_time)            
             units[arg.name] = var.unit
             args [arg.name] = var.data.data
 
@@ -251,19 +255,29 @@ class ModelResult():
                 ndata  = var.ndata
             else:
                 assert(np.allclose(ndata,var.ndata))
-            
+            if depth is None:
+                depth  = var.depth
+            else:
+                assert(np.allclose(depth,var.depth))
+            if dbnds is None:
+                dbnds  = var.depth_bnds
+            else:
+                assert(np.allclose(dbnds,var.depth_bnds))
+
         np.seterr(divide='ignore',invalid='ignore')
         result,unit = il.SympifyWithArgsUnits(expression,args,units)
         np.seterr(divide='raise',invalid='raise')
         mask  += np.isnan(result)
         result = np.ma.masked_array(np.nan_to_num(result),mask=mask)
         
-        return Variable(data      = np.ma.masked_array(result,mask=mask),
-                        unit      = unit,
-                        name      = variable_name,
-                        time      = time,
-                        time_bnds = tbnd,
-                        lat       = lat,
-                        lon       = lon,
-                        area      = area,
-                        ndata     = ndata)
+        return Variable(data       = np.ma.masked_array(result,mask=mask),
+                        unit       = unit,
+                        name       = variable_name,
+                        time       = time,
+                        time_bnds  = tbnd,
+                        lat        = lat,
+                        lon        = lon,
+                        area       = area,
+                        ndata      = ndata,
+                        depth      = depth,
+                        depth_bnds = dbnds)
