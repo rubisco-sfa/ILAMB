@@ -419,6 +419,7 @@ class HtmlLayout():
                         if metrics[model].has_key(region):
                             if header in metrics[model][region]:
                                 value = ",%.03f" % metrics[model][region][header].data
+                                value = value.lower().replace("nan","null")
                     code += value
             code += "],"
         code += """
@@ -534,8 +535,8 @@ class HtmlLayout():
 
         # Add needed Javascript sources
         code += """
-    <link rel="stylesheet" href="http://code.jquery.com/mobile/1.4.5/jquery.mobile-1.4.5.min.css">
-    <script src="http://code.jquery.com/jquery-1.11.2.min.js"></script>
+    <link rel="stylesheet" href="https://code.jquery.com/mobile/1.4.5/jquery.mobile-1.4.5.min.css">
+    <script src="https://code.jquery.com/jquery-1.11.2.min.js"></script>
     <script>
       $(document).bind('mobileinit',function(){
         $.mobile.changePage.defaults.changeHash = false;
@@ -543,7 +544,7 @@ class HtmlLayout():
         $.mobile.pushStateEnabled = false;
       });
     </script>
-    <script src="http://code.jquery.com/mobile/1.4.5/jquery.mobile-1.4.5.min.js"></script>"""
+    <script src="https://code.jquery.com/mobile/1.4.5/jquery.mobile-1.4.5.min.js"></script>"""
 
         # Add Google table of metrics
         code += self.generateMetricTable()

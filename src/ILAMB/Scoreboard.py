@@ -262,8 +262,8 @@ class Scoreboard():
 <html>
   <head>
     <title>ILAMB Benchmark Results</title>
-    <link rel="stylesheet" href="http://code.jquery.com/mobile/1.4.5/jquery.mobile-1.4.5.min.css"></link>
-    <script src="http://code.jquery.com/jquery-1.11.2.min.js"></script>
+    <link rel="stylesheet" href="https://code.jquery.com/mobile/1.4.5/jquery.mobile-1.4.5.min.css"></link>
+    <script src="https://code.jquery.com/jquery-1.11.2.min.js"></script>
     <script>
       $(document).bind('mobileinit',function(){
       $.mobile.changePage.defaults.changeHash = false;
@@ -271,7 +271,7 @@ class Scoreboard():
       $.mobile.pushStateEnabled = false;
       });
     </script>
-    <script src="http://code.jquery.com/mobile/1.4.5/jquery.mobile-1.4.5.min.js"></script>
+    <script src="https://code.jquery.com/mobile/1.4.5/jquery.mobile-1.4.5.min.js"></script>
     <script type="text/javascript" src="https://www.google.com/jsapi"></script>
     <script type="text/javascript">  
       $(document).ready(function(){
@@ -331,7 +331,6 @@ class Scoreboard():
 	  <ul>
 	    <li><a href="#page1" class="ui-btn-active ui-state-persist">Overview</a></li>
 	    <li><a href="#page2">Results Table</a></li>
-	    <li><a href="#page3">Model Comparisons</a></li>
 	  </ul>
 	</div>
       </div>
@@ -351,7 +350,6 @@ class Scoreboard():
 	  <ul>
 	    <li><a href="#page1">Overview</a></li>
 	    <li><a href="#page2" class="ui-btn-active ui-state-persist">Results Table</a></li>
-	    <li><a href="#page3">Model Comparisons</a></li>
 	  </ul>
 	</div>
       </div>
@@ -377,44 +375,6 @@ class Scoreboard():
       </div>
       <div data-role="footer">
         <h1> </h1>
-      </div>
-    </div>
-
-    <div data-role="page" id="page3">      
-      <div data-role="header" data-position="fixed" data-tap-toggle="false">
-	<h1>ILAMB Benchmark Results</h1>
-	<div data-role="navbar">
-	  <ul>
-	    <li><a href="#page1">Overview</a></li>
-	    <li><a href="#page2">Results Table</a></li>
-	    <li><a href="#page3" class="ui-btn-active ui-state-persist">Model Comparisons</a></li>
-	  </ul>
-	</div>
-      </div>
-      <div data-role="main" class="ui-content">
-        <div data-role="fieldcontain">
-	  <label for="select-choice-1" class="select">Choose a reference model:</label>
-	  <select name="select-choice-1" id="select-choice-1">"""
-        for m in M:
-            html += """
-	    <option value="%s">%s</option>""" % (m.name,m.name)
-        html += """
-	  </select>
-        </div>
-        <div data-role="fieldcontain">
-	  <label for="select-choice-2" class="select">Choose a comparison model:</label>
-	  <select name="select-choice-2" id="select-choice-2">"""
-        for m in M:
-            html += """
-	    <option value="%s">%s</option>""" % (m.name,m.name)
-        html += """
-	  </select>
-        </div>
-      </div>
-
-
-      <div data-role="footer">
-	<h1> </h1>
       </div>
     </div>
 
@@ -587,9 +547,9 @@ def GenerateSummaryFigure(tree,M,build_dir):
     for cat in tree.children:
         for var in cat.children:
             row += 1
-            if type(var.score) == float:
-                data[row,:] = np.nan
-            else:
+            try:
                 data[row,:] = var.score
-
+            except:
+                data[row,:] = np.nan
+                
     BenchmarkSummaryFigure(models,variables,data,"%s/overview.png" % build_dir,vcolor=vcolors)

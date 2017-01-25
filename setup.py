@@ -4,7 +4,7 @@ The International Land Model Benchmarking Project (ILAMB)
 """
 
 NAME    = 'ILAMB'
-VERSION = '2.0'
+VERSION = '2.0.2'
 AUTHOR  = 'Nathan Collier'
 EMAIL   = 'nathaniel.collier@gmail.com'
 DESCR   = __doc__.strip()
