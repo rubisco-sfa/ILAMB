@@ -688,7 +688,9 @@ class Confrontation(object):
         if self.relationships is None: return            
 
         # get the HTML page
-        page = [page for page in self.layout.pages if "Relationships" in page.name][0]
+        page = [page for page in self.layout.pages if "Relationships" in page.name]
+        if len(page) == 0: return
+        page = page[0]
         
         # try to get the dependent data from the model and obs
         try:
@@ -700,11 +702,21 @@ class Confrontation(object):
         except:
             return
 
-        # Open a dataset for recording the results of this
-        # confrontation, record for the benchmark if we are the
-        # master process.
+        # open a dataset for recording the results of this
+        # confrontation (FIX: should be a with statement)
         results = Dataset("%s/%s_%s.nc" % (self.output_path,self.name,m.name),mode="r+")
-        
+
+        # grab/create a relationship and scalars group
+        group = None
+        if "Relationships" not in results.groups:
+            group = results.createGroup("Relationships")
+        else:
+            group = results.groups["Relationships"]
+        if "scalars" not in group.groups:
+            scalars = group.createGroup("scalars")
+        else:
+            scalars = group.groups["scalars"]
+
         # for each relationship...
         for c in self.relationships:
 
@@ -713,44 +725,46 @@ class Confrontation(object):
                 obs_ind  = _retrieveData("%s/%s_%s.nc" % (c.output_path,c.name,"Benchmark"))
                 mod_ind  = _retrieveData("%s/%s_%s.nc" % (c.output_path,c.name,m.name))
                 ind_name = c.longname.split("/")[0]          
-                ind_min  = c.limits["timeint"]["min"]
-                ind_max  = c.limits["timeint"]["max"]
+                ind_min  = c.limits["timeint"]["min"]-1e-12
+                ind_max  = c.limits["timeint"]["max"]+1e-12
             except:
                 continue
 
-            # loop over dep/ind pairs of the obs and mod
-            pk = {}
-            qk = {}
-            for dep_var,ind_var,name,xlbl,ylbl in zip([obs_dep    ,mod_dep],
-                                                      [obs_ind    ,mod_ind],
-                                                      ["Benchmark",m.name ],
-                                                      [c   .name  ,m.name ],
-                                                      [self.name  ,m.name ]):
+            # for each reigon...
+            for region in self.regions:
 
-                # for each region...
-                mask = dep_var.data.mask + ind_var.data.mask
-                for region in self.regions:
+                # loop over dep/ind pairs of the obs and mod
+                obs_dist = None; mod_dist = None
+                xedges   = None; yedges   = None
+                obs_x    = None; obs_y    = None; obs_e    = None
+                mod_x    = None; mod_y    = None; mod_e    = None
+                delta    = None
+                for dep_var,ind_var,name,xlbl,ylbl in zip([obs_dep    ,mod_dep],
+                                                          [obs_ind    ,mod_ind],
+                                                          ["Benchmark",m.name ],
+                                                          [c   .name  ,m.name ],
+                                                          [self.name  ,m.name ]):
 
-                    # build the data masks
+                    # build the data masks: only count where we have
+                    # both dep and ind variable data inside the region
+                    mask      = dep_var.data.mask + ind_var.data.mask
                     lats,lons = ILAMBregions[region]
-                    rmask     = (np.outer((dep_var.lat>lats[0])*(dep_var.lat<lats[1]),
+                    mask     += (np.outer((dep_var.lat>lats[0])*(dep_var.lat<lats[1]),
                                           (dep_var.lon>lons[0])*(dep_var.lon<lons[1]))==0)
-                    rmask    += mask
-                    x         = ind_var.data[rmask==0].flatten()
-                    y         = dep_var.data[rmask==0].flatten()
+                    x         = ind_var.data[mask==0].flatten()
+                    y         = dep_var.data[mask==0].flatten()
 
-                    # determine the discrete distribution
+                    # determine the 2D discrete distribution
                     counts,xedges,yedges = np.histogram2d(x,y,
                                                           bins  = [nbin,nbin],
                                                           range = [[ind_min,ind_max],[dep_min,dep_max]])
                     counts  = np.ma.masked_values(counts.T,0)
                     counts /= float(counts.sum())
                     if name == "Benchmark":
-                        pk[region] = counts
+                        obs_dist = counts
                     else:
-                        qk[region] = counts
-                    
-                        
+                        mod_dist = counts
+                                            
                     # render the figure
                     fig,ax = plt.subplots(figsize=(6,5.25),tight_layout=True)
                     cmap   = 'plasma'
@@ -782,29 +796,101 @@ class Confrontation(object):
                                        "MNAME_RNAME_%s.png" % (short_name),
                                        legend = False,
                                        benchmark = True)
+
+                    # determine the 1D relationship curves
+                    bins  = np.linspace(ind_min,ind_max,nbin+1)
+                    delta = 0.1*(bins[1]-bins[0])
+                    inds  = np.digitize(x,bins)
+                    ids   = np.unique(inds)
+                    xb = []
+                    yb = []
+                    eb = []
+                    for i in ids:
+                        yt = y[inds==i]
+                        xi = 0.5
+                        xb.append(xi*bins[i-1]+(1.-xi)*bins[i])
+                        yb.append(yt.mean())
+                        eb.append(yt.std())
                         
-            group = None
-            if "Relationships" not in results.groups:
-                group = results.createGroup("Relationships")
-            else:
-                group = results.groups["Relationships"]
-            if "scalars" not in group.groups:
-                scalars = group.createGroup("scalars")
-            else:
-                scalars = group.groups["scalars"]
-            
-            for region in self.regions:
-                p = pk[region]
-                q = qk[region]
-                # 1 - (Hellinger distance)
-                e = 1.-np.sqrt(((np.sqrt(p)-np.sqrt(q))**2).sum())/np.sqrt(2)
+                    if name == "Benchmark":
+                        obs_x = np.asarray(xb)
+                        obs_y = np.asarray(yb)
+                        obs_e = np.asarray(eb)
+                    else:
+                        mod_x = np.asarray(xb)
+                        mod_y = np.asarray(yb)
+                        mod_e = np.asarray(eb)
+                        
+                # compute and plot the difference
+                O = np.array(obs_dist.data)
+                M = np.array(mod_dist.data)
+                O[np.where(obs_dist.mask)] = 0.
+                M[np.where(mod_dist.mask)] = 0.
+                dif_dist = np.ma.masked_array(M-O,mask=obs_dist.mask*mod_dist.mask)
+                lim      = np.abs(dif_dist).max()
+                fig,ax   = plt.subplots(figsize=(6,5.25),tight_layout=True)
+                pc       = ax.pcolormesh(xedges,
+                                         yedges,
+                                         dif_dist,
+                                         cmap = "Spectral_r",
+                                         vmin = -lim,
+                                         vmax = +lim)
+                div      = make_axes_locatable(ax)
+                fig.colorbar(pc,cax=div.append_axes("right",size="5%",pad=0.05),
+                             orientation="vertical",
+                             label="Distribution Difference")
+                ax.set_xlabel("%s, %s" % (   c.longname.split("/")[0],post.UnitStringToMatplotlib(obs_ind.unit)))
+                ax.set_ylabel("%s, %s" % (self.longname.split("/")[0],post.UnitStringToMatplotlib(obs_dep.unit)))
+                ax.set_xlim(ind_min,ind_max)
+                ax.set_ylim(dep_min,dep_max)
+                short_name = "rel_diff_%s" % ind_name
+                fig.savefig("%s/%s_%s_%s.png" % (self.output_path,name,region,short_name))
+                plt.close()
+                page.addFigure("Period Mean Relationships",
+                               short_name,
+                               "MNAME_RNAME_%s.png" % (short_name),
+                               legend = False,
+                               benchmark = False)
+                
+                # score the distributions = 1 - Hellinger distance
+                score = 1.-np.sqrt(((np.sqrt(obs_dist)-np.sqrt(mod_dist))**2).sum())/np.sqrt(2)
                 vname = '%s Score %s' % (c.longname.split('/')[0],region)
                 if vname in scalars.variables:
-                    scalars.variables[vname][0] = e
+                    scalars.variables[vname][0] = score
                 else:
                     Variable(name = vname, 
                              unit = "1",
-                             data = e).toNetCDF4(results,group="Relationships")
+                             data = score).toNetCDF4(results,group="Relationships")
+
+                # plot the 1D curve
+                fig,ax = plt.subplots(figsize=(6,5.25),tight_layout=True)
+                ax.errorbar(obs_x-delta,obs_y,yerr=obs_e,fmt='-o',color='k')
+                ax.errorbar(mod_x+delta,mod_y,yerr=mod_e,fmt='-o',color=m.color)
+                ax.set_xlabel("%s, %s" % (   c.longname.split("/")[0],post.UnitStringToMatplotlib(obs_ind.unit)))
+                ax.set_ylabel("%s, %s" % (self.longname.split("/")[0],post.UnitStringToMatplotlib(obs_dep.unit)))
+                ax.set_xlim(ind_min,ind_max)
+                ax.set_ylim(dep_min,dep_max)
+                short_name = "rel_func_%s" % ind_name
+                fig.savefig("%s/%s_%s_%s.png" % (self.output_path,name,region,short_name))
+                plt.close()
+                page.addFigure("Period Mean Relationships",
+                               short_name,
+                               "MNAME_RNAME_%s.png" % (short_name),
+                               legend = False,
+                               benchmark = False)
+
+                # score the relationship
+                i0,i1 = np.where(np.abs(obs_x[:,np.newaxis]-mod_x)<1e-12)
+                score = np.exp(-np.linalg.norm(obs_y[i0]-mod_y[i1])/np.linalg.norm(obs_y[i0]))
+                vname = '%s RMSE Score %s' % (c.longname.split('/')[0],region)
+                if vname in scalars.variables:
+                    scalars.variables[vname][0] = score
+                else:
+                    Variable(name = vname, 
+                             unit = "1",
+                             data = score).toNetCDF4(results,group="Relationships")
+                    
+                
         results.close()
 
 class FileContextManager():
