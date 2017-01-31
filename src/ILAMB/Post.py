@@ -1,6 +1,6 @@
 import pylab as plt
 import numpy as np
-from constants import region_names,regions as ILAMBregions
+from constants import region_names,regions as ILAMBregions,space_opts
 import re
 
 def UseLatexPltOptions(fsize=18):
@@ -300,7 +300,7 @@ class HtmlFigure():
         return code
 
 
-class HtmlPage():
+class HtmlPage(object):
 
     def __init__(self,name,title):
         self.name  = name
@@ -399,7 +399,7 @@ class HtmlPage():
         self.priority = priority
 
     def metricTable(self):
-        if not self.metric_dict: return
+        if not self.metric_dict: return ""
         models  = self.models
         regions = self.regions
         metrics = self.metrics
@@ -512,10 +512,148 @@ class HtmlPage():
         regions.sort()
         metrics.sort(key=_sortMetrics)
         self.models  = models
-        self.regions = regions
+        if self.regions is None: self.regions = regions
         self.metrics = metrics
         self.units   = units
         
+class HtmlAllModelsPage(HtmlPage):
+
+    def __init__(self,name,title):
+        
+        super(HtmlAllModelsPage,self).__init__(name,title)
+        self.plots   = None
+        self.nobench = None
+        
+    def _populatePlots(self):
+
+        self.plots   = []
+        bench        = []
+        for page in self.pages:
+            if page.sections is not None:
+                for section in page.sections:
+                    if len(page.figures[section]) == 0: continue
+                    for figure in page.figures[section]:
+                        if (figure.name in ["spatial_variance","spaceint","cycle","compcycle"]): continue # ignores
+                        if "benchmark" in figure.name:
+                            if figure.name not in bench: bench.append(figure.name)
+                            continue
+                        if figure not in self.plots: self.plots.append(figure)
+        self.nobench = [plot.name for plot in self.plots if "benchmark_%s" % (plot.name) not in bench]
+        
+    def __str__(self):
+
+        if self.plots is None: self._populatePlots()
+        
+        code = """
+    <div data-role="page" id="%s">
+      <div data-role="header">
+        <h1 id="%sHead">%s</h1>""" % (self.name,self.name,self.title)
+        if self.pages:
+	    code += """
+        <div data-role="navbar">
+	  <ul>""" 
+            for page in self.pages:
+                opts = ""
+                if page == self: opts = " class=ui-btn-active ui-state-persist"
+                code += """
+            <li><a href='#%s'%s>%s</a></li>""" % (page.name,opts,page.title)
+            code += """
+	  </ul>"""
+        code += """
+	</div>
+      </div>"""
+
+        if self.regions:
+            code += """
+      <select id="%sRegion" onchange="AllSelect()">""" % (self.name)
+            for region in self.regions:
+                opts  = ''
+                if region == "global" or len(self.regions) == 1:
+                    opts  = ' selected="selected"'
+                code += """
+        <option value='%s'%s>%s</option>""" % (region,opts,region)
+            code += """
+      </select>"""
+                
+        if self.plots:
+            code += """
+      <select id="%sPlot" onchange="AllSelect()">""" % (self.name)
+            for plot in self.plots:
+                name  = ''
+                if space_opts.has_key(plot.name): name = space_opts[plot.name]["name"]
+                if "rel_" in plot.name: name = plot.name.replace("rel_","Relationship with ")
+                opts  = ''
+                if plot.name == "timeint" or len(self.plots) == 1:
+                    opts  = ' selected="selected"'
+                code += """
+        <option value='%s'%s>%s</option>""" % (plot.name,opts,name)
+            code += """
+      </select>"""
+            
+            fig = self.plots[0]
+            rem_legend = fig.legend; fig.legend = False
+            rem_side   = fig.side;   fig.side   = "MNAME"
+            img = "%s" % (fig)
+            img = img.replace("%s" % fig.name,"MNAME")
+            fig.legend = rem_legend
+            fig.side   = rem_side
+            for model in self.pages[0].models:
+                code += img.replace("MNAME",model)
+            
+            code += """
+        <div class="outer" id="legend_div">
+          <div class="inner rotate"> </div>
+          <div class="second"><img src="" id="legend" alt="Data not available"></img></div>
+        </div><br>"""
+            
+        if self.text is not None:
+            code += """
+      %s""" % self.text
+            
+        code += """
+    </div>"""
+        return code
+    
+    def metricTable(self):
+        
+        if self.plots is None: self._populatePlots()
+        
+        models  = self.pages[0].models
+        regions = self.regions
+        head    = """
+    <script type="text/javascript">
+      function AllSelect() {
+        var header = "%s";
+        var CNAME  = "%s";
+        header     = header.replace("CNAME",CNAME);
+        var rid    = document.getElementById("%s").selectedIndex;
+        var RNAME  = document.getElementById("%s").options[rid].value;
+        var pid    = document.getElementById("%s").selectedIndex;
+        var PNAME  = document.getElementById("%s").options[pid].value;
+        header     = header.replace("RNAME",RNAME);
+        $("#%sHead").text(header);""" % (self.header,self.cname,self.name+"Region",self.name+"Region",self.name+"Plot",self.name+"Plot",self.name)
+        
+        head += """
+        if(%s){
+          document.getElementById("Benchmark_div").style.display = 'none'
+        }else{
+          document.getElementById("Benchmark_div").style.display = 'block'
+          document.getElementById('Benchmark').src = 'Benchmark_' + RNAME + '_' + PNAME + '.png'
+        }
+        document.getElementById('legend').src = 'legend_' + PNAME + '.png'""" % (" || ".join(['PNAME == "%s"' % n for n in self.nobench]))
+        for model in models:
+            head += """
+        document.getElementById('%s').src = '%s_' + RNAME + '_' + PNAME + '.png'""" % (model,model)
+        head += """
+      }
+    </script>
+    <script>
+      $(document).on('pageshow', '[data-role="page"]', function(){ 
+        AllSelect()
+      });
+    </script>"""
+        return head
+
 class HtmlLayout():
 
     def __init__(self,pages,cname):
@@ -537,8 +675,7 @@ class HtmlLayout():
     <script src="https://code.jquery.com/mobile/1.4.5/jquery.mobile-1.4.5.min.js"></script>"""
 
         ### stick in javascript stuff here
-        for page in self.pages:
-            if page.metric_dict: code += page.metricTable()
+        for page in self.pages: code += page.metricTable()
             
         ### stick in css stuff here
         code += """

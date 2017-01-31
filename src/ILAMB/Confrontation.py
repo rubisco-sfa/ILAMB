@@ -100,20 +100,25 @@ class Confrontation(object):
             raise il.MisplacedData(msg)
 
         # Setup a html layout for generating web views of the results
-        pages = [post.HtmlPage("MeanState","Mean State"),
-                 post.HtmlPage("Relationships","Relationships"),
-                 post.HtmlPage("DataInformation","Data Information")]
-        pages[0].setHeader("CNAME / RNAME / MNAME")
-        pages[0].setSections(["Temporally integrated period mean",
+        pages = []
+        pages.append(post.HtmlPage("MeanState","Mean State"))
+        pages[-1].setHeader("CNAME / RNAME / MNAME")
+        pages[-1].setSections(["Temporally integrated period mean",
                               "Spatially integrated regional mean"])
-        pages[1].setHeader("CNAME / RNAME / MNAME")
-        pages[1].setSections(["Period Mean Relationships"])
-        pages[2].setHeader("CNAME / RNAME / MNAME")
-        pages[2].setSections([])
-        pages[2].text = "\n"
+        if self.relationships is not None:
+            pages.append(post.HtmlPage("Relationships","Relationships"))
+            pages[-1].setHeader("CNAME / RNAME / MNAME")
+            pages[-1].setSections(["Period Mean Relationships"])
+        pages.append(post.HtmlAllModelsPage("AllModels","All Models"))
+        pages[-1].setHeader("CNAME / RNAME / MNAME")
+        pages[-1].setSections([])
+        pages[-1].setRegions(self.regions)
+        pages.append(post.HtmlPage("DataInformation","Data Information"))
+        pages[-1].setSections([])
+        pages[-1].text = "\n"
         with Dataset(self.source) as dset:
             for attr in dset.ncattrs():
-                pages[2].text += "<p><b>&nbsp;&nbsp;%s:&nbsp;</b>%s</p>\n" % (attr,dset.getncattr(attr).encode('ascii','ignore'))
+                pages[-1].text += "<p><b>&nbsp;&nbsp;%s:&nbsp;</b>%s</p>\n" % (attr,dset.getncattr(attr).encode('ascii','ignore'))
         self.layout = post.HtmlLayout(pages,self.longname)
 
         # Define relative weights of each score in the overall score
@@ -810,8 +815,11 @@ class Confrontation(object):
                         xi = 0.5
                         xb.append(xi*bins[i-1]+(1.-xi)*bins[i])
                         yb.append(yt.mean())
-                        eb.append(yt.std())
-                        
+                        try:
+                            eb.append(yt.std()) # for some reason this fails sometimes
+                        except:
+                            eb.append(np.sqrt(((yt-yb[-1])**2).sum()/float(yt.size)))
+                            
                     if name == "Benchmark":
                         obs_x = np.asarray(xb)
                         obs_y = np.asarray(yb)
