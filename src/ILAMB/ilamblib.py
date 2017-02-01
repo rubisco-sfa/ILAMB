@@ -1,4 +1,4 @@
-from constants import dpy,mid_months,regions as ILAMBregions
+from constants import dpy,mid_months,bnd_months,regions as ILAMBregions
 from netCDF4 import Dataset,num2date,date2num
 from datetime import datetime
 from cfunits import Units
@@ -75,8 +75,8 @@ def GenerateDistinctColors(N,saturation=0.67,value=0.67):
     RGB_tuples = map(lambda x: hsv_to_rgb(*x), HSV_tuples)
     return RGB_tuples
 
-def ConvertCalendar(t,unit=None,calendar=None):
-    r"""A local function used to convert calendar representations
+def ConvertCalendar(t,tbnd=None):
+    r"""Converts calendar representations to a single standard.
 
     This routine converts the representation of time to the ILAMB
     default: days since 1850-1-1 00:00:00 on a 365-day calendar. This
@@ -87,36 +87,82 @@ def ConvertCalendar(t,unit=None,calendar=None):
     ----------
     t : netCDF4 variable
         the netCDF4 variable which represents time
+    tbnd : netCDF4 variable, optional
+        the netCDF4 variable which represents the bounds of time
 
     Returns
     -------
-    t : numpy.ndarray
+    ta : numpy.ndarray
         a numpy array of the converted times
-    """
-    if unit     is None: unit = t.units
-    if calendar is None:
-        try:
-            calendar = t.calendar
-        except:
-            calendar = "365_day"
-    t0 = Units(unit,calendar=calendar)
-    tf = Units("days since 1850-1-1",calendar="365_day")
-    try:
-        t  = Units.conform(t[...],t0,tf)
-    except:
-        # If we are here, cfunits doesn't know how to convert
-        # calendars so we will do something ourselves.
-    
-        # scale the by the length of a year
-        t = t[...]
-        if t0.calendar == "gregorian": t *= (365./365.25)
-        if t0.calendar == "360_day"  : t *= (365./360.  )
+    tabnd : numpy.ndarray, optional
+        a numpy array of the converted boundary times
 
-        # shift to the new datum
-        tm = Units(t0.units,calendar=tf.calendar)
-        t  = Units.conform(t,tm,tf) 
+    """
+    unit     = t.units
+    calendar = t.calendar
+    
+    # If bounds are given, we will use those instead and later compute
+    # the time as the midpoint of the bounds.
+    if tbnd is None:
+        ta = t
+    else:
+        ta = tbnd
         
-    return t
+    # The datum might be different, use netCDF functions to shift it
+    ta = num2date(ta[...],unit                 ,calendar=calendar)
+    ta = date2num(ta     ,"days since 1850-1-1",calendar=calendar)
+
+    # Differences in calendars need to be handled differently
+    # depending on the intended temporal resolution. Here we introduce
+    # special code for different cases.
+    if tbnd is None:
+        if t[...].size == 1:
+            dt = 0
+        else:
+            dt = (ta[1:]-ta[:-1]).mean()
+    else:
+        dt = (ta[:,1]-ta[:,0]).mean()
+    if np.allclose(dt,30,atol=3): # monthly
+
+        tmid = np.copy(ta)
+        if tmid.ndim > 1: tmid = ta.mean(axis=1)
+        
+        # Determine the month index by finding to which mid_month day
+        # the middle time point is closest.
+        def _dpyShift(tmid,ta,dpy):
+            yrs = np.floor((tmid / float(dpy)))*365.
+            ind = np.abs((tmid % float(dpy))[:,np.newaxis]-mid_months).argmin(axis=1)
+            if ta.ndim == 1:
+                ta      = yrs + mid_months[ind]
+            if ta.ndim == 2:
+                ta[:,0] = yrs + bnd_months[ind]
+                ta[:,1] = yrs + bnd_months[ind+1]
+            return ta
+        if calendar == "360_day":
+            ta = _dpyShift(tmid,ta,360)
+        elif calendar == "366_day":
+            ta = _dpyShift(tmid,ta,366)
+        elif calendar in ["365_day","noleap"]:
+            ta = _dpyShift(tmid,ta,365)           
+        elif calendar in ["proleptic_gregorian","gregorian","standard"]:
+            # we can use datetime to get the Julian day and then find
+            # how these line up with mid_months
+            tmid = num2date(tmid,"days since 1850-1-1",calendar=calendar)
+            yrs  = [float(t.year-1850)*365.      for t in tmid]
+            tmid = [float(t.timetuple().tm_yday) for t in tmid]
+            tmid = np.asarray(tmid)
+            ind  = np.abs(tmid[:,np.newaxis]-mid_months).argmin(axis=1)
+            if ta.ndim == 1:
+                ta      = yrs + mid_months[ind]
+            if ta.ndim == 2:
+                ta[:,0] = yrs + bnd_months[ind]
+                ta[:,1] = yrs + bnd_months[ind+1]
+        else:
+            raise ValueError("Unsupported calendar: %s" % calendar)
+
+    if tbnd is None: return ta
+    t = ta.mean(axis=1)
+    return t,ta
 
 def CellAreas(lat,lon):
     """Given arrays of latitude and longitude, return cell areas in square meters.
@@ -431,10 +477,11 @@ def FromNetCDF4(filename,variable_name,alternate_vars=[],t0=None,tf=None,group=N
             "lev"   in key.lower()): depth_name,depth_bnd_name = _get(key,grp)
     
     # Based on present values, get dimensions and bounds
-    if time_name      is not None: t     = ConvertCalendar(grp.variables[time_name])
-    if time_bnd_name  is not None: t_bnd = ConvertCalendar(grp.variables[time_bnd_name],
-                                                           unit     = grp.variables[time_name].units,
-                                                           calendar = grp.variables[time_name].calendar)
+    if time_name is not None:
+        if time_bnd_name is None:
+            t       = ConvertCalendar(grp.variables[time_name])
+        else:
+            t,t_bnd = ConvertCalendar(grp.variables[time_name],grp.variables[time_bnd_name])
     if lat_name       is not None: lat       = grp.variables[lat_name]      [...]
     if lat_bnd_name   is not None: lat_bnd   = grp.variables[lat_bnd_name]  [...]
     if lon_name       is not None: lon       = grp.variables[lon_name]      [...]
