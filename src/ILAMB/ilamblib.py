@@ -98,9 +98,13 @@ def ConvertCalendar(t,tbnd=None):
         a numpy array of the converted boundary times
 
     """
+    # If not calendar is given, we will assume it is 365_day
     unit     = t.units
-    calendar = t.calendar
-    
+    if "calendar" in t.ncattrs():
+        calendar = t.calendar
+    else:
+        calendar = "365_day"
+        
     # If bounds are given, we will use those instead and later compute
     # the time as the midpoint of the bounds.
     if tbnd is None:
