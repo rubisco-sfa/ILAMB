@@ -33,12 +33,16 @@ class ModelResult():
     filter : str, optional
         this string must be in file's name for it to be considered as
         part of the model results
-
+    model_year : 2-tuple of int, optional
+        used to shift model times, all model years at model_year[0]
+        are shifted to model_year[1]
     """
-    def __init__(self,path,modelname="unamed",color=(0,0,0),filter=""):
+    def __init__(self,path,modelname="unamed",color=(0,0,0),filter="",model_year=None):
         self.path           = path
         self.color          = color
         self.filter         = filter
+        self.shift          = 0.
+        if model_year is not None: self.shift = (1850.-model_year[1]-model_year[0])*365.
         self.name           = modelname
         self.confrontations = {}
         self.cell_areas     = None
@@ -143,7 +147,11 @@ class ModelResult():
         # prepend the target variable to the list of possible variables
         altvars = list(alt_vars)
         altvars.insert(0,variable)
-
+        
+        # modify extraction times by possible shifts
+        initial_time += self.shift
+        final_time   += self.shift
+            
         # create a list of datafiles which have a non-null intersection
         # over the desired time range
         V = []
@@ -175,6 +183,11 @@ class ModelResult():
                 raise il.VarNotInModel()
         else:
             v = il.CombineVariables(V)
+        
+        # finish modifying extraction times
+        v.time      -= self.shift 
+        v.time_bnds -= self.shift
+            
         return v
 
     def derivedVariable(self,variable_name,expression,lats=None,lons=None,initial_time=-1e20,final_time=1e20):
