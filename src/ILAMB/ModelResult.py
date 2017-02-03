@@ -42,7 +42,7 @@ class ModelResult():
         self.color          = color
         self.filter         = filter
         self.shift          = 0.
-        if model_year is not None: self.shift = (1850.-model_year[1]-model_year[0])*365.
+        if model_year is not None: self.shift = (model_year[1]-model_year[0])*365.
         self.name           = modelname
         self.confrontations = {}
         self.cell_areas     = None
@@ -149,8 +149,8 @@ class ModelResult():
         altvars.insert(0,variable)
         
         # modify extraction times by possible shifts
-        initial_time += self.shift
-        final_time   += self.shift
+        initial_time -= self.shift
+        final_time   -= self.shift
             
         # create a list of datafiles which have a non-null intersection
         # over the desired time range
@@ -164,6 +164,8 @@ class ModelResult():
                                area           = self.land_areas,
                                t0             = initial_time,
                                tf             = final_time)
+                if ((var.time_bnds.max() < initial_time) or
+                    (var.time_bnds.min() >   final_time)): continue
                 if lats is not None: var = var.extractDatasites(lats,lons)
                 V.append(var)
             if len(V) > 0: break
@@ -179,14 +181,14 @@ class ModelResult():
                                          initial_time = initial_time,
                                          final_time   = final_time)
             else:
-                logger.debug("[%s] Could not find [%s] in the model results" % (self.name,",".join(altvars)))
+                logger.debug("[%s] Could not find [%s] in the model results in the given time frame" % (self.name,",".join(altvars)))
                 raise il.VarNotInModel()
         else:
             v = il.CombineVariables(V)
         
         # finish modifying extraction times
-        v.time      -= self.shift 
-        v.time_bnds -= self.shift
+        v.time      += self.shift 
+        v.time_bnds += self.shift
             
         return v
 
