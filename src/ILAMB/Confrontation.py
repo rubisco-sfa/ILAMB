@@ -108,7 +108,7 @@ class Confrontation(object):
         if self.relationships is not None:
             pages.append(post.HtmlPage("Relationships","Relationships"))
             pages[-1].setHeader("CNAME / RNAME / MNAME")
-            pages[-1].setSections(["Period Mean Relationships"])
+            pages[-1].setSections(list(self.relationships))
         pages.append(post.HtmlAllModelsPage("AllModels","All Models"))
         pages[-1].setHeader("CNAME / RNAME / MNAME")
         pages[-1].setSections([])
@@ -796,7 +796,7 @@ class Confrontation(object):
                     # add the figure to the HTML layout
                     if name == "Benchmark" and region == "global":
                         short_name = short_name.replace("global_","")
-                        page.addFigure("Period Mean Relationships",
+                        page.addFigure(c.longname,
                                        short_name,
                                        "MNAME_RNAME_%s.png" % (short_name),
                                        legend = False,
@@ -854,7 +854,7 @@ class Confrontation(object):
                 short_name = "rel_diff_%s" % ind_name
                 fig.savefig("%s/%s_%s_%s.png" % (self.output_path,name,region,short_name))
                 plt.close()
-                page.addFigure("Period Mean Relationships",
+                page.addFigure(c.longname,
                                short_name,
                                "MNAME_RNAME_%s.png" % (short_name),
                                legend = False,
@@ -881,7 +881,7 @@ class Confrontation(object):
                 short_name = "rel_func_%s" % ind_name
                 fig.savefig("%s/%s_%s_%s.png" % (self.output_path,name,region,short_name))
                 plt.close()
-                page.addFigure("Period Mean Relationships",
+                page.addFigure(c.longname,
                                short_name,
                                "MNAME_RNAME_%s.png" % (short_name),
                                legend = False,
