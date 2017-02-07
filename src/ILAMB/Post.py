@@ -237,7 +237,7 @@ class HtmlPage(object):
         
         code = """
     <div data-role="page" id="%s">
-      <div data-role="header">
+      <div data-role="header" data-position="fixed" data-tap-toggle="false">
         <h1 id="%sHead">%s</h1>""" % (self.name,self.name,self.title)
         if self.pages:
 	    code += """
@@ -455,7 +455,7 @@ class HtmlAllModelsPage(HtmlPage):
         
         code = """
     <div data-role="page" id="%s">
-      <div data-role="header">
+      <div data-role="header" data-position="fixed" data-tap-toggle="false">
         <h1 id="%sHead">%s</h1>""" % (self.name,self.name,self.title)
         if self.pages:
 	    code += """
