@@ -1,4 +1,6 @@
 from constants import spd,dpy,mid_months,regions as ILAMBregions
+from mpl_toolkits.basemap import Basemap
+import matplotlib.colors as colors
 from pylab import get_cmap
 from cfunits import Units
 import ilamblib as il
@@ -139,7 +141,7 @@ class Variable:
             self.lon      = (self.lon     <=180)*self.lon     +(self.lon     >180)*(self.lon     -360)
         if  self.lon_bnds is not None:   
             self.lon_bnds = (self.lon_bnds<=180)*self.lon_bnds+(self.lon_bnds>180)*(self.lon_bnds-360)
-
+            
         # If the last dimensions are lat and lon, this is spatial data
         if lat is not None and lon is not None and data.ndim >= 2:
             if (data.shape[-2] == lat.size and data.shape[-1] == lon.size): self.spatial = True
@@ -156,11 +158,13 @@ class Variable:
             # dateline. Thus we roll the data the required amount.
             shift         = self.lon.argmin()
             self.lon      = np.roll(self.lon     ,-shift)
-            if self.lon_bnds is not None:
-                self.lon_bnds = np.roll(self.lon_bnds,-shift)
+            self.lon_bnds = np.roll(self.lon_bnds,-shift,axis= 0)
             self.data     = np.roll(self.data    ,-shift,axis=-1)
             self.area     = np.roll(self.area    ,-shift,axis=-1)
-
+            # Fix potential problems with rolling the axes of the lon_bnds
+            if self.lon_bnds[ 0,0] > self.lon_bnds[ 0,1]: self.lon_bnds[ 0,0] = -180.
+            if self.lon_bnds[-1,0] > self.lon_bnds[-1,1]: self.lon_bnds[-1,1] = +180.
+            
         # Is the data layered
         self.layered    = False
         self.depth      = depth
@@ -1052,40 +1056,120 @@ class Variable:
         ticklabels : array of strings, optional
             Defines the labels of the xticks
         """
-        lw     = keywords.get("lw",1.0)
-        alpha  = keywords.get("alpha",1.0)
-        color  = keywords.get("color","k")
-        label  = keywords.get("label",None)
-        vmin   = keywords.get("vmin",self.data.min())
-        vmax   = keywords.get("vmax",self.data.max())
+        lw     = keywords.get("lw"    ,1.0)
+        alpha  = keywords.get("alpha" ,1.0)
+        color  = keywords.get("color" ,"k")
+        label  = keywords.get("label" ,None)
+        vmin   = keywords.get("vmin"  ,self.data.min())
+        vmax   = keywords.get("vmax"  ,self.data.max())
         region = keywords.get("region","global")
-        cmap   = keywords.get("cmap","jet")
+        cmap   = keywords.get("cmap"  ,"jet")
+        assert region in ILAMBregions.keys()
+        
+        rem_mask = None
         if self.temporal and not self.spatial:
+            
             ticks      = keywords.get("ticks",None)
             ticklabels = keywords.get("ticklabels",None)
-            t = self.time/365.+1850
+            t          = self.time/365.+1850
             ax.plot(t,self.data,'-',
-                    color=color,lw=lw,alpha=alpha,label=label)
+                    color = color,
+                    lw    = lw,
+                    alpha = alpha,
+                    label = label)
             if ticks      is not None: ax.set_xticks(ticks)
             if ticklabels is not None: ax.set_xticklabels(ticklabels)
             ax.set_ylim(vmin,vmax)
-        elif not self.temporal and self.spatial:
-            ax = post.GlobalPlot(self.lat,self.lon,self.data,ax,
-                                 vmin   = vmin  , vmax = vmax,
-                                 region = region, cmap = cmap)
-        elif not self.temporal and self.ndata is not None:
-            from mpl_toolkits.basemap import Basemap
-            import matplotlib.colors as colors
-            bmap = Basemap(projection='robin',lon_0=0,ax=ax)
-            x,y  = bmap(self.lon,self.lat)
-            norm = colors.Normalize(vmin,vmax)
-            norm = norm(self.data)
-            clmp = get_cmap(cmap)
-            clrs = clmp(norm)
-            size = 35
-            ax   = bmap.scatter(x,y,s=size,color=clrs,ax=ax,linewidths=0,cmap=cmap)
-            bmap.drawcoastlines(linewidth=0.2,color="darkslategrey")
+            
+        elif not self.temporal:
+
+            # Mask out areas outside our region
+            rem_mask  = np.copy(self.data.mask)
+            mlat,mlon = ILAMBregions[region]
+            if self.spatial:
+                self.data.mask  += (np.outer((self.lat>mlat[0])*(self.lat<mlat[1]),
+                                             (self.lon>mlon[0])*(self.lon<mlon[1]))==0)
+            else:
+                self.data.mask  += (((self.lat>mlat[0])*(self.lat<mlat[1])*
+                                     (self.lon>mlon[0])*(self.lon<mlon[1]))==0)
+
+            
+            # Setup the plot projection depending on data types
+            bmap = None
+            if region == "global":
+                bmap = Basemap(projection = 'robin',
+                               lon_0      = 0,
+                               ax         = ax,
+                               resolution = 'c')
+
+            elif region == "arctic":
+                bmap = Basemap(projection = 'ortho',
+                               lat_0      =  90.,
+                               lon_0      = 180.,
+                               ax         = ax,
+                               resolution = 'c')
+            else:
+
+                # Compute the plot limits based on the figure size and
+                # some aspect ratio math
+                lats,lons = ILAMBregions[region]
+                lats      = np.asarray(lats)
+                lons      = np.asarray(lons)
+                dlat,dlon = lats[1]-lats[0],lons[1]-lons[0]
+                fsize     = ax.get_figure().get_size_inches()
+                figure_ar = fsize[1]/fsize[0]
+                scale     = figure_ar*dlon/dlat
+                if scale >= 1.:
+                    lats[1] += 0.5*dlat*(scale-1.)
+                    lats[0] -= 0.5*dlat*(scale-1.)
+                else:
+                    scale = 1./scale
+                lons[1]  += 0.5*dlon*(scale-1.)
+                lons[0]  -= 0.5*dlon*(scale-1.)
+                lats      = lats.clip(- 90, 90)
+                lons      = lons.clip(-180,180)
+                
+                bmap = Basemap(projection = 'cyl',
+                               llcrnrlon  = lons[ 0],
+                               llcrnrlat  = lats[ 0],
+                               urcrnrlon  = lons[-1],
+                               urcrnrlat  = lats[-1],
+                               ax         = ax,
+                               resolution = 'c')
+                
+            bmap.drawlsmask(land_color  = '0.875',
+                            ocean_color = '0.750',
+                            lakes       = True)
+            if self.spatial:
+
+                lat_bnds = self.lat_bnds
+                lon_bnds = self.lon_bnds
+                data     = self.data
+                if region == 'arctic':
+                    ind      = np.where(self.lat>=60)[0]
+                    lat_bnds = lat_bnds[ind,:]
+                    data     = data    [ind,:]
+                if region in ['global','arctic']:
+                    x,y  = np.meshgrid(il.ConvertBoundsTypes(lat_bnds),
+                                       il.ConvertBoundsTypes(lon_bnds),indexing='ij')
+                else:
+                    x,y  = np.meshgrid(self.lat,self.lon,indexing='ij')
+                ax   = bmap.pcolormesh(y,x,data,latlon=True,vmin=vmin,vmax=vmax,cmap=cmap)
+            
+            elif self.ndata is not None:
+                x,y  = bmap(self.lon[self.data.mask==False],
+                            self.lat[self.data.mask==False])
+                data = self.data[self.data.mask==False]
+                norm = colors.Normalize(vmin,vmax)
+                norm = norm(data)
+                clmp = get_cmap(cmap)
+                clrs = clmp(norm)
+                size = 35
+                ax   = bmap.scatter(x,y,s=size,color=clrs,ax=ax,linewidths=0,cmap=cmap)
+
+            if rem_mask is not None: self.data.mask = rem_mask
         return ax
+    
 
     def interpolate(self,time=None,lat=None,lon=None):
         """Use nearest-neighbor interpolation to interpolate time and/or space at given values.

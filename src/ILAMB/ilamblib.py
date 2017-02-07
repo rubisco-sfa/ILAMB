@@ -1324,3 +1324,16 @@ def CombineVariables(V):
                     lon       = v.lon,
                     area      = v.area,
                     ndata     = v.ndata)
+
+def ConvertBoundsTypes(x):
+    y = None
+    if x.ndim == 2:
+        y = np.zeros(x.shape[0]+1)
+        y[:-1] = x[ :, 0]
+        y[ -1] = x[-1,-1]
+    if x.ndim == 1:
+        y = np.zeros((x.shape[0]-1,2))
+        y[:,0] = x[:-1]
+        y[:,1] = x[+1:]
+    return y
+        
