@@ -786,7 +786,10 @@ class Confrontation(object):
                                  orientation="vertical",
                                  label="Fraction of total datasites")
                     ax.set_xlabel("%s/%s,  %s" % (ind_name,xlbl,post.UnitStringToMatplotlib(ind_var.unit)))
-                    ax.set_ylabel("%s/%s,  %s" % (dep_name,ylbl,post.UnitStringToMatplotlib(dep_var.unit)))
+                    ylabel = "%s/%s,  %s" % (dep_name,ylbl,post.UnitStringToMatplotlib(dep_var.unit))
+                    fsize  = 12
+                    if len(ylabel) > 60: fsize = 10
+                    ax.set_ylabel(ylabel,fontsize=fsize)
                     ax.set_xlim(ind_min,ind_max)
                     ax.set_ylim(dep_min,dep_max)
                     short_name = "rel_%s" % ind_name
