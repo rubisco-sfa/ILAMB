@@ -1149,6 +1149,8 @@ class Variable:
                     ind      = np.where(self.lat>=60)[0]
                     lat_bnds = lat_bnds[ind,:]
                     data     = data    [ind,:]
+                lat_bnds = lat_bnds.clip(- 90, 90)
+                lon_bnds = lon_bnds.clip(-180,180)
                 if region in ['global','arctic']:
                     x,y  = np.meshgrid(il.ConvertBoundsTypes(lat_bnds),
                                        il.ConvertBoundsTypes(lon_bnds),indexing='ij')
