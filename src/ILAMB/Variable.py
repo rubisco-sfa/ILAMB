@@ -1136,10 +1136,13 @@ class Variable:
                                urcrnrlat  = lats[-1],
                                ax         = ax,
                                resolution = 'c')
-                
-            bmap.drawlsmask(land_color  = '0.875',
-                            ocean_color = '0.750',
-                            lakes       = True)
+            try:
+                bmap.drawlsmask(land_color  = '0.875',
+                                ocean_color = '0.750',
+                                lakes       = True)
+            except:
+                bmap.drawcoastlines(linewidth = 0.2,
+                                    color     = "darkslategrey")
             if self.spatial:
 
                 lat_bnds = self.lat_bnds
