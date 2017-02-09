@@ -69,7 +69,7 @@ regions["alaska"]       = (( 50.25, 75.25),(-170.25,-130.25))
 regions["us-cornbelt"]  = (( 33.00, 55.00),(-116.00,- 80.00))
 regions["arctic"]       = (( 60.00, 90.00),(-179.75, 179.75))
 
-region_names = {"global"     : "global",
+region_names = {"global"     : "Globe",
                 "bona"       : "Boreal North America",
                 "tena"       : "Temperate North America",
                 "ceam"       : "Central America",

@@ -1,6 +1,6 @@
 import pylab as plt
 import numpy as np
-from constants import region_names,regions as ILAMBregions,space_opts
+from constants import region_names,regions as ILAMBregions,region_names,space_opts
 import re
 
 def UseLatexPltOptions(fsize=18):
@@ -258,11 +258,15 @@ class HtmlPage(object):
             code += """
       <select id="%sRegion" onchange="%sTable()">""" % (self.name,self.name)
             for region in self.regions:
+                try:
+                    rname = region_names[region]
+                except:
+                    rname = region
                 opts  = ''
                 if region == "global" or len(self.regions) == 1:
                     opts  = ' selected="selected"'
                 code += """
-        <option value='%s'%s>%s</option>""" % (region,opts,region)
+        <option value='%s'%s>%s</option>""" % (region,opts,rname)
             code += """
       </select>"""
                 
@@ -476,11 +480,15 @@ class HtmlAllModelsPage(HtmlPage):
             code += """
       <select id="%sRegion" onchange="AllSelect()">""" % (self.name)
             for region in self.regions:
+                try:
+                    rname = region_names[region]
+                except:
+                    rname = region
                 opts  = ''
                 if region == "global" or len(self.regions) == 1:
                     opts  = ' selected="selected"'
                 code += """
-        <option value='%s'%s>%s</option>""" % (region,opts,region)
+        <option value='%s'%s>%s</option>""" % (region,opts,rname)
             code += """
       </select>"""
                 
@@ -529,6 +537,10 @@ class HtmlAllModelsPage(HtmlPage):
         
         models  = self.pages[0].models
         regions = self.regions
+        try:
+            regions.sort()
+        except:
+            pass
         head    = """
     <script type="text/javascript">
       function AllSelect() {
