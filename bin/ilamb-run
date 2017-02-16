@@ -379,8 +379,12 @@ logger.addHandler(mh)
 if rank == 0:
     logger.info(" " + " ".join(os.uname()))
     for key in ["ILAMB","numpy","matplotlib","netCDF4","cfunits","sympy","mpi4py"]:
-        pkg = __import__(key)
-        logger.info(" %s (%s)" % (pkg.__path__[0],pkg.__version__))
+        pkg  = __import__(key)
+        try:
+            path = pkg.__path_[0]
+        except:
+            path = key
+        logger.info(" %s (%s)" % (path,pkg.__version__))
     logger.info(" %s" % datetime.datetime.now())
 
 if rank == 0 and not args.quiet and len(Cf) != len(C):
