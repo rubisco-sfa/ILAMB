@@ -54,8 +54,8 @@ class ModelResult():
         self.lat_bnds       = None
         self.lon_bnds       = None
         self.variables      = None
-        self._getGridInformation()
         self._findVariables()
+        self._getGridInformation()
         
     def _findVariables(self):
         """Loops through the netCDF4 files in a model's path and builds a dictionary of which variables are in which files.
@@ -73,26 +73,12 @@ class ModelResult():
                     variables[key].append(pathName)
         self.variables = variables
     
-    def _fileExists(self,contains):
-        """Looks through the model result path for a file that contains the text specified in "constains". Returns "" if not found.
-        """
-        fname = ""
-        for subdir, dirs, files in os.walk(self.path):
-            for f in files:
-                if contains not in f: continue
-                if ".nc" not in f: continue
-                fname = "%s/%s" % (subdir,f)
-                return fname
-        return fname
-
     def _getGridInformation(self):
         """Looks in the model output for cell areas as well as land fractions. 
         """
-        fname = self._fileExists("areacella")
-        if fname == "": return # there are no areas associated with this model result
-
-        # Now grab area information for this model
-        f = Dataset(fname)
+        # Are there cell areas associated with this model?
+        if "areacella" not in self.variables.keys(): return
+        f = Dataset(self.variables["areacella"][0])
         self.cell_areas    = f.variables["areacella"][...]
         self.lat           = f.variables["lat"][...]
         self.lon           = f.variables["lon"][...]
@@ -104,11 +90,10 @@ class ModelResult():
         self.lon_bnds[-1]  = f.variables["lon_bnds"][-1,1]
 
         # Now we do the same for land fractions
-        fname = self._fileExists("sftlf")
-        if fname == "": 
+        if "sftlf" not in self.variables.keys():
             self.land_areas = self.cell_areas 
         else:
-            self.land_fraction = (Dataset(fname).variables["sftlf"])[...]
+            self.land_fraction = (Dataset(self.variables["sftlf"][0]).variables["sftlf"])[...]
             # some models represent the fraction as a percent 
             if np.ma.max(self.land_fraction) > 1: self.land_fraction *= 0.01 
             self.land_areas = self.cell_areas*self.land_fraction
