@@ -27,14 +27,15 @@ setup(
         'Programming Language :: Python :: 2',
         'Programming Language :: Python :: 2.7',
     ],
-    keywords='benchmarking, earth system modeling',
+    keywords=['benchmarking','earth system modeling','climate modeling','model intercomparison'],
     packages=['ILAMB'],
     package_dir={'ILAMB' : 'src/ILAMB'},
     scripts=['bin/ilamb-run'],
     install_requires=['numpy>=1.9.2',
                       'matplotlib>=1.4.3',
+                      #'basemap>=1.0.7', # basemap is in pypi but broken, need to manually install
                       'netCDF4>=1.1.4',
-                      'cfunits>=1.1.4',
-                      'basemap>=1.0.7',
-                      'sympy>=0.7.6']
+                      #'cfunits>=1.1.4', # cfunits causes installation to crash, need to manually install
+                      'sympy>=0.7.6',
+                      'mpi4py>=1.3.1']
 )
