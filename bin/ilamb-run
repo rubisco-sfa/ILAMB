@@ -381,7 +381,7 @@ if rank == 0:
     for key in ["ILAMB","numpy","matplotlib","netCDF4","cfunits","sympy","mpi4py"]:
         pkg  = __import__(key)
         try:
-            path = pkg.__path_[0]
+            path = pkg.__path__[0]
         except:
             path = key
         logger.info(" %s (%s)" % (path,pkg.__version__))
