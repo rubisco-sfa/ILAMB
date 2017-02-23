@@ -475,7 +475,10 @@ def BuildHTMLTable(tree,M,build_dir):
                                                                                                                   c.name,c.name,weight)
                 try:
                     for ind in range(node.score.size):
-                        global_html += '\n        <td>%.2f</td>' % (node.score[ind])
+                        if node.score.mask[ind]:
+                            global_html += '\n        <td>~</td>'
+                        else:
+                            global_html += '\n        <td>%.2f</td>' % (node.score[ind])
                 except:
                     for ind in range(len(global_model_list)):
                         global_html += '\n        <td>~</td>'
@@ -488,6 +491,7 @@ def BuildHTMLTable(tree,M,build_dir):
         <td>%s</td>""" % (global_table_color,node.name)
             for ind,m in enumerate(global_model_list):
                 try:
+                    if node.score.mask[ind]: raise ValueError()
                     global_html += '\n        <td>%.2f</td>' % (node.score[ind])
                 except:
                     global_html += '\n        <td>~</td>' 
