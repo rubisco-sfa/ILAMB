@@ -1,6 +1,6 @@
 __author__       = 'Nathan Collier'
-__date__         = 'May 2016'
-__version__      = '2.0.2'
+__date__         = 'Feb 2017'
+__version__      = '2.1'
 
 from distutils.version import LooseVersion
 import platform
@@ -12,7 +12,8 @@ requires = {
     "netCDF4"              : "1.1.4",
     "cfunits"              : "1.1.4",
     "mpl_toolkits.basemap" : "1.0.7",
-    "sympy"                : "0.7.6"
+    "sympy"                : "0.7.6",
+    "mpi4py"               : "1.3.1"
 }
 
 froms = {

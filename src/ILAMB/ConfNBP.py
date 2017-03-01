@@ -106,21 +106,21 @@ class ConfNBP(Confrontation):
         # Dump to files
         results = Dataset("%s/%s_%s.nc" % (self.output_path,self.name,m.name),mode="w")
         results.setncatts({"name" :m.name, "color":m.color})
-        mod       .toNetCDF4(results)
-        mod_sum   .toNetCDF4(results)
-        mod_mean  .toNetCDF4(results)
-        bias      .toNetCDF4(results)
-        rmse      .toNetCDF4(results)
-        bias_score.toNetCDF4(results)
-        rmse_score.toNetCDF4(results)
+        mod       .toNetCDF4(results,group="MeanState")
+        mod_sum   .toNetCDF4(results,group="MeanState")
+        mod_mean  .toNetCDF4(results,group="MeanState")
+        bias      .toNetCDF4(results,group="MeanState")
+        rmse      .toNetCDF4(results,group="MeanState")
+        bias_score.toNetCDF4(results,group="MeanState")
+        rmse_score.toNetCDF4(results,group="MeanState")
         results.close()
         
         if self.master:
             results = Dataset("%s/%s_Benchmark.nc" % (self.output_path,self.name),mode="w")
             results.setncatts({"name" :"Benchmark", "color":np.asarray([0.5,0.5,0.5])})
-            obs     .toNetCDF4(results)
-            obs_sum .toNetCDF4(results)
-            obs_mean.toNetCDF4(results)
+            obs     .toNetCDF4(results,group="MeanState")
+            obs_sum .toNetCDF4(results,group="MeanState")
+            obs_mean.toNetCDF4(results,group="MeanState")
             results.close()
             
         

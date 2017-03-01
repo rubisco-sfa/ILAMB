@@ -3,6 +3,10 @@ from netCDF4 import Dataset
 import ilamblib as il
 import numpy as np
 import glob,os
+from mpi4py import MPI
+import logging
+
+logger = logging.getLogger("%i" % MPI.COMM_WORLD.rank)
 
 class ModelResult():
     """A class for exploring model results.
@@ -29,12 +33,16 @@ class ModelResult():
     filter : str, optional
         this string must be in file's name for it to be considered as
         part of the model results
-
+    model_year : 2-tuple of int, optional
+        used to shift model times, all model years at model_year[0]
+        are shifted to model_year[1]
     """
-    def __init__(self,path,modelname="unamed",color=(0,0,0),filter=""):
+    def __init__(self,path,modelname="unamed",color=(0,0,0),filter="",model_year=None):
         self.path           = path
         self.color          = color
         self.filter         = filter
+        self.shift          = 0.
+        if model_year is not None: self.shift = (model_year[1]-model_year[0])*365.
         self.name           = modelname
         self.confrontations = {}
         self.cell_areas     = None
@@ -46,8 +54,8 @@ class ModelResult():
         self.lat_bnds       = None
         self.lon_bnds       = None
         self.variables      = None
-        self._getGridInformation()
         self._findVariables()
+        self._getGridInformation()
         
     def _findVariables(self):
         """Loops through the netCDF4 files in a model's path and builds a dictionary of which variables are in which files.
@@ -65,26 +73,12 @@ class ModelResult():
                     variables[key].append(pathName)
         self.variables = variables
     
-    def _fileExists(self,contains):
-        """Looks through the model result path for a file that contains the text specified in "constains". Returns "" if not found.
-        """
-        fname = ""
-        for subdir, dirs, files in os.walk(self.path):
-            for f in files:
-                if contains not in f: continue
-                if ".nc" not in f: continue
-                fname = "%s/%s" % (subdir,f)
-                return fname
-        return fname
-
     def _getGridInformation(self):
         """Looks in the model output for cell areas as well as land fractions. 
         """
-        fname = self._fileExists("areacella")
-        if fname == "": return # there are no areas associated with this model result
-
-        # Now grab area information for this model
-        f = Dataset(fname)
+        # Are there cell areas associated with this model?
+        if "areacella" not in self.variables.keys(): return
+        f = Dataset(self.variables["areacella"][0])
         self.cell_areas    = f.variables["areacella"][...]
         self.lat           = f.variables["lat"][...]
         self.lon           = f.variables["lon"][...]
@@ -96,11 +90,10 @@ class ModelResult():
         self.lon_bnds[-1]  = f.variables["lon_bnds"][-1,1]
 
         # Now we do the same for land fractions
-        fname = self._fileExists("sftlf")
-        if fname == "": 
+        if "sftlf" not in self.variables.keys():
             self.land_areas = self.cell_areas 
         else:
-            self.land_fraction = (Dataset(fname).variables["sftlf"])[...]
+            self.land_fraction = (Dataset(self.variables["sftlf"][0]).variables["sftlf"])[...]
             # some models represent the fraction as a percent 
             if np.ma.max(self.land_fraction) > 1: self.land_fraction *= 0.01 
             self.land_areas = self.cell_areas*self.land_fraction
@@ -139,7 +132,11 @@ class ModelResult():
         # prepend the target variable to the list of possible variables
         altvars = list(alt_vars)
         altvars.insert(0,variable)
-
+        
+        # modify extraction times by possible shifts
+        initial_time -= self.shift
+        final_time   -= self.shift
+            
         # create a list of datafiles which have a non-null intersection
         # over the desired time range
         V = []
@@ -152,6 +149,8 @@ class ModelResult():
                                area           = self.land_areas,
                                t0             = initial_time,
                                tf             = final_time)
+                if ((var.time_bnds.max() < initial_time) or
+                    (var.time_bnds.min() >   final_time)): continue
                 if lats is not None: var = var.extractDatasites(lats,lons)
                 V.append(var)
             if len(V) > 0: break
@@ -167,9 +166,15 @@ class ModelResult():
                                          initial_time = initial_time,
                                          final_time   = final_time)
             else:
+                logger.debug("[%s] Could not find [%s] in the model results in the given time frame" % (self.name,",".join(altvars)))
                 raise il.VarNotInModel()
         else:
             v = il.CombineVariables(V)
+        
+        # finish modifying extraction times
+        v.time      += self.shift 
+        v.time_bnds += self.shift
+            
         return v
 
     def derivedVariable(self,variable_name,expression,lats=None,lons=None,initial_time=-1e20,final_time=1e20):
@@ -209,17 +214,16 @@ class ModelResult():
         lon   = None
         ndata = None
         area  = None
-
+        depth = None
+        dbnds = None
+        
         for arg in sympify(expression).free_symbols:
-            try:
-                var  = self.extractTimeSeries(arg.name,
-                                              lats = lats,
-                                              lons = lons,
-                                              initial_time = initial_time,
-                                              final_time   = final_time)
-            except:
-                raise il.VarNotInModel()
             
+            var  = self.extractTimeSeries(arg.name,
+                                          lats = lats,
+                                          lons = lons,
+                                          initial_time = initial_time,
+                                          final_time   = final_time)            
             units[arg.name] = var.unit
             args [arg.name] = var.data.data
 
@@ -251,19 +255,29 @@ class ModelResult():
                 ndata  = var.ndata
             else:
                 assert(np.allclose(ndata,var.ndata))
-            
+            if depth is None:
+                depth  = var.depth
+            else:
+                assert(np.allclose(depth,var.depth))
+            if dbnds is None:
+                dbnds  = var.depth_bnds
+            else:
+                assert(np.allclose(dbnds,var.depth_bnds))
+
         np.seterr(divide='ignore',invalid='ignore')
         result,unit = il.SympifyWithArgsUnits(expression,args,units)
         np.seterr(divide='raise',invalid='raise')
         mask  += np.isnan(result)
         result = np.ma.masked_array(np.nan_to_num(result),mask=mask)
         
-        return Variable(data      = np.ma.masked_array(result,mask=mask),
-                        unit      = unit,
-                        name      = variable_name,
-                        time      = time,
-                        time_bnds = tbnd,
-                        lat       = lat,
-                        lon       = lon,
-                        area      = area,
-                        ndata     = ndata)
+        return Variable(data       = np.ma.masked_array(result,mask=mask),
+                        unit       = unit,
+                        name       = variable_name,
+                        time       = time,
+                        time_bnds  = tbnd,
+                        lat        = lat,
+                        lon        = lon,
+                        area       = area,
+                        ndata      = ndata,
+                        depth      = depth,
+                        depth_bnds = dbnds)

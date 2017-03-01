@@ -155,28 +155,30 @@ class ConfTWSA(Confrontation):
         # Dump results to a netCDF4 file
         results = Dataset("%s/%s_%s.nc" % (self.output_path,self.name,m.name),mode="w")
         results.setncatts({"name" :m.name, "color":m.color})
-        mod_std     .toNetCDF4(results)
-        diff        .toNetCDF4(results)
-        for region in self.regions: mod_spaceint[region].toNetCDF4(results)
+        mod_std     .toNetCDF4(results,group="MeanState")
+        diff        .toNetCDF4(results,group="MeanState")
+        for region in self.regions: mod_spaceint[region].toNetCDF4(results,group="MeanState")
         for key in mod_s.keys():
-            for region in self.regions: mod_s[key][region].toNetCDF4(results)
+            for region in self.regions: mod_s[key][region].toNetCDF4(results,group="MeanState")
         results.close()
 
         # If you are the master, dump Benchmark quantities too
         if self.master:
             results = Dataset("%s/%s_Benchmark.nc" % (self.output_path,self.name),mode="w")
             results.setncatts({"name" :"Benchmark", "color":np.asarray([0.5,0.5,0.5])})
-            obs_std     .toNetCDF4(results)
-            for region in self.regions: obs_spaceint[region].toNetCDF4(results)
+            obs_std     .toNetCDF4(results,group="MeanState")
+            for region in self.regions: obs_spaceint[region].toNetCDF4(results,group="MeanState")
             for key in obs_s.keys():
                 for region in self.regions:
-                    obs_s[key][region].toNetCDF4(results)
+                    obs_s[key][region].toNetCDF4(results,group="MeanState")
             results.close()
 
     def modelPlots(self,m):
         
         super(ConfTWSA,self).modelPlots(m)
-        
-        for fig in self.layout.figures["Temporally integrated period mean"]:
-            fig.side = fig.side.replace("MEAN","ANOMALY")
-            fig.side = fig.side.replace("BIAS","DIFFERENCE")
+
+        for page in self.layout.pages:
+            for sec in page.figures.keys():
+                for fig in page.figures[sec]:
+                    fig.side = fig.side.replace("MEAN","ANOMALY")
+                    fig.side = fig.side.replace("BIAS","DIFFERENCE")

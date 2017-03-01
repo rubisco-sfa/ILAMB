@@ -7,6 +7,23 @@ import Post as post
 import pylab as plt
 from matplotlib.colors import LogNorm
 from mpl_toolkits.axes_grid1 import make_axes_locatable
+from mpi4py import MPI
+
+import logging
+logger = logging.getLogger("%i" % MPI.COMM_WORLD.rank)	
+
+def getVariableList(dataset):
+    """Extracts the list of variables in the dataset that aren't
+    dimensions or the bounds of dimensions.
+
+    """
+    variables = [v for v in dataset.variables.keys() if v not in dataset.dimensions.keys()]
+    for d in dataset.dimensions.keys():
+        try:
+            variables.pop(variables.index(dataset.variables[d].getncattr("bounds")))
+        except:
+            pass
+    return variables
 
 class Confrontation(object):
     """A generic class for confronting model results with observational data.
@@ -83,11 +100,26 @@ class Confrontation(object):
             raise il.MisplacedData(msg)
 
         # Setup a html layout for generating web views of the results
-        self.layout = post.HtmlLayout(self,regions=self.regions)
-        self.layout.setHeader("CNAME / RNAME / MNAME")
-        self.layout.setSections(["Temporally integrated period mean",
-                                 "Spatially integrated regional mean",
-                                 "Period Mean Relationships"])
+        pages = []
+        pages.append(post.HtmlPage("MeanState","Mean State"))
+        pages[-1].setHeader("CNAME / RNAME / MNAME")
+        pages[-1].setSections(["Temporally integrated period mean",
+                              "Spatially integrated regional mean"])
+        if self.relationships is not None:
+            pages.append(post.HtmlPage("Relationships","Relationships"))
+            pages[-1].setHeader("CNAME / RNAME / MNAME")
+            pages[-1].setSections(list(self.relationships))
+        pages.append(post.HtmlAllModelsPage("AllModels","All Models"))
+        pages[-1].setHeader("CNAME / RNAME / MNAME")
+        pages[-1].setSections([])
+        pages[-1].setRegions(self.regions)
+        pages.append(post.HtmlPage("DataInformation","Data Information"))
+        pages[-1].setSections([])
+        pages[-1].text = "\n"
+        with Dataset(self.source) as dset:
+            for attr in dset.ncattrs():
+                pages[-1].text += "<p><b>&nbsp;&nbsp;%s:&nbsp;</b>%s</p>\n" % (attr,dset.getncattr(attr).encode('ascii','ignore'))
+        self.layout = post.HtmlLayout(pages,self.longname)
 
         # Define relative weights of each score in the overall score
         # (FIX: need some way for the user to modify this)
@@ -154,11 +186,14 @@ class Confrontation(object):
         mod = m.extractTimeSeries(self.variable,
                                   alt_vars     = self.alternate_vars,
                                   expression   = self.derived,
-                                  initial_time = obs.time_bnds[0, 0],
-                                  final_time   = obs.time_bnds[1,-1],
+                                  initial_time = obs.time_bnds[ 0,0],
+                                  final_time   = obs.time_bnds[-1,1],
                                   lats         = None if obs.spatial else obs.lat,
                                   lons         = None if obs.spatial else obs.lon)
-        obs,mod = il.MakeComparable(obs,mod,mask_ref=True,clip_ref=True)
+        obs,mod = il.MakeComparable(obs,mod,
+                                    mask_ref  = True,
+                                    clip_ref  = True,
+                                    logstring = "[%s][%s]" % (self.longname,m.name))
         
         # Check the order of magnitude of the data and convert to help avoid roundoff errors
         def _reduceRoundoffErrors(var):
@@ -226,26 +261,7 @@ class Confrontation(object):
             except:
                 raise il.AnalysisError()
 
-            # Setup and perform relationship analysis
-            obs_dep,mod_dep = obs,mod
-            dep_name        = self.longname.split("/")[0]
-            dep_plot_unit   = self.plot_unit
-            if (dep_plot_unit is None): dep_plot_unit = obs_dep.unit
-            if self.relationships is not None:
-                for c in self.relationships:
-                    obs_ind,mod_ind = c.stageData(m) # independent variable
-                    ind_name = c.longname.split("/")[0]            
-                    ind_plot_unit = c.plot_unit
-                    if (ind_plot_unit is None): ind_plot_unit = obs_ind.unit
-                    if self.master:
-                        il.AnalysisRelationship(obs_dep,obs_ind,fcm.obs_dset,ind_name,
-                                                dep_plot_unit=dep_plot_unit,ind_plot_unit=ind_plot_unit,
-                                                regions=self.regions)
-                    il.AnalysisRelationship(mod_dep,mod_ind,fcm.mod_dset,ind_name,
-                                            dep_plot_unit=dep_plot_unit,ind_plot_unit=ind_plot_unit,
-                                            regions=self.regions)
-
-            
+        logger.info("[%s][%s] Success" % (self.longname,m.name))
                 
     def determinePlotLimits(self):
         """Determine the limits of all plots which are inclusive of all ranges.
@@ -266,25 +282,23 @@ class Confrontation(object):
         # Determine the min/max of variables over all models
         limits = {}
         for fname in glob.glob("%s/*.nc" % self.output_path):
-            try:
-                dataset = Dataset(fname)
-            except:
-                continue
-            variables = [v for v in dataset.variables.keys() if v not in dataset.dimensions.keys()]
-            for vname in variables:
-                var   = dataset.variables[vname]
-                pname = vname.split("_")[0]
-                if var[...].size <= 1: continue
-                if not (space_opts.has_key(pname) or time_opts.has_key(pname)): continue
-                if not limits.has_key(pname):
-                    limits[pname] = {}
-                    limits[pname]["min"]  = +1e20
-                    limits[pname]["max"]  = -1e20
-                    limits[pname]["unit"] = post.UnitStringToMatplotlib(var.getncattr("units"))
-                limits[pname]["min"] = min(limits[pname]["min"],var.getncattr(min_str))
-                limits[pname]["max"] = max(limits[pname]["max"],var.getncattr(max_str))
-            dataset.close()
-        
+            with Dataset(fname) as dataset:
+                if "MeanState" not in dataset.groups: continue
+                group     = dataset.groups["MeanState"]
+                variables = [v for v in group.variables.keys() if v not in group.dimensions.keys()]
+                for vname in variables:
+                    var   = group.variables[vname]
+                    pname = vname.split("_")[0]
+                    if var[...].size <= 1: continue
+                    if not (space_opts.has_key(pname) or time_opts.has_key(pname)): continue
+                    if not limits.has_key(pname):
+                        limits[pname] = {}
+                        limits[pname]["min"]  = +1e20
+                        limits[pname]["max"]  = -1e20
+                        limits[pname]["unit"] = post.UnitStringToMatplotlib(var.getncattr("units"))
+                    limits[pname]["min"] = min(limits[pname]["min"],var.getncattr(min_str))
+                    limits[pname]["max"] = max(limits[pname]["max"],var.getncattr(max_str))
+
         # Second pass to plot legends (FIX: only for master?)
         for pname in limits.keys():
 
@@ -318,60 +332,76 @@ class Confrontation(object):
 
         # Determine min/max of relationship variables
         for fname in glob.glob("%s/*.nc" % self.output_path):
-            try:
-                dataset = Dataset(fname)
-            except:
-                continue
-            for g in dataset.groups.keys():
-                if "relationship" not in g: continue
-                grp = dataset.groups[g]
-                if not limits.has_key(g):
-                    limits[g] = {}
-                    limits[g]["xmin"] = +1e20
-                    limits[g]["xmax"] = -1e20
-                    limits[g]["ymin"] = +1e20
-                    limits[g]["ymax"] = -1e20
-                limits[g]["xmin"] = min(limits[g]["xmin"],grp.variables["ind_bnd"][ 0, 0])
-                limits[g]["xmax"] = max(limits[g]["xmax"],grp.variables["ind_bnd"][-1,-1])
-                limits[g]["ymin"] = min(limits[g]["ymin"],grp.variables["dep_bnd"][ 0, 0])
-                limits[g]["ymax"] = max(limits[g]["ymax"],grp.variables["dep_bnd"][-1,-1])
-            dataset.close()
+            with Dataset(fname) as dataset:
+                for g in dataset.groups.keys():
+                    if "relationship" not in g: continue
+                    grp = dataset.groups[g]
+                    if not limits.has_key(g):
+                        limits[g] = {}
+                        limits[g]["xmin"] = +1e20
+                        limits[g]["xmax"] = -1e20
+                        limits[g]["ymin"] = +1e20
+                        limits[g]["ymax"] = -1e20
+                    limits[g]["xmin"] = min(limits[g]["xmin"],grp.variables["ind_bnd"][ 0, 0])
+                    limits[g]["xmax"] = max(limits[g]["xmax"],grp.variables["ind_bnd"][-1,-1])
+                    limits[g]["ymin"] = min(limits[g]["ymin"],grp.variables["dep_bnd"][ 0, 0])
+                    limits[g]["ymax"] = max(limits[g]["ymax"],grp.variables["dep_bnd"][-1,-1])
+
             
         self.limits = limits
 
     def computeOverallScore(self,m):
         """Computes the overall composite score for a given model.
 
-        This routine will try to open the model's netCDF file which
-        contains the analysis results, and then loop over variables
-        which contribute to the overall score. This number is added to
-        the dataset as a new variable of scalar type.
+        This routine opens the netCDF results file associated with
+        this confrontation-model pair, and then looks for a "scalars"
+        group in the dataset as well as any subgroups that may be
+        present. For each grouping of scalars, it will blend any value
+        with the word "Score" in the name to render an overall score,
+        overwriting the existing value if present.
+
+        Parameters
+        ----------
+        m : ILAMB.ModelResult.ModelResult
+            the model results
 
         """
+        
+        def _computeOverallScore(scalars):
+            """Given a netCDF4 group of scalars, blend them into an overall score"""
+            scores     = {}
+            variables = [v for v in scalars.variables.keys() if "Score" in v and "Overall" not in v]
+            for region in self.regions:
+                overall_score  = 0.
+                sum_of_weights = 0.
+                for v in variables:
+                    if region not in v: continue
+                    score = v.replace(region,"").strip()
+                    weight = 1.
+                    if self.weight.has_key(score): weight = self.weight[score]
+                    overall_score  += weight*scalars.variables[v][...]
+                    sum_of_weights += weight
+                overall_score /= max(sum_of_weights,1e-12)
+                scores["Overall Score %s" % region] = overall_score
+            return scores
+
         fname = "%s/%s_%s.nc" % (self.output_path,self.name,m.name)
-        try:
-            dataset = Dataset(fname,mode="r+")
-        except:
-            return
-        if "scalars" not in dataset.groups.keys(): return
-        grp       = dataset.groups["scalars"]
-        variables = [v for v in grp.variables.keys() if "Score" in v and "Overall" not in v]
-        for region in self.regions:
-            overall_score  = 0.
-            sum_of_weights = 0.
-            for v in variables:
-                if region not in v: continue
-                score = v.replace(region,"").strip()
-                if not self.weight.has_key(score): continue
-                overall_score  += self.weight[score]*grp.variables[v][...]
-                sum_of_weights += self.weight[score]
-            overall_score /= max(sum_of_weights,1e-12)
-            name = "Overall Score %s" % region
-            if name in grp.variables.keys():
-                grp.variables[name][0] = overall_score
-            else:
-                Variable(data=overall_score,name=name,unit="1").toNetCDF4(dataset)
-        dataset.close()
+        if not os.path.isfile(fname): return
+        with Dataset(fname,mode="r+") as dataset:
+            datasets = [dataset.groups[grp] for grp in dataset.groups if "scalars" not in grp]
+            groups   = [grp                 for grp in dataset.groups if "scalars" not in grp]
+            datasets.append(dataset)
+            groups  .append(None)
+            for dset,grp in zip(datasets,groups):
+                if "scalars" in dset.groups:
+                    scalars = dset.groups["scalars"]
+                    score = _computeOverallScore(scalars)
+                    for key in score.keys():
+                        if key in scalars.variables:
+                            scalars.variables[key][0] = score[key]
+                        else:
+                            Variable(data=score[key],name=key,unit="1").toNetCDF4(dataset,group=grp)
+
 
     def compositePlots(self):
         """Renders plots which display information of all models.
@@ -382,6 +412,10 @@ class Confrontation(object):
 
         """
         if not self.master: return
+
+        # get the HTML page
+        page = [page for page in self.layout.pages if "MeanState" in page.name][0]
+        
         models = []
         colors = []
         corr   = {}
@@ -391,32 +425,34 @@ class Confrontation(object):
         has_std   = False
         for fname in glob.glob("%s/*.nc" % self.output_path):
             dataset = Dataset(fname)
+            if "MeanState" not in dataset.groups: continue
+            dset    = dataset.groups["MeanState"]
             models.append(dataset.getncattr("name"))
             colors.append(dataset.getncattr("color"))
             for region in self.regions:
                 
                 if not cycle.has_key(region): cycle[region] = []
-                key = [v for v in dataset.variables.keys() if ("cycle_"  in v and region in v)]
+                key = [v for v in dset.variables.keys() if ("cycle_"  in v and region in v)]
                 if len(key)>0:
                     has_cycle = True
-                    cycle[region].append(Variable(filename=fname,variable_name=key[0]))
+                    cycle[region].append(Variable(filename=fname,groupname="MeanState",variable_name=key[0]))
 
                 if not std.  has_key(region): std  [region] = []
                 if not corr. has_key(region): corr [region] = []
-                key = [v for v in dataset.groups["scalars"].variables.keys() if ("Spatial Distribution Score" in v and region in v)]
+                key = [v for v in dset.groups["scalars"].variables.keys() if ("Spatial Distribution Score" in v and region in v)]
                 if len(key) > 0:
                     has_std = True
-                    sds     = dataset.groups["scalars"].variables[key[0]]
+                    sds     = dset.groups["scalars"].variables[key[0]]
                     corr[region].append(sds.getncattr("R"  ))
                     std [region].append(sds.getncattr("std"))
-                
+
         # composite annual cycle plot
         if has_cycle and len(models) > 2:
-            self.layout.addFigure("Spatially integrated regional mean",
-                                  "compcycle",
-                                  "RNAME_compcycle.png",
-                                  side   = "CYCLES",
-                                  legend = True)
+            page.addFigure("Spatially integrated regional mean",
+                           "compcycle",
+                           "RNAME_compcycle.png",
+                           side   = "CYCLES",
+                           legend = True)
 
         for region in self.regions:
             if not cycle.has_key(region): continue
@@ -453,11 +489,11 @@ class Confrontation(object):
         
         # spatial distribution Taylor plot
         if has_std:
-            self.layout.addFigure("Temporally integrated period mean",
-                                  "spatial_variance",
-                                  "RNAME_spatial_variance.png",
-                                  side   = "SPATIAL DISTRIBUTION",
-                                  legend = True)       
+            page.addFigure("Temporally integrated period mean",
+                           "spatial_variance",
+                           "RNAME_spatial_variance.png",
+                           side   = "SPATIAL DISTRIBUTION",
+                           legend = True)       
         if "Benchmark" in models: colors.pop(models.index("Benchmark"))
         for region in self.regions:
             if not (std.has_key(region) and corr.has_key(region)): continue
@@ -467,8 +503,7 @@ class Confrontation(object):
             post.TaylorDiagram(np.asarray(std[region]),np.asarray(corr[region]),1.0,fig,colors)
             fig.savefig("%s/%s_spatial_variance.png" % (self.output_path,region))
             plt.close()
-
-        
+            
     def modelPlots(self,m):
         """For a given model, create the plots of the analysis results.
 
@@ -478,233 +513,108 @@ class Confrontation(object):
         this routine.
 
         """
+        self._relationship(m)
         bname     = "%s/%s_Benchmark.nc" % (self.output_path,self.name)
         fname     = "%s/%s_%s.nc" % (self.output_path,self.name,m.name)
-        try:
-            dataset   = Dataset(fname)
-        except:
-            return
-        variables = [v for v in dataset.variables.keys() if v not in dataset.dimensions.keys()]
-        color     = dataset.getncattr("color")
-        for vname in variables:
-
-            # is this a variable we need to plot?
-            pname = vname.split("_")[0]
-            if dataset.variables[vname][...].size <= 1: continue
-            var = Variable(filename=fname,variable_name=vname)
-            
-            if (var.spatial or (var.ndata is not None)) and not var.temporal:
-
-                # grab plotting options
-                if pname not in self.limits.keys(): continue
-                opts = space_opts[pname]
-
-                # add to html layout
-                self.layout.addFigure(opts["section"],
-                                      pname,
-                                      opts["pattern"],
-                                      side   = opts["sidelbl"],
-                                      legend = opts["haslegend"])
-
-                # plot variable
-                for region in self.regions:
-                    fig = plt.figure(figsize=(6.8,2.8))
-                    ax  = fig.add_axes([0.06,0.025,0.88,0.965])
-                    var.plot(ax,
-                             region = region,
-                             vmin   = self.limits[pname]["min"],
-                             vmax   = self.limits[pname]["max"],
-                             cmap   = self.limits[pname]["cmap"])
-                    fig.savefig("%s/%s_%s_%s.png" % (self.output_path,m.name,region,pname))
-                    plt.close()
-
-                # Jumping through hoops to get the benchmark plotted and in the html output
-                if self.master and (pname == "timeint" or pname == "phase"):
-
-                    opts = space_opts[pname]
-
-                    # add to html layout
-                    self.layout.addFigure(opts["section"],
-                                          "benchmark_%s" % pname,
-                                          opts["pattern"].replace("MNAME","Benchmark"),
-                                          side   = opts["sidelbl"].replace("MODEL","BENCHMARK"),
-                                          legend = False)
-
-                    # plot variable
-                    obs = Variable(filename=bname,variable_name=vname)
-                    for region in self.regions:
-                        fig = plt.figure(figsize=(6.8,2.8))
-                        ax  = fig.add_axes([0.06,0.025,0.88,0.965])
-                        obs.plot(ax,
-                                 region = region,
-                                 vmin   = self.limits[pname]["min"],
-                                 vmax   = self.limits[pname]["max"],
-                                 cmap   = self.limits[pname]["cmap"])
-                        fig.savefig("%s/Benchmark_%s_%s.png" % (self.output_path,region,pname))
-                        plt.close()
-                    
-            if not (var.spatial or (var.ndata is not None)) and var.temporal:
-                
-                # grab the benchmark dataset to plot along with
-                obs = Variable(filename=bname,variable_name=vname).convert(var.unit)
-                
-                # grab plotting options
-                opts = time_opts[pname]
-
-                # add to html layout
-                self.layout.addFigure(opts["section"],
-                                      pname,
-                                      opts["pattern"],
-                                      side   = opts["sidelbl"],
-                                      legend = opts["haslegend"])
-
-                # plot variable
-                for region in self.regions:
-                    if region not in vname: continue
-                    fig,ax = plt.subplots(figsize=(6.8,2.8),tight_layout=True)
-                    obs.plot(ax,lw=2,color='k',alpha=0.5)
-                    var.plot(ax,lw=2,color=color,label=m.name,
-                             ticks     =opts["ticks"],
-                             ticklabels=opts["ticklabels"])
-                    ax.set_ylim(self.limits[pname]["min"],
-                                self.limits[pname]["max"])
-                    ylbl = opts["ylabel"]
-                    if ylbl == "unit": ylbl = post.UnitStringToMatplotlib(var.unit)
-                    ax.set_ylabel(ylbl)
-                    fig.savefig("%s/%s_%s_%s.png" % (self.output_path,m.name,region,pname))
-                    plt.close()
-
-        datasets = [dataset]
-        names    = [m.name]
-        if self.master:
-            datasets.append(Dataset(bname))
-            names.append("Benchmark")
-            
-        for data,name in zip(datasets,names):
-            groups = [g for g in data.groups.keys() if "relationship" in g]
-            if name == "Benchmark":
-                dep_name = self.longname
-            else:
-                dep_name = self.longname.split("/")[0] + "/" + name
-
-            for g in groups:
-                if name == "Benchmark":
-                    ind_name = g.replace("relationship_","").split("_")[-1]
-                else:
-                    ind_name = g.replace("relationship_","").split("_")[-1] + "/" + name
-
-                grp       = data.groups[g]
-                ind       = grp.variables["ind"][...]
-                dep       = grp.variables["dep"][...]
-                ind_bnd   = grp.variables["ind_bnd"][...]
-                dep_bnd   = grp.variables["dep_bnd"][...]
-                histogram = grp.variables["histogram"][...].T
-                ind_edges = np.zeros(ind_bnd.shape[0]+1); ind_edges[:-1] = ind_bnd[:,0]; ind_edges[-1] = ind_bnd[-1,1]
-                dep_edges = np.zeros(dep_bnd.shape[0]+1); dep_edges[:-1] = dep_bnd[:,0]; dep_edges[-1] = dep_bnd[-1,1]
-                fig,ax    = plt.subplots(figsize=(6,5.25),tight_layout=True)
-                cmap      = 'plasma'
-                if not plt.cm.cmap_d.has_key(cmap): cmap = 'summer'
-                pc        = ax.pcolormesh(ind_edges,dep_edges,histogram,
-                                          norm=LogNorm(),
-                                          cmap=cmap)
-                x,y = grp.variables["ind_mean"],grp.variables["dep_mean"]
-                ax.plot(x,y,'-w',lw=3,alpha=0.75)
-                #ax.fill_between(grp.variables["ind_mean"][...],
-                #                grp.variables["dep_mean"][...]-grp.variables["dep_std"][...],
-                #                grp.variables["dep_mean"][...]+grp.variables["dep_std"][...],
-                #                color='k',alpha=0.25,lw=0)
-                
-                div       = make_axes_locatable(ax)
-                fig.colorbar(pc,cax=div.append_axes("right",size="5%",pad=0.05),
-                             orientation="vertical",
-                             label="Fraction of total datasites")
-                ax.set_xlabel("%s,  %s" % (ind_name,post.UnitStringToMatplotlib(x.getncattr("unit"))))
-                ax.set_ylabel("%s,  %s" % (dep_name,post.UnitStringToMatplotlib(y.getncattr("unit"))))
-                ax.set_xlim(self.limits[g]["xmin"],self.limits[g]["xmax"])
-                ax.set_ylim(self.limits[g]["ymin"],self.limits[g]["ymax"])
-                short_name = g.replace("relationship_","rel_")
-                fig.savefig("%s/%s_%s.png" % (self.output_path,name,short_name))
-                plt.close()
-                if "global_" in short_name:
-                    short_name = short_name.replace("global_","")
-                    self.layout.addFigure("Period Mean Relationships",
-                                          short_name,
-                                          "MNAME_RNAME_%s.png" % (short_name),
-                                          legend = False,
-                                          benchmark = True)
-
-        # Code to add a Whittaker diagram (FIX: this is messy, need to rethink data access, redundant computation)
-        Ts = []; T_plot_units = []; T_labels = []
-        Ps = []; P_plot_units = []; P_labels = []
-        if self.relationships is not None:
-            for c in self.relationships:
-                
-                if "Temperature" in c.longname:
-                    obs,mod = c.stageData(m)
-                    Ts.append(mod)
-                    T_plot_units.append(c.plot_unit)
-                    T_labels.append(c.longname.split("/")[0] + "/" + m.name)
-                    if self.master:
-                        Ts.append(obs)
-                        T_plot_units.append(c.plot_unit)
-                        T_labels.append(c.longname)
-
-                if "Precipitation" in c.longname:
-                    obs,mod = c.stageData(m)
-                    Ps.append(mod)
-                    P_plot_units.append(c.plot_unit)
-                    P_labels.append(c.longname.split("/")[0] + "/" + m.name)
-                    if self.master:
-                        Ps.append(obs)
-                        P_plot_units.append(c.plot_unit)
-                        P_labels.append(c.longname)
-
-        if len(Ts) == 0 or len(Ps) == 0: return
+        if not os.path.isfile(bname): return
+        if not os.path.isfile(fname): return
         
-        filenames = [fname]
-        Z_labels  = [self.longname.split("/")[0] + "/" + m.name]
-        if self.master:
-            filenames.append(bname)
-            Z_labels.append(self.longname)
-
-        for region in self.regions:
-            
-            T_key = [key for key in self.limits.keys() if ("Temperature" in key and region in key)][0]
-            T_min = self.limits[T_key]["xmin"]
-            T_max = self.limits[T_key]["xmax"]
-            P_key = [key for key in self.limits.keys() if ("Precipitation" in key and region in key)][0]
-            P_min = self.limits[P_key]["xmin"]
-            P_max = self.limits[P_key]["xmax"]
-            V_min = self.limits[P_key]["ymin"]
-            V_max = self.limits[P_key]["ymax"]
+        # get the HTML page
+        page = [page for page in self.layout.pages if "MeanState" in page.name][0]  
         
-            if len(Ts) > 0 and len(Ps) > 0:
-                for filename,data,name,T,T_plot_unit,T_label,P,P_plot_unit,P_label,Z_label in zip(filenames,datasets,names,
-                                                                                                  Ts,T_plot_units,T_labels,
-                                                                                                  Ps,P_plot_units,P_labels,
-                                                                                                  Z_labels):
-                    Z = [k for k in data.variables.keys() if "timeint_of" in k]
+        with Dataset(fname) as dataset:
+            group     = dataset.groups["MeanState"]
+            variables = getVariableList(group)
+            color     = dataset.getncattr("color")
+            for vname in variables:
+	                
+	            # is this a variable we need to plot?
+	            pname = vname.split("_")[0]
+	            if group.variables[vname][...].size <= 1: continue
+	            var = Variable(filename=fname,groupname="MeanState",variable_name=vname)
+	            
+	            if (var.spatial or (var.ndata is not None)) and not var.temporal:
+	
+	                # grab plotting options
+	                if pname not in self.limits.keys(): continue
+	                opts = space_opts[pname]
+	
+	                # add to html layout
+	                page.addFigure(opts["section"],
+	                               pname,
+	                               opts["pattern"],
+	                               side   = opts["sidelbl"],
+	                               legend = opts["haslegend"])
+	
+	                # plot variable
+	                for region in self.regions:
+	                    fig = plt.figure(figsize=(6.8,2.8))
+	                    ax  = fig.add_axes([0.06,0.025,0.88,0.965])
+	                    var.plot(ax,
+	                             region = region,
+	                             vmin   = self.limits[pname]["min"],
+	                             vmax   = self.limits[pname]["max"],
+	                             cmap   = self.limits[pname]["cmap"])
+	                    fig.savefig("%s/%s_%s_%s.png" % (self.output_path,m.name,region,pname))
+	                    plt.close()
+	
+	                # Jumping through hoops to get the benchmark plotted and in the html output
+	                if self.master and (pname == "timeint" or pname == "phase"):
+	
+	                    opts = space_opts[pname]
+	
+	                    # add to html layout
+	                    page.addFigure(opts["section"],
+	                                   "benchmark_%s" % pname,
+	                                   opts["pattern"].replace("MNAME","Benchmark"),
+	                                   side   = opts["sidelbl"].replace("MODEL","BENCHMARK"),
+	                                   legend = False)
+	
+	                    # plot variable
+	                    obs = Variable(filename=bname,groupname="MeanState",variable_name=vname)
+	                    for region in self.regions:
+	                        fig = plt.figure(figsize=(6.8,2.8))
+	                        ax  = fig.add_axes([0.06,0.025,0.88,0.965])
+	                        obs.plot(ax,
+	                                 region = region,
+	                                 vmin   = self.limits[pname]["min"],
+	                                 vmax   = self.limits[pname]["max"],
+	                                 cmap   = self.limits[pname]["cmap"])
+	                        fig.savefig("%s/Benchmark_%s_%s.png" % (self.output_path,region,pname))
+	                        plt.close()
+	                    
+	            if not (var.spatial or (var.ndata is not None)) and var.temporal:
+	                
+	                # grab the benchmark dataset to plot along with
+	                obs = Variable(filename=bname,groupname="MeanState",variable_name=vname).convert(var.unit)
+	                
+	                # grab plotting options
+	                opts = time_opts[pname]
+	
+	                # add to html layout
+	                page.addFigure(opts["section"],
+	                               pname,
+	                               opts["pattern"],
+	                               side   = opts["sidelbl"],
+	                               legend = opts["haslegend"])
+	
+	                # plot variable
+	                for region in self.regions:
+	                    if region not in vname: continue
+	                    fig,ax = plt.subplots(figsize=(6.8,2.8),tight_layout=True)
+	                    obs.plot(ax,lw=2,color='k',alpha=0.5)
+	                    var.plot(ax,lw=2,color=color,label=m.name,
+	                             ticks     =opts["ticks"],
+	                             ticklabels=opts["ticklabels"])
+	                    ax.set_ylim(self.limits[pname]["min"],
+	                                self.limits[pname]["max"])
+	                    ylbl = opts["ylabel"]
+	                    if ylbl == "unit": ylbl = post.UnitStringToMatplotlib(var.unit)
+	                    ax.set_ylabel(ylbl)
+	                    fig.savefig("%s/%s_%s_%s.png" % (self.output_path,m.name,region,pname))
+	                    plt.close()
 
-                    post.WhittakerDiagram(T,
-                                          P,
-                                          Variable(filename=filename,variable_name=Z[0]),
-                                          region      = region,
-                                          X_plot_unit =    T_plot_unit,
-                                          Y_plot_unit =    P_plot_unit,
-                                          Z_plot_unit = self.plot_unit,
-                                          X_label     =    T_label,
-                                          Y_label     =    P_label,
-                                          Z_label     = self.longname,
-                                          X_min = T_min, X_max = T_max,
-                                          Y_min = P_min, Y_max = P_max,
-                                          Z_min = V_min, Z_max = V_max,
-                                          filename    = "%s/%s_%s_whittaker.png" % (self.output_path,name,region))
-                    
-                self.layout.addFigure("Period Mean Relationships",
-                                      "whittaker",
-                                      "MNAME_RNAME_whittaker.png",
-                                      legend    = False,
-                                      benchmark = True)
+        logger.info("[%s][%s] Success" % (self.longname,m.name))
                 
     def generateHtml(self):
         """Generate the HTML for the results of this confrontation.
@@ -718,79 +628,281 @@ class Confrontation(object):
         # only the master processor needs to do this
         if not self.master: return
 
-        # build the metric dictionary
-        metrics = {}
+        for page in self.layout.pages:
         
-        for fname in glob.glob("%s/*.nc" % self.output_path):
-            try:
-                dataset = Dataset(fname)
-            except:
-                continue
+            # build the metric dictionary
+            metrics = {}
+            for fname in glob.glob("%s/*.nc" % self.output_path):
+                with Dataset(fname) as dataset:
+                    if not dataset.groups.has_key(page.name): continue
+                    group = dataset.groups[page.name]
 
-            # if the dataset opens, we need to add the model (table row)
-            mname = dataset.getncattr("name")
-            metrics[mname] = {}
-
-            # each model will need to have all regions
-            for region in self.regions: metrics[mname][region] = {}
-            
-            # columns in the table will be in the scalars group
-            if not dataset.groups.has_key("scalars"): continue
-
-            # we add scalars to the model/region based on the region
-            # name being in the variable name. If no region is found,
-            # we assume it is the global region.
-            grp = dataset.groups["scalars"]
-            for vname in grp.variables.keys():
-                found = False
-                for region in self.regions:
-                    if region in vname: 
-                        found = True
-                        var   = grp.variables[vname]
-                        name  = vname.replace(region,"")
-                        metrics[mname][region][name] = Variable(name = name,
-                                                                unit = var.units,
-                                                                data = var[...])
-                if not found:
-                    var = grp.variables[vname]
-                    metrics[mname]["global"][vname] = Variable(name = vname,
-                                                               unit = var.units,
-                                                               data = var[...])
+                    # if the dataset opens, we need to add the model (table row)
+                    mname = dataset.getncattr("name")
+                    metrics[mname] = {}
+        
+                    # each model will need to have all regions
+                    for region in self.regions: metrics[mname][region] = {}
                     
-
-        """
-        print "\n\n",self.longname
-        import sys
-        def dump(obj, nested_level=0, output=sys.stdout):
-            spacing = '   '
-            if type(obj) == dict:
-                print >> output, '%s{' % ((nested_level) * spacing)
-                for k, v in obj.items():
-                    if hasattr(v, '__iter__'):
-                        print >> output, '%s%s:' % ((nested_level + 1) * spacing, k)
-                        dump(v, nested_level + 1, output)
-                    else:
-                        print >> output, '%s%s: %g' % ((nested_level + 1) * spacing, k, v.data)
-                print >> output, '%s}' % (nested_level * spacing)
-            elif type(obj) == list:
-                print >> output, '%s[' % ((nested_level) * spacing)
-                for v in obj:
-                    if hasattr(v, '__iter__'):
-                        dump(v, nested_level + 1, output)
-                    else:
-                        print >> output, '%s%s' % ((nested_level + 1) * spacing, v.name)
-                print >> output, '%s]' % ((nested_level) * spacing)
-            else:
-                print >> output, '%s%s' % (nested_level * spacing, obj.name)
-        dump(metrics)
-        """
+                    # columns in the table will be in the scalars group
+                    if not group.groups.has_key("scalars"): continue
         
+                    # we add scalars to the model/region based on the region
+                    # name being in the variable name. If no region is found,
+                    # we assume it is the global region.
+                    grp = group.groups["scalars"]
+                    for vname in grp.variables.keys():
+                        found = False
+                        for region in self.regions:
+                            if region in vname: 
+                                found = True
+                                var   = grp.variables[vname]
+                                name  = vname.replace(region,"")
+                                metrics[mname][region][name] = Variable(name = name,
+                                                                        unit = var.units,
+                                                                        data = var[...])
+                        if not found:
+                            var = grp.variables[vname]
+                            metrics[mname]["global"][vname] = Variable(name = vname,
+                                                                       unit = var.units,
+                                                                       data = var[...])
+            page.setMetrics(metrics)
+
+                        
         # write the HTML page
         f = file("%s/%s.html" % (self.output_path,self.name),"w")
-        self.layout.setMetrics(metrics)
         f.write(str(self.layout))
         f.close()
 
+    def _relationship(self,m,nbin=25):
+        """This needs moved somehow into ilamblib to replace the current
+        function. But too much of this is tied to the confrontation
+        object and so for now it is more helpful here.
+
+        """
+        
+        def _retrieveData(filename):
+            key = None
+            with Dataset(filename,mode="r") as dset:
+                key  = [v for v in dset.groups["MeanState"].variables.keys() if "timeint" in v]
+            return Variable(filename      = filename,
+                            groupname     = "MeanState",
+                            variable_name = key[0])
+            
+        # if there are no relationships, get out of here
+        if self.relationships is None: return            
+
+        # get the HTML page
+        page = [page for page in self.layout.pages if "Relationships" in page.name]
+        if len(page) == 0: return
+        page = page[0]
+        
+        # try to get the dependent data from the model and obs
+        try:
+            obs_dep  = _retrieveData("%s/%s_%s.nc" % (self.output_path,self.name,"Benchmark"))
+            mod_dep  = _retrieveData("%s/%s_%s.nc" % (self.output_path,self.name,m.name))
+            dep_name = self.longname.split("/")[0]
+            dep_min  = self.limits["timeint"]["min"]
+            dep_max  = self.limits["timeint"]["max"]
+        except:
+            return
+
+        # open a dataset for recording the results of this
+        # confrontation (FIX: should be a with statement)
+        results = Dataset("%s/%s_%s.nc" % (self.output_path,self.name,m.name),mode="r+")
+
+        # grab/create a relationship and scalars group
+        group = None
+        if "Relationships" not in results.groups:
+            group = results.createGroup("Relationships")
+        else:
+            group = results.groups["Relationships"]
+        if "scalars" not in group.groups:
+            scalars = group.createGroup("scalars")
+        else:
+            scalars = group.groups["scalars"]
+
+        # for each relationship...
+        for c in self.relationships:
+
+            # try to get the independent data from the model and obs
+            try:
+                obs_ind  = _retrieveData("%s/%s_%s.nc" % (c.output_path,c.name,"Benchmark"))
+                mod_ind  = _retrieveData("%s/%s_%s.nc" % (c.output_path,c.name,m.name))
+                ind_name = c.longname.split("/")[0]          
+                ind_min  = c.limits["timeint"]["min"]-1e-12
+                ind_max  = c.limits["timeint"]["max"]+1e-12
+            except:
+                continue
+
+            # for each reigon...
+            for region in self.regions:
+
+                # loop over dep/ind pairs of the obs and mod
+                obs_dist = None; mod_dist = None
+                xedges   = None; yedges   = None
+                obs_x    = None; obs_y    = None; obs_e    = None
+                mod_x    = None; mod_y    = None; mod_e    = None
+                delta    = None
+                for dep_var,ind_var,name,xlbl,ylbl in zip([obs_dep    ,mod_dep],
+                                                          [obs_ind    ,mod_ind],
+                                                          ["Benchmark",m.name ],
+                                                          [c   .name  ,m.name ],
+                                                          [self.name  ,m.name ]):
+
+                    # build the data masks: only count where we have
+                    # both dep and ind variable data inside the region
+                    mask      = dep_var.data.mask + ind_var.data.mask
+                    lats,lons = ILAMBregions[region]
+                    mask     += (np.outer((dep_var.lat>lats[0])*(dep_var.lat<lats[1]),
+                                          (dep_var.lon>lons[0])*(dep_var.lon<lons[1]))==0)
+                    x         = ind_var.data[mask==0].flatten()
+                    y         = dep_var.data[mask==0].flatten()
+
+                    # determine the 2D discrete distribution
+                    counts,xedges,yedges = np.histogram2d(x,y,
+                                                          bins  = [nbin,nbin],
+                                                          range = [[ind_min,ind_max],[dep_min,dep_max]])
+                    counts  = np.ma.masked_values(counts.T,0)
+                    counts /= float(counts.sum())
+                    if name == "Benchmark":
+                        obs_dist = counts
+                    else:
+                        mod_dist = counts
+                                            
+                    # render the figure
+                    fig,ax = plt.subplots(figsize=(6,5.25),tight_layout=True)
+                    cmap   = 'plasma'
+                    if not plt.cm.cmap_d.has_key(cmap): cmap = 'summer'
+                    pc     = ax.pcolormesh(xedges,
+                                           yedges,
+                                           counts,
+                                           norm = LogNorm(),
+                                           cmap = cmap,
+                                           vmin = 1e-4,
+                                           vmax = 1e-1)
+                    div    = make_axes_locatable(ax)
+                    fig.colorbar(pc,cax=div.append_axes("right",size="5%",pad=0.05),
+                                 orientation="vertical",
+                                 label="Fraction of total datasites")
+                    ax.set_xlabel("%s/%s,  %s" % (ind_name,xlbl,post.UnitStringToMatplotlib(ind_var.unit)))
+                    ylabel = "%s/%s,  %s" % (dep_name,ylbl,post.UnitStringToMatplotlib(dep_var.unit))
+                    fsize  = 12
+                    if len(ylabel) > 60: fsize = 10
+                    ax.set_ylabel(ylabel,fontsize=fsize)
+                    ax.set_xlim(ind_min,ind_max)
+                    ax.set_ylim(dep_min,dep_max)
+                    short_name = "rel_%s" % ind_name
+                    fig.savefig("%s/%s_%s_%s.png" % (self.output_path,name,region,short_name))
+                    plt.close()
+
+                    # add the figure to the HTML layout
+                    if name == "Benchmark" and region == "global":
+                        short_name = short_name.replace("global_","")
+                        page.addFigure(c.longname,
+                                       short_name,
+                                       "MNAME_RNAME_%s.png" % (short_name),
+                                       legend = False,
+                                       benchmark = True)
+
+                    # determine the 1D relationship curves
+                    bins  = np.linspace(ind_min,ind_max,nbin+1)
+                    delta = 0.1*(bins[1]-bins[0])
+                    inds  = np.digitize(x,bins)
+                    ids   = np.unique(inds)
+                    xb = []
+                    yb = []
+                    eb = []
+                    for i in ids:
+                        yt = y[inds==i]
+                        xi = 0.5
+                        xb.append(xi*bins[i-1]+(1.-xi)*bins[i])
+                        yb.append(yt.mean())
+                        try:
+                            eb.append(yt.std()) # for some reason this fails sometimes
+                        except:
+                            eb.append(np.sqrt(((yt-yb[-1])**2).sum()/float(yt.size)))
+                            
+                    if name == "Benchmark":
+                        obs_x = np.asarray(xb)
+                        obs_y = np.asarray(yb)
+                        obs_e = np.asarray(eb)
+                    else:
+                        mod_x = np.asarray(xb)
+                        mod_y = np.asarray(yb)
+                        mod_e = np.asarray(eb)
+                        
+                # compute and plot the difference
+                O = np.array(obs_dist.data)
+                M = np.array(mod_dist.data)
+                O[np.where(obs_dist.mask)] = 0.
+                M[np.where(mod_dist.mask)] = 0.
+                dif_dist = np.ma.masked_array(M-O,mask=obs_dist.mask*mod_dist.mask)
+                lim      = np.abs(dif_dist).max()
+                fig,ax   = plt.subplots(figsize=(6,5.25),tight_layout=True)
+                pc       = ax.pcolormesh(xedges,
+                                         yedges,
+                                         dif_dist,
+                                         cmap = "Spectral_r",
+                                         vmin = -lim,
+                                         vmax = +lim)
+                div      = make_axes_locatable(ax)
+                fig.colorbar(pc,cax=div.append_axes("right",size="5%",pad=0.05),
+                             orientation="vertical",
+                             label="Distribution Difference")
+                ax.set_xlabel("%s, %s" % (   c.longname.split("/")[0],post.UnitStringToMatplotlib(obs_ind.unit)))
+                ax.set_ylabel("%s, %s" % (self.longname.split("/")[0],post.UnitStringToMatplotlib(obs_dep.unit)))
+                ax.set_xlim(ind_min,ind_max)
+                ax.set_ylim(dep_min,dep_max)
+                short_name = "rel_diff_%s" % ind_name
+                fig.savefig("%s/%s_%s_%s.png" % (self.output_path,name,region,short_name))
+                plt.close()
+                page.addFigure(c.longname,
+                               short_name,
+                               "MNAME_RNAME_%s.png" % (short_name),
+                               legend = False,
+                               benchmark = False)
+                
+                # score the distributions = 1 - Hellinger distance
+                score = 1.-np.sqrt(((np.sqrt(obs_dist)-np.sqrt(mod_dist))**2).sum())/np.sqrt(2)
+                vname = '%s Score %s' % (c.longname.split('/')[0],region)
+                if vname in scalars.variables:
+                    scalars.variables[vname][0] = score
+                else:
+                    Variable(name = vname, 
+                             unit = "1",
+                             data = score).toNetCDF4(results,group="Relationships")
+
+                # plot the 1D curve
+                fig,ax = plt.subplots(figsize=(6,5.25),tight_layout=True)
+                ax.errorbar(obs_x-delta,obs_y,yerr=obs_e,fmt='-o',color='k')
+                ax.errorbar(mod_x+delta,mod_y,yerr=mod_e,fmt='-o',color=m.color)
+                ax.set_xlabel("%s, %s" % (   c.longname.split("/")[0],post.UnitStringToMatplotlib(obs_ind.unit)))
+                ax.set_ylabel("%s, %s" % (self.longname.split("/")[0],post.UnitStringToMatplotlib(obs_dep.unit)))
+                ax.set_xlim(ind_min,ind_max)
+                ax.set_ylim(dep_min,dep_max)
+                short_name = "rel_func_%s" % ind_name
+                fig.savefig("%s/%s_%s_%s.png" % (self.output_path,name,region,short_name))
+                plt.close()
+                page.addFigure(c.longname,
+                               short_name,
+                               "MNAME_RNAME_%s.png" % (short_name),
+                               legend = False,
+                               benchmark = False)
+
+                # score the relationship
+                i0,i1 = np.where(np.abs(obs_x[:,np.newaxis]-mod_x)<1e-12)
+                score = np.exp(-np.linalg.norm(obs_y[i0]-mod_y[i1])/np.linalg.norm(obs_y[i0]))
+                vname = '%s RMSE Score %s' % (c.longname.split('/')[0],region)
+                if vname in scalars.variables:
+                    scalars.variables[vname][0] = score
+                else:
+                    Variable(name = vname, 
+                             unit = "1",
+                             data = score).toNetCDF4(results,group="Relationships")
+                    
+                
+        results.close()
 
 class FileContextManager():
 
@@ -818,5 +930,5 @@ class FileContextManager():
         # If an exception occurred, also remove the files
         if exc_type is not None:
             os.system("rm -f %s" % self.mod_results)
-            if self.master: os.system("rm -f %s" % self.obs_results)
+
     

@@ -110,7 +110,6 @@ organizations of the confrontation results.
 .. autosummary::
    :toctree: _generated
 
-   GlobalPlot
    ColorBar
    TaylorDiagram
    WhittakerDiagram

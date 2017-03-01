@@ -89,7 +89,7 @@ def ConvertTypes(node):
     if node.regions        is not None: node.regions        = node.regions.split(",")
     if node.relationships  is not None: node.relationships  = node.relationships.split(",")
     if node.alternate_vars is not None:
-        node.alternate_vars = [node.alternate_vars]
+        node.alternate_vars = node.alternate_vars.split(",")
     else:
         node.alternate_vars = []
         
@@ -231,7 +231,7 @@ class Scoreboard():
 
         TraversePreorder(self.tree,_buildDirectories)
         TraversePreorder(self.tree,_initConfrontation)
-        
+
     def __str__(self):
         global global_print_node_string
         global_print_node_string = ""
@@ -399,7 +399,6 @@ class Scoreboard():
                     out.write("%s,%s\n" % (v.name,','.join(["~"]*len(M))))
         out.close()
 
-        
 def CompositeScores(tree,M):
     global global_model_list
     global_model_list = M
@@ -413,7 +412,7 @@ def CompositeScores(tree,M):
                 if os.path.isfile(fname):
                     try:
                         dataset = Dataset(fname)
-                        grp     = dataset.groups["scalars"]
+                        grp     = dataset.groups["MeanState"].groups["scalars"]
                     except:
                         continue
                     if grp.variables.has_key("Overall Score global"):
@@ -471,12 +470,15 @@ def BuildHTMLTable(tree,M,build_dir):
                 c = node.confrontation
                 global_html += """
       <tr class="child" bgcolor="%s">
-        <td>&nbsp;&nbsp;&nbsp;<a href="%s/%s.html" rel="external">%s</a>&nbsp;(%.1f%%)</td>""" % (ccolor,
-                                                                                   c.output_path.replace(build_dir,"").lstrip("/"),
-                                                                                   c.name,c.name,weight)
+        <td>&nbsp;&nbsp;&nbsp;<a href="%s/%s.html" rel="external" target="_blank">%s</a>&nbsp;(%.1f%%)</td>""" % (ccolor,
+                                                                                                                  c.output_path.replace(build_dir,"").lstrip("/"),
+                                                                                                                  c.name,c.name,weight)
                 try:
                     for ind in range(node.score.size):
-                        global_html += '\n        <td>%.2f</td>' % (node.score[ind])
+                        if node.score.mask[ind]:
+                            global_html += '\n        <td>~</td>'
+                        else:
+                            global_html += '\n        <td>%.2f</td>' % (node.score[ind])
                 except:
                     for ind in range(len(global_model_list)):
                         global_html += '\n        <td>~</td>'
@@ -489,6 +491,7 @@ def BuildHTMLTable(tree,M,build_dir):
         <td>%s</td>""" % (global_table_color,node.name)
             for ind,m in enumerate(global_model_list):
                 try:
+                    if node.score.mask[ind]: raise ValueError()
                     global_html += '\n        <td>%.2f</td>' % (node.score[ind])
                 except:
                     global_html += '\n        <td>~</td>' 
@@ -542,14 +545,14 @@ def GenerateSummaryFigure(tree,M,build_dir):
             variables.append(var.name)
             vcolors.append(cat.bgcolor)
             
-    data = np.zeros((len(variables),len(models)))
+    data = np.ma.zeros((len(variables),len(models)))
     row  = -1
     for cat in tree.children:
         for var in cat.children:
             row += 1
-            try:
-                data[row,:] = var.score
-            except:
+            if type(var.score) == float:
                 data[row,:] = np.nan
-                
+            else:
+                data[row,:] = var.score
+
     BenchmarkSummaryFigure(models,variables,data,"%s/overview.png" % build_dir,vcolor=vcolors)
