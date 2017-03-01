@@ -9,7 +9,7 @@ with open(path.join(here, 'README.rst'), encoding='utf-8') as f:
 
 setup(
     name='ILAMB',
-    version='2.0.2',
+    version='2.1',
     description='The International Land Model Benchmarking Package',
     long_description=long_description,
     url='https://bitbucket.org/ncollier/ilamb',
