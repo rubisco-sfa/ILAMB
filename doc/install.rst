@@ -25,33 +25,26 @@ include:
 * netCDF4_, a python/numpy interface to the netCDF C library (you must have the C library installed)
 * sympy_, a python library for symbolic mathematics
 * mpi4py_, a python wrapper around the MPI library (you must have a MPI implementation installed)
+* cfunits_, a python interface to UNIDATA’s Udunits-2 library with CF extensions (you must have the Udunits library installed)
 
 I have designated that a few of these dependencies are python
 interfaces to C libraries and so the library must also be installed
 separately. See the individual package websites for more
 details. Ideally, pip_ would be able to install all our dependencies
-automatically. Unfortunately, two of our dependencies must be
-installed manually due to bugs/issues with their installation process.
+automatically.
 
-* cfunits_, a python interface to UNIDATA’s Udunits-2 library with CF extensions (you must have the Udunits library installed)
-* basemap_, a matplotlib toolkit which is a library for plotting 2D data on maps
-
-The cfunits_ package can be installed with pip_ *after* the netCDF4_
-package. Simply type::
-
-  pip install cfunits --user
-
-However, despite being listed in the Python Package Index, basemap_
-cannot be installed with pip_. The meta information is listed in
-pypi_, but the package source is incomplete and so installation
-fails. We will need to install basemap_ from the source hosted on
-github_. This is a useful process to understand as any python package
-can be installed in this way. First, clone the git repository::
+Unfortunately, one of our dependencies must be installed
+manually. Despite being listed in the Python Package Index, basemap_
+cannot be installed with pip_. The meta information is listed, but the
+package source is too large to be hosted and so installation fails. We
+will need to install basemap_ from the source hosted on github_. This
+is a useful process to understand as any python package can be
+installed in this way. First, clone the git repository::
 
   git clone https://github.com/matplotlib/basemap.git
 
 This will take some time as the repository is large (>100Mb) due to it
-including some C libraries which basemap needs to function. Enter into
+including some high resolution map data used in plotting. Enter into
 the cloned directory and take note of a file called ``setup.py``. All
 python packages will contain a file called ``setup.py`` in the top
 level directory. This is where a developer tells python how to install
@@ -59,9 +52,9 @@ the package. Now we type::
 
   python setup.py install --user
 
-and the package should install. Hopefully in the future cfunits_ and
-basemap_ will improve their installation process in pypi_, but in the
-meantime they must be installed as we have detailed here.
+and the package should install. Hopefully in the future basemap_ will
+improve their installation process in pypi_, but in the meantime it
+must be installed as we have detailed here.
 
 You can test your installation by the following command::
   
@@ -221,7 +214,6 @@ Edison @ NERSC
   module load netcdf4-python
   module load udunits 
   pip install ILAMB --user
-  pip install cfunits --user
   export PATH=${PATH}:${HOME}/.local/edison/2.7.9/bin/
 
 The matplotlib on Edison is pretty old and control of the backend is
@@ -254,7 +246,6 @@ Rhea @ OLCF
   module load python_netcdf4
   module load python_mpi4py
   pip install ILAMB --user
-  pip install cfunits --user
   export PATH=${PATH}:${HOME}/.local/bin/
   # The udunits module file should do this but doesn't
   export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/sw/rhea/udunits/2.1.24/rhel6.6_gnu4.4.7/lib/
