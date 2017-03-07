@@ -133,10 +133,6 @@ class ModelResult():
         altvars = list(alt_vars)
         altvars.insert(0,variable)
         
-        # modify extraction times by possible shifts
-        initial_time -= self.shift
-        final_time   -= self.shift
-            
         # create a list of datafiles which have a non-null intersection
         # over the desired time range
         V = []
@@ -147,11 +143,13 @@ class ModelResult():
                                variable_name  = variable,
                                alternate_vars = altvars[1:],
                                area           = self.land_areas,
-                               t0             = initial_time,
-                               tf             = final_time)
-                if ((var.time_bnds.max() < initial_time) or
-                    (var.time_bnds.min() >   final_time)): continue
+                               t0             = initial_time - self.shift,
+                               tf             = final_time   - self.shift)
+                if ((var.time_bnds.max() < initial_time - self.shift) or
+                    (var.time_bnds.min() >   final_time - self.shift)): continue
                 if lats is not None: var = var.extractDatasites(lats,lons)
+                var.time      += self.shift 
+                var.time_bnds += self.shift
                 V.append(var)
             if len(V) > 0: break
 
@@ -171,9 +169,6 @@ class ModelResult():
         else:
             v = il.CombineVariables(V)
         
-        # finish modifying extraction times
-        v.time      += self.shift 
-        v.time_bnds += self.shift
             
         return v
 
@@ -223,7 +218,7 @@ class ModelResult():
                                           lats = lats,
                                           lons = lons,
                                           initial_time = initial_time,
-                                          final_time   = final_time)            
+                                          final_time   = final_time)          
             units[arg.name] = var.unit
             args [arg.name] = var.data.data
 
