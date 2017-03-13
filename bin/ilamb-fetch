@@ -12,10 +12,9 @@ def ToDict(lines):
     return sums
 
 def BuildDirectories(filepath):
-    filepath = filepath.split("/")[:-1]
-    for i,path in enumerate(filepath):
-        d = "/".join(filepath[:(i+1)])
-        if not os.path.isdir(d): os.mkdir(d)
+    d = os.path.dirname(filepath)
+    if not os.path.isdir(d):
+        os.makedirs(d)
     
 def GenerateSha1sumFile(root,suffix=".nc"):
     
