@@ -1181,7 +1181,17 @@ def MakeComparable(ref,com,**keywords):
                                                                 np.abs((ref.lon-com.lon)).max())
             logger.debug(msg)
             raise VarsNotComparable()
-    
+
+    # If the datasets are both spatial, ensure that both represent the
+    # same spatial area and trim the datasets if not.
+    if ref.spatial and com.spatial:
+        lat_bnds = (max(ref.lat_bnds[ 0,0],com.lat_bnds[ 0,0]),
+                    min(ref.lat_bnds[-1,1],com.lat_bnds[-1,1]))
+        lon_bnds = (max(ref.lon_bnds[ 0,0],com.lon_bnds[ 0,0]),
+                    min(ref.lon_bnds[-1,1],com.lon_bnds[-1,1]))
+        ref.trim(lat=lat_bnds,lon=lon_bnds)
+        com.trim(lat=lat_bnds,lon=lon_bnds)
+        
     if ref.temporal:
 
         # If the reference time scale is significantly larger than the

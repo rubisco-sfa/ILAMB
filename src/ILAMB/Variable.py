@@ -1690,17 +1690,19 @@ class Variable:
             if not self.spatial: raise il.NotSpatialVariable
             i = max(self.lat.searchsorted(lat[0])-1,            0)
             j = min(self.lat.searchsorted(lat[1])  ,self.lat.size)
-            self.lat  = self.lat[i:j]
-            self.data = self.data[...,i:j,:]
-            self.area = self.area[    i:j,:]
+            self.lat      = self.lat     [i:j]
+            self.lat_bnds = self.lat_bnds[i:j]
+            self.data     = self.data[...,i:j,:]
+            self.area     = self.area[    i:j,:]
         if lon is not None:
             assert len(lon) == 2
             if not self.spatial: raise il.NotSpatialVariable
             i = max(self.lon.searchsorted(lon[0])-1,            0)
             j = min(self.lon.searchsorted(lon[1])  ,self.lon.size)
-            self.lon  = self.lon[i:j]
-            self.data = self.data[...,i:j,:]
-            self.area = self.area[    i:j,:]
+            self.lon      = self.lon     [i:j]
+            self.lon_bnds = self.lon_bnds[i:j]
+            self.data     = self.data[...,i:j]
+            self.area     = self.area[  :,i:j]
         if t is not None:
             assert len(t) == 2
             if not self.temporal: raise il.NotTemporalVariable
