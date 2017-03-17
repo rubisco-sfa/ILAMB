@@ -992,24 +992,20 @@ class Variable:
         except:
             V.setncattr("max",0)
             V.setncattr("min",1)
-
-        try:
-            if self.data.mask.size == 1:
-                if not self.data.mask:
-                    data = self.data.reshape((-1))
-                else:
-                    data = np.zeros(1)
-            else:
-                data = self.data[self.data.mask==False].reshape((-1))
-            data.sort()
-            lo = int(round(0.01*data.size))
-            hi = min(int(round(0.99*data.size)),data.size-1)
-            V.setncattr("up99",data[hi])
-            V.setncattr("dn99",data[lo])
-        except:
-            V.setncattr("up99",0)
-            V.setncattr("dn99",1)
             
+        if self.data.size == 1:
+            # we are dealing with a scalar
+            if np.ma.is_masked(self.data): self.data[...] = 0
+        else:
+            # not a scalar, find the middle 98 percent of the data
+            data = np.ma.copy(self.data).compressed().reshape((-1))
+            if data.size == 0:
+                V.setncattr("up99",1)
+                V.setncattr("dn99",0)
+            else:
+                data.sort()
+                V.setncattr("up99",data[min(int(round(0.99*data.size)),data.size-1)])
+                V.setncattr("dn99",data[    int(round(0.01*data.size))])
             
         # optionally write out more attributes
         if attributes:
