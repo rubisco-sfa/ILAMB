@@ -1181,7 +1181,23 @@ def MakeComparable(ref,com,**keywords):
                                                                 np.abs((ref.lon-com.lon)).max())
             logger.debug(msg)
             raise VarsNotComparable()
-    
+
+    # If the datasets are both spatial, ensure that both represent the
+    # same spatial area and trim the datasets if not.
+    if ref.spatial and com.spatial:
+        lat_bnds = (max(ref.lat_bnds[ 0,0],com.lat_bnds[ 0,0]),
+                    min(ref.lat_bnds[-1,1],com.lat_bnds[-1,1]))
+        lon_bnds = (max(ref.lon_bnds[ 0,0],com.lon_bnds[ 0,0]),
+                    min(ref.lon_bnds[-1,1],com.lon_bnds[-1,1]))
+        shp0     = np.asarray(np.copy(com.data.shape),dtype=int)
+        com.trim(lat=lat_bnds,lon=lon_bnds)
+        shp      = np.asarray(np.copy(com.data.shape),dtype=int)
+        if (shp-shp0).sum() > 0:
+            msg  = "%s Spatial data was clipped from the comparison: " % logstring
+            msg += " before: %s" % (shp0)
+            msg +=  " after: %s" % (shp )
+            logger.info(msg)
+            
     if ref.temporal:
 
         # If the reference time scale is significantly larger than the
