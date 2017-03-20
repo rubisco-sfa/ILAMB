@@ -1685,11 +1685,17 @@ class Variable:
         lat,lon,t,d : tuple or list
             a 2-tuple containing the lower and upper limits beyond which we trim
         """
+        def _whichInterval(val,bnds):
+            ind = np.where((val>=bnds[:,0])*(val<=bnds[:,1]))[0]
+            assert ind.size == 1
+            ind = ind[0]
+            return ind
+            
         if lat is not None:
             assert len(lat) == 2
             if not self.spatial: raise il.NotSpatialVariable
-            i = max(self.lat.searchsorted(lat[0])-1,            0)
-            j = min(self.lat.searchsorted(lat[1])  ,self.lat.size)
+            i = _whichInterval(lat[0],self.lat_bnds)
+            j = _whichInterval(lat[1],self.lat_bnds)+1
             self.lat      = self.lat     [i:j]
             self.lat_bnds = self.lat_bnds[i:j]
             self.data     = self.data[...,i:j,:]
@@ -1697,8 +1703,8 @@ class Variable:
         if lon is not None:
             assert len(lon) == 2
             if not self.spatial: raise il.NotSpatialVariable
-            i = max(self.lon.searchsorted(lon[0])-1,            0)
-            j = min(self.lon.searchsorted(lon[1])  ,self.lon.size)
+            i = _whichInterval(lon[0],self.lon_bnds)
+            j = _whichInterval(lon[1],self.lon_bnds)+1
             self.lon      = self.lon     [i:j]
             self.lon_bnds = self.lon_bnds[i:j]
             self.data     = self.data[...,i:j]
