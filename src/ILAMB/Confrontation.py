@@ -809,7 +809,7 @@ class Confrontation(object):
                     bins  = np.linspace(ind_min,ind_max,nbin+1)
                     delta = 0.1*(bins[1]-bins[0])
                     inds  = np.digitize(x,bins)
-                    ids   = np.unique(inds)
+                    ids   = np.unique(inds).clip(1,bins.size-1)
                     xb = []
                     yb = []
                     eb = []
