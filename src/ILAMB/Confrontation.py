@@ -1,6 +1,7 @@
 import ilamblib as il
 from Variable import *
-from constants import four_code_regions,space_opts,time_opts,mid_months,bnd_months
+from Regions import Regions
+from constants import space_opts,time_opts,mid_months,bnd_months
 import os,glob,re
 from netCDF4 import Dataset
 import Post as post
@@ -128,24 +129,7 @@ class Confrontation(object):
                        "Seasonal Cycle Score"          :1.,
                        "Interannual Variability Score" :1.,
                        "Spatial Distribution Score"    :1.}
-
-    def _checkRegions(self,var):
-        """
-        """
-        data = (var.data.mask == 0).any(axis=0) # flagged 1 if data present at all
-        to_remove = []
-        for region in self.regions:
-            lats,lons = ILAMBregions[region]
-            if var.ndata is None:
-                rdata = np.outer((var.lat>lats[0])*(var.lat<lats[1]),
-                                 (var.lon>lons[0])*(var.lon<lons[1]))            
-            else:
-                rdata  = (var.lat>lats[0])*(var.lat<lats[1])
-                rdata *= (var.lon>lons[0])*(var.lon<lons[1])
-            if ((data*rdata).sum() == 0): to_remove.append(region)
-        for region in to_remove: self.regions.remove(region)
-        
-        
+                
     def stageData(self,m):
         r"""Extracts model data which matches the observational dataset.
         
@@ -180,7 +164,10 @@ class Confrontation(object):
                        variable_name  = self.variable,
                        alternate_vars = self.alternate_vars)
         if obs.time is None: raise il.NotTemporalVariable()
-        self._checkRegions(obs)
+
+        # remove regions if there is no obs data
+        r = Regions()
+        self.regions = [region for region in self.regions if r.hasData(region,obs)]
 
         # Try to extract a commensurate quantity from the model
         mod = m.extractTimeSeries(self.variable,
@@ -753,9 +740,7 @@ class Confrontation(object):
                     # build the data masks: only count where we have
                     # both dep and ind variable data inside the region
                     mask      = dep_var.data.mask + ind_var.data.mask
-                    lats,lons = ILAMBregions[region]
-                    mask     += (np.outer((dep_var.lat>lats[0])*(dep_var.lat<lats[1]),
-                                          (dep_var.lon>lons[0])*(dep_var.lon<lons[1]))==0)
+                    mask     += r.getMask(region,dep_var)
                     x         = ind_var.data[mask==0].flatten()
                     y         = dep_var.data[mask==0].flatten()
 

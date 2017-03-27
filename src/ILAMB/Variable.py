@@ -1,4 +1,5 @@
-from constants import spd,dpy,mid_months,regions as ILAMBregions
+from constants import spd,dpy,mid_months
+from Regions import Regions
 from mpl_toolkits.basemap import Basemap
 import matplotlib.colors as colors
 from pylab import get_cmap
@@ -499,10 +500,8 @@ class Variable:
 
         # if we want to integrate over a region, we need add to the
         # measure's mask
-        if region is not None:
-            lats,lons     = ILAMBregions[region]
-            measure.mask += (np.outer((self.lat>lats[0])*(self.lat<lats[1]),
-                                      (self.lon>lons[0])*(self.lon<lons[1]))==0)
+        r = Regions()
+        if region is not None: measure.mask += r.getMask(region,self)
 
         # approximate the integral
         integral = _integrate(self.data,measure)
@@ -552,10 +551,9 @@ class Variable:
         if self.ndata is None: raise il.NotDatasiteVariable()
         rem_mask = np.copy(self.data.mask)
         rname = ""
+        r = Regions()
         if region is not None:
-            lats,lons = ILAMBregions[region]
-            mask      = ((self.lat>lats[0])*(self.lat<lats[1])*(self.lon>lons[0])*(self.lon<lons[1]))==False
-            self.data.mask += mask
+            self.data.mask += r.getMask(region,self)
             rname = "_over_%s" % region
         np.seterr(over='ignore',under='ignore')
         mean = np.ma.average(self.data,axis=-1,weights=weight)
@@ -1060,9 +1058,9 @@ class Variable:
         vmax   = keywords.get("vmax"  ,self.data.max())
         region = keywords.get("region","global")
         cmap   = keywords.get("cmap"  ,"jet")
-        assert region in ILAMBregions.keys()
         
         rem_mask = None
+        r = Regions()
         if self.temporal and not self.spatial:
             
             ticks      = keywords.get("ticks",None)
@@ -1081,14 +1079,7 @@ class Variable:
 
             # Mask out areas outside our region
             rem_mask  = np.copy(self.data.mask)
-            mlat,mlon = ILAMBregions[region]
-            if self.spatial:
-                self.data.mask  += (np.outer((self.lat>mlat[0])*(self.lat<mlat[1]),
-                                             (self.lon>mlon[0])*(self.lon<mlon[1]))==0)
-            else:
-                self.data.mask  += (((self.lat>mlat[0])*(self.lat<mlat[1])*
-                                     (self.lon>mlon[0])*(self.lon<mlon[1]))==0)
-
+            self.data.mask += r.getMask(region,self)
             
             # Setup the plot projection depending on data types
             bmap = None
@@ -1108,9 +1099,16 @@ class Variable:
 
                 # Compute the plot limits based on the figure size and
                 # some aspect ratio math
-                lats,lons = ILAMBregions[region]
-                lats      = np.asarray(lats)
-                lons      = np.asarray(lons)
+                mask = r.getMask(region,self)==False
+                if self.spatial:
+                    lats = np.where(mask.any(axis=1),self.lat)
+                    lons = np.where(mask.any(axis=0),self.lon)
+                else:
+                    lats = np.where(mask,self.lat)
+                    lons = np.where(mask,self.lon)
+                lats = np.asarray([lats.min(),lats.max()])
+                lons = np.asarray([lons.min(),lons.max()])
+    
                 dlat,dlon = lats[1]-lats[0],lons[1]-lons[0]
                 fsize     = ax.get_figure().get_size_inches()
                 figure_ar = fsize[1]/fsize[0]
@@ -1535,16 +1533,11 @@ class Variable:
         """
         assert self.temporal == var.temporal == False
 
-        lats,lons = ILAMBregions[region]
+        r = Regions()
         
         # First compute the observational spatial/site standard deviation
         rem_mask0  = np.copy(self.data.mask)
-        if self.spatial:
-            self.data.mask += (np.outer((self.lat>lats[0])*(self.lat<lats[1]),
-                                        (self.lon>lons[0])*(self.lon<lons[1]))==0)
-        else:
-            self.data.mask += (        ((self.lat>lats[0])*(self.lat<lats[1])*
-                                        (self.lon>lons[0])*(self.lon<lons[1]))==0)
+        self.data.mask += r.getMask(region,self)
             
         np.seterr(over='ignore',under='ignore')
         std0 = self.data.std()

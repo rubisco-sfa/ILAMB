@@ -1,4 +1,4 @@
-from constants import dpy,mid_months,bnd_months,regions as ILAMBregions
+from constants import dpy,mid_months,bnd_months
 from netCDF4 import Dataset,num2date,date2num
 from datetime import datetime
 from cfunits import Units
