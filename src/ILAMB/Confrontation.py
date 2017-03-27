@@ -678,7 +678,8 @@ class Confrontation(object):
             
         # if there are no relationships, get out of here
         if self.relationships is None: return            
-
+        r = Regions()
+        
         # get the HTML page
         page = [page for page in self.layout.pages if "Relationships" in page.name]
         if len(page) == 0: return

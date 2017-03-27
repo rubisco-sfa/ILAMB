@@ -1099,17 +1099,25 @@ class Variable:
 
                 # Compute the plot limits based on the figure size and
                 # some aspect ratio math
-                mask = r.getMask(region,self)==False
+                mask = r.getMask(region,self)
                 if self.spatial:
-                    lats = np.where(mask.any(axis=1),self.lat)
-                    lons = np.where(mask.any(axis=0),self.lon)
+                    lats = np.ma.masked_array(self.lat,(mask==False).any(axis=1)==False)
+                    lons = np.ma.masked_array(self.lon,(mask==False).any(axis=0)==False)
                 else:
-                    lats = np.where(mask,self.lat)
-                    lons = np.where(mask,self.lon)
+                    lats = np.ma.masked_array(self.lat,mask)
+                    lons = np.ma.masked_array(self.lon,mask)
                 lats = np.asarray([lats.min(),lats.max()])
                 lons = np.asarray([lons.min(),lons.max()])
-    
+                
                 dlat,dlon = lats[1]-lats[0],lons[1]-lons[0]
+                if dlat < 1e-12:
+                    dlat     = 30.
+                    lats[0] -= 0.5*dlat
+                    lats[1] += 0.5*dlat
+                if dlon < 1e-12:
+                    dlon     = 30.
+                    lons[0] -= 0.5*dlon
+                    lons[1] += 0.5*dlon
                 fsize     = ax.get_figure().get_size_inches()
                 figure_ar = fsize[1]/fsize[0]
                 scale     = figure_ar*dlon/dlat
@@ -1545,12 +1553,8 @@ class Variable:
 
         # Next compute the model spatial/site standard deviation
         rem_mask  = np.copy(var.data.mask)
-        if var.spatial:
-            var.data.mask += (np.outer((var.lat>lats[0])*(var.lat<lats[1]),
-                                       (var.lon>lons[0])*(var.lon<lons[1]))==0)
-        else:
-            var.data.mask += (        ((var.lat>lats[0])*(var.lat<lats[1])*
-                                       (var.lon>lons[0])*(var.lon<lons[1]))==0)
+        var.data.mask += r.getMask(region,var)
+
         np.seterr(over='ignore',under='ignore')
         std = var.data.std()
         np.seterr(over='raise',under='raise')
@@ -1558,8 +1562,6 @@ class Variable:
         # Interpolate to new grid for correlation
         if self.spatial:
             lat,lon  = il.ComposeSpatialGrids(self,var)
-            lat      = lat[(lat>=lats[0])*(lat<=lats[1])]
-            lon      = lon[(lon>=lons[0])*(lon<=lons[1])]
             self_int = self.interpolate(lat=lat,lon=lon)
             var_int  = var .interpolate(lat=lat,lon=lon)
         else:
