@@ -88,12 +88,6 @@ if "global" not in Regions().regions:
     r.addRegionLatLonBounds("eqas","Equatorial Asia",                  (-10.25, 10.25),(  99.75, 150.25))
     r.addRegionLatLonBounds("aust","Australia",                        (-41.25,-10.50),( 112.00, 154.00))
     
-    # others
-    r.addRegionLatLonBounds("amazon","Amazon",          (-12.25,  6.75),(- 75.25,- 50.25))
-    r.addRegionLatLonBounds("alaska","Alaska",          ( 50.25, 75.25),(-170.25,-130.25))
-    r.addRegionLatLonBounds("us-cornbelt","US Cornbelt",( 33.00, 55.00),(-116.00,- 80.00))
-    r.addRegionLatLonBounds("arctic","Arctic",          ( 60.00, 90.00),(-179.75, 179.75))
-    
 if __name__ == "__main__":
 
     from Variable import Variable
