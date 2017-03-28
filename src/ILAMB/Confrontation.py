@@ -66,7 +66,7 @@ class Confrontation(object):
     land : str, bool
         enable to force the masking of areas with no land (default is False)
     limit_type : str
-        change the types of plot limits, one of ['minmax' (default), '99per']
+        change the types of plot limits, one of ['minmax', '99per' (default)]
     """
     def __init__(self,**keywords):
         
@@ -260,11 +260,11 @@ class Confrontation(object):
         called before calling any plotting routine.
 
         """
-        max_str = "max"
-        min_str = "min"
-        if self.keywords.get("limit_type","minmax") == "99per":
-            max_str = "up99"
-            min_str = "dn99"
+        max_str = "up99"
+        min_str = "dn99"
+        if self.keywords.get("limit_type","99per") == "minmax":
+            max_str = "max"
+            min_str = "min"
             
         # Determine the min/max of variables over all models
         limits = {}
