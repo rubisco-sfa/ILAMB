@@ -2,16 +2,37 @@ from netCDF4 import Dataset
 import numpy as np
 
 class Regions(object):
+    """A class for unifying the treatment of regions in ILAMB.
 
+    This class holds a list of all regions currently registered in the
+    ILAMB system via a static property of the class. It also comes
+    with methods for defining additional regions by lat/lon bounds or
+    by a mask specified by a netCDF4 file. A set of regions used in
+    the Global Fire Emissions Database (GFED) is included by default.
+
+    """
     _regions = {}
 
     @property
     def regions(self):
-
+        """Returns a list of region identifiers."""
         return Regions._regions.keys()
 
     def addRegionLatLonBounds(self,label,name,lats,lons):
+        """Add a region by lat/lon bounds.
 
+        Parameters
+        ----------
+        label : str
+            the unique region identifier (lower case, no spaces or special characters)
+        name : str
+            the name of the region (as will appear in the HTML pull down menu)
+        lats : array-like of size 2
+            the minimum and maximum latitudes defining the region on the interval (-90,90)
+        lons : array-like of size 2
+            the minimum and maximum longitudes defining the region on the interval (-180,180)
+        
+        """
         lat  = np.hstack([[- 90.],np.asarray(lats),[ 90.]])
         lon  = np.hstack([[-180.],np.asarray(lons),[180.]])
         mask = np.asarray([[1,1,1],
@@ -20,13 +41,51 @@ class Regions(object):
         Regions._regions[label] = [name,lat,lon,mask]
 
     def addRegionNetCDF4(self,filename):
+        """Add regions found in a netCDF4 file.
 
+        This routine will search the target filename's variables for
+        2-dimensional datasets which contain indices representing
+        distinct non-overlapping regions. Each unique non-masked index
+        found in this dataset will be added to the global list of
+        regions along with a mask representing the region. The names
+        of the regions are taken from a required attribute in the
+        variable called 'labels'. This attribute should point to a
+        variable which is a string array labeling each index found in
+        the two-dimensional dataset.
+
+        For example, the following header represents a dataset encoded
+        to represent 50 of the world's largest river basins. The
+        'basin_index' variable contains integer indices 0 through 49
+        where index 0 is labeled by the 0th label found in the 'label'
+        variable::
+
+          dimensions:
+  	        lat = 360 ;
+  	        lon = 720 ;
+	        n = 50 ;
+          variables:
+	        string label(n) ;
+		        label:long_name = "basin labels" ;
+	        float lat(lat) ;
+		        lat:long_name = "latitude" ;
+		        lat:units = "degrees_east" ;
+	        float lon(lon) ;
+		        lon:long_name = "longitude" ;
+		        lon:units = "degrees_north" ;
+	        int basin_index(lat, lon) ;
+		        basin_index:labels = "label" ;
+
+        Parameters
+        ----------
+        filename : str
+            the full path of the netCDF4 file containing the regions
+        """
         dset = Dataset(filename)
 
-        # look for integer datasets defined on regular grids
+        # look for 2d datasets defined on regular grids
         for var in dset.variables:
             v = dset.variables[var]
-            if len(v.dimensions) == 2:
+            if len(v.dimensions) == 2 and "labels" in v.ncattrs():
                 lat = dset.variables[v.dimensions[0]][...]
                 lon = dset.variables[v.dimensions[1]][...]
                 lbl = dset.variables[v.labels       ][...]
@@ -39,11 +98,35 @@ class Regions(object):
                     Regions._regions[label] = [name,lat,lon,mask]
 
     def getRegionName(self,label):
+        """Given the region label, return the full name.
+        
+        Parameters
+        ----------
+        label : str
+            the unique region identifier
 
+        Returns
+        -------
+        name : str
+            the long name of the region
+        """
         return Regions._regions[label][0]
 
     def getMask(self,label,var):
+        """Given the region label and a ILAMB.Variable, return a mask appropriate for that variable.
 
+        Parameters
+        ----------
+        label : str
+            the unique region identifier
+        var : ILAMB.Variable.Variable
+            the variable to which we would like to apply a mask
+
+        Returns
+        -------
+        mask : numpy.ndarray
+            a boolean array appropriate for masking the input variable data
+        """
         name,lat,lon,mask = Regions._regions[label]
         if lat.size == 4 and lon.size == 4:
             # if lat/lon bounds, find which bounds we are in
@@ -57,7 +140,20 @@ class Regions(object):
         return mask[np.ix_(rows,cols)]
             
     def hasData(self,label,var):
-        
+        """Checks if the ILAMB.Variable has data on the given region.
+
+        Parameters
+        ----------
+        label : str
+            the unique region identifier
+        var : ILAMB.Variable.Variable
+            the variable to which we would like check for data
+
+        Returns
+        -------
+        hasdata : boolean
+            returns True if variable has data on the given region
+        """
         axes = range(var.data.ndim)
         if var.spatial: axes = axes[:-2]
         if var.ndata  : axes = axes[:-1]
@@ -87,21 +183,3 @@ if "global" not in Regions().regions:
     r.addRegionLatLonBounds("seas","Southeast Asia",                   (  5.25, 30.25),(  65.25, 120.25))
     r.addRegionLatLonBounds("eqas","Equatorial Asia",                  (-10.25, 10.25),(  99.75, 150.25))
     r.addRegionLatLonBounds("aust","Australia",                        (-41.25,-10.50),( 112.00, 154.00))
-    
-if __name__ == "__main__":
-
-    from Variable import Variable
-    import os
-    Vs = []
-    Vs.append(Variable(filename = os.environ["ILAMB_ROOT"] + "/DATA/gpp/FLUXNET/gpp.nc",
-                       variable_name = "gpp"))
-    Vs.append(Variable(filename = os.environ["ILAMB_ROOT"] + "/DATA/gpp/FLUXNET-MTE/gpp_0.5x0.5.nc",
-                       variable_name = "gpp"))
-    Vs.append(Vs[-1].integrateInTime(mean=True))
-    
-    r   = Regions()
-    for v in Vs:
-        print "-----------"
-        for region in r.regions:
-            print region,r.getRegionName(region),v.name,r.hasData(region,v)
-        
