@@ -164,11 +164,8 @@ class Confrontation(object):
                        variable_name  = self.variable,
                        alternate_vars = self.alternate_vars)
         if obs.time is None: raise il.NotTemporalVariable()
-
-        # remove regions if there is no obs data
-        r = Regions()
-        self.regions = [region for region in self.regions if r.hasData(region,obs)]
-
+        self.pruneRegions(obs)
+        
         # Try to extract a commensurate quantity from the model
         mod = m.extractTimeSeries(self.variable,
                                   alt_vars     = self.alternate_vars,
@@ -201,6 +198,11 @@ class Confrontation(object):
 
         return obs,mod
 
+    def pruneRegions(self,var):
+        # remove regions if there is no data from the input variable
+        r = Regions()
+        self.regions = [region for region in self.regions if r.hasData(region,var)]
+
     def confront(self,m):
         r"""Confronts the input model with the observational data.
 
@@ -219,7 +221,6 @@ class Confrontation(object):
         # Grab the data
         obs,mod = self.stageData(m)
 
-                
         mod_file = "%s/%s_%s.nc"        % (self.output_path,self.name,m.name)
         obs_file = "%s/%s_Benchmark.nc" % (self.output_path,self.name       )
         with FileContextManager(self.master,mod_file,obs_file) as fcm:
@@ -268,6 +269,7 @@ class Confrontation(object):
             
         # Determine the min/max of variables over all models
         limits = {}
+        prune  = False
         for fname in glob.glob("%s/*.nc" % self.output_path):
             with Dataset(fname) as dataset:
                 if "MeanState" not in dataset.groups: continue
@@ -285,7 +287,12 @@ class Confrontation(object):
                         limits[pname]["unit"] = post.UnitStringToMatplotlib(var.getncattr("units"))
                     limits[pname]["min"] = min(limits[pname]["min"],var.getncattr(min_str))
                     limits[pname]["max"] = max(limits[pname]["max"],var.getncattr(max_str))
-
+                    if not prune and "Benchmark" in fname and pname == "timeint":
+                        prune = True
+                        self.pruneRegions(Variable(filename      = fname,
+                                                   variable_name = vname,
+                                                   groupname     = "MeanState"))
+        
         # Second pass to plot legends (FIX: only for master?)
         for pname in limits.keys():
 
@@ -505,7 +512,7 @@ class Confrontation(object):
         fname     = "%s/%s_%s.nc" % (self.output_path,self.name,m.name)
         if not os.path.isfile(bname): return
         if not os.path.isfile(fname): return
-        
+
         # get the HTML page
         page = [page for page in self.layout.pages if "MeanState" in page.name][0]  
         
