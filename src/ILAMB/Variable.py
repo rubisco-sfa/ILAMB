@@ -993,7 +993,7 @@ class Variable:
             
         if self.data.size == 1:
             # we are dealing with a scalar
-            if np.ma.is_masked(self.data): self.data[...] = 0
+            if np.ma.is_masked(self.data): self.data = 0
         else:
             # not a scalar, find the middle 98 percent of the data
             data = np.ma.copy(self.data).compressed().reshape((-1))
