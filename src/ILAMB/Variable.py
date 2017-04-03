@@ -1623,6 +1623,7 @@ class Variable:
                         time       = time,
                         time_bnds  = intervals,
                         data       = data,
+                        ndata      = self.ndata,
                         lat        = self.lat,
                         lon        = self.lon,
                         area       = self.area,
