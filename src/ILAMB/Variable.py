@@ -1586,8 +1586,8 @@ class Variable:
         except:
             std   = np.asarray([0.0])
             score = np.asarray([0.0])
-        std   = Variable(data=std  ,name="normalized_spatial_std_of_%s_over_%s" % (self.name,region),unit="-")
-        score = Variable(data=score,name="spatial_distribution_score_of_%s_over_%s" % (self.name,region),unit="-")
+        std   = Variable(data=std  ,name="normalized_spatial_std_of_%s_over_%s" % (self.name,region),unit="1")
+        score = Variable(data=score,name="spatial_distribution_score_of_%s_over_%s" % (self.name,region),unit="1")
         return std,R,score
 
     def coarsenInTime(self,intervals,window=0.):
