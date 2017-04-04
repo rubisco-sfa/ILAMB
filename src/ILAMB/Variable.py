@@ -1339,7 +1339,7 @@ class Variable:
         out_time_bnds = None
         if out_time is not None: out_time_bnds = self.time_bnds
         r = _correlation(self.data,var.data,axes=axes)
-        return Variable(data=r,unit="-",
+        return Variable(data=r,unit="1",
                         name="%s_correlation_of_%s" % (ctype,self.name),
                         time=out_time,time_bnds=out_time_bnds,ndata=out_ndata,
                         lat=out_lat,lon=out_lon,area=out_area)
