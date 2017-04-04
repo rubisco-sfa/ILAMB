@@ -1,6 +1,7 @@
 import ilamblib as il
 from Variable import *
-from constants import four_code_regions,space_opts,time_opts,mid_months,bnd_months
+from Regions import Regions
+from constants import space_opts,time_opts,mid_months,bnd_months
 import os,glob,re
 from netCDF4 import Dataset
 import Post as post
@@ -65,7 +66,7 @@ class Confrontation(object):
     land : str, bool
         enable to force the masking of areas with no land (default is False)
     limit_type : str
-        change the types of plot limits, one of ['minmax' (default), '99per']
+        change the types of plot limits, one of ['minmax', '99per' (default)]
     """
     def __init__(self,**keywords):
         
@@ -128,24 +129,7 @@ class Confrontation(object):
                        "Seasonal Cycle Score"          :1.,
                        "Interannual Variability Score" :1.,
                        "Spatial Distribution Score"    :1.}
-
-    def _checkRegions(self,var):
-        """
-        """
-        data = (var.data.mask == 0).any(axis=0) # flagged 1 if data present at all
-        to_remove = []
-        for region in self.regions:
-            lats,lons = ILAMBregions[region]
-            if var.ndata is None:
-                rdata = np.outer((var.lat>lats[0])*(var.lat<lats[1]),
-                                 (var.lon>lons[0])*(var.lon<lons[1]))            
-            else:
-                rdata  = (var.lat>lats[0])*(var.lat<lats[1])
-                rdata *= (var.lon>lons[0])*(var.lon<lons[1])
-            if ((data*rdata).sum() == 0): to_remove.append(region)
-        for region in to_remove: self.regions.remove(region)
-        
-        
+                
     def stageData(self,m):
         r"""Extracts model data which matches the observational dataset.
         
@@ -180,8 +164,8 @@ class Confrontation(object):
                        variable_name  = self.variable,
                        alternate_vars = self.alternate_vars)
         if obs.time is None: raise il.NotTemporalVariable()
-        self._checkRegions(obs)
-
+        self.pruneRegions(obs)
+        
         # Try to extract a commensurate quantity from the model
         mod = m.extractTimeSeries(self.variable,
                                   alt_vars     = self.alternate_vars,
@@ -214,6 +198,11 @@ class Confrontation(object):
 
         return obs,mod
 
+    def pruneRegions(self,var):
+        # remove regions if there is no data from the input variable
+        r = Regions()
+        self.regions = [region for region in self.regions if r.hasData(region,var)]
+
     def confront(self,m):
         r"""Confronts the input model with the observational data.
 
@@ -232,7 +221,6 @@ class Confrontation(object):
         # Grab the data
         obs,mod = self.stageData(m)
 
-                
         mod_file = "%s/%s_%s.nc"        % (self.output_path,self.name,m.name)
         obs_file = "%s/%s_Benchmark.nc" % (self.output_path,self.name       )
         with FileContextManager(self.master,mod_file,obs_file) as fcm:
@@ -273,14 +261,15 @@ class Confrontation(object):
         called before calling any plotting routine.
 
         """
-        max_str = "max"
-        min_str = "min"
-        if self.keywords.get("limit_type","minmax") == "99per":
-            max_str = "up99"
-            min_str = "dn99"
+        max_str = "up99"
+        min_str = "dn99"
+        if self.keywords.get("limit_type","99per") == "minmax":
+            max_str = "max"
+            min_str = "min"
             
         # Determine the min/max of variables over all models
         limits = {}
+        prune  = False
         for fname in glob.glob("%s/*.nc" % self.output_path):
             with Dataset(fname) as dataset:
                 if "MeanState" not in dataset.groups: continue
@@ -298,7 +287,12 @@ class Confrontation(object):
                         limits[pname]["unit"] = post.UnitStringToMatplotlib(var.getncattr("units"))
                     limits[pname]["min"] = min(limits[pname]["min"],var.getncattr(min_str))
                     limits[pname]["max"] = max(limits[pname]["max"],var.getncattr(max_str))
-
+                    if not prune and "Benchmark" in fname and pname == "timeint":
+                        prune = True
+                        self.pruneRegions(Variable(filename      = fname,
+                                                   variable_name = vname,
+                                                   groupname     = "MeanState"))
+        
         # Second pass to plot legends (FIX: only for master?)
         for pname in limits.keys():
 
@@ -518,7 +512,7 @@ class Confrontation(object):
         fname     = "%s/%s_%s.nc" % (self.output_path,self.name,m.name)
         if not os.path.isfile(bname): return
         if not os.path.isfile(fname): return
-        
+
         # get the HTML page
         page = [page for page in self.layout.pages if "MeanState" in page.name][0]  
         
@@ -691,7 +685,8 @@ class Confrontation(object):
             
         # if there are no relationships, get out of here
         if self.relationships is None: return            
-
+        r = Regions()
+        
         # get the HTML page
         page = [page for page in self.layout.pages if "Relationships" in page.name]
         if len(page) == 0: return
@@ -753,9 +748,7 @@ class Confrontation(object):
                     # build the data masks: only count where we have
                     # both dep and ind variable data inside the region
                     mask      = dep_var.data.mask + ind_var.data.mask
-                    lats,lons = ILAMBregions[region]
-                    mask     += (np.outer((dep_var.lat>lats[0])*(dep_var.lat<lats[1]),
-                                          (dep_var.lon>lons[0])*(dep_var.lon<lons[1]))==0)
+                    mask     += r.getMask(region,dep_var)
                     x         = ind_var.data[mask==0].flatten()
                     y         = dep_var.data[mask==0].flatten()
 

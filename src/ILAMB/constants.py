@@ -1,5 +1,6 @@
 from numpy import asarray,ones,copy as npcopy
 from matplotlib.colors import from_levels_and_colors
+from Regions import Regions
 
 __all__ = ['spm','mph','hpd','mpy','dpy_noleap','dpy_gregorian','dpy_360','dpm_noleap','dpm_gregorian','dpm_360','g_per_Pg','g_per_kg','Ar_molar_mass','C_molar_mass','N_molar_mass','O_molar_mass','CO2_molar_mass','dry_air_molar_mass','dry_air_mass','dry_air_moles','co2_g_per_ppm','co2_ppm_per_kg','co2_ppm_per_C_Pg','regions','NCARclrs','NCARcmap','NCARnorm','region_names','dpy','mid_months','spd','spy']
 
@@ -48,54 +49,7 @@ co2_ppm_per_C_Pg   = g_per_Pg / co2_g_per_ppm * CO2_molar_mass/C_molar_mass
 # Earth constants
 earth_rad = 6.371e6 # meters
 
-regions = {}
-regions["global"]       = ((-89.75, 89.75),(-179.75, 179.75))
-regions["bona"]         = (( 49.75, 79.75),(-170.25,- 60.25))
-regions["tena"]         = (( 30.25, 49.75),(-125.25,- 66.25))
-regions["ceam"]         = ((  9.75, 30.25),(-115.25,- 80.25))
-regions["nhsa"]         = ((  0.25, 12.75),(- 80.25,- 50.25))
-regions["shsa"]         = ((-59.75,  0.25),(- 80.25,- 40.25))
-regions["euro"]         = (( 35.25, 70.25),(- 10.25,  30.25))
-regions["mide"]         = (( 20.25, 40.25),(- 10.25,  60.25))
-regions["nhaf"]         = ((  0.25, 20.25),(- 20.25,  45.25))
-regions["shaf"]         = ((-34.75,  0.25),(  10.25,  45.25))
-regions["boas"]         = (( 54.75, 70.25),(  30.25, 179.75))
-regions["ceas"]         = (( 30.25, 54.75),(  30.25, 142.58))
-regions["seas"]         = ((  5.25, 30.25),(  65.25, 120.25))
-regions["eqas"]         = ((-10.25, 10.25),(  99.75, 150.25))
-regions["aust"]         = ((-41.25,-10.50),( 112.00, 154.00))
-regions["amazon"]       = ((-12.25,  6.75),(- 75.25,- 50.25))
-regions["alaska"]       = (( 50.25, 75.25),(-170.25,-130.25))
-regions["us-cornbelt"]  = (( 33.00, 55.00),(-116.00,- 80.00))
-regions["arctic"]       = (( 60.00, 90.00),(-179.75, 179.75))
 
-region_names = {"global"     : "Globe",
-                "bona"       : "Boreal North America",
-                "tena"       : "Temperate North America",
-                "ceam"       : "Central America",
-                "nhsa"       : "Northern Hemisphere South America",
-                "shsa"       : "Southern Hemisphere South America",
-                "euro"       : "Europe",
-                "mide"       : "Middle East",
-                "nhaf"       : "Northern Hemisphere Africa",
-                "shaf"       : "Southern Hemisphere Africa",
-                "boas"       : "Boreal Asia",
-                "ceas"       : "Central Asia",
-                "seas"       : "Southeast Asia",
-                "eqas"       : "Equatorial Asia",
-                "aust"       : "Australia",
-                "amazon"     : "Amazon",
-                "alaska"     : "Alaska",
-                "us-cornbelt": "US Cornbelt",
-                "arctic"     : "Arctic"
-}
-# Make sure we have a long name for each region defined
-for key in regions.keys(): assert key in region_names.keys()
-
-four_code_regions = []
-for key in regions.keys():
-    if len(key) == 4 or key == "global": four_code_regions.append(key)
-    
 NCARclrs = asarray([[93,0,135],
                     [196,0,43],
                     [255,35,0],

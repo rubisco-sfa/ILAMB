@@ -1,4 +1,5 @@
-from constants import dpy,mid_months,bnd_months,regions as ILAMBregions
+from constants import dpy,mid_months,bnd_months
+from Regions import Regions
 from netCDF4 import Dataset,num2date,date2num
 from datetime import datetime
 from cfunits import Units
@@ -661,6 +662,7 @@ def AnalysisMeanState(obs,mod,**keywords):
     mass_weighting    = keywords.get("mass_weighting"   ,False)
     skip_rmse         = keywords.get("skip_rmse"        ,False)
     skip_iav          = keywords.get("skip_iav"         ,False)
+    ILAMBregions      = Regions()
     
     assert Units(obs.unit) == Units(mod.unit)
     spatial = obs.spatial
@@ -754,8 +756,7 @@ def AnalysisMeanState(obs,mod,**keywords):
 
             # We need to check if there are datasites in this
             # region. If not, we will just skip the region.
-            lats,lons = ILAMBregions[region]
-            if ((obs.lat>lats[0])*(obs.lat<lats[1])*(obs.lon>lons[0])*(obs.lon<lons[1])).sum() == 0: continue
+            if not ILAMBregions.hasData(region,obs): continue
             
             # Compute the scalar period mean over sites in the specified region.
             obs_period_mean[region] = obs_timeint    .siteStats(region=region)
@@ -886,9 +887,8 @@ def AnalysisMeanState(obs,mod,**keywords):
         else:
 
             # We need to check if there are datasites in this
-            # region. If not, we will just skip the region.
-            lats,lons = ILAMBregions[region]
-            if ((obs.lat>lats[0])*(obs.lat<lats[1])*(obs.lon>lons[0])*(obs.lon<lons[1])).sum() == 0: continue
+            # region. If not, we will just skip the region.            
+            if not ILAMBregions.hasData(region,obs): continue
             
             # Compute the scalar period mean over sites in the specified region.
             obs_mean_cycle [region] = obs_cycle      .siteStats(region=region)

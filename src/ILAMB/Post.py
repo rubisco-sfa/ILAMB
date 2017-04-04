@@ -1,6 +1,6 @@
 import pylab as plt
 import numpy as np
-from constants import region_names,regions as ILAMBregions,region_names,space_opts
+from constants import space_opts
 import re
 
 def UseLatexPltOptions(fsize=18):
