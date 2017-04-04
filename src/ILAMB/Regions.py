@@ -79,10 +79,16 @@ class Regions(object):
         ----------
         filename : str
             the full path of the netCDF4 file containing the regions
+
+        Returns
+        -------
+        regions : list of str
+            a list of the keys of the regions added.
         """
         dset = Dataset(filename)
 
         # look for 2d datasets defined on regular grids
+        labels = []
         for var in dset.variables:
             v = dset.variables[var]
             if len(v.dimensions) == 2 and "labels" in v.ncattrs():
@@ -96,7 +102,9 @@ class Regions(object):
                     name  = lbl[i]
                     mask  = v[...].data != i
                     Regions._regions[label] = [name,lat,lon,mask]
-
+                    labels.append(label)
+        return labels
+    
     def getRegionName(self,label):
         """Given the region label, return the full name.
         
