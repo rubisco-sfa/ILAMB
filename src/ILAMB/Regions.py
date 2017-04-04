@@ -68,10 +68,10 @@ class Regions(object):
 		        label:long_name = "basin labels" ;
 	        float lat(lat) ;
 		        lat:long_name = "latitude" ;
-		        lat:units = "degrees_east" ;
+		        lat:units = "degrees_north" ;
 	        float lon(lon) ;
 		        lon:long_name = "longitude" ;
-		        lon:units = "degrees_north" ;
+		        lon:units = "degrees_east" ;
 	        int basin_index(lat, lon) ;
 		        basin_index:labels = "label" ;
 
