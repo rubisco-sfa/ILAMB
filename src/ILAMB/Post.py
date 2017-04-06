@@ -1,6 +1,7 @@
 import pylab as plt
 import numpy as np
 from constants import space_opts
+from Regions import Regions
 import re
 
 def UseLatexPltOptions(fsize=18):
@@ -228,7 +229,8 @@ class HtmlPage(object):
         self.text        = None
         
     def __str__(self):
-        
+
+        r = Regions()
         def _sortFigures(figure,priority=["benchmark_timeint","timeint","bias","benchmark_phase","phase","shift","spatial_variance","spaceint","cycle","compcycle"]):
             val = 1.
             for i,pname in enumerate(priority):
@@ -259,7 +261,7 @@ class HtmlPage(object):
       <select id="%sRegion" onchange="%sTable()">""" % (self.name,self.name)
             for region in self.regions:
                 try:
-                    rname = region_names[region]
+                    rname = r.getRegionName(region)
                 except:
                     rname = region
                 opts  = ''
@@ -456,6 +458,7 @@ class HtmlAllModelsPage(HtmlPage):
     def __str__(self):
 
         if self.plots is None: self._populatePlots()
+        r = Regions()
         
         code = """
     <div data-role="page" id="%s">
@@ -481,7 +484,7 @@ class HtmlAllModelsPage(HtmlPage):
       <select id="%sRegion" onchange="AllSelect()">""" % (self.name)
             for region in self.regions:
                 try:
-                    rname = region_names[region]
+                    rname = r.getRegionName(region)
                 except:
                     rname = region
                 opts  = ''
