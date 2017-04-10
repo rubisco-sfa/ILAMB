@@ -100,12 +100,21 @@ class Confrontation(object):
             msg += "Did you download the data? Have you set the ILAMB_ROOT envronment variable?\n"
             raise il.MisplacedData(msg)
 
+        # Is the data at sites?
+        self.hasSites = False
+        with Dataset(self.source) as dataset:
+            if dataset.dimensions.has_key("data"): self.hasSites = True
+                
         # Setup a html layout for generating web views of the results
         pages = []
         pages.append(post.HtmlPage("MeanState","Mean State"))
         pages[-1].setHeader("CNAME / RNAME / MNAME")
         pages[-1].setSections(["Temporally integrated period mean",
                               "Spatially integrated regional mean"])
+        if self.hasSites:
+            pages.append(post.HtmlSitePlotsPage("SitePlots","Site Plots"))
+            pages[-1].setHeader("CNAME / RNAME / MNAME")
+            pages[-1].setSections([])
         if self.relationships is not None:
             pages.append(post.HtmlPage("Relationships","Relationships"))
             pages[-1].setHeader("CNAME / RNAME / MNAME")
@@ -609,7 +618,34 @@ class Confrontation(object):
 	                    plt.close()
 
         logger.info("[%s][%s] Success" % (self.longname,m.name))
-                
+
+    def sitePlots(self,m):
+        """
+
+        """
+        if not self.hasSites: return
+
+        obs,mod = self.stageData(m)
+        for i in range(obs.ndata):
+	    fig,ax    = plt.subplots(figsize=(6.8,2.8),tight_layout=True)
+            tmin,tmax = (np.where(mod.data.mask[:,i]==False)[0])[[0,-1]]
+
+            t = mod.time[tmin:(tmax+1)  ]
+            x = mod.data[tmin:(tmax+1),i]
+            y = obs.data[tmin:(tmax+1),i]
+            ax.plot(t,y,'-k',lw=2,alpha=0.5)
+            ax.plot(t,x,'-',color=m.color)
+
+            ind        = np.where(t % 365 < 30.)[0]
+            ticks      = t[ind] - (t[ind] % 365)
+            ticklabels = (ticks/365.+1850.).astype(int)
+            ax.set_xticks     (ticks     )
+            ax.set_xticklabels(ticklabels)
+            ax.set_ylabel(post.UnitStringToMatplotlib(mod.unit))
+	    fig.savefig("%s/%s_site%d_%s.png" % (self.output_path,m.name,i,"time"))
+	    plt.close()
+            
+            
     def generateHtml(self):
         """Generate the HTML for the results of this confrontation.
 

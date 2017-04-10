@@ -578,6 +578,58 @@ class HtmlAllModelsPage(HtmlPage):
     </script>"""
         return head
 
+class HtmlSitePlotsPage(HtmlPage):
+
+    def __init__(self,name,title):
+        
+        super(HtmlSitePlotsPage,self).__init__(name,title)
+
+    def __str__(self):
+
+        # setup page navigation
+        code = """
+    <div data-role="page" id="%s">
+      <div data-role="header" data-position="fixed" data-tap-toggle="false">
+        <h1 id="%sHead">%s</h1>""" % (self.name,self.name,self.title)
+        if self.pages:
+	    code += """
+        <div data-role="navbar">
+	  <ul>""" 
+            for page in self.pages:
+                opts = ""
+                if page == self: opts = " class=ui-btn-active ui-state-persist"
+                code += """
+            <li><a href='#%s'%s>%s</a></li>""" % (page.name,opts,page.title)
+            code += """
+	  </ul>"""
+        code += """
+	</div>
+      </div>"""
+
+        # setup site pulldown menu
+        code += """
+      <select id="%sRegion" onchange="%sTable()">""" % (self.name,self.name)
+        for i,region in enumerate(self.regions):
+            opts  = ''
+            if i == 0: opts  = ' selected="selected"'
+            code += """
+        <option value='%s'%s>%s</option>""" % (region,opts,region)
+        code += """
+      </select>"""
+
+        for section in self.sections:
+            if len(self.figures[section]) == 0: continue
+            self.figures[section].sort(key=_sortFigures)
+            code += """
+        <div data-role="collapsible" data-collapsed="false"><h1>%s</h1>""" % section
+            for figure in self.figures[section]:
+                code += "%s" % (figure)
+            code += """
+        </div>"""
+            
+        code += """
+    </div>"""
+        
 class HtmlLayout():
 
     def __init__(self,pages,cname):
