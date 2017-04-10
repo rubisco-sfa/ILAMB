@@ -99,22 +99,42 @@ class Confrontation(object):
             msg += "%s\n\nbut I cannot find it. " % self.source
             msg += "Did you download the data? Have you set the ILAMB_ROOT envronment variable?\n"
             raise il.MisplacedData(msg)
-
-        # Is the data at sites?
-        self.hasSites = False
-        with Dataset(self.source) as dataset:
-            if dataset.dimensions.has_key("data"): self.hasSites = True
                 
         # Setup a html layout for generating web views of the results
         pages = []
+        
+        # Mean State page
         pages.append(post.HtmlPage("MeanState","Mean State"))
         pages[-1].setHeader("CNAME / RNAME / MNAME")
         pages[-1].setSections(["Temporally integrated period mean",
                               "Spatially integrated regional mean"])
+
+        # Datasites page
+        self.hasSites = False
+        lbls = None
+        with Dataset(self.source) as dataset:
+            if dataset.dimensions.has_key("data"):
+                self.hasSites = True
+                if "site_name" in dataset.ncattrs():
+                    lbls = dataset.site_name.split(",")
+                else:
+                    lbls = ["site%d" % s for s in range(dataset.variables["data"][...])]
         if self.hasSites:
             pages.append(post.HtmlSitePlotsPage("SitePlots","Site Plots"))
             pages[-1].setHeader("CNAME / RNAME / MNAME")
             pages[-1].setSections([])
+            var = Variable(filename       = self.source,
+                           variable_name  = self.variable,
+                           alternate_vars = self.alternate_vars).integrateInTime(mean=True)
+            if self.plot_unit is not None: var.convert(self.plot_unit)
+            pages[-1].lat   = var.lat
+            pages[-1].lon   = var.lon
+            pages[-1].vname = self.variable
+            pages[-1].unit  = var.unit
+            pages[-1].vals  = var.data
+            pages[-1].sites = lbls
+            
+        # Relationships page
         if self.relationships is not None:
             pages.append(post.HtmlPage("Relationships","Relationships"))
             pages[-1].setHeader("CNAME / RNAME / MNAME")
