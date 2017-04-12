@@ -647,7 +647,11 @@ class HtmlSitePlotsPage(HtmlPage):
           [['Latitude', 'Longitude', '%s [%s]'],\n""" % (self.name,self.vname,self.unit)
 
         for lat,lon,val in zip(self.lat,self.lon,self.vals):
-            head += "           [%.3f,%.3f,%.2f],\n" % (lat,lon,val)
+            if val is np.ma.masked:
+                sval = "null"
+            else:
+                sval = "%.2f" % val
+            head += "           [%.3f,%.3f,%s],\n" % (lat,lon,sval)
         head = head[:-2] + "]);\n"
         head += ("        var names = %s;" % (self.sites)).replace("u'","'").replace(", '",",'")
         head += """

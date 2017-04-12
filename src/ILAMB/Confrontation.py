@@ -651,7 +651,7 @@ class Confrontation(object):
             tmask  = np.where(mod.data.mask[:,i]==False)[0]
             if tmask.size > 0:
                 tmin,tmax = tmask[[0,-1]]
-            else:
+            else:                
                 tmin = 0; tmax = mod.time.size-1
                 
             t = mod.time[tmin:(tmax+1)  ]
