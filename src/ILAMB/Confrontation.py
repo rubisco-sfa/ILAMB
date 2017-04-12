@@ -111,14 +111,14 @@ class Confrontation(object):
 
         # Datasites page
         self.hasSites = False
-        lbls = None
+        self.lbls = None
         with Dataset(self.source) as dataset:
             if dataset.dimensions.has_key("data"):
                 self.hasSites = True
                 if "site_name" in dataset.ncattrs():
-                    lbls = dataset.site_name.split(",")
+                    self.lbls = dataset.site_name.split(",")
                 else:
-                    lbls = ["site%d" % s for s in range(dataset.variables["data"][...])]
+                    self.lbls = ["site%d" % s for s in range(dataset.variables["data"][...])]
         if self.hasSites:
             pages.append(post.HtmlSitePlotsPage("SitePlots","Site Plots"))
             pages[-1].setHeader("CNAME / RNAME / MNAME")
@@ -132,7 +132,7 @@ class Confrontation(object):
             pages[-1].vname = self.variable
             pages[-1].unit  = var.unit
             pages[-1].vals  = var.data
-            pages[-1].sites = lbls
+            pages[-1].sites = self.lbls
             
         # Relationships page
         if self.relationships is not None:
@@ -647,9 +647,13 @@ class Confrontation(object):
 
         obs,mod = self.stageData(m)
         for i in range(obs.ndata):
-	    fig,ax    = plt.subplots(figsize=(6.8,2.8),tight_layout=True)
-            tmin,tmax = (np.where(mod.data.mask[:,i]==False)[0])[[0,-1]]
-
+	    fig,ax = plt.subplots(figsize=(6.8,2.8),tight_layout=True)
+            tmask  = np.where(mod.data.mask[:,i]==False)[0]
+            if tmask.size > 0:
+                tmin,tmax = tmask[[0,-1]]
+            else:
+                tmin = 0; tmax = mod.time.size-1
+                
             t = mod.time[tmin:(tmax+1)  ]
             x = mod.data[tmin:(tmax+1),i]
             y = obs.data[tmin:(tmax+1),i]
@@ -662,7 +666,7 @@ class Confrontation(object):
             ax.set_xticks     (ticks     )
             ax.set_xticklabels(ticklabels)
             ax.set_ylabel(post.UnitStringToMatplotlib(mod.unit))
-	    fig.savefig("%s/%s_site%d_%s.png" % (self.output_path,m.name,i,"time"))
+	    fig.savefig("%s/%s_%s_%s.png" % (self.output_path,m.name,self.lbls[i],"time"))
 	    plt.close()
             
             

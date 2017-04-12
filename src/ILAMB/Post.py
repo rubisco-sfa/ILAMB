@@ -615,14 +615,21 @@ class HtmlSitePlotsPage(HtmlPage):
         <option value='%s'>%s</option>""" % (model,model)
         code += """
       </select>"""
+
+        code += """
+      <select id="%sSite" onchange="%sMap()">""" % (self.name,self.name)
+        for site in self.sites:
+            code += """
+        <option value='%s'>%s</option>""" % (site,site)
+        code += """
+      </select>"""
         
         code += """
-    <center>
-      <div id='map_canvas' style="width: 900px; height: 500px;"></div>
-      <div><img src="" id="time" alt="Data not available"></img></div>
-    </center>"""
+      <center>
+        <div id='map_canvas'></div>
+        <div><img src="" id="time" alt="Data not available"></img></div>
+      </center>"""
 
-            
         code += """
     </div>"""
         
@@ -636,33 +643,40 @@ class HtmlSitePlotsPage(HtmlPage):
         callback = "%sMap()" % (self.name)
         head = """
       function %sMap() {
-      var sitedata = google.visualization.arrayToDataTable(
-        [['Latitude', 'Longitude', '%s [%s]'],\n""" % (self.name,self.vname,self.unit)
+        var sitedata = google.visualization.arrayToDataTable(
+          [['Latitude', 'Longitude', '%s [%s]'],\n""" % (self.name,self.vname,self.unit)
 
         for lat,lon,val in zip(self.lat,self.lon,self.vals):
-            head += "         [%.3f,%.3f,%.2f],\n" % (lat,lon,val)
+            head += "           [%.3f,%.3f,%.2f],\n" % (lat,lon,val)
         head = head[:-2] + "]);\n"
-        head += ("      var names = %s;" % (self.sites)).replace("u'","'").replace(", '",",'")
+        head += ("        var names = %s;" % (self.sites)).replace("u'","'").replace(", '",",'")
         head += """
-      var options = {
-        dataMode: 'markers',
-        magnifyingGlass: {enable: true, zoomFactor: 3.},
-      };
-      var container = document.getElementById('map_canvas');
-      var geomap    = new google.visualization.GeoChart(container);
-      function clickMap() {
-        var mid    = document.getElementById("%sModel").selectedIndex;
-        var MNAME  = document.getElementById("%sModel").options[mid].value;
-        var select = geomap.getSelection();
-        console.alert(select);
-        row = select[0].row;
-        document.getElementById('time').src = MNAME + '_site' + row + '_time.png';
-      }
-      google.visualization.events.addListener(geomap,'select',clickMap);
-      geomap.draw(sitedata, options);
-      geomap.setSelection([{'row': %d}]);
-      clickMap();
-      };""" % (self.name,self.name,self.vals.argmax())
+        var options = {
+          dataMode: 'markers',
+          magnifyingGlass: {enable: true, zoomFactor: 3.},
+        };
+        var container = document.getElementById('map_canvas');
+        var geomap    = new google.visualization.GeoChart(container);
+        function updateMap() {
+          var mid    = document.getElementById("%sModel").selectedIndex;
+          var MNAME  = document.getElementById("%sModel").options[mid].value;
+          var rid    = document.getElementById("%sSite" ).selectedIndex;
+          var RNAME  = document.getElementById("%sSite" ).options[rid].value;
+          document.getElementById('time').src = MNAME + '_' + RNAME + '_time.png';
+        }
+        function clickMap() {
+          var select = geomap.getSelection();
+          if (Object.keys(select).length == 1) {
+            var site = $("select#SitePlotsSite");
+            site[0].selectedIndex = select[0].row;
+            site.selectmenu('refresh');         
+          }
+          updateMap();
+        }
+        google.visualization.events.addListener(geomap,'select',clickMap);
+        geomap.draw(sitedata, options);
+        updateMap();
+      };""" % (self.name,self.name,self.name,self.name)
         
         return head,callback,"geomap"
 
