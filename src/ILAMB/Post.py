@@ -609,7 +609,14 @@ class HtmlSitePlotsPage(HtmlPage):
       </div>"""
 
         code += """
-
+      <select id="%sModel" onchange="%sMap()">""" % (self.name,self.name)
+        for model in self.models:
+            code += """
+        <option value='%s'>%s</option>""" % (model,model)
+        code += """
+      </select>"""
+        
+        code += """
     <center>
       <div id='map_canvas' style="width: 900px; height: 500px;"></div>
       <div><img src="" id="time" alt="Data not available"></img></div>
@@ -620,7 +627,10 @@ class HtmlSitePlotsPage(HtmlPage):
     </div>"""
         
         return code
-
+    
+    def setMetrics(self,metric_dict):
+        self.models.sort()
+        
     def googleScript(self):
 
         callback = "%sMap()" % (self.name)
@@ -641,13 +651,18 @@ class HtmlSitePlotsPage(HtmlPage):
       var container = document.getElementById('map_canvas');
       var geomap    = new google.visualization.GeoChart(container);
       function clickMap() {
-        document.getElementById('time').src = 'CLM40cn_site' + geomap.getSelection()[0].row + '_time.png';
+        var mid    = document.getElementById("%sModel").selectedIndex;
+        var MNAME  = document.getElementById("%sModel").options[mid].value;
+        var select = geomap.getSelection();
+        console.alert(select);
+        row = select[0].row;
+        document.getElementById('time').src = MNAME + '_site' + row + '_time.png';
       }
       google.visualization.events.addListener(geomap,'select',clickMap);
       geomap.draw(sitedata, options);
       geomap.setSelection([{'row': %d}]);
       clickMap();
-      };""" % (self.vals.argmax())
+      };""" % (self.name,self.name,self.vals.argmax())
         
         return head,callback,"geomap"
 

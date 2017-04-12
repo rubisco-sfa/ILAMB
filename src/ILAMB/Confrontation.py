@@ -682,13 +682,15 @@ class Confrontation(object):
         
             # build the metric dictionary
             metrics = {}
+            page.models = []
             for fname in glob.glob("%s/*.nc" % self.output_path):
                 with Dataset(fname) as dataset:
+                    mname = dataset.getncattr("name")
+                    if mname != "Benchmark": page.models.append(mname)
                     if not dataset.groups.has_key(page.name): continue
                     group = dataset.groups[page.name]
 
                     # if the dataset opens, we need to add the model (table row)
-                    mname = dataset.getncattr("name")
                     metrics[mname] = {}
         
                     # each model will need to have all regions
@@ -717,7 +719,6 @@ class Confrontation(object):
                                                                        unit = var.units,
                                                                        data = var[...])
             page.setMetrics(metrics)
-
                         
         # write the HTML page
         f = file("%s/%s.html" % (self.output_path,self.name),"w")
