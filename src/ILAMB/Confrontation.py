@@ -285,8 +285,12 @@ class Confrontation(object):
                         limits[pname]["min"]  = +1e20
                         limits[pname]["max"]  = -1e20
                         limits[pname]["unit"] = post.UnitStringToMatplotlib(var.getncattr("units"))
-                    limits[pname]["min"] = min(limits[pname]["min"],var.getncattr(min_str))
-                    limits[pname]["max"] = max(limits[pname]["max"],var.getncattr(max_str))
+                    if time_opts.has_key(pname):
+                        limits[pname]["min"] = min(limits[pname]["min"],var.getncattr("min"))
+                        limits[pname]["max"] = max(limits[pname]["max"],var.getncattr("max"))
+                    else:
+                        limits[pname]["min"] = min(limits[pname]["min"],var.getncattr(min_str))
+                        limits[pname]["max"] = max(limits[pname]["max"],var.getncattr(max_str))
                     if not prune and "Benchmark" in fname and pname == "timeint":
                         prune = True
                         self.pruneRegions(Variable(filename      = fname,
@@ -600,8 +604,10 @@ class Confrontation(object):
 	                    var.plot(ax,lw=2,color=color,label=m.name,
 	                             ticks     =opts["ticks"],
 	                             ticklabels=opts["ticklabels"])
-	                    ax.set_ylim(self.limits[pname]["min"],
-	                                self.limits[pname]["max"])
+
+                            dy = 0.05*(self.limits[pname]["max"]-self.limits[pname]["min"])
+	                    ax.set_ylim(self.limits[pname]["min"]-dy,
+	                                self.limits[pname]["max"]+dy)
 	                    ylbl = opts["ylabel"]
 	                    if ylbl == "unit": ylbl = post.UnitStringToMatplotlib(var.unit)
 	                    ax.set_ylabel(ylbl)
