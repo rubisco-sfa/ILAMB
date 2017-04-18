@@ -1073,6 +1073,7 @@ class Variable:
                     label = label)
             if ticks      is not None: ax.set_xticks(ticks)
             if ticklabels is not None: ax.set_xticklabels(ticklabels)
+            ax.grid('on')
             ax.set_ylim(vmin,vmax)
             
         elif not self.temporal:
