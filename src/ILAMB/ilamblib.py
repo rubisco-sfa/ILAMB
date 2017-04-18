@@ -1203,7 +1203,9 @@ def MakeComparable(ref,com,**keywords):
         # If the reference time scale is significantly larger than the
         # comparison, coarsen the comparison
         if np.log10(ref.dt/com.dt) > 0.5:
-            com = com.coarsenInTime(ref.time_bnds,window=window)
+            ind = np.where((com.time_bnds[ 0,0] <= ref.time_bnds[:,0])*
+                           (com.time_bnds[-1,1] >= ref.time_bnds[:,1]))[0]
+            com = com.coarsenInTime(ref.time_bnds[ind,:],window=window)
         
         # Time bounds of the reference dataset
         t0  = ref.time_bnds[ 0,0]
