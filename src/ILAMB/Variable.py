@@ -1115,7 +1115,13 @@ class Variable:
                     lons = np.ma.masked_array(self.lon,mask)
                 lats = np.asarray([lats.min(),lats.max()])
                 lons = np.asarray([lons.min(),lons.max()])
-                
+                # add some padding for datasites
+                if not self.spatial:
+                    for l in [lats,lons]:
+                        dl    = 0.1*(l[1]-l[0])
+                        l[0] -= dl
+                        l[1] += dl
+                    
                 dlat,dlon = lats[1]-lats[0],lons[1]-lons[0]
                 if dlat < 1e-12:
                     dlat     = 30.
