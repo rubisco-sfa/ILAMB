@@ -65,54 +65,47 @@ class ConfNBP(Confrontation):
         """
         # Grab the data
         obs,mod = self.stageData(m)
+        obs_sum = obs.accumulateInTime().convert("Pg")
+        mod_sum = mod.accumulateInTime().convert("Pg")
         
-        obs_sum  = obs.accumulateInTime().convert("Pg")
-        mod_sum  = mod.accumulateInTime().convert("Pg")        
-        obs_mean = obs.integrateInTime(mean=True)
-        mod_mean = mod.integrateInTime(mean=True)
-        bias     = obs.bias(mod)
-        rmse     = obs.rmse(mod)
+        # End of period information
+        yf = np.round(obs.time_bnds[-1,1]/365.+1850.)
+        obs_end = Variable(name = "nbp(%4d)" % yf,
+                           unit = obs_sum.unit,
+                           data = obs_sum.data[-1])
+        mod_end = Variable(name = "nbp(%4d)" % yf,
+                           unit = mod_sum.unit,
+                           data = mod_sum.data[-1])
+        mod_diff = Variable(name = "diff(%4d)" % yf,
+                            unit = mod_sum.unit,
+                            data = mod_sum.data[-1]-obs_sum.data[-1])
 
-        # bias score = exp( abs( relative L1 norm of obs-mod ) )
-        obs_L1       = obs.integrateInTime()
-        dif_L1       = deepcopy(obs)
-        dif_L1.data -= mod.data
-        dif_L1       = dif_L1.integrateInTime()
-        bias_score   = Variable(name = "Bias Score global",
-                                unit = "1",
-                                data = np.exp(-np.abs(dif_L1.data/obs_L1.data)))
-
-        # rmse score = exp( relative L2 norm of obs-mod )
-        obs_L2       = deepcopy(obs)
-        obs_L2.data *= obs_L2.data
-        obs_L2       = obs_L2.integrateInTime()
-        dif_L2       = deepcopy(obs)
-        dif_L2.data  = (dif_L2.data-mod.data)**2
-        dif_L2       = dif_L2.integrateInTime()
-        rmse_score   = Variable(name = "RMSE Score global",
-                                unit = "1",
-                                data = np.exp(-np.sqrt(dif_L2.data/obs_L2.data)))
+        # Temporal distribution
+        np.seterr(over='ignore',under='ignore')
+        std0 = obs.data.std()
+        std  = mod.data.std()
+        np.seterr(over='raise' ,under='raise' )
+        R0    = 1.0
+        R     = obs.correlation(mod,ctype="temporal")
+        std  /= std0
+        score = Variable(name = "Temporal Distribution Score global",
+                         unit = "1",
+                         data = 4.0*(1.0+R.data)/((std+1.0/std)**2 *(1.0+R0)))
         
-        # change names to make things easier to parse later
+        # Change names to make things easier to parse later
         obs     .name = "spaceint_of_nbp_over_global"
         mod     .name = "spaceint_of_nbp_over_global"
         obs_sum .name = "accumulate_of_nbp_over_global"
         mod_sum .name = "accumulate_of_nbp_over_global"
-        obs_mean.name = "Period Mean global"
-        mod_mean.name = "Period Mean global"
-        bias    .name = "Bias global"       
-        rmse    .name = "RMSE global"       
-
+        
         # Dump to files
         results = Dataset("%s/%s_%s.nc" % (self.output_path,self.name,m.name),mode="w")
         results.setncatts({"name" :m.name, "color":m.color})
         mod       .toNetCDF4(results,group="MeanState")
         mod_sum   .toNetCDF4(results,group="MeanState")
-        mod_mean  .toNetCDF4(results,group="MeanState")
-        bias      .toNetCDF4(results,group="MeanState")
-        rmse      .toNetCDF4(results,group="MeanState")
-        bias_score.toNetCDF4(results,group="MeanState")
-        rmse_score.toNetCDF4(results,group="MeanState")
+        mod_end   .toNetCDF4(results,group="MeanState")
+        mod_diff  .toNetCDF4(results,group="MeanState")
+        score     .toNetCDF4(results,group="MeanState",attributes={"std":std,"R":R.data})
         results.close()
         
         if self.master:
@@ -120,7 +113,41 @@ class ConfNBP(Confrontation):
             results.setncatts({"name" :"Benchmark", "color":np.asarray([0.5,0.5,0.5])})
             obs     .toNetCDF4(results,group="MeanState")
             obs_sum .toNetCDF4(results,group="MeanState")
-            obs_mean.toNetCDF4(results,group="MeanState")
+            obs_end .toNetCDF4(results,group="MeanState")
             results.close()
             
         
+    def compositePlots(self):
+
+        # we want to run the original and also this additional plot
+        super(ConfNBP,self).compositePlots()
+        
+        for fname in glob.glob("%s/*.nc" % self.output_path):
+            dataset = Dataset(fname)
+            if "MeanState" not in dataset.groups: continue
+            dset    = dataset.groups["MeanState"]
+            models.append(dataset.getncattr("name"))
+            colors.append(dataset.getncattr("color"))
+            key = [v for v in dset.groups["scalars"].variables.keys() if ("Spatial Distribution Score" in v and region in v)]
+            if len(key) > 0:
+                has_std = True
+                sds     = dset.groups["scalars"].variables[key[0]]
+                corr[region].append(sds.getncattr("R"  ))
+                std [region].append(sds.getncattr("std"))
+        
+        # temporal distribution Taylor plot
+        if has_std:
+            page.addFigure("Temporally integrated period mean",
+                           "spatial_variance",
+                           "RNAME_spatial_variance.png",
+                           side   = "SPATIAL DISTRIBUTION",
+                           legend = True)       
+        if "Benchmark" in models: colors.pop(models.index("Benchmark"))
+        for region in self.regions:
+            if not (std.has_key(region) and corr.has_key(region)): continue
+            if len(std[region]) != len(corr[region]): continue
+            if len(std[region]) == 0: continue
+            fig = plt.figure(figsize=(6.0,6.0))
+            post.TaylorDiagram(np.asarray(std[region]),np.asarray(corr[region]),1.0,fig,colors)
+            fig.savefig("%s/%s_spatial_variance.png" % (self.output_path,region))
+            plt.close()
