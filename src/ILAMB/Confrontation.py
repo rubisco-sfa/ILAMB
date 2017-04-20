@@ -483,6 +483,7 @@ class Confrontation(object):
         ax.axis('off')
         fig.savefig("%s/legend_compcycle.png" % self.output_path)
         fig.savefig("%s/legend_spatial_variance.png" % self.output_path)
+        fig.savefig("%s/legend_temporal_variance.png" % self.output_path)
         plt.close()
         
         # spatial distribution Taylor plot

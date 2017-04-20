@@ -231,7 +231,7 @@ class HtmlPage(object):
     def __str__(self):
 
         r = Regions()
-        def _sortFigures(figure,priority=["benchmark_timeint","timeint","bias","benchmark_phase","phase","shift","spatial_variance","spaceint","cycle","compcycle"]):
+        def _sortFigures(figure,priority=["benchmark_timeint","timeint","bias","benchmark_phase","phase","shift","spatial_variance","spaceint","cycle","compcycle","temporal_variance"]):
             val = 1.
             for i,pname in enumerate(priority):
                 if pname == figure.name: val += 2**i

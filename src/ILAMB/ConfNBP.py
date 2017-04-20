@@ -3,9 +3,10 @@ from Variable import Variable
 from netCDF4 import Dataset
 from copy import deepcopy
 import ilamblib as il
+import pylab as plt
 import Post as post
 import numpy as np
-import os
+import os,glob
 
 class ConfNBP(Confrontation):
     """A confrontation for examining the global net ecosystem carbon balance.
@@ -121,33 +122,33 @@ class ConfNBP(Confrontation):
 
         # we want to run the original and also this additional plot
         super(ConfNBP,self).compositePlots()
-        
+
+        # get the HTML page
+        page = [page for page in self.layout.pages if "MeanState" in page.name][0]
+
+        colors = []
+        corr   = []
+        std    = []
         for fname in glob.glob("%s/*.nc" % self.output_path):
+            if "Benchmark" in fname: continue
             dataset = Dataset(fname)
             if "MeanState" not in dataset.groups: continue
             dset    = dataset.groups["MeanState"]
-            models.append(dataset.getncattr("name"))
             colors.append(dataset.getncattr("color"))
-            key = [v for v in dset.groups["scalars"].variables.keys() if ("Spatial Distribution Score" in v and region in v)]
+            key = [v for v in dset.groups["scalars"].variables.keys() if ("Temporal Distribution Score" in v)]
             if len(key) > 0:
-                has_std = True
                 sds     = dset.groups["scalars"].variables[key[0]]
-                corr[region].append(sds.getncattr("R"  ))
-                std [region].append(sds.getncattr("std"))
+                corr.append(sds.getncattr("R"  ))
+                std .append(sds.getncattr("std"))
         
         # temporal distribution Taylor plot
-        if has_std:
-            page.addFigure("Temporally integrated period mean",
-                           "spatial_variance",
-                           "RNAME_spatial_variance.png",
-                           side   = "SPATIAL DISTRIBUTION",
+        if len(corr) > 0:
+            page.addFigure("Spatially integrated regional mean",
+                           "temporal_variance",
+                           "temporal_variance.png",
+                           side   = "TEMPORAL DISTRIBUTION",
                            legend = True)       
-        if "Benchmark" in models: colors.pop(models.index("Benchmark"))
-        for region in self.regions:
-            if not (std.has_key(region) and corr.has_key(region)): continue
-            if len(std[region]) != len(corr[region]): continue
-            if len(std[region]) == 0: continue
             fig = plt.figure(figsize=(6.0,6.0))
-            post.TaylorDiagram(np.asarray(std[region]),np.asarray(corr[region]),1.0,fig,colors)
-            fig.savefig("%s/%s_spatial_variance.png" % (self.output_path,region))
+            post.TaylorDiagram(np.asarray(std),np.asarray(corr),1.0,fig,colors)
+            fig.savefig("%s/temporal_variance.png" % (self.output_path))
             plt.close()
