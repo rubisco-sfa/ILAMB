@@ -848,7 +848,7 @@ def AnalysisMeanState(obs,mod,**keywords):
     shift_map       = obs_maxt_map.phaseShift(mod_maxt_map)
     if spatial: shift_map.area = area
     shift_score_map = ScoreSeasonalCycle(shift_map)
-
+    
     # Compute a map of interannual variability score.
     if not skip_iav:
         obs_iav_map   = obs.interannualVariability()
@@ -878,7 +878,7 @@ def AnalysisMeanState(obs,mod,**keywords):
             obs_mean_cycle [region] = obs_cycle      .integrateInSpace(region=region,mean=True)
             
             # Compute the scalar means over the specified region.
-            shift          [region] = shift_map      .integrateInSpace(region=region,mean=True)
+            shift          [region] = shift_map      .integrateInSpace(region=region,mean=True,intabs=True)
             shift_score    [region] = shift_score_map.integrateInSpace(region=region,mean=True,weight=normalizer)
             if not skip_iav:
                 iav_score  [region] = iav_score_map  .integrateInSpace(region=region,mean=True,weight=normalizer)
@@ -892,7 +892,7 @@ def AnalysisMeanState(obs,mod,**keywords):
             
             # Compute the scalar period mean over sites in the specified region.
             obs_mean_cycle [region] = obs_cycle      .siteStats(region=region)
-            shift          [region] = shift_map      .siteStats(region=region)
+            shift          [region] = shift_map      .siteStats(region=region,intabs=True)
             shift_score    [region] = shift_score_map.siteStats(region=region)
             if not skip_iav:
                 iav_score  [region] = iav_score_map  .siteStats(region=region)

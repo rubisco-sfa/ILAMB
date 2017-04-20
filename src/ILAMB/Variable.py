@@ -429,7 +429,7 @@ class Variable:
                         area       = self.area,
                         ndata      = self.ndata)
     
-    def integrateInSpace(self,region=None,mean=False,weight=None):
+    def integrateInSpace(self,region=None,mean=False,weight=None,intabs=False):
         r"""Integrates the variable over a given region.
 
         Uses nodal integration to integrate to approximate 
@@ -472,9 +472,11 @@ class Variable:
             name of the region overwhich you wish to integrate
         mean : bool, optional
             enable to divide the integrand to get the mean function value
-        weight : numpy.ndarray
+        weight : numpy.ndarray, optional
             a data array of the same shape as this variable's areas
             representing an additional weight in the integrand
+        intabs : bool, optional
+            enable to integrate the absolute value 
 
         Returns
         -------
@@ -484,9 +486,11 @@ class Variable:
 
         """
         def _integrate(var,areas):
+            op = lambda x : x
+            if intabs: op = np.abs
             assert var.shape[-2:] == areas.shape
             np.seterr(over='ignore',under='ignore')
-            vbar = (var*areas).sum(axis=-1).sum(axis=-1)
+            vbar = (op(var)*areas).sum(axis=-1).sum(axis=-1)
             np.seterr(over='raise',under='raise')
             return vbar
 
@@ -534,7 +538,7 @@ class Variable:
                         depth_bnds = self.depth_bnds,
                         name       = name)
 
-    def siteStats(self,region=None,weight=None):
+    def siteStats(self,region=None,weight=None,intabs=False):
         """Computes the mean and standard deviation of the variable over all data sites.
 
         Parameters
@@ -549,6 +553,8 @@ class Variable:
 
         """
         if self.ndata is None: raise il.NotDatasiteVariable()
+        op = lambda x : x
+        if intabs: op = np.abs
         rem_mask = np.copy(self.data.mask)
         rname = ""
         r = Regions()
@@ -556,7 +562,7 @@ class Variable:
             self.data.mask += r.getMask(region,self)
             rname = "_over_%s" % region
         np.seterr(over='ignore',under='ignore')
-        mean = np.ma.average(self.data,axis=-1,weights=weight)
+        mean = np.ma.average(op(self.data),axis=-1,weights=weight)
         np.seterr(over='raise',under='raise')
         self.data.mask = rem_mask
         return Variable(data       = mean,
@@ -618,7 +624,7 @@ class Variable:
         assert etype in fcn.keys()
         tid  = np.apply_along_axis(fcn[etype],0,self.data)
         mask = False
-        if self.data.ndim > 1: mask = np.apply_along_axis(np.all,0,self.data.mask) # mask cells where all data is masked
+        if self.data.ndim > 1 and self.data.mask.ndim > 0: mask = np.apply_along_axis(np.all,0,self.data.mask) # mask cells where all data is masked
         data = np.ma.masked_array(self.time[tid],mask=mask)
         return Variable(data       = data,
                         unit       = "d",
