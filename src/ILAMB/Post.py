@@ -313,21 +313,18 @@ class HtmlPage(object):
     def setMetricPriority(self,priority):
         self.priority = priority
 
-    def metricTable(self):
+    def googleScript(self):
         if not self.metric_dict: return ""
-        models  = self.models
-        regions = self.regions
-        metrics = self.metrics
-        units   = self.units
-        head    = """
-    <script type="text/javascript" src="https://www.google.com/jsapi"></script>
-    <script type="text/javascript">
-      google.load("visualization", "1", {packages:["table"]});
-      google.setOnLoadCallback(%sTable);
+        models   = self.models
+        regions  = self.regions
+        metrics  = self.metrics
+        units    = self.units
+        callback = "%sTable()" % self.name
+        head     = """
       function %sTable() {
         var data = new google.visualization.DataTable();
         data.addColumn('string','Model');
-        data.addColumn('string','Data');""" % (self.name,self.name)
+        data.addColumn('string','Data');""" % (self.name)
         for region in regions:
             for metric in metrics:
                 head += """
@@ -391,9 +388,8 @@ class HtmlPage(object):
         google.visualization.events.addListener(table, 'select', clickRow);
       table.setSelection([{'row': 0}]);
       clickRow();
-      }
-    </script>"""
-        return head
+      }"""
+        return head,callback,"table"
 
     def setRegions(self,regions):
         assert type(regions) == type([])
@@ -430,7 +426,10 @@ class HtmlPage(object):
         if self.regions is None: self.regions = regions
         self.metrics = metrics
         self.units   = units
-        
+
+    def head(self):
+        return ""
+    
 class HtmlAllModelsPage(HtmlPage):
 
     def __init__(self,name,title):
@@ -533,8 +532,11 @@ class HtmlAllModelsPage(HtmlPage):
         code += """
     </div>"""
         return code
+
+    def googleScript(self):
+        return "","",""
     
-    def metricTable(self):
+    def head(self):
         
         if self.plots is None: self._populatePlots()
         
@@ -545,7 +547,7 @@ class HtmlAllModelsPage(HtmlPage):
         except:
             pass
         head    = """
-    <script type="text/javascript">
+    <script>
       function AllSelect() {
         var header = "%s";
         var CNAME  = "%s";
@@ -578,6 +580,113 @@ class HtmlAllModelsPage(HtmlPage):
     </script>"""
         return head
 
+class HtmlSitePlotsPage(HtmlPage):
+
+    def __init__(self,name,title):
+        
+        super(HtmlSitePlotsPage,self).__init__(name,title)
+
+    def __str__(self):
+
+        # setup page navigation
+        code = """
+    <div data-role="page" id="%s">
+      <div data-role="header" data-position="fixed" data-tap-toggle="false">
+        <h1 id="%sHead">%s</h1>""" % (self.name,self.name,self.title)
+        if self.pages:
+	    code += """
+        <div data-role="navbar">
+	  <ul>""" 
+            for page in self.pages:
+                opts = ""
+                if page == self: opts = " class=ui-btn-active ui-state-persist"
+                code += """
+            <li><a href='#%s'%s>%s</a></li>""" % (page.name,opts,page.title)
+            code += """
+	  </ul>"""
+        code += """
+	</div>
+      </div>"""
+
+        code += """
+      <select id="%sModel" onchange="%sMap()">""" % (self.name,self.name)
+        for model in self.models:
+            code += """
+        <option value='%s'>%s</option>""" % (model,model)
+        code += """
+      </select>"""
+
+        code += """
+      <select id="%sSite" onchange="%sMap()">""" % (self.name,self.name)
+        for site in self.sites:
+            code += """
+        <option value='%s'>%s</option>""" % (site,site)
+        code += """
+      </select>"""
+        
+        code += """
+      <center>
+        <div id='map_canvas'></div>
+        <div><img src="" id="time" alt="Data not available"></img></div>
+      </center>"""
+
+        code += """
+    </div>"""
+        
+        return code
+    
+    def setMetrics(self,metric_dict):
+        self.models.sort()
+        
+    def googleScript(self):
+
+        callback = "%sMap()" % (self.name)
+        head = """
+      function %sMap() {
+        var sitedata = google.visualization.arrayToDataTable(
+          [['Latitude', 'Longitude', '%s [%s]'],\n""" % (self.name,self.vname,self.unit)
+
+        for lat,lon,val in zip(self.lat,self.lon,self.vals):
+            if val is np.ma.masked:
+                sval = "null"
+            else:
+                sval = "%.2f" % val
+            head += "           [%.3f,%.3f,%s],\n" % (lat,lon,sval)
+        head = head[:-2] + "]);\n"
+        head += ("        var names = %s;" % (self.sites)).replace("u'","'").replace(", '",",'")
+        head += """
+        var options = {
+          dataMode: 'markers',
+          magnifyingGlass: {enable: true, zoomFactor: 3.},
+        };
+        var container = document.getElementById('map_canvas');
+        var geomap    = new google.visualization.GeoChart(container);
+        function updateMap() {
+          var mid    = document.getElementById("%sModel").selectedIndex;
+          var MNAME  = document.getElementById("%sModel").options[mid].value;
+          var rid    = document.getElementById("%sSite" ).selectedIndex;
+          var RNAME  = document.getElementById("%sSite" ).options[rid].value;
+          document.getElementById('time').src = MNAME + '_' + RNAME + '_time.png';
+        }
+        function clickMap() {
+          var select = geomap.getSelection();
+          if (Object.keys(select).length == 1) {
+            var site = $("select#SitePlotsSite");
+            site[0].selectedIndex = select[0].row;
+            site.selectmenu('refresh');         
+          }
+          updateMap();
+        }
+        google.visualization.events.addListener(geomap,'select',clickMap);
+        geomap.draw(sitedata, options);
+        updateMap();
+      };""" % (self.name,self.name,self.name,self.name)
+        
+        return head,callback,"geomap"
+
+    def head(self):
+        return ""
+    
 class HtmlLayout():
 
     def __init__(self,pages,cname):
@@ -596,11 +705,38 @@ class HtmlLayout():
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel="stylesheet" href="https://code.jquery.com/mobile/1.4.5/jquery.mobile-1.4.5.min.css">
     <script src="https://code.jquery.com/jquery-1.11.3.min.js"></script>
-    <script src="https://code.jquery.com/mobile/1.4.5/jquery.mobile-1.4.5.min.js"></script>"""
-
+    <script src="https://code.jquery.com/mobile/1.4.5/jquery.mobile-1.4.5.min.js"></script>
+    <script type="text/javascript" src="https://www.google.com/jsapi"></script>"""
+    
         ### stick in javascript stuff here
-        for page in self.pages: code += page.metricTable()
-            
+        functions = []
+        callbacks = []
+        packages  = []
+        for page in self.pages:
+            out = page.googleScript()
+            if len(out) == 3:
+                f,c,p = out
+                if f != "": functions.append(f)
+                if c != "": callbacks.append(c)
+                if p != "": packages.append(p)
+                
+        code += """
+    <script type='text/javascript'>
+      google.load("visualization", "1", {packages: %s});
+      google.setOnLoadCallback(allLoad);
+      function allLoad() {""" % packages
+        for c in callbacks:
+            code += """
+        %s""" % c
+        code += """
+      };"""
+        for f in functions:
+            code += f
+        code += """
+    </script>"""
+
+        for page in self.pages: code += page.head()
+        
         ### stick in css stuff here
         code += """
     <style type="text/css">

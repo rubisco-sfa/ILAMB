@@ -99,13 +99,42 @@ class Confrontation(object):
             msg += "%s\n\nbut I cannot find it. " % self.source
             msg += "Did you download the data? Have you set the ILAMB_ROOT envronment variable?\n"
             raise il.MisplacedData(msg)
-
+                
         # Setup a html layout for generating web views of the results
         pages = []
+        
+        # Mean State page
         pages.append(post.HtmlPage("MeanState","Mean State"))
         pages[-1].setHeader("CNAME / RNAME / MNAME")
         pages[-1].setSections(["Temporally integrated period mean",
                               "Spatially integrated regional mean"])
+
+        # Datasites page
+        self.hasSites = False
+        self.lbls = None
+        with Dataset(self.source) as dataset:
+            if dataset.dimensions.has_key("data"):
+                self.hasSites = True
+                if "site_name" in dataset.ncattrs():
+                    self.lbls = dataset.site_name.split(",")
+                else:
+                    self.lbls = ["site%d" % s for s in range(dataset.variables["data"][...])]
+        if self.hasSites:
+            pages.append(post.HtmlSitePlotsPage("SitePlots","Site Plots"))
+            pages[-1].setHeader("CNAME / RNAME / MNAME")
+            pages[-1].setSections([])
+            var = Variable(filename       = self.source,
+                           variable_name  = self.variable,
+                           alternate_vars = self.alternate_vars).integrateInTime(mean=True)
+            if self.plot_unit is not None: var.convert(self.plot_unit)
+            pages[-1].lat   = var.lat
+            pages[-1].lon   = var.lon
+            pages[-1].vname = self.variable
+            pages[-1].unit  = var.unit
+            pages[-1].vals  = var.data
+            pages[-1].sites = self.lbls
+            
+        # Relationships page
         if self.relationships is not None:
             pages.append(post.HtmlPage("Relationships","Relationships"))
             pages[-1].setHeader("CNAME / RNAME / MNAME")
@@ -616,7 +645,38 @@ class Confrontation(object):
 	                    plt.close()
 
         logger.info("[%s][%s] Success" % (self.longname,m.name))
+
+    def sitePlots(self,m):
+        """
+
+        """
+        if not self.hasSites: return
+
+        obs,mod = self.stageData(m)
+        for i in range(obs.ndata):
+	    fig,ax = plt.subplots(figsize=(6.8,2.8),tight_layout=True)
+            tmask  = np.where(mod.data.mask[:,i]==False)[0]
+            if tmask.size > 0:
+                tmin,tmax = tmask[[0,-1]]
+            else:                
+                tmin = 0; tmax = mod.time.size-1
                 
+            t = mod.time[tmin:(tmax+1)  ]
+            x = mod.data[tmin:(tmax+1),i]
+            y = obs.data[tmin:(tmax+1),i]
+            ax.plot(t,y,'-k',lw=2,alpha=0.5)
+            ax.plot(t,x,'-',color=m.color)
+
+            ind        = np.where(t % 365 < 30.)[0]
+            ticks      = t[ind] - (t[ind] % 365)
+            ticklabels = (ticks/365.+1850.).astype(int)
+            ax.set_xticks     (ticks     )
+            ax.set_xticklabels(ticklabels)
+            ax.set_ylabel(post.UnitStringToMatplotlib(mod.unit))
+	    fig.savefig("%s/%s_%s_%s.png" % (self.output_path,m.name,self.lbls[i],"time"))
+	    plt.close()
+            
+            
     def generateHtml(self):
         """Generate the HTML for the results of this confrontation.
 
@@ -633,13 +693,15 @@ class Confrontation(object):
         
             # build the metric dictionary
             metrics = {}
+            page.models = []
             for fname in glob.glob("%s/*.nc" % self.output_path):
                 with Dataset(fname) as dataset:
+                    mname = dataset.getncattr("name")
+                    if mname != "Benchmark": page.models.append(mname)
                     if not dataset.groups.has_key(page.name): continue
                     group = dataset.groups[page.name]
 
                     # if the dataset opens, we need to add the model (table row)
-                    mname = dataset.getncattr("name")
                     metrics[mname] = {}
         
                     # each model will need to have all regions
@@ -668,7 +730,6 @@ class Confrontation(object):
                                                                        unit = var.units,
                                                                        data = var[...])
             page.setMetrics(metrics)
-
                         
         # write the HTML page
         f = file("%s/%s.html" % (self.output_path,self.name),"w")

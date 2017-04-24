@@ -301,6 +301,7 @@ def WorkPost(M,C,W,S,verbose=False):
         m,c = w
         t0  = time.time()
         c.modelPlots(m)
+        c.sitePlots(m)
         c.computeOverallScore(m)
         dt = time.time()-t0
         proc[rank] += dt
