@@ -1228,7 +1228,8 @@ class Variable:
             ind   = np.ix_(*args)
             mask  = data.mask[ind]
             data  = data.data[ind]
-            data  = np.ma.masked_array(data,mask=mask)
+            data  = np.ma.masked_array(data,mask=mask)            
+            output_area = self.area[np.ix_(rows,cols)]
         if self.temporal and time is not None:
             times = np.apply_along_axis(np.argmin,1,np.abs(time[:,np.newaxis]-self.time))
             mask  = data.mask
