@@ -653,6 +653,12 @@ def AnalysisMeanState(obs,mod,**keywords):
         the unit to use when displaying output on plots on the HTML page
 
     """
+
+
+def AnalysisMeanState(ref,com,**keywords):
+    """
+
+    """
     regions           = keywords.get("regions"          ,["global"])
     dataset           = keywords.get("dataset"          ,None)
     benchmark_dataset = keywords.get("benchmark_dataset",None)
@@ -662,282 +668,108 @@ def AnalysisMeanState(obs,mod,**keywords):
     mass_weighting    = keywords.get("mass_weighting"   ,False)
     skip_rmse         = keywords.get("skip_rmse"        ,False)
     skip_iav          = keywords.get("skip_iav"         ,False)
+    res               = keywords.get("res"              ,0.5)
     ILAMBregions      = Regions()
+    spatial           = ref.spatial
     
-    assert Units(obs.unit) == Units(mod.unit)
-    spatial = obs.spatial
-    
-    # Integrate in time and divide through by the time period. We need
-    # these maps/sites for plotting.
-    obs_timeint = obs.integrateInTime(mean=True)
-    mod_timeint = mod.integrateInTime(mean=True)
-        
-    # Compute maps of the bias and rmse. We will use these variables
-    # later in the regional analysis to obtain means over individual
-    # regions. Note that since we have already taken a temporal
-    # average of the variables, the bias() function can reuse this
-    # data and avoid extra averaging. We also compute maps of the
-    # scores, each normalized in their respective manner.
-    bias_map = obs_timeint.bias(mod_timeint)
-    if not skip_rmse:
-        rmse_map = obs.rmse(mod)
-        rms_map  = obs.rms()
-        
-    normalizer = None
+    # In order to deal with differences in grids and representation of
+    # land, we will interpolate both datasets to a fixed
+    # resolution. While not perfect we interpolate to a grid
+    # resolution higher than models are typically run. By convention,
+    # I will use capital letters for the interpolated quantities.
     if spatial:
-        
-        # The above maps use spatial interpolation to a composed
-        # grid. When we do this, we have to compute cell areas based
-        # on the new lat/lon grid which discards the land
-        # fractions. So, here we find the land fraction of the model,
-        # interpolate it to the new grid, and replace the new grid
-        # areas with the land area.
-        land_fraction = mod_timeint.area / CellAreas(mod_timeint.lat,mod_timeint.lon).clip(1)
-        land_fraction = land_fraction.clip(0,1)
-        area = NearestNeighborInterpolation(mod_timeint.lat,mod_timeint.lon,land_fraction,
-                                            bias_map.lat,bias_map.lon)*bias_map.area
-        bias_map.area = area
-        if not skip_rmse:
-            rmse_map.area = area
-            rms_map       = rms_map.interpolate(lat = rmse_map.lat,
-                                                lon = rmse_map.lon)
-            rms_map .area = area
-
-        # If we are mass weighting, we need to get the observational
-        # annual mean on the same composed grid as the bias.
-        obs_timeint_int = obs_timeint.interpolate(lat=bias_map.lat,lon=bias_map.lon) 
-        if mass_weighting: normalizer = obs_timeint_int.data
-            
-        period_mean      = obs_timeint.integrateInSpace(mean=True)
-        bias_score_map   = Score(bias_map,obs_timeint_int)
-        if not skip_rmse:
-            rmse_score_map = Score(rmse_map,rms_map)
-
+        junk,junk,lat,lon = GlobalLatLonGrid(res)
+        REF = ref.interpolate(lat=lat,lon=lon)
+        COM = com.interpolate(lat=lat,lon=lon)
+    
+    # We find the mean values over the time period on the original
+    # grid/datasites of each dataset
+    ref_timeint = ref.integrateInTime(mean=True)
+    com_timeint = com.integrateInTime(mean=True)
+    if spatial:
+        REF_timeint = REF.integrateInTime(mean=True)
+        COM_timeint = COM.integrateInTime(mean=True)
     else:
-        normalizer     = obs_timeint.data
-        bias_score_map = Score(bias_map,obs_timeint)
-        if not skip_rmse:
-            rmse_score_map = Score(rmse_map,rms_map)
+        REF         = ref
+        COM         = com
+        REF_timeint = ref_timeint
+        COM_timeint = com_timeint
+        
+    # Compute the bias, RMSE, and RMS maps using the interpolated
+    # quantities
+    bias = REF_timeint.bias(COM_timeint)
+    bias_score_map = Score(bias,REF_timeint)
+    if not skip_rmse:
+        rmse = REF.rmse(COM)
+        rms  = REF.rms ()
+        rmse_score_map = Score(rmse,rms)
 
-    # Perform analysis over regions. We will store these in
-    # dictionaries of variables where the keys are the region names.
-    obs_period_mean = {}
-    obs_spaceint    = {}
-    mod_period_mean = {}
-    mod_spaceint    = {}
-    bias            = {}
-    bias_score      = {}
-    rmse            = {}
-    rmse_score      = {}
-    shift           = {}
-    shift_score     = {}
-    iav_score       = {}
-    std             = {}
-    R               = {}
-    sd_score        = {}
+
+    ref_period_mean = {}
+    com_period_mean = {}
     for region in regions:
+        ref_period_mean[region] = ref_timeint.integrateInSpace(mean=space_mean,region=region)
+        com_period_mean[region] = com_timeint.integrateInSpace(mean=space_mean,region=region)
+
+        ref_period_mean[region].name = "Period Mean %s" % region
+        com_period_mean[region].name = "Period Mean %s" % region
+
         
-        if spatial:
-
-            # Compute the scalar integral over the specified region.
-            obs_period_mean[region] = obs_timeint    .integrateInSpace(region=region,mean=space_mean)
-            obs_spaceint   [region] = obs            .integrateInSpace(region=region,mean=True)
-            mod_period_mean[region] = mod_timeint    .integrateInSpace(region=region,mean=space_mean)
-            
-            # Compute the scalar means over the specified region.
-            bias           [region] = bias_map       .integrateInSpace(region=region,mean=space_mean)
-            bias_score     [region] = bias_score_map .integrateInSpace(region=region,mean=True,weight=normalizer)
-            if not skip_rmse:
-                rmse       [region] = rmse_map       .integrateInSpace(region=region,mean=space_mean)            
-                rmse_score [region] = rmse_score_map .integrateInSpace(region=region,mean=True,weight=normalizer)
-            mod_spaceint   [region] = mod            .integrateInSpace(region=region,mean=True)
-            
-        else:
-
-            # We need to check if there are datasites in this
-            # region. If not, we will just skip the region.
-            if not ILAMBregions.hasData(region,obs): continue
-            
-            # Compute the scalar period mean over sites in the specified region.
-            obs_period_mean[region] = obs_timeint    .siteStats(region=region)
-            obs_spaceint   [region] = obs            .siteStats(region=region)
-            mod_period_mean[region] = mod_timeint    .siteStats(region=region)
-            bias           [region] = bias_map       .siteStats(region=region)
-            bias_score     [region] = bias_score_map .siteStats(region=region,weight=normalizer)
-            if not skip_rmse:
-                rmse       [region] = rmse_map       .siteStats(region=region)
-                rmse_score [region] = rmse_score_map .siteStats(region=region)
-            mod_spaceint   [region] = mod            .siteStats(region=region)
-
-        # Compute the spatial variability.
-        std[region],R[region],sd_score[region] = obs_timeint.spatialDistribution(mod_timeint,region=region)
-        
-        # Change variable names to make things easier to parse later.
-        obs_period_mean[region].name = "Period Mean %s"            % (region)
-        mod_period_mean[region].name = "Period Mean %s"            % (region)
-        bias           [region].name = "Bias %s"                   % (region)
-        bias_score     [region].name = "Bias Score %s"             % (region)
-        if not skip_rmse:
-            rmse       [region].name = "RMSE %s"                   % (region)
-            rmse_score [region].name = "RMSE Score %s"             % (region)
-        sd_score       [region].name = "Spatial Distribution Score %s"    % (region)
-        obs_spaceint   [region].name = "spaceint_of_%s_over_%s"    % (obs.name,region)
-        mod_spaceint   [region].name = "spaceint_of_%s_over_%s"    % (obs.name,region)
-
-    # More variable name changes
-    obs_timeint.name  = "timeint_of_%s"   % obs.name
-    mod_timeint.name  = "timeint_of_%s"   % obs.name
-    bias_map.name     = "bias_map_of_%s"  % obs.name
-
     # Unit conversions
     if table_unit is not None:
-        for var in [obs_period_mean,mod_period_mean,bias,rmse]:
+        for var in [ref_period_mean,com_period_mean]:
             if type(var) == type({}):
                 for key in var.keys(): var[key].convert(table_unit)
             else:
                 var.convert(plot_unit)
+
     if plot_unit is not None:
-        for var in [mod_timeint,obs_timeint,bias_map,mod_spaceint]:
+        for var in [com_timeint,COM_timeint,ref_timeint,REF_timeint,bias,rmse]:
             if type(var) == type({}):
                 for key in var.keys(): var[key].convert(plot_unit)
             else:
                 var.convert(plot_unit)
-
-    # Optionally dump results to a NetCDF file
-    out_vars = [mod_period_mean,
+        
+    # Rename and optionally dump out information to netCDF4 files
+    com_timeint    .name = "timeint_of_%s"        % ref.name
+    bias           .name = "bias_map_of_%s"       % ref.name
+    bias_score_map .name = "biasscore_map_of_%s"  % ref.name
+    out_vars = [com_period_mean,
+                com_timeint,
                 bias,
-                bias_score,
-                mod_timeint,
-                bias_map]
-    # Only output spaceint if it isn't a scalar so it doesn't appear in the table
-    if mod_spaceint[mod_spaceint.keys()[0]].data.size > 1: out_vars.append(mod_spaceint)
+                bias_score_map]
+    if spatial:
+        COM_timeint.name = "timeintremap_of_%s"  % ref.name
+        out_vars.append(COM_timeint)
     if not skip_rmse:
+        rmse          .name = "rmse_map_of_%s"       % ref.name
+        rms           .name = "rms_map_of_%s"        % ref.name
+        rmse_score_map.name = "rmsescore_map_of_%s"  % ref.name
         out_vars.append(rmse)
-        out_vars.append(rmse_score)
-        
+        out_vars.append(rms )
+        out_vars.append(rmse_score_map)
     if dataset is not None:
         for var in out_vars:
             if type(var) == type({}):
                 for key in var.keys(): var[key].toNetCDF4(dataset,group="MeanState")
             else:
                 var.toNetCDF4(dataset,group="MeanState")
-    for key in sd_score.keys():
-        sd_score[key].toNetCDF4(dataset,group="MeanState",
-                                attributes={"std":std[region].data,
-                                            "R"  :R  [region].data})
+
+    # Rename and optionally dump out information to netCDF4 files
+    ref_timeint.name = "timeint_of_%s"        % ref.name
+    out_vars = [ref_timeint]
+    if spatial:
+        REF_timeint.name = "timeintremap_of_%s"  % ref.name
+        out_vars.append(REF_timeint)
     if benchmark_dataset is not None:
-        out_vars = [obs_period_mean,obs_timeint]
-        if obs_spaceint[obs_spaceint.keys()[0]].data.size > 1: out_vars.append(obs_spaceint)
         for var in out_vars:
             if type(var) == type({}):
                 for key in var.keys(): var[key].toNetCDF4(benchmark_dataset,group="MeanState")
             else:
                 var.toNetCDF4(benchmark_dataset,group="MeanState")
+                
+    return 
 
-    # The next analysis bit requires we are dealing with monthly mean data
-    if not obs.monthly: return
-    if obs.time.size < 12: return
-    
-    # Compute of the phase shift. First we compute the mean
-    # annual cycle over space/sites and then find the time where the
-    # maxmimum occurs.
-    obs_cycle       = obs.annualCycle()
-    mod_cycle       = mod.annualCycle()
-    obs_maxt_map    = obs_cycle.timeOfExtrema(etype="max")
-    mod_maxt_map    = mod_cycle.timeOfExtrema(etype="max")
-    shift_map       = obs_maxt_map.phaseShift(mod_maxt_map)
-    if spatial: shift_map.area = area
-    shift_score_map = ScoreSeasonalCycle(shift_map)
-    
-    # Compute a map of interannual variability score.
-    if not skip_iav:
-        obs_iav_map   = obs.interannualVariability()
-        mod_iav_map   = mod.interannualVariability()
-        iav_score_map = obs_iav_map.spatialDifference(mod_iav_map)
-        iav_score_map.name = obs_iav_map.name
-        if spatial:
-            obs_iav_map_int = obs_iav_map.interpolate(lat=iav_score_map.lat,
-                                                      lon=iav_score_map.lon)
-            iav_score_map.area = area
-            iav_score_map = Score(iav_score_map,obs_iav_map_int)
-        else:
-            iav_score_map = Score(iav_score_map,obs_iav_map)
-            
-    # Perform analysis over regions. We will store these in
-    # dictionaries of variables where the keys are the region names.
-    obs_mean_cycle  = {}
-    mod_mean_cycle  = {}
-    shift           = {}
-    shift_score     = {}
-    iav_score       = {}
-    for region in regions:
-        
-        if spatial:
-
-            # Compute the scalar integral over the specified region.
-            obs_mean_cycle [region] = obs_cycle      .integrateInSpace(region=region,mean=True)
-            
-            # Compute the scalar means over the specified region.
-            shift          [region] = shift_map      .integrateInSpace(region=region,mean=True,intabs=True)
-            shift_score    [region] = shift_score_map.integrateInSpace(region=region,mean=True,weight=normalizer)
-            if not skip_iav:
-                iav_score  [region] = iav_score_map  .integrateInSpace(region=region,mean=True,weight=normalizer)
-            mod_mean_cycle [region] = mod_cycle      .integrateInSpace(region=region,mean=True)
-            
-        else:
-
-            # We need to check if there are datasites in this
-            # region. If not, we will just skip the region.            
-            if not ILAMBregions.hasData(region,obs): continue
-            
-            # Compute the scalar period mean over sites in the specified region.
-            obs_mean_cycle [region] = obs_cycle      .siteStats(region=region)
-            shift          [region] = shift_map      .siteStats(region=region,intabs=True)
-            shift_score    [region] = shift_score_map.siteStats(region=region)
-            if not skip_iav:
-                iav_score  [region] = iav_score_map  .siteStats(region=region)
-            mod_mean_cycle [region] = mod_cycle      .siteStats(region=region)
-        
-        # Change variable names to make things easier to parse later.
-        shift          [region].name = "Phase Shift %s"          % (region)
-        shift_score    [region].name = "Seasonal Cycle Score %s"    % (region)
-        if not skip_iav:
-            iav_score  [region].name = "Interannual Variability Score %s" % (region)
-        obs_mean_cycle [region].name = "cycle_of_%s_over_%s"     % (obs.name,region)
-        mod_mean_cycle [region].name = "cycle_of_%s_over_%s"     % (obs.name,region)
-        
-    # More variable name changes
-    obs_maxt_map.name = "phase_map_of_%s" % obs.name
-    mod_maxt_map.name = "phase_map_of_%s" % obs.name
-    shift_map.name    = "shift_map_of_%s" % obs.name
-
-    # Unit conversions
-    if plot_unit is not None:
-        for var in [mod_mean_cycle]:
-            if type(var) == type({}):
-                for key in var.keys(): var[key].convert(plot_unit)
-            else:
-                var.convert(plot_unit)
-
-    # Optionally dump results to a NetCDF file
-    if dataset is not None:
-        out_vars = [shift,
-                    shift_score,
-                    mod_maxt_map,
-                    shift_map,
-                    mod_mean_cycle]
-        if not skip_iav: out_vars.append(iav_score)
-        for var in out_vars:
-            if type(var) == type({}):
-                for key in var.keys(): var[key].toNetCDF4(dataset,group="MeanState")
-            else:
-                var.toNetCDF4(dataset,group="MeanState")
-    if benchmark_dataset is not None:
-        for var in [obs_maxt_map,obs_mean_cycle]:
-            if type(var) == type({}):
-                for key in var.keys(): var[key].toNetCDF4(benchmark_dataset,group="MeanState")
-            else:
-                var.toNetCDF4(benchmark_dataset,group="MeanState")
     
 def AnalysisRelationship(dep_var,ind_var,dataset,rname,**keywords):
     """Perform a relationship analysis.
