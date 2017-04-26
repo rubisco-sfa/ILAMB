@@ -466,7 +466,10 @@ class Confrontation(object):
 
                 if not std.  has_key(region): std  [region] = []
                 if not corr. has_key(region): corr [region] = []
-                key = [v for v in dset.groups["scalars"].variables.keys() if ("Spatial Distribution Score" in v and region in v)]
+
+                key = []
+                if "scalars" in dset.groups:
+                    key = [v for v in dset.groups["scalars"].variables.keys() if ("Spatial Distribution Score" in v and region in v)]
                 if len(key) > 0:
                     has_std = True
                     sds     = dset.groups["scalars"].variables[key[0]]
