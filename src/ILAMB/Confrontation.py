@@ -355,6 +355,7 @@ class Confrontation(object):
                               ticklabels = opts["ticklabels"],
                               label = label)
                 fig.savefig("%s/legend_%s.png" % (self.output_path,pname))
+                
                 plt.close()
 
         # Determine min/max of relationship variables
@@ -596,7 +597,7 @@ class Confrontation(object):
 	                                   "benchmark_%s" % pname,
 	                                   opts["pattern"].replace("MNAME","Benchmark"),
 	                                   side   = opts["sidelbl"].replace("MODEL","BENCHMARK"),
-	                                   legend = False)
+	                                   legend = True)
 	
 	                    # plot variable
 	                    obs = Variable(filename=bname,groupname="MeanState",variable_name=vname)

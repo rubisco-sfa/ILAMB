@@ -102,7 +102,7 @@ space_opts["phase"]   = { "name"      :"Temporally integrated period mean max mo
                           "sym"       :False,
                           "ticks"     :mid_months,
                           "ticklabels":lbl_months,
-                          "label"     :" ",
+                          "label"     :"month",
                           "section"   :"Temporally integrated period mean",
                           "pattern"   :"MNAME_RNAME_phase.png",
                           "sidelbl"   :"MODEL MAX MONTH",
@@ -110,7 +110,8 @@ space_opts["phase"]   = { "name"      :"Temporally integrated period mean max mo
 
 
 time_opts = {}
-time_opts["spaceint"] = { "section"    : "Spatially integrated regional mean",
+time_opts["spaceint"] = { "name"       : "Spatially integrated regional mean",
+                          "section"    : "Spatially integrated regional mean",
                           "haslegend"  : False,
                           "pattern"    : "MNAME_RNAME_spaceint.png",
                           "sidelbl"    : "MEAN",
@@ -118,15 +119,17 @@ time_opts["spaceint"] = { "section"    : "Spatially integrated regional mean",
                           "ticklabels" : None,
                           "ylabel"     : "unit"}
 
-time_opts["accumulate"] = { "section"    : "Spatially integrated regional mean",
-                          "haslegend"  : False,
-                          "pattern"    : "MNAME_RNAME_accumulate.png",
-                          "sidelbl"    : "ACCUMULATION",
-                          "ticks"      : None,
-                          "ticklabels" : None,
-                          "ylabel"     : "unit"}
+time_opts["accumulate"] = { "name"       : "Accumulated mean",
+                            "section"    : "Spatially integrated regional mean",
+                            "haslegend"  : False,
+                            "pattern"    : "MNAME_RNAME_accumulate.png",
+                            "sidelbl"    : "ACCUMULATION",
+                            "ticks"      : None,
+                            "ticklabels" : None,
+                            "ylabel"     : "unit"}
 
-time_opts["cycle"]    = { "section"    : "Spatially integrated regional mean",
+time_opts["cycle"]    = { "name"       : "Spatially integrated regional mean cycle",
+                          "section"    : "Spatially integrated regional mean",
                           "haslegend"  : False,
                           "pattern"    : "MNAME_RNAME_cycle.png",
                           "sidelbl"    : "CYCLE",
