@@ -1,6 +1,6 @@
 import pylab as plt
 import numpy as np
-from constants import space_opts
+from constants import space_opts,time_opts
 from Regions import Regions
 import re
 
@@ -180,33 +180,20 @@ class HtmlFigure():
 
     def __str__(self):
 
-        if self.benchmark:
-            code = """
-        <div class="benchmark" id="%s_div">""" % (self.name)
-        else:
-            code = """
-        <div class="outer" id="%s_div">""" % (self.name)
-
-        if self.benchmark:
+        code = """
+        <div class="container" id="%s_div">
+          <div class="child">""" % (self.name)
+        if self.side is not None:
             code += """
-              <div class="second">
-                 <img src="" id="benchmark_%s" alt="Data not available"></img>
-                 <img src="" id="%s" alt="Data not available"></img>
-              </div>""" % (self.name,self.name)
-        else:            
-            if self.side is not None:
-                code += """
-              <div class="inner rotate">%s</div>""" % (self.side.replace(" ","&nbsp;"))
-            code += """
-              <div class="second"><img src="" id="%s" alt="Data not available"></img></div>""" % (self.name)
-            if self.legend:
-                if self.side is not None:
-                    code += """
-              <div class="inner rotate"> </div>"""
-                code += """
-              <div class="second"><img src="legend_%s.png" id="leg"  alt="Data not available"></img></div>""" % (self.name)
+          <center>%s</center>""" % (self.side.replace(" ","&nbsp;"))
         code += """
-        </div><br>"""
+          <img src="" id="%s" alt="Data not available"></img>""" % (self.name)
+        if self.legend:
+            code += """
+          <center><img src="legend_%s.png" id="leg"  alt="Data not available"></img></center>""" % (self.name.replace("benchmark_",""))
+        code += """
+          </div>
+        </div>"""
         return code
 
 
@@ -447,7 +434,7 @@ class HtmlAllModelsPage(HtmlPage):
                 for section in page.sections:
                     if len(page.figures[section]) == 0: continue
                     for figure in page.figures[section]:
-                        if (figure.name in ["spatial_variance","spaceint","cycle","compcycle"]): continue # ignores
+                        if (figure.name in ["spatial_variance","compcycle"]): continue # ignores
                         if "benchmark" in figure.name:
                             if figure.name not in bench: bench.append(figure.name)
                             continue
@@ -497,9 +484,10 @@ class HtmlAllModelsPage(HtmlPage):
         if self.plots:
             code += """
       <select id="%sPlot" onchange="AllSelect()">""" % (self.name)
-            for plot in self.plots:
+            for plot in self.plots:                
                 name  = ''
                 if space_opts.has_key(plot.name): name = space_opts[plot.name]["name"]
+                if time_opts.has_key(plot.name):  name = time_opts[plot.name]["name"]
                 if "rel_" in plot.name: name = plot.name.replace("rel_","Relationship with ")
                 opts  = ''
                 if plot.name == "timeint" or len(self.plots) == 1:
@@ -509,22 +497,15 @@ class HtmlAllModelsPage(HtmlPage):
             code += """
       </select>"""
             
-            fig = self.plots[0]
-            rem_legend = fig.legend; fig.legend = False
-            rem_side   = fig.side;   fig.side   = "MNAME"
-            img = "%s" % (fig)
-            img = img.replace("%s" % fig.name,"MNAME")
-            fig.legend = rem_legend
-            fig.side   = rem_side
+            fig      = self.plots[0]
+            rem_side = fig.side
+            fig.side = "MNAME"
+            img      = "%s" % (fig)
+            img      = img.replace('"leg"','"MNAME_legend"').replace("%s" % fig.name,"MNAME")
+            fig.side = rem_side
             for model in self.pages[0].models:
                 code += img.replace("MNAME",model)
-            
-            code += """
-        <div class="outer" id="legend_div">
-          <div class="inner rotate"> </div>
-          <div class="second"><img src="" id="legend" alt="Data not available"></img></div>
-        </div><br>"""
-            
+                        
         if self.text is not None:
             code += """
       %s""" % self.text
@@ -561,15 +542,15 @@ class HtmlAllModelsPage(HtmlPage):
         
         head += """
         if(%s){
-          document.getElementById("Benchmark_div").style.display = 'none'
+          document.getElementById("Benchmark_div").style.display = 'none';
         }else{
-          document.getElementById("Benchmark_div").style.display = 'block'
-          document.getElementById('Benchmark').src = 'Benchmark_' + RNAME + '_' + PNAME + '.png'
-        }
-        document.getElementById('legend').src = 'legend_' + PNAME + '.png'""" % (" || ".join(['PNAME == "%s"' % n for n in self.nobench]))
+          document.getElementById("Benchmark_div").style.display = 'inline';
+          document.getElementById('Benchmark').src = 'Benchmark_' + RNAME + '_' + PNAME + '.png';
+        }""" % (" || ".join(['PNAME == "%s"' % n for n in self.nobench]))
         for model in models:
             head += """
-        document.getElementById('%s').src = '%s_' + RNAME + '_' + PNAME + '.png'""" % (model,model)
+        document.getElementById('%s').src = '%s_' + RNAME + '_' + PNAME + '.png';
+        document.getElementById('%s_legend').src = 'legend_' + PNAME + '.png';""" % (model,model,model)
         head += """
       }
     </script>
@@ -740,35 +721,16 @@ class HtmlLayout():
         ### stick in css stuff here
         code += """
     <style type="text/css">
-      .outer {
-             width: 40px;
-          position: relative;
-           display: inline-block;
-            margin: 0 15px;
+      .container{
+        display:inline;
       }
-      .benchmark {
-          position: relative;
-           display: inline-block;
-            margin: 0 15px;
-      }
-      .inner {
-         font-size: 20px;
-       font-weight: bold;
-          position: absolute;
-               top: 50%;
-              left: 50%;
-      }
-            .second {
-         font-size: 20px;
-       font-weight: bold;
-          position: relative;
-              left: 40px;
-      }
-      .rotate {
-           -moz-transform: translateX(-50%) translateY(-50%) rotate(-90deg);
-        -webkit-transform: translateX(-50%) translateY(-50%) rotate(-90deg);
-                transform: translateX(-50%) translateY(-50%) rotate(-90deg);
-      }
+      .child{
+        margin-bottom:10px;
+        display:inline-block;
+        padding:5px;
+        font-size: 20px;
+        font-weight: bold;
+      }   
     </style>"""
 
         code += """
