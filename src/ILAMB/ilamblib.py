@@ -615,7 +615,7 @@ def ScoreSeasonalCycle(phase_shift):
                     lon   = phase_shift.lon,
                     area  = phase_shift.area)
 
-def AnalysisMeanState(obs,mod,**keywords):
+def AnalysisMeanState(ref,com,**keywords):
     """Perform a mean state analysis.
 
     This mean state analysis examines the model mean state in space
@@ -651,12 +651,6 @@ def AnalysisMeanState(obs,mod,**keywords):
         the unit to use when displaying output in tables on the HTML page
     plots_unit : str, optional
         the unit to use when displaying output on plots on the HTML page
-
-    """
-
-
-def AnalysisMeanState(ref,com,**keywords):
-    """
 
     """
     regions           = keywords.get("regions"          ,["global"])
@@ -704,13 +698,21 @@ def AnalysisMeanState(ref,com,**keywords):
         rms  = REF.rms ()
         rmse_score_map = Score(rmse,rms)
 
-
+    # The phase shift comes from the interpolated quantities
+    ref_cycle       = REF.annualCycle()
+    com_cycle       = COM.annualCycle()
+    ref_maxt_map    = ref_cycle.timeOfExtrema(etype="max")
+    com_maxt_map    = com_cycle.timeOfExtrema(etype="max")
+    shift_map       = ref_maxt_map.phaseShift(com_maxt_map)
+    shift_score_map = ScoreSeasonalCycle(shift_map)
+    shift_map.data /= 30.; shift_map.unit = "months"
+    
+    # Scalars
     ref_period_mean = {}
     com_period_mean = {}
     for region in regions:
         ref_period_mean[region] = ref_timeint.integrateInSpace(mean=space_mean,region=region)
         com_period_mean[region] = com_timeint.integrateInSpace(mean=space_mean,region=region)
-
         ref_period_mean[region].name = "Period Mean %s" % region
         com_period_mean[region].name = "Period Mean %s" % region
 
@@ -734,10 +736,17 @@ def AnalysisMeanState(ref,com,**keywords):
     com_timeint    .name = "timeint_of_%s"        % ref.name
     bias           .name = "bias_map_of_%s"       % ref.name
     bias_score_map .name = "biasscore_map_of_%s"  % ref.name
+    com_maxt_map   .name = "phase_map_of_%s"      % ref.name
+    shift_map      .name = "shift_map_of_%s"      % ref.name
+    shift_score_map.name = "shiftscore_map_of_%s" % ref.name
+    
     out_vars = [com_period_mean,
                 com_timeint,
                 bias,
-                bias_score_map]
+                bias_score_map,
+                com_maxt_map,
+                shift_map,
+                shift_score_map]
     if spatial:
         COM_timeint.name = "timeintremap_of_%s"  % ref.name
         out_vars.append(COM_timeint)
@@ -756,8 +765,9 @@ def AnalysisMeanState(ref,com,**keywords):
                 var.toNetCDF4(dataset,group="MeanState")
 
     # Rename and optionally dump out information to netCDF4 files
-    ref_timeint.name = "timeint_of_%s"        % ref.name
-    out_vars = [ref_timeint]
+    ref_timeint .name = "timeint_of_%s"        % ref.name
+    ref_maxt_map.name = "phase_map_of_%s"      % ref.name
+    out_vars = [ref_period_mean,ref_timeint,ref_maxt_map]
     if spatial:
         REF_timeint.name = "timeintremap_of_%s"  % ref.name
         out_vars.append(REF_timeint)

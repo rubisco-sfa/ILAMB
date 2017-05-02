@@ -111,7 +111,8 @@ class Confrontation(object):
 
         # Datasites page
         self.hasSites = False
-        self.lbls = None
+        self.lbls     = None
+        y0 = None; yf = None
         with Dataset(self.source) as dataset:
             if dataset.dimensions.has_key("data"):
                 self.hasSites = True
@@ -119,6 +120,16 @@ class Confrontation(object):
                     self.lbls = dataset.site_name.split(",")
                 else:
                     self.lbls = ["site%d" % s for s in range(dataset.variables["data"][...])]
+            if dataset.dimensions.has_key("time"):
+                t = dataset.variables["time"]
+                if "bounds" in t.ncattrs():
+                    t  = dataset.variables[t.bounds][...]
+                    y0 = int(t[ 0,0]/365.+1850.)
+                    yf = int(t[-1,1]/365.+1850.)-1
+                else:
+                    y0 = int(round(t[ 0]/365.)+1850.)
+                    yf = int(round(t[-1]/365.)+1850.)-1
+        
         if self.hasSites:
             pages.append(post.HtmlSitePlotsPage("SitePlots","Site Plots"))
             pages[-1].setHeader("CNAME / RNAME / MNAME")
@@ -149,7 +160,7 @@ class Confrontation(object):
         with Dataset(self.source) as dset:
             for attr in dset.ncattrs():
                 pages[-1].text += "<p><b>&nbsp;&nbsp;%s:&nbsp;</b>%s</p>\n" % (attr,dset.getncattr(attr).encode('ascii','ignore'))
-        self.layout = post.HtmlLayout(pages,self.longname)
+        self.layout = post.HtmlLayout(pages,self.longname,years=(y0,yf))
 
         # Define relative weights of each score in the overall score
         # (FIX: need some way for the user to modify this)

@@ -135,11 +135,22 @@ space_opts["shift"]   = { "name"      :"Temporally integrated mean phase shift",
                           "sym"       :True,
                           "ticks"     :None,
                           "ticklabels":None,
-                          "label"     :"d" ,
+                          "label"     :"unit" ,
                           "section"   :"Temporally integrated period mean",
                           "pattern"   :"MNAME_RNAME_shift.png",
                           "sidelbl"   :"SHIFT",
                           "haslegend" :True }
+
+space_opts["shiftscore"] = { "name"      :"Temporally integrated mean phase shift score",
+                             "cmap"      :"RdYlGn",
+                             "sym"       :False,
+                             "ticks"     :None,
+                             "ticklabels":None,
+                             "label"     :"unit" ,
+                             "section"   :"Temporally integrated period mean",
+                             "pattern"   :"MNAME_RNAME_shiftscore.png",
+                             "sidelbl"   :"SHIFT SCORE",
+                             "haslegend" :True }
 
 space_opts["phase"]   = { "name"      :"Temporally integrated period mean max month",
                           "cmap"      :"jet",

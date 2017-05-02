@@ -218,7 +218,7 @@ class HtmlPage(object):
     def __str__(self):
 
         r = Regions()
-        def _sortFigures(figure,priority=["benchmark_timeint","timeint","timeintremap","bias","biasscore","rmse","rmsescore","benchmark_phase","phase","shift","spatial_variance","spaceint","cycle","compcycle","temporal_variance"]):
+        def _sortFigures(figure,priority=["benchmark_timeint","timeint","timeintremap","bias","biasscore","rmse","rmsescore","benchmark_phase","phase","shift","shiftscore","spatial_variance","spaceint","cycle","compcycle","temporal_variance"]):
             val = 1.
             for i,pname in enumerate(priority):
                 if pname == figure.name: val += 2**i
@@ -670,14 +670,16 @@ class HtmlSitePlotsPage(HtmlPage):
     
 class HtmlLayout():
 
-    def __init__(self,pages,cname):
+    def __init__(self,pages,cname,years=None):
 
         self.pages = pages
         self.cname = cname.replace("/"," / ")
+        if years is not None:
+            self.cname += " / %d-%d" % (years)
         for page in self.pages:
             page.pages = self.pages
             page.cname = self.cname
-        
+                
     def __str__(self):
         code = """<html>
   <head>"""
