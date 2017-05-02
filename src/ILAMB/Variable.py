@@ -360,26 +360,23 @@ class Variable:
         depth_bnds = depth_bnds[ind,:]
         dz         = (depth_bnds[:,1]-depth_bnds[:,0])
         
-        # now expand this dz to the other dimensions of the data array (i.e. space or datasites)
-        for i in range(self.data.ndim-1): dz = np.expand_dims(dz,axis=-1)
-
-        # 
         args = []
-        if self.temporal: args.append(range(self.time.size))
-        if self.layered:  args.append(ind)
-        if self.ndata:    args.append(range(self.ndata))
+        axis = 0
+        if self.temporal:
+            axis += 1
+            dz = np.expand_dims(dz,axis=0)
+            args.append(range(self.time.size))
+        if self.layered: args.append(ind)
+        if self.ndata:
+            dz = np.expand_dims(dz,axis=-1)
+            args.append(range(self.ndata))
         if self.spatial:
+            dz = np.expand_dims(dz,axis=-1)
+            dz = np.expand_dims(dz,axis=-1)
             args.append(range(self.lat.size))
             args.append(range(self.lon.size))
         ind = np.ix_(*args)
         
-        # which axis is the depth axis?
-        start =  0
-        axis  = -1
-        if self.temporal: start = 1
-        for i in range(start,self.data.ndim):
-            if self.data.shape[i] == self.depth.size: axis = i
-
         # approximate the integral by nodal integration (rectangle rule)
         shp = self.data[ind].shape
         np.seterr(over='ignore',under='ignore')
