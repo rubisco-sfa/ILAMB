@@ -1190,6 +1190,7 @@ def MakeComparable(ref,com,**keywords):
         lon_bnds = (max(ref.lon_bnds[ 0,0],com.lon_bnds[ 0,0]),
                     min(ref.lon_bnds[-1,1],com.lon_bnds[-1,1]))
         shp0     = np.asarray(np.copy(com.data.shape),dtype=int)
+        ref.trim(lat=lat_bnds,lon=lon_bnds)
         com.trim(lat=lat_bnds,lon=lon_bnds)
         shp      = np.asarray(np.copy(com.data.shape),dtype=int)
         if (shp-shp0).sum() > 0:
