@@ -1676,7 +1676,7 @@ class Variable:
         """
         def _whichInterval(val,bnds):
             ind = np.where((val>=bnds[:,0])*(val<=bnds[:,1]))[0]
-            assert ind.size == 1
+            assert ind.size <= 2
             ind = ind[0]
             return ind
             
