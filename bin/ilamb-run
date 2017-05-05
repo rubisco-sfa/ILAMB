@@ -316,6 +316,17 @@ def WorkPost(M,C,W,S,verbose=False):
         S.createHtml(M)
         S.createSummaryFigure(M)
 
+def RestrictiveModelExtents(M,eps=2.):
+    extents0 = np.asarray([[-90.,+90.],[-180.,+180.]])
+    extents  = extents0.copy()
+    for m in M:
+        for i in range(2):
+            extents[i,0] = max(extents[i,0],m.extents[i,0])
+            extents[i,1] = min(extents[i,1],m.extents[i,1])
+    diff    = np.abs(extents0-extents)
+    extents = (diff<=eps)*extents0 + (diff>eps)*extents
+    return extents
+
 class MPIStream():
     """
     The MPI.File stream doesn't have the functions we need, so we will

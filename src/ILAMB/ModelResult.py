@@ -54,12 +54,22 @@ class ModelResult():
         self.lat_bnds       = None
         self.lon_bnds       = None
         self.variables      = None
+        self.extents        = np.asarray([[-90.,+90.],[-180.,+180.]])
         self._findVariables()
         self._getGridInformation()
         
     def _findVariables(self):
         """Loops through the netCDF4 files in a model's path and builds a dictionary of which variables are in which files.
         """
+        def _get(key,dset):
+            dim_name = key
+            try:
+                v = dset.variables[key]
+                dim_bnd_name = v.getncattr("bounds")
+            except:
+                dim_bnd_name = None
+            return dim_name,dim_bnd_name 
+
         variables = {}
         for subdir, dirs, files in os.walk(self.path):
             for fileName in files:
@@ -67,10 +77,31 @@ class ModelResult():
                 if self.filter not in fileName: continue
                 pathName  = "%s/%s" % (subdir,fileName)
                 dataset   = Dataset(pathName)
+                # populate dictionary for which variables are in which files
                 for key in dataset.variables.keys():
                     if not variables.has_key(key):
                         variables[key] = []
                     variables[key].append(pathName)
+                # check for model spatial extents
+                lat_name = lat_bnd_name = None
+                lon_name = lon_bnd_name = None
+                for key in dataset.dimensions:
+                    if "lat" in key.lower(): lat_name,lat_bnd_name = _get(key,dataset)
+                    if "lon" in key.lower(): lon_name,lon_bnd_name = _get(key,dataset)
+                if (lat_name or lon_name) is None: continue
+                if lat_bnd_name is None:
+                    self.extents[0,0] = max(self.extents[0,0],dataset.variables[lat_name][ 0])
+                    self.extents[0,1] = min(self.extents[0,1],dataset.variables[lat_name][-1])
+                else:
+                    self.extents[0,0] = max(self.extents[0,0],dataset.variables[lat_bnd_name][ 0,0])
+                    self.extents[0,1] = min(self.extents[0,1],dataset.variables[lat_bnd_name][-1,1])
+                if lon_bnd_name is None:
+                    self.extents[1,0] = max(self.extents[1,0],dataset.variables[lon_name][ 0])
+                    self.extents[1,1] = min(self.extents[1,1],dataset.variables[lon_name][-1])
+                else:
+                    self.extents[1,0] = max(self.extents[1,0],dataset.variables[lon_bnd_name][ 0,0])
+                    self.extents[1,1] = min(self.extents[1,1],dataset.variables[lon_bnd_name][-1,1])
+                
         self.variables = variables
     
     def _getGridInformation(self):
