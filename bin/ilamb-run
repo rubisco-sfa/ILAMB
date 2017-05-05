@@ -420,7 +420,8 @@ S = Scoreboard(args.config[0],
                regions   = args.regions,
                master    = rank==0,
                verbose   = not args.quiet,
-               build_dir = args.build_dir[0])
+               build_dir = args.build_dir[0],
+               extents   = RestrictiveModelExtents(M))
 C  = MatchRelationshipConfrontation(S.list())
 Cf = FilterConfrontationList(C,args.confront)
 

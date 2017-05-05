@@ -177,6 +177,7 @@ class Confrontation(object):
         obs,mod = il.MakeComparable(obs,mod,
                                     mask_ref  = True,
                                     clip_ref  = True,
+                                    extents   = self.extents,
                                     logstring = "[%s][%s]" % (self.longname,m.name))
         
         # Check the order of magnitude of the data and convert to help avoid roundoff errors
