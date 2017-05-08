@@ -665,6 +665,7 @@ def AnalysisMeanState(ref,com,**keywords):
     res               = keywords.get("res"              ,0.5)
     ILAMBregions      = Regions()
     spatial           = ref.spatial
+    normalizer        = None
     
     # In order to deal with differences in grids and representation of
     # land, we will interpolate both datasets to a fixed
@@ -683,6 +684,7 @@ def AnalysisMeanState(ref,com,**keywords):
     if spatial:
         REF_timeint = REF.integrateInTime(mean=True)
         COM_timeint = COM.integrateInTime(mean=True)
+        if mass_weighting: normalizer = REF_timeint.data
     else:
         REF         = ref
         COM         = com
@@ -708,30 +710,57 @@ def AnalysisMeanState(ref,com,**keywords):
     shift_map.data /= 30.; shift_map.unit = "months"
     
     # Scalars
-    ref_period_mean = {}
-    com_period_mean = {}
+    ref_period_mean = {}; ref_spaceint = {}; ref_mean_cycle = {}; ref_dtcycle = {}
+    com_period_mean = {}; com_spaceint = {}; com_mean_cycle = {}; com_dtcycle = {}
+    bias_val = {}; bias_score = {}; rmse_val = {}; rmse_score = {}
     for region in regions:
-        ref_period_mean[region] = ref_timeint.integrateInSpace(mean=space_mean,region=region)
-        com_period_mean[region] = com_timeint.integrateInSpace(mean=space_mean,region=region)
-        ref_period_mean[region].name = "Period Mean %s" % region
-        com_period_mean[region].name = "Period Mean %s" % region
-
+        
+        ref_period_mean[region] = ref_timeint   .integrateInSpace(region=region,mean=space_mean)
+        ref_spaceint   [region] = ref           .integrateInSpace(region=region,mean=True)
+        ref_mean_cycle [region] = ref_cycle     .integrateInSpace(region=region,mean=True)
+        ref_dtcycle    [region] = deepcopy(ref_mean_cycle[region])
+        ref_dtcycle    [region].data -= ref_mean_cycle[region].data.mean()
+        
+        com_period_mean[region] = com_timeint   .integrateInSpace(region=region,mean=space_mean)
+        com_spaceint   [region] = com           .integrateInSpace(region=region,mean=True)
+        com_mean_cycle [region] = com_cycle     .integrateInSpace(region=region,mean=True)
+        com_dtcycle    [region] = deepcopy(com_mean_cycle[region])
+        com_dtcycle    [region].data -= com_mean_cycle[region].data.mean()
+        
+        bias_val       [region] = bias          .integrateInSpace(region=region,mean=space_mean)
+        bias_score     [region] = bias_score_map.integrateInSpace(region=region,mean=True,weight=normalizer)
+        if not skip_rmse:
+            rmse_val   [region] = rmse          .integrateInSpace(region=region,mean=space_mean)
+            rmse_score [region] = rmse_score_map.integrateInSpace(region=region,mean=True,weight=normalizer)
+        
+        ref_period_mean[region].name = "Period Mean %s"         % region
+        ref_spaceint   [region].name = "spaceint_of_%s_over_%s" % (ref.name,region)
+        ref_mean_cycle [region].name = "cycle_of_%s_over_%s"    % (ref.name,region)
+        ref_dtcycle    [region].name = "dtcycle_of_%s_over_%s"  % (ref.name,region)
+        com_period_mean[region].name = "Period Mean %s"         % region
+        com_spaceint   [region].name = "spaceint_of_%s_over_%s" % (ref.name,region)
+        com_mean_cycle [region].name = "cycle_of_%s_over_%s"    % (ref.name,region)
+        com_dtcycle    [region].name = "dtcycle_of_%s_over_%s"  % (ref.name,region)
+        bias_val       [region].name = "Bias %s"                % (region)
+        bias_score     [region].name = "Bias Score %s"          % (region)
+        rmse_val       [region].name = "RMSE %s"                % (region)
+        rmse_score     [region].name = "RMSE Score %s"          % (region)
         
     # Unit conversions
-    if table_unit is not None:
-        for var in [ref_period_mean,com_period_mean]:
-            if type(var) == type({}):
-                for key in var.keys(): var[key].convert(table_unit)
-            else:
-                var.convert(plot_unit)
+    def _convert(var,unit):
+        if type(var) == type({}):
+            for key in var.keys(): var[key].convert(unit)
+        else:
+            var.convert(unit)
 
+    if table_unit is not None:
+        for var in [ref_period_mean,com_period_mean,bias_val,rmse_val]:
+            _convert(var,table_unit)
     if plot_unit is not None:
-        for var in [com_timeint,COM_timeint,ref_timeint,REF_timeint,bias,rmse]:
-            if type(var) == type({}):
-                for key in var.keys(): var[key].convert(plot_unit)
-            else:
-                var.convert(plot_unit)
-        
+        for var in [com_timeint,COM_timeint,ref_timeint,REF_timeint,bias,rmse,com_spaceint,ref_spaceint,
+                    com_mean_cycle,ref_mean_cycle,com_dtcycle,ref_dtcycle]:
+            _convert(var,plot_unit)
+            
     # Rename and optionally dump out information to netCDF4 files
     com_timeint    .name = "timeint_of_%s"        % ref.name
     bias           .name = "bias_map_of_%s"       % ref.name
@@ -742,8 +771,13 @@ def AnalysisMeanState(ref,com,**keywords):
     
     out_vars = [com_period_mean,
                 com_timeint,
+                com_spaceint,
+                com_mean_cycle,
+                com_dtcycle,
                 bias,
                 bias_score_map,
+                bias_val,
+                bias_score,
                 com_maxt_map,
                 shift_map,
                 shift_score_map]
@@ -757,6 +791,9 @@ def AnalysisMeanState(ref,com,**keywords):
         out_vars.append(rmse)
         out_vars.append(rms )
         out_vars.append(rmse_score_map)
+        out_vars.append(rmse_val)
+        out_vars.append(rmse_score)
+
     if dataset is not None:
         for var in out_vars:
             if type(var) == type({}):
@@ -767,7 +804,7 @@ def AnalysisMeanState(ref,com,**keywords):
     # Rename and optionally dump out information to netCDF4 files
     ref_timeint .name = "timeint_of_%s"        % ref.name
     ref_maxt_map.name = "phase_map_of_%s"      % ref.name
-    out_vars = [ref_period_mean,ref_timeint,ref_maxt_map]
+    out_vars = [ref_period_mean,ref_timeint,ref_spaceint,ref_maxt_map,ref_mean_cycle,ref_dtcycle]
     if spatial:
         REF_timeint.name = "timeintremap_of_%s"  % ref.name
         out_vars.append(REF_timeint)

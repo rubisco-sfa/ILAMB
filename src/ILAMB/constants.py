@@ -75,7 +75,7 @@ space_opts["timeint"] = { "name"      :"Temporally integrated period mean",
                           "sidelbl"   :"MODEL MEAN",
                           "haslegend" :True }
 
-space_opts["timeintremap"] = { "name"      :"Temporally integrated period mean",
+space_opts["timeintremap"] = { "name"      :"Temporally integrated remapped period mean",
                                "cmap"      :"choose",
                                "sym"       :False,
                                "ticks"     :None,
@@ -169,7 +169,7 @@ time_opts["spaceint"] = { "name"       : "Spatially integrated regional mean",
                           "section"    : "Spatially integrated regional mean",
                           "haslegend"  : False,
                           "pattern"    : "MNAME_RNAME_spaceint.png",
-                          "sidelbl"    : "MEAN",
+                          "sidelbl"    : "REGIONAL MEAN",
                           "ticks"      : None,
                           "ticklabels" : None,
                           "ylabel"     : "unit"}
@@ -192,3 +192,11 @@ time_opts["cycle"]    = { "name"       : "Spatially integrated regional mean cyc
                           "ticklabels" : lbl_months,
                           "ylabel"     : "unit"}
 
+time_opts["dtcycle"]  = { "name"       : "Spatially integrated regional mean detrended cycle",
+                          "section"    : "Spatially integrated regional mean",
+                          "haslegend"  : False,
+                          "pattern"    : "MNAME_RNAME_dtcycle.png",
+                          "sidelbl"    : "DETRENDED CYCLE",
+                          "ticks"      : mid_months/365.+1850.,
+                          "ticklabels" : lbl_months,
+                          "ylabel"     : "unit"}

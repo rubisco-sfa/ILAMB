@@ -316,21 +316,27 @@ class Confrontation(object):
                 group     = dataset.groups["MeanState"]
                 variables = [v for v in group.variables.keys() if v not in group.dimensions.keys()]
                 for vname in variables:
-                    var   = group.variables[vname]
-                    pname = vname.split("_")[0]
+                    var    = group.variables[vname]
+                    pname  = vname.split("_")[0]
+                    region = vname.split("_")[-1]
                     if var[...].size <= 1: continue
-                    if not (space_opts.has_key(pname) or time_opts.has_key(pname)): continue
-                    if not limits.has_key(pname):
-                        limits[pname] = {}
-                        limits[pname]["min"]  = +1e20
-                        limits[pname]["max"]  = -1e20
-                        limits[pname]["unit"] = post.UnitStringToMatplotlib(var.getncattr("units"))
-                    if time_opts.has_key(pname):
-                        limits[pname]["min"] = min(limits[pname]["min"],var.getncattr("min"))
-                        limits[pname]["max"] = max(limits[pname]["max"],var.getncattr("max"))
-                    else:
+                    if space_opts.has_key(pname):
+                        if not limits.has_key(pname):
+                            limits[pname] = {}
+                            limits[pname]["min"]  = +1e20
+                            limits[pname]["max"]  = -1e20
+                            limits[pname]["unit"] = post.UnitStringToMatplotlib(var.getncattr("units"))
                         limits[pname]["min"] = min(limits[pname]["min"],var.getncattr(min_str))
                         limits[pname]["max"] = max(limits[pname]["max"],var.getncattr(max_str))
+                    elif time_opts.has_key(pname):
+                        if not limits.has_key(pname): limits[pname] = {}
+                        if not limits[pname].has_key(region):
+                            limits[pname][region] = {}
+                            limits[pname][region]["min"]  = +1e20
+                            limits[pname][region]["max"]  = -1e20
+                            limits[pname][region]["unit"] = post.UnitStringToMatplotlib(var.getncattr("units"))
+                        limits[pname][region]["min"] = min(limits[pname][region]["min"],var.getncattr("min"))
+                        limits[pname][region]["max"] = max(limits[pname][region]["max"],var.getncattr("max"))
                     if not prune and "Benchmark" in fname and pname == "timeint":
                         prune = True
                         self.pruneRegions(Variable(filename      = fname,
@@ -494,17 +500,18 @@ class Confrontation(object):
                            "compcycle",
                            "RNAME_compcycle.png",
                            side   = "CYCLES",
-                           legend = True)
+                           legend = False)
 
         for region in self.regions:
             if not cycle.has_key(region): continue
             fig,ax = plt.subplots(figsize=(6.8,2.8),tight_layout=True)
             for name,color,var in zip(models,colors,cycle[region]):
+                dy = 0.05*(self.limits["cycle"][region]["max"]-self.limits["cycle"][region]["min"])
                 var.plot(ax,lw=2,color=color,label=name,
                          ticks      = time_opts["cycle"]["ticks"],
                          ticklabels = time_opts["cycle"]["ticklabels"],
-                         vmin       = self.limits["cycle"]["min"],
-                         vmax       = self.limits["cycle"]["max"])
+                         vmin       = self.limits["cycle"][region]["min"]-dy,
+                         vmax       = self.limits["cycle"][region]["max"]+dy)
                 ylbl = time_opts["cycle"]["ylabel"]
                 if ylbl == "unit": ylbl = post.UnitStringToMatplotlib(var.unit)
                 ax.set_ylabel(ylbl)
@@ -512,6 +519,11 @@ class Confrontation(object):
             plt.close()
 
         # plot legends with model colors (sorted with Benchmark data on top)
+        page.addFigure("Spatially integrated regional mean",
+                       "legend_compcycle",
+                       "legend_compcycle.png",
+                       side   = "MODEL COLORS",
+                       legend = False)
         def _alphabeticalBenchmarkFirst(key):
             key = key[0].upper()
             if key == "BENCHMARK": return 0
@@ -522,8 +534,9 @@ class Confrontation(object):
             ax.plot(0,0,'o',mew=0,ms=8,color=color,label=model)
         handles,labels = ax.get_legend_handles_labels()
         plt.close()
-        fig,ax = plt.subplots(figsize=(6.8,2.8),tight_layout=True)
-        ax.legend(handles,labels,loc="upper left",ncol=3,fontsize=10,numpoints=1)
+        ncol   = np.ceil(float(len(models))/11.).astype(int)
+        fig,ax = plt.subplots(figsize=(2.*ncol,2.8),tight_layout=True)
+        ax.legend(handles,labels,loc="upper right",ncol=ncol,fontsize=10,numpoints=1)
         ax.axis('off')
         fig.savefig("%s/legend_compcycle.png" % self.output_path)
         fig.savefig("%s/legend_spatial_variance.png" % self.output_path)
@@ -650,9 +663,9 @@ class Confrontation(object):
 	                             ticks     =opts["ticks"],
 	                             ticklabels=opts["ticklabels"])
 
-                            dy = 0.05*(self.limits[pname]["max"]-self.limits[pname]["min"])
-	                    ax.set_ylim(self.limits[pname]["min"]-dy,
-	                                self.limits[pname]["max"]+dy)
+                            dy = 0.05*(self.limits[pname][region]["max"]-self.limits[pname][region]["min"])
+	                    ax.set_ylim(self.limits[pname][region]["min"]-dy,
+	                                self.limits[pname][region]["max"]+dy)
 	                    ylbl = opts["ylabel"]
 	                    if ylbl == "unit": ylbl = post.UnitStringToMatplotlib(var.unit)
 	                    ax.set_ylabel(ylbl)
