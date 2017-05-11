@@ -138,7 +138,7 @@ space_opts["shift"]   = { "name"      :"Temporally integrated mean phase shift",
                           "label"     :"unit" ,
                           "section"   :"Temporally integrated period mean",
                           "pattern"   :"MNAME_RNAME_shift.png",
-                          "sidelbl"   :"SHIFT",
+                          "sidelbl"   :"DIFFERENCE IN MAX MONTH",
                           "haslegend" :True }
 
 space_opts["shiftscore"] = { "name"      :"Temporally integrated mean phase shift score",
@@ -149,7 +149,7 @@ space_opts["shiftscore"] = { "name"      :"Temporally integrated mean phase shif
                              "label"     :"unit" ,
                              "section"   :"Temporally integrated period mean",
                              "pattern"   :"MNAME_RNAME_shiftscore.png",
-                             "sidelbl"   :"SHIFT SCORE",
+                             "sidelbl"   :"SEASONAL CYCLE SCORE",
                              "haslegend" :True }
 
 space_opts["phase"]   = { "name"      :"Temporally integrated period mean max month",
@@ -187,7 +187,7 @@ time_opts["cycle"]    = { "name"       : "Spatially integrated regional mean cyc
                           "section"    : "Spatially integrated regional mean",
                           "haslegend"  : False,
                           "pattern"    : "MNAME_RNAME_cycle.png",
-                          "sidelbl"    : "CYCLE",
+                          "sidelbl"    : "ANNUAL CYCLE",
                           "ticks"      : mid_months/365.+1850.,
                           "ticklabels" : lbl_months,
                           "ylabel"     : "unit"}
@@ -196,7 +196,7 @@ time_opts["dtcycle"]  = { "name"       : "Spatially integrated regional mean det
                           "section"    : "Spatially integrated regional mean",
                           "haslegend"  : False,
                           "pattern"    : "MNAME_RNAME_dtcycle.png",
-                          "sidelbl"    : "DETRENDED CYCLE",
+                          "sidelbl"    : "MONTHLY ANOMALY",
                           "ticks"      : mid_months/365.+1850.,
                           "ticklabels" : lbl_months,
                           "ylabel"     : "unit"}

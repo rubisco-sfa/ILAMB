@@ -499,7 +499,7 @@ class Confrontation(object):
             page.addFigure("Spatially integrated regional mean",
                            "compcycle",
                            "RNAME_compcycle.png",
-                           side   = "CYCLES",
+                           side   = "ANNUAL CYCLE",
                            legend = False)
 
         for region in self.regions:
@@ -548,8 +548,13 @@ class Confrontation(object):
             page.addFigure("Temporally integrated period mean",
                            "spatial_variance",
                            "RNAME_spatial_variance.png",
-                           side   = "SPATIAL DISTRIBUTION",
-                           legend = True)       
+                           side   = "SPATIAL TAYLOR DIAGRAM",
+                           legend = False)
+            page.addFigure("Temporally integrated period mean",
+                           "legend_spatial_variance",
+                           "legend_spatial_variance.png",
+                           side   = "MODEL COLORS",
+                           legend = False) 
         if "Benchmark" in models: colors.pop(models.index("Benchmark"))
         for region in self.regions:
             if not (std.has_key(region) and corr.has_key(region)): continue

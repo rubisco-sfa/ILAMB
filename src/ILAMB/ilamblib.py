@@ -713,38 +713,44 @@ def AnalysisMeanState(ref,com,**keywords):
     ref_period_mean = {}; ref_spaceint = {}; ref_mean_cycle = {}; ref_dtcycle = {}
     com_period_mean = {}; com_spaceint = {}; com_mean_cycle = {}; com_dtcycle = {}
     bias_val = {}; bias_score = {}; rmse_val = {}; rmse_score = {}
+    space_std = {}; space_cor = {}; sd_score = {}; shift = {}; shift_score = {}
     for region in regions:
         
-        ref_period_mean[region] = ref_timeint   .integrateInSpace(region=region,mean=space_mean)
-        ref_spaceint   [region] = ref           .integrateInSpace(region=region,mean=True)
-        ref_mean_cycle [region] = ref_cycle     .integrateInSpace(region=region,mean=True)
+        ref_period_mean[region] = ref_timeint    .integrateInSpace(region=region,mean=space_mean)
+        ref_spaceint   [region] = ref            .integrateInSpace(region=region,mean=True)
+        ref_mean_cycle [region] = ref_cycle      .integrateInSpace(region=region,mean=True)
         ref_dtcycle    [region] = deepcopy(ref_mean_cycle[region])
         ref_dtcycle    [region].data -= ref_mean_cycle[region].data.mean()
         
-        com_period_mean[region] = com_timeint   .integrateInSpace(region=region,mean=space_mean)
-        com_spaceint   [region] = com           .integrateInSpace(region=region,mean=True)
-        com_mean_cycle [region] = com_cycle     .integrateInSpace(region=region,mean=True)
+        com_period_mean[region] = com_timeint    .integrateInSpace(region=region,mean=space_mean)
+        com_spaceint   [region] = com            .integrateInSpace(region=region,mean=True)
+        com_mean_cycle [region] = com_cycle      .integrateInSpace(region=region,mean=True)
         com_dtcycle    [region] = deepcopy(com_mean_cycle[region])
-        com_dtcycle    [region].data -= com_mean_cycle[region].data.mean()
-        
-        bias_val       [region] = bias          .integrateInSpace(region=region,mean=space_mean)
-        bias_score     [region] = bias_score_map.integrateInSpace(region=region,mean=True,weight=normalizer)
+        com_dtcycle    [region].data -= com_mean_cycle[region].data.mean()        
+        bias_val       [region] = bias           .integrateInSpace(region=region,mean=space_mean)
+        bias_score     [region] = bias_score_map .integrateInSpace(region=region,mean=True,weight=normalizer)
         if not skip_rmse:
-            rmse_val   [region] = rmse          .integrateInSpace(region=region,mean=space_mean)
-            rmse_score [region] = rmse_score_map.integrateInSpace(region=region,mean=True,weight=normalizer)
+            rmse_val   [region] = rmse           .integrateInSpace(region=region,mean=space_mean)
+            rmse_score [region] = rmse_score_map .integrateInSpace(region=region,mean=True,weight=normalizer)
+        shift          [region] = shift_map      .integrateInSpace(region=region,mean=True,intabs=True)
+        shift_score    [region] = shift_score_map.integrateInSpace(region=region,mean=True,weight=normalizer)
+        space_std[region],space_cor[region],sd_score[region] = REF_timeint.spatialDistribution(COM_timeint,region=region)
         
-        ref_period_mean[region].name = "Period Mean %s"         % region
-        ref_spaceint   [region].name = "spaceint_of_%s_over_%s" % (ref.name,region)
-        ref_mean_cycle [region].name = "cycle_of_%s_over_%s"    % (ref.name,region)
-        ref_dtcycle    [region].name = "dtcycle_of_%s_over_%s"  % (ref.name,region)
-        com_period_mean[region].name = "Period Mean %s"         % region
-        com_spaceint   [region].name = "spaceint_of_%s_over_%s" % (ref.name,region)
-        com_mean_cycle [region].name = "cycle_of_%s_over_%s"    % (ref.name,region)
-        com_dtcycle    [region].name = "dtcycle_of_%s_over_%s"  % (ref.name,region)
-        bias_val       [region].name = "Bias %s"                % (region)
-        bias_score     [region].name = "Bias Score %s"          % (region)
-        rmse_val       [region].name = "RMSE %s"                % (region)
-        rmse_score     [region].name = "RMSE Score %s"          % (region)
+        ref_period_mean[region].name = "Period Mean %s"                % (region)
+        ref_spaceint   [region].name = "spaceint_of_%s_over_%s"        % (ref.name,region)
+        ref_mean_cycle [region].name = "cycle_of_%s_over_%s"           % (ref.name,region)
+        ref_dtcycle    [region].name = "dtcycle_of_%s_over_%s"         % (ref.name,region)
+        com_period_mean[region].name = "Period Mean %s"                % (region)
+        com_spaceint   [region].name = "spaceint_of_%s_over_%s"        % (ref.name,region)
+        com_mean_cycle [region].name = "cycle_of_%s_over_%s"           % (ref.name,region)
+        com_dtcycle    [region].name = "dtcycle_of_%s_over_%s"         % (ref.name,region)
+        bias_val       [region].name = "Bias %s"                       % (region)
+        bias_score     [region].name = "Bias Score %s"                 % (region)
+        rmse_val       [region].name = "RMSE %s"                       % (region)
+        rmse_score     [region].name = "RMSE Score %s"                 % (region)
+        sd_score       [region].name = "Spatial Distribution Score %s" % (region)
+        shift          [region].name = "Phase Shift %s"                % (region)
+        shift_score    [region].name = "Seasonal Cycle Score %s"       % (region)
         
     # Unit conversions
     def _convert(var,unit):
@@ -780,7 +786,9 @@ def AnalysisMeanState(ref,com,**keywords):
                 bias_score,
                 com_maxt_map,
                 shift_map,
-                shift_score_map]
+                shift_score_map,
+                shift,
+                shift_score]
     if spatial:
         COM_timeint.name = "timeintremap_of_%s"  % ref.name
         out_vars.append(COM_timeint)
@@ -793,14 +801,17 @@ def AnalysisMeanState(ref,com,**keywords):
         out_vars.append(rmse_score_map)
         out_vars.append(rmse_val)
         out_vars.append(rmse_score)
-
     if dataset is not None:
         for var in out_vars:
             if type(var) == type({}):
                 for key in var.keys(): var[key].toNetCDF4(dataset,group="MeanState")
             else:
                 var.toNetCDF4(dataset,group="MeanState")
-
+    for key in sd_score.keys():
+        sd_score[key].toNetCDF4(dataset,group="MeanState",
+                                attributes={"std":space_std[region].data,
+                                            "R"  :space_cor[region].data})
+        
     # Rename and optionally dump out information to netCDF4 files
     ref_timeint .name = "timeint_of_%s"        % ref.name
     ref_maxt_map.name = "phase_map_of_%s"      % ref.name

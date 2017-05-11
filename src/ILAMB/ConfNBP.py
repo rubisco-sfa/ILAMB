@@ -146,8 +146,8 @@ class ConfNBP(Confrontation):
             page.addFigure("Spatially integrated regional mean",
                            "temporal_variance",
                            "temporal_variance.png",
-                           side   = "TEMPORAL DISTRIBUTION",
-                           legend = True)       
+                           side   = "TEMPORAL TAYLOR DIAGRAM",
+                           legend = False)       
             fig = plt.figure(figsize=(6.0,6.0))
             post.TaylorDiagram(np.asarray(std),np.asarray(corr),1.0,fig,colors)
             fig.savefig("%s/temporal_variance.png" % (self.output_path))
