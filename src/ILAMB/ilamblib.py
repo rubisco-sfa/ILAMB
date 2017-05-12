@@ -684,12 +684,12 @@ def AnalysisMeanState(ref,com,**keywords):
     if spatial:
         REF_timeint = REF.integrateInTime(mean=True)
         COM_timeint = COM.integrateInTime(mean=True)
-        if mass_weighting: normalizer = REF_timeint.data
     else:
         REF         = ref
         COM         = com
         REF_timeint = ref_timeint
         COM_timeint = com_timeint
+    if mass_weighting: normalizer = REF_timeint.data
         
     # Compute the bias, RMSE, and RMS maps using the interpolated
     # quantities
@@ -715,27 +715,46 @@ def AnalysisMeanState(ref,com,**keywords):
     bias_val = {}; bias_score = {}; rmse_val = {}; rmse_score = {}
     space_std = {}; space_cor = {}; sd_score = {}; shift = {}; shift_score = {}
     for region in regions:
-        
-        ref_period_mean[region] = ref_timeint    .integrateInSpace(region=region,mean=space_mean)
-        ref_spaceint   [region] = ref            .integrateInSpace(region=region,mean=True)
-        ref_mean_cycle [region] = ref_cycle      .integrateInSpace(region=region,mean=True)
-        ref_dtcycle    [region] = deepcopy(ref_mean_cycle[region])
-        ref_dtcycle    [region].data -= ref_mean_cycle[region].data.mean()
-        
-        com_period_mean[region] = com_timeint    .integrateInSpace(region=region,mean=space_mean)
-        com_spaceint   [region] = com            .integrateInSpace(region=region,mean=True)
-        com_mean_cycle [region] = com_cycle      .integrateInSpace(region=region,mean=True)
-        com_dtcycle    [region] = deepcopy(com_mean_cycle[region])
-        com_dtcycle    [region].data -= com_mean_cycle[region].data.mean()        
-        bias_val       [region] = bias           .integrateInSpace(region=region,mean=space_mean)
-        bias_score     [region] = bias_score_map .integrateInSpace(region=region,mean=True,weight=normalizer)
-        if not skip_rmse:
-            rmse_val   [region] = rmse           .integrateInSpace(region=region,mean=space_mean)
-            rmse_score [region] = rmse_score_map .integrateInSpace(region=region,mean=True,weight=normalizer)
-        shift          [region] = shift_map      .integrateInSpace(region=region,mean=True,intabs=True)
-        shift_score    [region] = shift_score_map.integrateInSpace(region=region,mean=True,weight=normalizer)
-        space_std[region],space_cor[region],sd_score[region] = REF_timeint.spatialDistribution(COM_timeint,region=region)
-        
+        if spatial:
+            ref_period_mean[region] = ref_timeint    .integrateInSpace(region=region,mean=space_mean)
+            ref_spaceint   [region] = ref            .integrateInSpace(region=region,mean=True)
+            ref_mean_cycle [region] = ref_cycle      .integrateInSpace(region=region,mean=True)
+            ref_dtcycle    [region] = deepcopy(ref_mean_cycle[region])
+            ref_dtcycle    [region].data -= ref_mean_cycle[region].data.mean()
+            
+            com_period_mean[region] = com_timeint    .integrateInSpace(region=region,mean=space_mean)
+            com_spaceint   [region] = com            .integrateInSpace(region=region,mean=True)
+            com_mean_cycle [region] = com_cycle      .integrateInSpace(region=region,mean=True)
+            com_dtcycle    [region] = deepcopy(com_mean_cycle[region])
+            com_dtcycle    [region].data -= com_mean_cycle[region].data.mean()        
+            bias_val       [region] = bias           .integrateInSpace(region=region,mean=space_mean)
+            bias_score     [region] = bias_score_map .integrateInSpace(region=region,mean=True,weight=normalizer)
+            if not skip_rmse:
+                rmse_val   [region] = rmse           .integrateInSpace(region=region,mean=space_mean)
+                rmse_score [region] = rmse_score_map .integrateInSpace(region=region,mean=True,weight=normalizer)
+            shift          [region] = shift_map      .integrateInSpace(region=region,mean=True,intabs=True)
+            shift_score    [region] = shift_score_map.integrateInSpace(region=region,mean=True,weight=normalizer)
+            space_std[region],space_cor[region],sd_score[region] = REF_timeint.spatialDistribution(COM_timeint,region=region)
+        else:
+            ref_period_mean[region] = ref_timeint    .siteStats(region=region)
+            ref_spaceint   [region] = ref            .siteStats(region=region)
+            ref_mean_cycle [region] = ref_cycle      .siteStats(region=region)
+            ref_dtcycle    [region] = deepcopy(ref_mean_cycle[region])
+            ref_dtcycle    [region].data -= ref_mean_cycle[region].data.mean()
+            
+            com_period_mean[region] = com_timeint    .siteStats(region=region)
+            com_spaceint   [region] = com            .siteStats(region=region)
+            com_mean_cycle [region] = com_cycle      .siteStats(region=region)
+            com_dtcycle    [region] = deepcopy(com_mean_cycle[region])
+            com_dtcycle    [region].data -= com_mean_cycle[region].data.mean()
+            bias_val       [region] = bias           .siteStats(region=region)
+            bias_score     [region] = bias_score_map .siteStats(region=region,weight=normalizer)
+            if not skip_rmse:
+                rmse_val   [region] = rmse           .siteStats(region=region)
+                rmse_score [region] = rmse_score_map .siteStats(region=region,weight=normalizer)
+            shift          [region] = shift_map      .siteStats(region=region,intabs=True)
+            shift_score    [region] = shift_score_map.siteStats(region=region,weight=normalizer)
+                
         ref_period_mean[region].name = "Period Mean %s"                % (region)
         ref_spaceint   [region].name = "spaceint_of_%s_over_%s"        % (ref.name,region)
         ref_mean_cycle [region].name = "cycle_of_%s_over_%s"           % (ref.name,region)
@@ -746,9 +765,11 @@ def AnalysisMeanState(ref,com,**keywords):
         com_dtcycle    [region].name = "dtcycle_of_%s_over_%s"         % (ref.name,region)
         bias_val       [region].name = "Bias %s"                       % (region)
         bias_score     [region].name = "Bias Score %s"                 % (region)
-        rmse_val       [region].name = "RMSE %s"                       % (region)
-        rmse_score     [region].name = "RMSE Score %s"                 % (region)
-        sd_score       [region].name = "Spatial Distribution Score %s" % (region)
+        if not skip_rmse:
+            rmse_val   [region].name = "RMSE %s"                       % (region)
+            rmse_score [region].name = "RMSE Score %s"                 % (region)
+        if spatial:
+            sd_score   [region].name = "Spatial Distribution Score %s" % (region)
         shift          [region].name = "Phase Shift %s"                % (region)
         shift_score    [region].name = "Seasonal Cycle Score %s"       % (region)
         
