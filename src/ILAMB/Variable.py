@@ -1216,6 +1216,7 @@ class Variable:
         
         data = self.data
         if self.spatial and (lat is not None or lon is not None):
+            output_tbnd = self.time_bnds
             if lat is None: lat = self.lat
             if lon is None: lon = self.lon
             rows  = np.apply_along_axis(np.argmin,1,np.abs(lat[:,np.newaxis]-self.lat))
@@ -1231,6 +1232,7 @@ class Variable:
             data  = np.ma.masked_array(data,mask=mask)            
             output_area = self.area[np.ix_(rows,cols)]
         if self.temporal and time is not None:
+            output_tbnd = None
             times = np.apply_along_axis(np.argmin,1,np.abs(time[:,np.newaxis]-self.time))
             mask  = data.mask
             if mask.size > 1: mask = data.mask[times,...]
@@ -1240,7 +1242,8 @@ class Variable:
                         lat  = output_lat,
                         lon  = output_lon,
                         area = output_area,
-                        time = output_time)
+                        time = output_time,
+                        time_bnds = output_tbnd)
 
     def phaseShift(self,var,method="max_of_annual_cycle"):
         """Computes the phase shift between a variable and this variable.

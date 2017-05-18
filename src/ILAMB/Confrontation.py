@@ -593,7 +593,7 @@ class Confrontation(object):
 	            pname = vname.split("_")[0]
 	            if group.variables[vname][...].size <= 1: continue
 	            var = Variable(filename=fname,groupname="MeanState",variable_name=vname)
-	            
+                    
 	            if (var.spatial or (var.ndata is not None)) and not var.temporal:
 	
 	                # grab plotting options
@@ -618,7 +618,7 @@ class Confrontation(object):
 	                             cmap   = self.limits[pname]["cmap"])
 	                    fig.savefig("%s/%s_%s_%s.png" % (self.output_path,m.name,region,pname))
 	                    plt.close()
-	
+                            
 	                # Jumping through hoops to get the benchmark plotted and in the html output
 	                if self.master and (pname == "timeint" or pname == "phase"):
 	

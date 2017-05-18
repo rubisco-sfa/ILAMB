@@ -545,22 +545,27 @@ def Score(var,normalizer,FC=0.999999):
     normalizer : ILAMB.Variable.Variable
         The variable by which we normalize 
     """
-    score = deepcopy(var)
+    from Variable import Variable
+    name = var.name.replace("bias","bias_score")
+    name =     name.replace("diff","diff_score")
+    name =     name.replace("rmse","rmse_score")
+    name =     name.replace("iav" ,"iav_score")
     np.seterr(over='ignore',under='ignore')
 
-    if "bias" in score.name or "diff" in score.name:
-        score.data = np.exp(-np.abs(score.data/(normalizer.data - normalizer.data.min()*FC)))
-    elif "rmse" in score.name:
-        score.data = np.exp(-score.data/normalizer.data)
-    elif "iav" in score.name:
-        score.data = np.exp(-np.abs(score.data/normalizer.data))
+    data = None
+    if "bias" in var.name or "diff" in var.name:
+        data = np.exp(-np.abs(var.data/(normalizer.data - normalizer.data.min()*FC)))
+    elif "rmse" in var.name:
+        data = np.exp(-var.data/normalizer.data)
+    elif "iav" in var.name:
+        data = np.exp(-np.abs(var.data/normalizer.data))
+    data[data<1e-16] = 0.
     np.seterr(over='raise',under='raise')
-    score.name = score.name.replace("bias","bias_score")
-    score.name = score.name.replace("diff","diff_score")
-    score.name = score.name.replace("rmse","rmse_score")
-    score.name = score.name.replace("iav" ,"iav_score")
-    score.unit = "1"
-    return score
+    return Variable(name = name,
+                    data = data,
+                    unit = "1",
+                    lat  = var.lat, lat_bnds = var.lat_bnds,
+                    lon  = var.lon, lon_bnds = var.lon_bnds)
 
 def ComposeSpatialGrids(var1,var2):
     """Creates a grid which conforms the boundaries of both variables.
@@ -662,10 +667,15 @@ def AnalysisMeanState(ref,com,**keywords):
     mass_weighting    = keywords.get("mass_weighting"   ,False)
     skip_rmse         = keywords.get("skip_rmse"        ,False)
     skip_iav          = keywords.get("skip_iav"         ,False)
+    skip_cycle        = keywords.get("skip_cycle"       ,False)
     res               = keywords.get("res"              ,0.5)
     ILAMBregions      = Regions()
     spatial           = ref.spatial
     normalizer        = None
+    
+    # Only study the annual cycle if it makes sense
+    if    not ref.monthly: skip_cycle = True
+    if ref.time.size < 12: skip_cycle = True
     
     # In order to deal with differences in grids and representation of
     # land, we will interpolate both datasets to a fixed
@@ -676,7 +686,7 @@ def AnalysisMeanState(ref,com,**keywords):
         junk,junk,lat,lon = GlobalLatLonGrid(res)
         REF = ref.interpolate(lat=lat,lon=lon)
         COM = com.interpolate(lat=lat,lon=lon)
-    
+        
     # We find the mean values over the time period on the original
     # grid/datasites of each dataset
     ref_timeint = ref.integrateInTime(mean=True)
@@ -690,7 +700,7 @@ def AnalysisMeanState(ref,com,**keywords):
         REF_timeint = ref_timeint
         COM_timeint = com_timeint
     if mass_weighting: normalizer = REF_timeint.data
-        
+    
     # Compute the bias, RMSE, and RMS maps using the interpolated
     # quantities
     bias = REF_timeint.bias(COM_timeint)
@@ -701,13 +711,14 @@ def AnalysisMeanState(ref,com,**keywords):
         rmse_score_map = Score(rmse,rms)
 
     # The phase shift comes from the interpolated quantities
-    ref_cycle       = REF.annualCycle()
-    com_cycle       = COM.annualCycle()
-    ref_maxt_map    = ref_cycle.timeOfExtrema(etype="max")
-    com_maxt_map    = com_cycle.timeOfExtrema(etype="max")
-    shift_map       = ref_maxt_map.phaseShift(com_maxt_map)
-    shift_score_map = ScoreSeasonalCycle(shift_map)
-    shift_map.data /= 30.; shift_map.unit = "months"
+    if not skip_cycle:
+        ref_cycle       = REF.annualCycle()
+        com_cycle       = COM.annualCycle()
+        ref_maxt_map    = ref_cycle.timeOfExtrema(etype="max")
+        com_maxt_map    = com_cycle.timeOfExtrema(etype="max")
+        shift_map       = ref_maxt_map.phaseShift(com_maxt_map)
+        shift_score_map = ScoreSeasonalCycle(shift_map)
+        shift_map.data /= 30.; shift_map.unit = "months"
     
     # Scalars
     ref_period_mean = {}; ref_spaceint = {}; ref_mean_cycle = {}; ref_dtcycle = {}
@@ -718,60 +729,61 @@ def AnalysisMeanState(ref,com,**keywords):
         if spatial:
             ref_period_mean[region] = ref_timeint    .integrateInSpace(region=region,mean=space_mean)
             ref_spaceint   [region] = ref            .integrateInSpace(region=region,mean=True)
-            ref_mean_cycle [region] = ref_cycle      .integrateInSpace(region=region,mean=True)
-            ref_dtcycle    [region] = deepcopy(ref_mean_cycle[region])
-            ref_dtcycle    [region].data -= ref_mean_cycle[region].data.mean()
-            
             com_period_mean[region] = com_timeint    .integrateInSpace(region=region,mean=space_mean)
             com_spaceint   [region] = com            .integrateInSpace(region=region,mean=True)
-            com_mean_cycle [region] = com_cycle      .integrateInSpace(region=region,mean=True)
-            com_dtcycle    [region] = deepcopy(com_mean_cycle[region])
-            com_dtcycle    [region].data -= com_mean_cycle[region].data.mean()        
             bias_val       [region] = bias           .integrateInSpace(region=region,mean=space_mean)
             bias_score     [region] = bias_score_map .integrateInSpace(region=region,mean=True,weight=normalizer)
+            if not skip_cycle:
+                ref_mean_cycle[region] = ref_cycle   .integrateInSpace(region=region,mean=True)
+                ref_dtcycle   [region] = deepcopy(ref_mean_cycle[region])
+                ref_dtcycle   [region].data -= ref_mean_cycle[region].data.mean()
+                com_mean_cycle[region] = com_cycle  .integrateInSpace(region=region,mean=True)
+                com_dtcycle   [region] = deepcopy(com_mean_cycle[region])
+                com_dtcycle   [region].data -= com_mean_cycle[region].data.mean()        
+                shift         [region] = shift_map      .integrateInSpace(region=region,mean=True,intabs=True)
+                shift_score   [region] = shift_score_map.integrateInSpace(region=region,mean=True,weight=normalizer)            
             if not skip_rmse:
                 rmse_val   [region] = rmse           .integrateInSpace(region=region,mean=space_mean)
                 rmse_score [region] = rmse_score_map .integrateInSpace(region=region,mean=True,weight=normalizer)
-            shift          [region] = shift_map      .integrateInSpace(region=region,mean=True,intabs=True)
-            shift_score    [region] = shift_score_map.integrateInSpace(region=region,mean=True,weight=normalizer)
             space_std[region],space_cor[region],sd_score[region] = REF_timeint.spatialDistribution(COM_timeint,region=region)
         else:
             ref_period_mean[region] = ref_timeint    .siteStats(region=region)
-            ref_spaceint   [region] = ref            .siteStats(region=region)
-            ref_mean_cycle [region] = ref_cycle      .siteStats(region=region)
-            ref_dtcycle    [region] = deepcopy(ref_mean_cycle[region])
-            ref_dtcycle    [region].data -= ref_mean_cycle[region].data.mean()
-            
+            ref_spaceint   [region] = ref            .siteStats(region=region)            
             com_period_mean[region] = com_timeint    .siteStats(region=region)
             com_spaceint   [region] = com            .siteStats(region=region)
-            com_mean_cycle [region] = com_cycle      .siteStats(region=region)
-            com_dtcycle    [region] = deepcopy(com_mean_cycle[region])
-            com_dtcycle    [region].data -= com_mean_cycle[region].data.mean()
             bias_val       [region] = bias           .siteStats(region=region)
             bias_score     [region] = bias_score_map .siteStats(region=region,weight=normalizer)
+            if not skip_cycle:
+                ref_mean_cycle [region] = ref_cycle  .siteStats(region=region)
+                ref_dtcycle    [region] = deepcopy(ref_mean_cycle[region])
+                ref_dtcycle    [region].data -= ref_mean_cycle[region].data.mean()
+                com_mean_cycle [region] = com_cycle  .siteStats(region=region)
+                com_dtcycle    [region] = deepcopy(com_mean_cycle[region])
+                com_dtcycle    [region].data -= com_mean_cycle[region].data.mean()
+                shift          [region] = shift_map  .siteStats(region=region,intabs=True)
+                shift_score    [region] = shift_score_map.siteStats(region=region,weight=normalizer)
             if not skip_rmse:
                 rmse_val   [region] = rmse           .siteStats(region=region)
                 rmse_score [region] = rmse_score_map .siteStats(region=region,weight=normalizer)
-            shift          [region] = shift_map      .siteStats(region=region,intabs=True)
-            shift_score    [region] = shift_score_map.siteStats(region=region,weight=normalizer)
                 
         ref_period_mean[region].name = "Period Mean %s"                % (region)
         ref_spaceint   [region].name = "spaceint_of_%s_over_%s"        % (ref.name,region)
-        ref_mean_cycle [region].name = "cycle_of_%s_over_%s"           % (ref.name,region)
-        ref_dtcycle    [region].name = "dtcycle_of_%s_over_%s"         % (ref.name,region)
         com_period_mean[region].name = "Period Mean %s"                % (region)
         com_spaceint   [region].name = "spaceint_of_%s_over_%s"        % (ref.name,region)
-        com_mean_cycle [region].name = "cycle_of_%s_over_%s"           % (ref.name,region)
-        com_dtcycle    [region].name = "dtcycle_of_%s_over_%s"         % (ref.name,region)
         bias_val       [region].name = "Bias %s"                       % (region)
         bias_score     [region].name = "Bias Score %s"                 % (region)
         if not skip_rmse:
             rmse_val   [region].name = "RMSE %s"                       % (region)
             rmse_score [region].name = "RMSE Score %s"                 % (region)
+        if not skip_cycle:
+            ref_mean_cycle[region].name = "cycle_of_%s_over_%s"           % (ref.name,region)
+            ref_dtcycle   [region].name = "dtcycle_of_%s_over_%s"         % (ref.name,region)
+            com_mean_cycle[region].name = "cycle_of_%s_over_%s"           % (ref.name,region)
+            com_dtcycle   [region].name = "dtcycle_of_%s_over_%s"         % (ref.name,region)
+            shift         [region].name = "Phase Shift %s"                % (region)
+            shift_score   [region].name = "Seasonal Cycle Score %s"       % (region)
         if spatial:
             sd_score   [region].name = "Spatial Distribution Score %s" % (region)
-        shift          [region].name = "Phase Shift %s"                % (region)
-        shift_score    [region].name = "Seasonal Cycle Score %s"       % (region)
         
     # Unit conversions
     def _convert(var,unit):
@@ -784,35 +796,37 @@ def AnalysisMeanState(ref,com,**keywords):
         for var in [ref_period_mean,com_period_mean,bias_val,rmse_val]:
             _convert(var,table_unit)
     if plot_unit is not None:
-        for var in [com_timeint,COM_timeint,ref_timeint,REF_timeint,bias,rmse,com_spaceint,ref_spaceint,
-                    com_mean_cycle,ref_mean_cycle,com_dtcycle,ref_dtcycle]:
-            _convert(var,plot_unit)
+        plot_vars = [com_timeint,COM_timeint,ref_timeint,REF_timeint,bias,com_spaceint,ref_spaceint]
+        if not skip_rmse: plot_vars.append(rmse)
+        if not skip_cycle: plot_vars +=[com_mean_cycle,ref_mean_cycle,com_dtcycle,ref_dtcycle]
+        for var in plot_vars: _convert(var,plot_unit)
             
     # Rename and optionally dump out information to netCDF4 files
     com_timeint    .name = "timeint_of_%s"        % ref.name
     bias           .name = "bias_map_of_%s"       % ref.name
     bias_score_map .name = "biasscore_map_of_%s"  % ref.name
-    com_maxt_map   .name = "phase_map_of_%s"      % ref.name
-    shift_map      .name = "shift_map_of_%s"      % ref.name
-    shift_score_map.name = "shiftscore_map_of_%s" % ref.name
     
     out_vars = [com_period_mean,
                 com_timeint,
-                com_spaceint,
                 com_mean_cycle,
                 com_dtcycle,
                 bias,
                 bias_score_map,
                 bias_val,
                 bias_score,
-                com_maxt_map,
-                shift_map,
-                shift_score_map,
                 shift,
                 shift_score]
+    if com_spaceint[com_spaceint.keys()[0]].data.size > 1: out_vars.append(com_spaceint)
     if spatial:
         COM_timeint.name = "timeintremap_of_%s"  % ref.name
         out_vars.append(COM_timeint)
+    if not skip_cycle:
+        com_maxt_map   .name = "phase_map_of_%s"      % ref.name
+        shift_map      .name = "shift_map_of_%s"      % ref.name
+        shift_score_map.name = "shiftscore_map_of_%s" % ref.name
+        out_vars.append(com_maxt_map)
+        out_vars.append(shift_map)
+        out_vars.append(shift_score_map)
     if not skip_rmse:
         rmse          .name = "rmse_map_of_%s"       % ref.name
         rms           .name = "rms_map_of_%s"        % ref.name
@@ -834,9 +848,12 @@ def AnalysisMeanState(ref,com,**keywords):
                                             "R"  :space_cor[region].data})
         
     # Rename and optionally dump out information to netCDF4 files
+    out_vars = [ref_period_mean,ref_timeint]
+    if ref_spaceint[ref_spaceint.keys()[0]].data.size > 1: out_vars.append(ref_spaceint)
     ref_timeint .name = "timeint_of_%s"        % ref.name
-    ref_maxt_map.name = "phase_map_of_%s"      % ref.name
-    out_vars = [ref_period_mean,ref_timeint,ref_spaceint,ref_maxt_map,ref_mean_cycle,ref_dtcycle]
+    if not skip_cycle:
+        ref_maxt_map.name = "phase_map_of_%s"      % ref.name
+        out_vars += [ref_maxt_map,ref_mean_cycle,ref_dtcycle]
     if spatial:
         REF_timeint.name = "timeintremap_of_%s"  % ref.name
         out_vars.append(REF_timeint)
