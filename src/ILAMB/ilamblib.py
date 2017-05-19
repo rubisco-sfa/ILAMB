@@ -48,6 +48,9 @@ class AnalysisError(Exception):
 
 class NotLayeredVariable(Exception):
     def __str__(self): return "NotLayeredVariable"
+    
+class NotDatasiteVariable(Exception):
+    def __str__(self): return "NotDatasiteVariable"
 
     
 def GenerateDistinctColors(N,saturation=0.67,value=0.67):
@@ -561,11 +564,13 @@ def Score(var,normalizer,FC=0.999999):
         data = np.exp(-np.abs(var.data/normalizer.data))
     data[data<1e-16] = 0.
     np.seterr(over='raise',under='raise')
-    return Variable(name = name,
-                    data = data,
-                    unit = "1",
-                    lat  = var.lat, lat_bnds = var.lat_bnds,
-                    lon  = var.lon, lon_bnds = var.lon_bnds)
+    return Variable(name  = name,
+                    data  = data,
+                    unit  = "1",
+                    ndata = var.ndata,
+                    lat   = var.lat, lat_bnds = var.lat_bnds,
+                    lon   = var.lon, lon_bnds = var.lon_bnds,
+                    area  = var.area)
 
 def ComposeSpatialGrids(var1,var2):
     """Creates a grid which conforms the boundaries of both variables.
