@@ -1191,7 +1191,7 @@ class Variable:
         return ax
     
 
-    def interpolate(self,time=None,lat=None,lon=None):
+    def interpolate(self,time=None,lat=None,lon=None,itype='nearestneighbor'):
         """Use nearest-neighbor interpolation to interpolate time and/or space at given values.
 
         Parameters
@@ -1219,18 +1219,39 @@ class Variable:
             output_tbnd = self.time_bnds
             if lat is None: lat = self.lat
             if lon is None: lon = self.lon
-            rows  = np.apply_along_axis(np.argmin,1,np.abs(lat[:,np.newaxis]-self.lat))
-            cols  = np.apply_along_axis(np.argmin,1,np.abs(lon[:,np.newaxis]-self.lon))
-            args  = []
-            if self.temporal: args.append(range(self.time.size))
-            if self.layered:  args.append(range(self.depth.size))
-            args.append(rows)
-            args.append(cols)
-            ind   = np.ix_(*args)
-            mask  = data.mask[ind]
-            data  = data.data[ind]
-            data  = np.ma.masked_array(data,mask=mask)            
-            output_area = self.area[np.ix_(rows,cols)]
+            if itype == 'nearestneighbor':
+                rows  = np.apply_along_axis(np.argmin,1,np.abs(lat[:,np.newaxis]-self.lat))
+                cols  = np.apply_along_axis(np.argmin,1,np.abs(lon[:,np.newaxis]-self.lon))
+                args  = []
+                if self.temporal: args.append(range(self.time.size))
+                if self.layered:  args.append(range(self.depth.size))
+                args.append(rows)
+                args.append(cols)
+                ind   = np.ix_(*args)
+                mask  = data.mask[ind]
+                data  = data.data[ind]
+                data  = np.ma.masked_array(data,mask=mask)
+                frac  = self.area / il.CellAreas(self.lat,self.lon).clip(1e-12)
+                frac  = frac.clip(0,1)
+                frac  = frac[np.ix_(rows,cols)]
+                output_area = frac * il.CellAreas(lat,lon)
+            elif itype == 'bilinear':
+                from scipy.interpolate import RectBivariateSpline
+                if self.data.ndim == 3:
+                    data = np.ma.zeros((self.data.shape[:-2]+(lat.size,lon.size)))
+                    self.data.data[self.data.mask] = 0.
+                    self.data.fill_value           = 0. 
+                    for i in range(self.data.shape[0]):
+                        dint = RectBivariateSpline(self.lat,self.lon,self.data[i,...],     kx=1,ky=1)
+                        mint = RectBivariateSpline(self.lat,self.lon,self.data[i,...].mask,kx=1,ky=1)
+                        data[i,...] = np.ma.masked_array(dint(lat,lon,grid=True),
+                                                         mint(lat,lon,grid=True)>0.5)
+                frac  = self.area / il.CellAreas(self.lat,self.lon).clip(1e-12)
+                frac  = frac.clip(0,1)
+                frac  = RectBivariateSpline(self.lat,self.lon,frac,kx=1,ky=1)
+                output_area = frac(lat,lon,grid=True) * il.CellAreas(lat,lon)
+            else:
+                raise ValueError("Uknown interpolation type: %s" % itype)
         if self.temporal and time is not None:
             output_tbnd = None
             times = np.apply_along_axis(np.argmin,1,np.abs(time[:,np.newaxis]-self.time))

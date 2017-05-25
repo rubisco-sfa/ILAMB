@@ -82,7 +82,7 @@ space_opts["timeintremap"] = { "name"      :"Temporally integrated remapped peri
                                "ticklabels":None,
                                "label"     :"unit",
                                "section"   :"Temporally integrated period mean",
-                               "pattern"   :"MNAME_RNAME_timeint.png",
+                               "pattern"   :"MNAME_RNAME_timeintremap.png",
                                "sidelbl"   :"MAPPED MODEL MEAN",
                                "haslegend" :True }
 

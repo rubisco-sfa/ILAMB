@@ -689,8 +689,8 @@ def AnalysisMeanState(ref,com,**keywords):
     # I will use capital letters for the interpolated quantities.
     if spatial:
         junk,junk,lat,lon = GlobalLatLonGrid(res)
-        REF = ref.interpolate(lat=lat,lon=lon)
-        COM = com.interpolate(lat=lat,lon=lon)
+        REF = ref.interpolate(lat=lat,lon=lon,itype='bilinear')
+        COM = com.interpolate(lat=lat,lon=lon,itype='bilinear')
         
     # We find the mean values over the time period on the original
     # grid/datasites of each dataset
@@ -732,10 +732,10 @@ def AnalysisMeanState(ref,com,**keywords):
     space_std = {}; space_cor = {}; sd_score = {}; shift = {}; shift_score = {}
     for region in regions:
         if spatial:
-            ref_period_mean[region] = ref_timeint    .integrateInSpace(region=region,mean=space_mean)
-            ref_spaceint   [region] = ref            .integrateInSpace(region=region,mean=True)
-            com_period_mean[region] = com_timeint    .integrateInSpace(region=region,mean=space_mean)
-            com_spaceint   [region] = com            .integrateInSpace(region=region,mean=True)
+            ref_period_mean[region] = REF_timeint    .integrateInSpace(region=region,mean=space_mean)
+            ref_spaceint   [region] = REF            .integrateInSpace(region=region,mean=True)
+            com_period_mean[region] = COM_timeint    .integrateInSpace(region=region,mean=space_mean)
+            com_spaceint   [region] = COM            .integrateInSpace(region=region,mean=True)
             bias_val       [region] = bias           .integrateInSpace(region=region,mean=space_mean)
             bias_score     [region] = bias_score_map .integrateInSpace(region=region,mean=True,weight=normalizer)
             if not skip_cycle:
