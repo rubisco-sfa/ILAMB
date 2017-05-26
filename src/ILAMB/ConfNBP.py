@@ -81,6 +81,15 @@ class ConfNBP(Confrontation):
                             unit = mod_sum.unit,
                             data = mod_sum.data[-1]-obs_sum.data[-1])
 
+        # Difference score normlized by the uncertainty in the
+        # accumulation at the end of the time period.
+        normalizer = 0.
+        if "GCP"     in self.longname: normalizer = 21.6*0.5
+        if "Hoffman" in self.longname: normalizer = 84.6*0.5
+        dscore = Variable(name = "Difference Score global" % yf,
+                          unit = "1",
+                          data = np.exp(-0.287*np.abs(mod_diff.data/normalizer)))
+
         # Temporal distribution
         np.seterr(over='ignore',under='ignore')
         std0 = obs.data.std()
@@ -106,6 +115,7 @@ class ConfNBP(Confrontation):
         mod_sum   .toNetCDF4(results,group="MeanState")
         mod_end   .toNetCDF4(results,group="MeanState")
         mod_diff  .toNetCDF4(results,group="MeanState")
+        dscore    .toNetCDF4(results,group="MeanState")
         score     .toNetCDF4(results,group="MeanState",attributes={"std":std,"R":R.data})
         results.close()
         
