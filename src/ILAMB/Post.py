@@ -435,7 +435,8 @@ class HtmlAllModelsPage(HtmlPage):
                 for section in page.sections:
                     if len(page.figures[section]) == 0: continue
                     for figure in page.figures[section]:
-                        if (figure.name in ["spatial_variance","compcycle"]): continue # ignores
+                        if (figure.name in ["spatial_variance","compcycle",
+                                            "legend_spatial_variance","legend_compcycle"]): continue # ignores
                         if "benchmark" in figure.name:
                             if figure.name not in bench: bench.append(figure.name)
                             continue
