@@ -894,10 +894,15 @@ class Confrontation(object):
                     if name == "Benchmark" and region == "global":
                         short_name = short_name.replace("global_","")
                         page.addFigure(c.longname,
+                                       "benchmark_" + short_name,
+                                       "Benchmark_RNAME_%s.png" % (short_name),
+                                       legend = False,
+                                       benchmark = False)
+                        page.addFigure(c.longname,
                                        short_name,
                                        "MNAME_RNAME_%s.png" % (short_name),
                                        legend = False,
-                                       benchmark = True)
+                                       benchmark = False)
 
                     # determine the 1D relationship curves
                     bins  = np.linspace(ind_min,ind_max,nbin+1)
