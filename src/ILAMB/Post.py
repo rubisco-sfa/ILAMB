@@ -423,8 +423,9 @@ class HtmlAllModelsPage(HtmlPage):
     def __init__(self,name,title):
         
         super(HtmlAllModelsPage,self).__init__(name,title)
-        self.plots   = None
-        self.nobench = None
+        self.plots    = None
+        self.nobench  = None
+        self.nolegend = []
         
     def _populatePlots(self):
 
@@ -441,6 +442,7 @@ class HtmlAllModelsPage(HtmlPage):
                             if figure.name not in bench: bench.append(figure.name)
                             continue
                         if figure not in self.plots: self.plots.append(figure)
+                        if not figure.legend: self.nolegend.append(figure.name)
         self.nobench = [plot.name for plot in self.plots if "benchmark_%s" % (plot.name) not in bench]
         
     def __str__(self):
@@ -547,8 +549,20 @@ class HtmlAllModelsPage(HtmlPage):
           document.getElementById("Benchmark_div").style.display = 'none';
         }else{
           document.getElementById("Benchmark_div").style.display = 'inline';
-          document.getElementById('Benchmark').src = 'Benchmark_' + RNAME + '_' + PNAME + '.png';
         }""" % (" || ".join(['PNAME == "%s"' % n for n in self.nobench]))
+
+        head += """
+        if(%s){""" % (" || ".join(['PNAME == "%s"' % n for n in self.nolegend]))
+        for model in models:
+            head += """
+          document.getElementById("%s_legend").style.display = 'none';""" % model
+        head += """
+        }else{"""
+        for model in models:
+            head += """
+          document.getElementById("%s_legend").style.display = 'inline';""" % model
+        head += """
+        }"""
         for model in models:
             head += """
         document.getElementById('%s').src = '%s_' + RNAME + '_' + PNAME + '.png';
