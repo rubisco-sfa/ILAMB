@@ -90,6 +90,7 @@ class Confrontation(object):
         self.space_mean     = keywords.get("space_mean",True)        
         self.relationships  = keywords.get("relationships",None)
         self.keywords       = keywords
+        self.extents        = np.asarray([[-90.,+90.],[-180.,+180.]])
         
         # Make sure the source data exists
         try:
