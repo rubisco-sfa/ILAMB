@@ -1288,3 +1288,31 @@ def ConvertBoundsTypes(x):
         y[:,1] = x[+1:]
     return y
         
+def LandLinInterMissingValues(mdata):
+    land = np.any(mdata.mask,axis=0)==False
+    data = np.ma.masked_array(mdata)
+    data.data[data.mask] = 0.
+    data.fill_value      = 0.
+    data = data.data
+    land = land.astype(int)
+    smooth               = data*land[np.newaxis,...]
+    suml                 = np.copy(land)
+    smooth[:,1:-1,1:-1] += data[:, :-2, :-2]*land[np.newaxis, :-2, :-2]
+    suml  [  1:-1,1:-1] +=                   land[            :-2, :-2]
+    smooth[:,1:-1,1:-1] += data[:, :-2,1:-1]*land[np.newaxis, :-2,1:-1]
+    suml  [  1:-1,1:-1] +=                   land[            :-2,1:-1]
+    smooth[:,1:-1,1:-1] += data[:, :-2, +2:]*land[np.newaxis, :-2, +2:]
+    suml  [  1:-1,1:-1] +=                   land[            :-2, +2:]
+    smooth[:,1:-1,1:-1] += data[:,1:-1, :-2]*land[np.newaxis,1:-1, :-2]
+    suml  [  1:-1,1:-1] +=                   land[           1:-1, :-2]
+    smooth[:,1:-1,1:-1] += data[:,1:-1, +2:]*land[np.newaxis,1:-1, +2:]
+    suml  [  1:-1,1:-1] +=                   land[           1:-1, +2:]
+    smooth[:,1:-1,1:-1] += data[:, +2:, :-2]*land[np.newaxis, +2:, :-2]
+    suml  [  1:-1,1:-1] +=                   land[            +2:, :-2]
+    smooth[:,1:-1,1:-1] += data[:, +2:,1:-1]*land[np.newaxis, +2:,1:-1]
+    suml  [  1:-1,1:-1] +=                   land[            +2:,1:-1]
+    smooth[:,1:-1,1:-1] += data[:, +2:, +2:]*land[np.newaxis, +2:, +2:]
+    suml  [  1:-1,1:-1] +=                   land[            +2:, +2:]
+    smooth /= suml.clip(1)
+    smooth  = (mdata.mask==True)*smooth + (mdata.mask==False)*mdata.data
+    return smooth

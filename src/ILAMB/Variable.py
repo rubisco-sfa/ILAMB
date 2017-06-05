@@ -1238,11 +1238,10 @@ class Variable:
             elif itype == 'bilinear':
                 from scipy.interpolate import RectBivariateSpline
                 if self.data.ndim == 3:
+                    halo = il.LandLinInterMissingValues(self.data)
                     data = np.ma.zeros((self.data.shape[:-2]+(lat.size,lon.size)))
-                    self.data.data[self.data.mask] = 0.
-                    self.data.fill_value           = 0. 
                     for i in range(self.data.shape[0]):
-                        dint = RectBivariateSpline(self.lat,self.lon,self.data[i,...],     kx=1,ky=1)
+                        dint = RectBivariateSpline(self.lat,self.lon,     halo[i,...],     kx=1,ky=1)
                         mint = RectBivariateSpline(self.lat,self.lon,self.data[i,...].mask,kx=1,ky=1)
                         data[i,...] = np.ma.masked_array(dint(lat,lon,grid=True),
                                                          mint(lat,lon,grid=True)>0.5)
