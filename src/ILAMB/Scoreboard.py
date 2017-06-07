@@ -2,6 +2,7 @@ from Confrontation import Confrontation
 from ConfNBP import ConfNBP
 from ConfTWSA import ConfTWSA
 from ConfRunoff import ConfRunoff
+from ConfEvapFraction import ConfEvapFraction
 import os,re
 from netCDF4 import Dataset
 import numpy as np
@@ -170,10 +171,11 @@ def ParseScoreboardConfigureFile(filename):
     return root
 
 
-ConfrontationTypes = { None        : Confrontation,
-                       "ConfNBP"   : ConfNBP,
-                       "ConfTWSA"  : ConfTWSA,
-                       "ConfRunoff": ConfRunoff}
+ConfrontationTypes = { None              : Confrontation,
+                       "ConfNBP"         : ConfNBP,
+                       "ConfTWSA"        : ConfTWSA,
+                       "ConfRunoff"      : ConfRunoff,
+                       "ConfEvapFraction": ConfEvapFraction}
 
 class Scoreboard():
     """
