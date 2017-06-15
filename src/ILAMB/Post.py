@@ -551,8 +551,10 @@ class HtmlAllModelsPage(HtmlPage):
           document.getElementById("Benchmark_div").style.display = 'inline';
         }""" % (" || ".join(['PNAME == "%s"' % n for n in self.nobench]))
 
+        cond  = " || ".join(['PNAME == "%s"' % n for n in self.nolegend])
+        if cond == "": cond = "0"
         head += """
-        if(%s){""" % (" || ".join(['PNAME == "%s"' % n for n in self.nolegend]))
+        if(%s){""" % cond
         for model in models:
             head += """
           document.getElementById("%s_legend").style.display = 'none';""" % model
