@@ -535,7 +535,7 @@ class Confrontation(object):
         handles,labels = ax.get_legend_handles_labels()
         plt.close()
         ncol   = np.ceil(float(len(models))/11.).astype(int)
-        fig,ax = plt.subplots(figsize=(2.*ncol,2.8),tight_layout=True)
+        fig,ax = plt.subplots(figsize=(2.5*ncol,2.8),tight_layout=True)
         ax.legend(handles,labels,loc="upper right",ncol=ncol,fontsize=10,numpoints=1)
         ax.axis('off')
         fig.savefig("%s/legend_compcycle.png" % self.output_path)
