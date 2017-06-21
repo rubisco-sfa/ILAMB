@@ -261,7 +261,7 @@ class Scoreboard():
             arrows[ 4+i,(7-i):(7+i+1),3] = 1
             arrows[27-i,(7-i):(7+i+1),3] = 1
         imsave("%s/arrows.png" % self.build_dir,arrows)
-        
+        from ILAMB.generated_version import version as ilamb_version
         html = r"""
 <html>
   <head>
@@ -342,9 +342,9 @@ class Scoreboard():
 	<img class="displayed" src="./overview.png"></img>
       </div>
       <div data-role="footer">
-	<h1> </h1>
+	<center>ILAMB %s</center>
       </div>
-    </div>"""
+    </div>""" % (ilamb_version)
 
         html += """
     <div data-role="page" id="page2">
@@ -377,13 +377,11 @@ class Scoreboard():
           </tbody>
         </table>
       </div>
-      <div data-role="footer">
-        <h1> </h1>
-      </div>
+      <div data-role="footer"></div>
     </div>
 
 </body>
-</html>"""
+</html>""" 
         file("%s/%s" % (self.build_dir,filename),"w").write(html)
         
     def createBarCharts(self,M):
