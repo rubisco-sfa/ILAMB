@@ -90,6 +90,7 @@ class Confrontation(object):
         self.space_mean     = keywords.get("space_mean",True)        
         self.relationships  = keywords.get("relationships",None)
         self.keywords       = keywords
+        self.extents        = np.asarray([[-90.,+90.],[-180.,+180.]])
         
         # Make sure the source data exists
         try:
@@ -217,6 +218,7 @@ class Confrontation(object):
         obs,mod = il.MakeComparable(obs,mod,
                                     mask_ref  = True,
                                     clip_ref  = True,
+                                    extents   = self.extents,
                                     logstring = "[%s][%s]" % (self.longname,m.name))
         
         # Check the order of magnitude of the data and convert to help avoid roundoff errors

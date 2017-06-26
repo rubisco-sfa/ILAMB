@@ -1061,6 +1061,7 @@ def MakeComparable(ref,com,**keywords):
     mask_ref  = keywords.get("mask_ref" ,False)
     eps       = keywords.get("eps"      ,30./60./24.)
     window    = keywords.get("window"   ,0.)
+    extents   = keywords.get("extents"  ,np.asarray([[-90.,+90.],[-180.,+180.]]))
     logstring = keywords.get("logstring","")
     
     # If one variable is temporal, then they both must be
@@ -1118,11 +1119,12 @@ def MakeComparable(ref,com,**keywords):
     # If the datasets are both spatial, ensure that both represent the
     # same spatial area and trim the datasets if not.
     if ref.spatial and com.spatial:
-        lat_bnds = (max(ref.lat_bnds[ 0,0],com.lat_bnds[ 0,0]),
-                    min(ref.lat_bnds[-1,1],com.lat_bnds[-1,1]))
-        lon_bnds = (max(ref.lon_bnds[ 0,0],com.lon_bnds[ 0,0]),
-                    min(ref.lon_bnds[-1,1],com.lon_bnds[-1,1]))
+        lat_bnds = (max(ref.lat_bnds[ 0,0],com.lat_bnds[ 0,0],extents[0,0]),
+                    min(ref.lat_bnds[-1,1],com.lat_bnds[-1,1],extents[0,1]))
+        lon_bnds = (max(ref.lon_bnds[ 0,0],com.lon_bnds[ 0,0],extents[1,0]),
+                    min(ref.lon_bnds[-1,1],com.lon_bnds[-1,1],extents[1,1]))
         shp0     = np.asarray(np.copy(com.data.shape),dtype=int)
+        ref.trim(lat=lat_bnds,lon=lon_bnds)
         com.trim(lat=lat_bnds,lon=lon_bnds)
         shp      = np.asarray(np.copy(com.data.shape),dtype=int)
         if (shp-shp0).sum() > 0:
