@@ -896,7 +896,7 @@ def BenchmarkSummaryFigure(models,variables,data,figname,vcolor=None):
     data.data[data.mask] = 1.
     data = np.ma.masked_values(data,1.)
     mean = data.mean(axis=1)
-    std  = data.std (axis=1)
+    std  = data.std (axis=1).clip(0.02)
     np.seterr(invalid='ignore',under='ignore')
     Z    = (data-mean[:,np.newaxis])/std[:,np.newaxis]
     Z    = np.ma.masked_invalid(Z)
