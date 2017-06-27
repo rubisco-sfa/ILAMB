@@ -111,7 +111,6 @@ class ModelResult():
         if self.extents[0,1] > (+ 90.-eps): self.extents[0,1] = + 90.
         if self.extents[1,0] < (-180.+eps): self.extents[1,0] = -180.
         if self.extents[1,1] > (+180.-eps): self.extents[1,1] = +180.
-        print self.name,self.extents
         self.variables = variables
     
     def _getGridInformation(self):
