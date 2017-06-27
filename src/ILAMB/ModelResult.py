@@ -96,12 +96,22 @@ class ModelResult():
                     self.extents[0,0] = max(self.extents[0,0],dataset.variables[lat_bnd_name][ 0,0])
                     self.extents[0,1] = min(self.extents[0,1],dataset.variables[lat_bnd_name][-1,1])
                 if lon_bnd_name is None:
-                    self.extents[1,0] = max(self.extents[1,0],dataset.variables[lon_name][ 0])
-                    self.extents[1,1] = min(self.extents[1,1],dataset.variables[lon_name][-1])
+                    lon = dataset.variables[lon_name][...]
+                    lon = (lon<=180)*lon + (lon>180)*(lon-360)
+                    self.extents[1,0] = max(self.extents[1,0],lon.min())
+                    self.extents[1,1] = min(self.extents[1,1],lon.max())
                 else:
-                    self.extents[1,0] = max(self.extents[1,0],dataset.variables[lon_bnd_name][ 0,0])
-                    self.extents[1,1] = min(self.extents[1,1],dataset.variables[lon_bnd_name][-1,1])
-                
+                    lon = dataset.variables[lon_bnd_name][...]
+                    lon = (lon<=180)*lon + (lon>180)*(lon-360)
+                    self.extents[1,0] = max(self.extents[1,0],lon.min())
+                    self.extents[1,1] = min(self.extents[1,1],lon.max())
+        # fix extents
+        eps = 5.
+        if self.extents[0,0] < (- 90.+eps): self.extents[0,0] = - 90.
+        if self.extents[0,1] > (+ 90.-eps): self.extents[0,1] = + 90.
+        if self.extents[1,0] < (-180.+eps): self.extents[1,0] = -180.
+        if self.extents[1,1] > (+180.-eps): self.extents[1,1] = +180.
+        print self.name,self.extents
         self.variables = variables
     
     def _getGridInformation(self):
