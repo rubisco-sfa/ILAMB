@@ -1119,20 +1119,37 @@ def MakeComparable(ref,com,**keywords):
     # If the datasets are both spatial, ensure that both represent the
     # same spatial area and trim the datasets if not.
     if ref.spatial and com.spatial:
+
         lat_bnds = (max(ref.lat_bnds[ 0,0],com.lat_bnds[ 0,0],extents[0,0]),
                     min(ref.lat_bnds[-1,1],com.lat_bnds[-1,1],extents[0,1]))
         lon_bnds = (max(ref.lon_bnds[ 0,0],com.lon_bnds[ 0,0],extents[1,0]),
                     min(ref.lon_bnds[-1,1],com.lon_bnds[-1,1],extents[1,1]))
-        shp0     = np.asarray(np.copy(com.data.shape),dtype=int)
-        ref.trim(lat=lat_bnds,lon=lon_bnds)
-        com.trim(lat=lat_bnds,lon=lon_bnds)
-        shp      = np.asarray(np.copy(com.data.shape),dtype=int)
-        if (shp-shp0).sum() > 0:
+
+        # Clip reference
+        diff     = np.abs([ref.lat_bnds[[0,-1],[0,1]]-lat_bnds,
+                           ref.lon_bnds[[0,-1],[0,1]]-lon_bnds])
+        if diff.sum() >= 5.:
+            shp0 = np.asarray(np.copy(ref.data.shape),dtype=int)
+            ref.trim(lat=lat_bnds,lon=lon_bnds)
+            shp  = np.asarray(np.copy(ref.data.shape),dtype=int)
+            msg  = "%s Spatial data was clipped from the reference: " % logstring
+            msg += " before: %s" % (shp0)
+            msg +=  " after: %s" % (shp )
+            logger.info(msg)
+
+        # Clip comparison
+        diff     = np.abs([com.lat_bnds[[0,-1],[0,1]]-lat_bnds,
+                           com.lon_bnds[[0,-1],[0,1]]-lon_bnds])
+        if diff.sum() >= 5.:
+            shp0 = np.asarray(np.copy(com.data.shape),dtype=int)
+            com.trim(lat=lat_bnds,lon=lon_bnds)
+            shp  = np.asarray(np.copy(com.data.shape),dtype=int)
             msg  = "%s Spatial data was clipped from the comparison: " % logstring
             msg += " before: %s" % (shp0)
             msg +=  " after: %s" % (shp )
             logger.info(msg)
             
+        
     if ref.temporal:
 
         # If the reference time scale is significantly larger than the
