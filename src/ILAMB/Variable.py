@@ -133,9 +133,9 @@ class Variable:
         self.lat_bnds = lat_bnds
         self.lon_bnds = lon_bnds
         self.area     = keywords.get("area",None)
-        if ((lat is     None) and (lon is not None) or
-            (lat is not None) and (lon is     None)):
-            raise ValueError("If one of lat or lon is specified, they both must specified")
+        #if ((lat is     None) and (lon is not None) or
+        #    (lat is not None) and (lon is     None)):
+        #    raise ValueError("If one of lat or lon is specified, they both must specified")
         
         # Shift possible values on [0,360] to [-180,180]
         if self.lon       is not None:
@@ -966,17 +966,11 @@ class Variable:
                 dset = dataset.groups[group]
                 
         dim = []
-        if self.temporal:
-            dim.append(_checkTime(self.time,dset))
-        if self.layered:
-            dim.append(_checkLayer(self.depth,dset))
-        if self.ndata is not None:
-            dim.append(_checkData(self.ndata,dset))
-            dlat = _checkLat(self.lat,dset)
-            dlon = _checkLon(self.lon,dset)
-        if self.spatial:
-            dim.append(_checkLat(self.lat,dset))
-            dim.append(_checkLon(self.lon,dset))
+        if self.temporal: dim.append(_checkTime (self.time ,dset))
+        if self.layered:  dim.append(_checkLayer(self.depth,dset))
+        if self.ndata is not None: dim.append(_checkData (self.ndata,dset))
+        if self.lat   is not None: dim.append(_checkLat  (self.lat  ,dset))
+        if self.lon   is not None: dim.append(_checkLon  (self.lon  ,dset))
 
         grp = dset
         if self.data.size == 1:
@@ -984,7 +978,7 @@ class Variable:
                 grp = dset.createGroup("scalars")
             else:
                 grp = dset.groups["scalars"]
-            
+
         V = grp.createVariable(self.name,"double",dim,zlib=True)
         V.setncattr("units",self.unit)
         try:
@@ -1745,6 +1739,7 @@ class Variable:
             keep = (self.depth_bnds[:,1] >= d[0])*(self.depth_bnds[:,0] <= d[1])
             ind  = np.where(keep)[0]
             self.depth_bnds = self.depth_bnds[ind,:]
+            self.depth      = self.depth     [ind  ]
             self.data       = self.data[...,ind,:,:]
             
         return self
