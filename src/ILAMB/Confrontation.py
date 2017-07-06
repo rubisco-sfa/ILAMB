@@ -781,7 +781,7 @@ class Confrontation(object):
         def _retrieveData(filename):
             key = None
             with Dataset(filename,mode="r") as dset:
-                key  = [v for v in dset.groups["MeanState"].variables.keys() if "timeint" in v]
+                key  = [v for v in dset.groups["MeanState"].variables.keys() if "timeint_" in v]
             return Variable(filename      = filename,
                             groupname     = "MeanState",
                             variable_name = key[0])
