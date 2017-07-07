@@ -495,7 +495,7 @@ class Variable:
 
         # determine the measure
         mask = self.data.mask
-        if mask.ndim > 2: mask = np.all(mask,axis=0)
+        while mask.ndim > 2: mask = np.all(mask,axis=0)
         measure = np.ma.masked_array(self.area,mask=mask,copy=True)
         if weight is not None: measure *= weight
 
