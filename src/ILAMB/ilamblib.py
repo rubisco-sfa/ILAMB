@@ -1,3 +1,4 @@
+from scipy.interpolate import NearestNDInterpolator
 from constants import dpy,mid_months,bnd_months
 from Regions import Regions
 from netCDF4 import Dataset,num2date,date2num
@@ -392,6 +393,26 @@ def SympifyWithArgsUnits(expression,args,units):
     return args[ekey],units[ekey]
 
 
+def ComputeIndexingArrays(lat2d,lon2d,lat,lon):
+    """Blah.
+
+    Parameters
+    ----------
+    lat : numpy.ndarray
+        A 1D array of latitudes of cell centroids
+    lon : numpy.ndarray
+        A 1D array of longitudes of cell centroids
+
+    """
+    # Prepare the interpolator
+    points   = np.asarray([lat2d.flatten(),lon2d.flatten()]).T
+    values   = np.asarray([(np.arange(lat2d.shape[0])[:,np.newaxis]*np.ones  (lat2d.shape[1])).flatten(),
+                           (np.ones  (lat2d.shape[0])[:,np.newaxis]*np.arange(lat2d.shape[1])).flatten()]).T
+    fcn      = NearestNDInterpolator(points,values)
+    LAT,LON  = np.meshgrid(lat,lon,indexing='ij')
+    gmap     = fcn(LAT.flatten(),LON.flatten()).astype(int)
+    return gmap[:,0].reshape(LAT.shape),gmap[:,1].reshape(LAT.shape)
+
 def FromNetCDF4(filename,variable_name,alternate_vars=[],t0=None,tf=None,group=None):
     """Extracts data from a netCDF4 datafile for use in a Variable object.
     
@@ -483,6 +504,20 @@ def FromNetCDF4(filename,variable_name,alternate_vars=[],t0=None,tf=None,group=N
         if  "data"  in key.lower():  data_name ,junk           = _get(key,grp)
         if ("layer" in key.lower() or
             "lev"   in key.lower()): depth_name,depth_bnd_name = _get(key,grp)
+        
+    # How many dimensions found vs how many in the variable
+    inter = False
+    ndim  = ( time_name is not None)
+    ndim += (  lat_name is not None)
+    ndim += (  lon_name is not None)
+    ndim += (depth_name is not None)
+    ndim += ( data_name is not None)
+    if var.ndim-ndim == 2:
+        inter = True
+        for key in grp.variables:
+            if "_" in key: continue
+            if  "lat" in key.lower(): lat_name,lat_bnd_name = _get(key,grp)
+            if  "lon" in key.lower(): lon_name,lon_bnd_name = _get(key,grp)
     
     # Based on present values, get dimensions and bounds
     if time_name is not None:
@@ -523,6 +558,30 @@ def FromNetCDF4(filename,variable_name,alternate_vars=[],t0=None,tf=None,group=N
     else:
         v = var[...]
 
+    # If lat and lon are 2D, then we will need to interpolate things
+    if inter:
+        if lat.ndim == 2 and lon.ndim == 2:
+            assert lat.shape == lon.shape
+            
+            # Create the grid
+            res          = 1.0
+            lat_bnds     = np.arange(- 90, 90+res/2.,res)
+            lon_bnds     = np.arange(round(lon.min(),0),
+                                     round(lon.max(),0)+res/2.,res)
+            lats         = 0.5*(lat_bnds[:-1]+lat_bnds[1:])
+            lons         = 0.5*(lon_bnds[:-1]+lon_bnds[1:])
+            ilat,ilon    = ComputeIndexingArrays(lat,lon,lats,lons)
+            v            = v[...,ilat,ilon]
+            lat          = lats
+            lon          = lons
+            lat_bnd      = np.zeros((lat.size,2))
+            lat_bnd[:,0] = lat_bnds[:-1]
+            lat_bnd[:,1] = lat_bnds[+1:]
+            lon_bnd      = lon_bnds
+            lon_bnd      = np.zeros((lon.size,2))
+            lon_bnd[:,0] = lon_bnds[:-1]
+            lon_bnd[:,1] = lon_bnds[+1:]
+        
     # handle incorrect or absent masking of arrays
     if type(v) != type(np.ma.empty(1)):
         mask = np.zeros(v.shape,dtype=int)
