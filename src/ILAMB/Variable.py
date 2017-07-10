@@ -968,9 +968,13 @@ class Variable:
         dim = []
         if self.temporal: dim.append(_checkTime (self.time ,dset))
         if self.layered:  dim.append(_checkLayer(self.depth,dset))
-        if self.ndata is not None: dim.append(_checkData (self.ndata,dset))
-        if self.lat   is not None: dim.append(_checkLat  (self.lat  ,dset))
-        if self.lon   is not None: dim.append(_checkLon  (self.lon  ,dset))
+        if self.ndata is not None:
+            dim.append(_checkData (self.ndata,dset))
+            _checkLat(self.lat,dset)
+            _checkLon(self.lon,dset)
+        else:
+            if self.lat is not None: dim.append(_checkLat  (self.lat  ,dset))
+            if self.lon is not None: dim.append(_checkLon  (self.lon  ,dset))
 
         grp = dset
         if self.data.size == 1:
