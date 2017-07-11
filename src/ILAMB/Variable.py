@@ -1097,6 +1097,13 @@ class Variable:
                                lon_0      = 180.,
                                ax         = ax,
                                resolution = 'c')
+                
+            elif region == "southern":
+                bmap = Basemap(projection = 'ortho',
+                               lat_0      = -90.,
+                               lon_0      = 180.,
+                               ax         = ax,
+                               resolution = 'c')                
             else:
 
                 # Compute the plot limits based on the figure size and
