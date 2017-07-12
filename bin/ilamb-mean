@@ -145,17 +145,21 @@ def CreateMeanModel(M,res=1.0):
     lat_bnd[:,0] = lat_bnds[:-1]; lat_bnd[:,1] = lat_bnds[+1:]
     lon_bnd[:,0] = lon_bnds[:-1]; lon_bnd[:,1] = lon_bnds[+1:]
 
-    for v in Vs[:2]:
+    for v in Vs:
         print v
         var = {}
-        for m in M:
-            if not m.variables.has_key(v): continue
-            print "   Reading from %s..." % m.name
-            var[m.name] = m.extractTimeSeries(v)
-        with Dataset("%s_MeanModel.nc" % v,mode="w") as dset:
-            CombineModelVars(var).toNetCDF4(dset)
-            print "Writing %s_MeanModel.nc...\n" % v
-            
+        try:
+            for m in M:
+                if not m.variables.has_key(v): continue
+                print "   Reading from %s..." % m.name
+                var[m.name] = m.extractTimeSeries(v)
+            if len(var) == 1: raise ValueError
+            mean = CombineModelVars(var)
+            with Dataset("%s_MeanModel.nc" % v,mode="w") as dset:
+                mean.toNetCDF4(dset)
+                print "Writing %s_MeanModel.nc...\n" % v
+        except:
+            print "Failed to create %s\n" % v
             
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--model_root', dest="model_root", metavar='root', type=str, nargs=1, default=["./"],

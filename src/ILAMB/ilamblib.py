@@ -531,8 +531,10 @@ def FromNetCDF4(filename,variable_name,alternate_vars=[],t0=None,tf=None,group=N
         v = np.ma.masked_array(v,mask=mask,copy=False)
 
     # handle units problems that cfunits doesn't
-    units = var.units
-    if units == "unitless": units = "1"
+    if "units" in var.ncattrs():
+        units = var.units.replace("unitless","1")
+    else:
+        units = "1"
     dset.close()
     
     return v,units,variable_name,t,t_bnd,lat,lat_bnd,lon,lon_bnd,depth,depth_bnd,data
