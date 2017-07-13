@@ -61,5 +61,5 @@ class ConfEvapFraction(Confrontation):
         
         return obs,mod
     
-
-# 7.75 51.25
+    def requires(self):
+        return ['hfss','hfls'],[]

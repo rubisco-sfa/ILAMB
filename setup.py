@@ -97,7 +97,7 @@ setup(
     keywords=['benchmarking','earth system modeling','climate modeling','model intercomparison'],
     packages=['ILAMB'],
     package_dir={'ILAMB' : 'src/ILAMB'},
-    scripts=['bin/ilamb-run','bin/ilamb-fetch','bin/ilamb-mean'],
+    scripts=['bin/ilamb-run','bin/ilamb-fetch','bin/ilamb-mean','bin/ilamb-doctor'],
     install_requires=['numpy>=1.9.2',
                       'matplotlib>=1.4.3',
                       #'basemap>=1.0.7', # basemap is in pypi but broken, need to manually install

@@ -9,6 +9,7 @@ import pylab as plt
 from matplotlib.colors import LogNorm
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from mpi4py import MPI
+from sympy import sympify
 
 import logging
 logger = logging.getLogger("%i" % MPI.COMM_WORLD.rank)	
@@ -170,7 +171,16 @@ class Confrontation(object):
                        "Seasonal Cycle Score"          :1.,
                        "Interannual Variability Score" :1.,
                        "Spatial Distribution Score"    :1.}
-                
+
+    def requires(self):
+        if self.derived is not None:
+            ands = [arg.name for arg in sympify(self.derived).free_symbols]
+            ors  = []
+        else:
+            ands = []
+            ors  = [self.variable] + self.alternate_vars
+        return ands,ors
+    
     def stageData(self,m):
         r"""Extracts model data which matches the observational dataset.
         
