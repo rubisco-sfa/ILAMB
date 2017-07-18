@@ -121,7 +121,7 @@ class Confrontation(object):
                 if "site_name" in dataset.ncattrs():
                     self.lbls = dataset.site_name.split(",")
                 else:
-                    self.lbls = ["site%d" % s for s in range(dataset.variables["data"][...])]
+                    self.lbls = ["site%d" % s for s in range(len(dataset.dimensions["data"]))]
             if dataset.dimensions.has_key("time"):
                 t = dataset.variables["time"]
                 if "bounds" in t.ncattrs():
