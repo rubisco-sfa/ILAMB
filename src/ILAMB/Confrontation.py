@@ -271,8 +271,11 @@ class Confrontation(object):
             the model results
         """
         # Grab the data
-        obs,mod = self.stageData(m)
-
+        try:
+            obs,mod = self.stageData(m)
+        except:
+            raise il.AnalysisError()
+        
         mod_file = "%s/%s_%s.nc"        % (self.output_path,self.name,m.name)
         obs_file = "%s/%s_Benchmark.nc" % (self.output_path,self.name       )
         with FileContextManager(self.master,mod_file,obs_file) as fcm:
