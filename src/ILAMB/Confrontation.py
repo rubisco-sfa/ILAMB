@@ -271,10 +271,7 @@ class Confrontation(object):
             the model results
         """
         # Grab the data
-        try:
-            obs,mod = self.stageData(m)
-        except:
-            raise il.AnalysisError()
+        obs,mod = self.stageData(m)
         
         mod_file = "%s/%s_%s.nc"        % (self.output_path,self.name,m.name)
         obs_file = "%s/%s_Benchmark.nc" % (self.output_path,self.name       )
