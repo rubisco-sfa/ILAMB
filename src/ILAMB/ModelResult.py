@@ -89,13 +89,13 @@ class ModelResult():
                     if "lat" in key.lower(): lat_name,lat_bnd_name = _get(key,dataset)
                     if "lon" in key.lower(): lon_name,lon_bnd_name = _get(key,dataset)
                 if (lat_name or lon_name) is None: continue
-                if lat_bnd_name is None:
+                if lat_bnd_name is None or lat_bnd_name not in dataset.variables:
                     self.extents[0,0] = max(self.extents[0,0],dataset.variables[lat_name][ 0])
                     self.extents[0,1] = min(self.extents[0,1],dataset.variables[lat_name][-1])
                 else:
                     self.extents[0,0] = max(self.extents[0,0],dataset.variables[lat_bnd_name][ 0,0])
                     self.extents[0,1] = min(self.extents[0,1],dataset.variables[lat_bnd_name][-1,1])
-                if lon_bnd_name is None:
+                if lon_bnd_name is None or lon_bnd_name not in dataset.variables:
                     lon = dataset.variables[lon_name][...]
                     lon = (lon<=180)*lon + (lon>180)*(lon-360)
                     self.extents[1,0] = max(self.extents[1,0],lon.min())
