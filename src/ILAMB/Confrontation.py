@@ -288,18 +288,15 @@ class Confrontation(object):
             mass_weighting = self.keywords.get("mass_weighting",False)
             skip_rmse      = self.keywords.get("skip_rmse"     ,False)
             skip_iav       = self.keywords.get("skip_iav"      ,False)
-            try:
-                il.AnalysisMeanState(obs,mod,dataset   = fcm.mod_dset,
-                                     regions           = self.regions,
-                                     benchmark_dataset = fcm.obs_dset,
-                                     table_unit        = self.table_unit,
-                                     plot_unit         = self.plot_unit,
-                                     space_mean        = self.space_mean,
-                                     skip_rmse         = skip_rmse,
-                                     skip_iav          = skip_iav,
-                                     mass_weighting    = mass_weighting)
-            except:
-                raise il.AnalysisError()
+            il.AnalysisMeanState(obs,mod,dataset   = fcm.mod_dset,
+                                 regions           = self.regions,
+                                 benchmark_dataset = fcm.obs_dset,
+                                 table_unit        = self.table_unit,
+                                 plot_unit         = self.plot_unit,
+                                 space_mean        = self.space_mean,
+                                 skip_rmse         = skip_rmse,
+                                 skip_iav          = skip_iav,
+                                 mass_weighting    = mass_weighting)
 
         logger.info("[%s][%s] Success" % (self.longname,m.name))
                 
