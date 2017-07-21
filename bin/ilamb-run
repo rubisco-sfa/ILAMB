@@ -262,6 +262,7 @@ def WorkConfront(W,verbose=False,clean=False):
 
         # if things do not work out, print the exception so the user has some idea
         except Exception as ex:
+            logger.debug("[%s][%s]\n%s" % (c.longname,m.name,format_exc()))
             if verbose:
                 print ("    {0:>%d} {1:<%d} %s%s%s" % (maxCL,maxML,FAIL,ex.__class__.__name__,ENDC)).format(c.longname,m.name)
 
@@ -309,7 +310,10 @@ def WorkPost(M,C,W,S,verbose=False):
                 sys.stdout.flush()
                 
     for c in C:
-        c.compositePlots()
+        try:
+            c.compositePlots()
+        except Exception as ex:
+            logger.debug("[compositePlots][%s]\n%s" % (c.longname,format_exc()))
         c.generateHtml()
 
     comm.Barrier()
