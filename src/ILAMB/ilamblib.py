@@ -503,13 +503,15 @@ def FromNetCDF4(filename,variable_name,alternate_vars=[],t0=None,tf=None,group=N
         if  "lon"   in key.lower():  lon_name  ,lon_bnd_name   = _get(key,grp)
         if  "data"  in key.lower():  data_name ,junk           = _get(key,grp)
         if ("layer" in key.lower() or
-            "lev"   in key.lower()): depth_name,depth_bnd_name = _get(key,grp)
+            "lev"   in key.lower() or
+            "z_t"   in key.lower() or
+            "depth" in key.lower()): depth_name,depth_bnd_name = _get(key,grp)
 
     # It is possible that lat and lon are just the sizes of the data
     # array, and the real latitude and longitude arrays are 2D. Then
     # we need to interpolate.
     inter = False
-    if (lat_name not in grp.variables):
+    if (lat_name is not None and lat_name not in grp.variables):
         inter    = True
         possible = [key for key in grp.variables if ((key   not in grp.dimensions) and
                                                      ("lat"     in key.lower()   ) and
@@ -518,7 +520,7 @@ def FromNetCDF4(filename,variable_name,alternate_vars=[],t0=None,tf=None,group=N
             lat_name = possible[0]
         else:
             raise RuntimeError("Unable to find latitudes in the file: %s" % (filename))
-    if (lon_name not in grp.variables):
+    if (lon_name is not None and lon_name not in grp.variables):
         inter    = True
         possible = [key for key in grp.variables if ((key   not in grp.dimensions) and
                                                      ("lon"     in key.lower()   ) and
@@ -529,11 +531,17 @@ def FromNetCDF4(filename,variable_name,alternate_vars=[],t0=None,tf=None,group=N
             raise RuntimeError("Unable to find longitudes in the file: %s" % (filename))
     
     # Based on present values, get dimensions and bounds
+    cbounds = None
     if time_name is not None:
         if time_bnd_name is None:
             t       = ConvertCalendar(grp.variables[time_name])
         else:
             t,t_bnd = ConvertCalendar(grp.variables[time_name],grp.variables[time_bnd_name])
+        if "climatology" in grp.variables[time_name].ncattrs():
+            cbounds = grp.variables[grp.variables[time_name].climatology]
+            if not np.allclose(cbounds.shape,[12,2]):
+                raise RuntimeError("ILAMB only supports annual cycle style climatologies")
+            cbounds = np.round(cbounds[0,:]/365.+1850.)
     if lat_name       is not None: lat       = grp.variables[lat_name]      [...]
     if lat_bnd_name   is not None: lat_bnd   = grp.variables[lat_bnd_name]  [...]
     if lon_name       is not None: lon       = grp.variables[lon_name]      [...]
@@ -605,7 +613,7 @@ def FromNetCDF4(filename,variable_name,alternate_vars=[],t0=None,tf=None,group=N
         units = "1"
     dset.close()
     
-    return v,units,variable_name,t,t_bnd,lat,lat_bnd,lon,lon_bnd,depth,depth_bnd,data
+    return v,units,variable_name,t,t_bnd,lat,lat_bnd,lon,lon_bnd,depth,depth_bnd,cbounds,data
 
         
 def Score(var,normalizer,FC=0.999999):
