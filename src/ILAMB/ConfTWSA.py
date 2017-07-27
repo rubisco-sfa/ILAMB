@@ -73,7 +73,9 @@ class ConfTWSA(Confrontation):
         
         return obs,mod
 
-
+    def requires(self):
+        return ["tws"],[]
+        
     def confront(self,m):
         """Confront
 

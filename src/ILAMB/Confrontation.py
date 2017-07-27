@@ -9,6 +9,7 @@ import pylab as plt
 from matplotlib.colors import LogNorm
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from mpi4py import MPI
+from sympy import sympify
 
 import logging
 logger = logging.getLogger("%i" % MPI.COMM_WORLD.rank)	
@@ -120,7 +121,7 @@ class Confrontation(object):
                 if "site_name" in dataset.ncattrs():
                     self.lbls = dataset.site_name.split(",")
                 else:
-                    self.lbls = ["site%d" % s for s in range(dataset.variables["data"][...])]
+                    self.lbls = ["site%d" % s for s in range(len(dataset.dimensions["data"]))]
             if dataset.dimensions.has_key("time"):
                 t = dataset.variables["time"]
                 if "bounds" in t.ncattrs():
@@ -170,7 +171,16 @@ class Confrontation(object):
                        "Seasonal Cycle Score"          :1.,
                        "Interannual Variability Score" :1.,
                        "Spatial Distribution Score"    :1.}
-                
+
+    def requires(self):
+        if self.derived is not None:
+            ands = [arg.name for arg in sympify(self.derived).free_symbols]
+            ors  = []
+        else:
+            ands = []
+            ors  = [self.variable] + self.alternate_vars
+        return ands,ors
+    
     def stageData(self,m):
         r"""Extracts model data which matches the observational dataset.
         
@@ -262,7 +272,7 @@ class Confrontation(object):
         """
         # Grab the data
         obs,mod = self.stageData(m)
-
+        
         mod_file = "%s/%s_%s.nc"        % (self.output_path,self.name,m.name)
         obs_file = "%s/%s_Benchmark.nc" % (self.output_path,self.name       )
         with FileContextManager(self.master,mod_file,obs_file) as fcm:
@@ -278,18 +288,15 @@ class Confrontation(object):
             mass_weighting = self.keywords.get("mass_weighting",False)
             skip_rmse      = self.keywords.get("skip_rmse"     ,False)
             skip_iav       = self.keywords.get("skip_iav"      ,False)
-            try:
-                il.AnalysisMeanState(obs,mod,dataset   = fcm.mod_dset,
-                                     regions           = self.regions,
-                                     benchmark_dataset = fcm.obs_dset,
-                                     table_unit        = self.table_unit,
-                                     plot_unit         = self.plot_unit,
-                                     space_mean        = self.space_mean,
-                                     skip_rmse         = skip_rmse,
-                                     skip_iav          = skip_iav,
-                                     mass_weighting    = mass_weighting)
-            except:
-                raise il.AnalysisError()
+            il.AnalysisMeanState(obs,mod,dataset   = fcm.mod_dset,
+                                 regions           = self.regions,
+                                 benchmark_dataset = fcm.obs_dset,
+                                 table_unit        = self.table_unit,
+                                 plot_unit         = self.plot_unit,
+                                 space_mean        = self.space_mean,
+                                 skip_rmse         = skip_rmse,
+                                 skip_iav          = skip_iav,
+                                 mass_weighting    = mass_weighting)
 
         logger.info("[%s][%s] Success" % (self.longname,m.name))
                 

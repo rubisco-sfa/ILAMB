@@ -590,8 +590,10 @@ def FromNetCDF4(filename,variable_name,alternate_vars=[],t0=None,tf=None,group=N
         v = np.ma.masked_array(v,mask=mask,copy=False)
 
     # handle units problems that cfunits doesn't
-    units = var.units
-    if units == "unitless": units = "1"
+    if "units" in var.ncattrs():
+        units = var.units.replace("unitless","1")
+    else:
+        units = "1"
     dset.close()
     
     return v,units,variable_name,t,t_bnd,lat,lat_bnd,lon,lon_bnd,depth,depth_bnd,data
@@ -1214,9 +1216,7 @@ def MakeComparable(ref,com,**keywords):
         # If the reference time scale is significantly larger than the
         # comparison, coarsen the comparison
         if np.log10(ref.dt/com.dt) > 0.5:
-            ind = np.where((com.time_bnds[ 0,0] <= ref.time_bnds[:,0])*
-                           (com.time_bnds[-1,1] >= ref.time_bnds[:,1]))[0]
-            com = com.coarsenInTime(ref.time_bnds[ind,:],window=window)
+            com = com.coarsenInTime(ref.time_bnds,window=window)
         
         # Time bounds of the reference dataset
         t0  = ref.time_bnds[ 0,0]

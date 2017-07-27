@@ -7,6 +7,7 @@ from ILAMB.ModelResult import ModelResult
 from ILAMB.Scoreboard import Scoreboard
 from ILAMB.Regions import Regions
 from ILAMB import ilamblib as il
+from traceback import format_exc
 import os,time,sys,argparse
 from mpi4py import MPI
 import numpy as np
@@ -260,17 +261,10 @@ def WorkConfront(W,verbose=False,clean=False):
                 sys.stdout.flush()
 
         # if things do not work out, print the exception so the user has some idea
-        except (il.VarNotInModel,
-                il.AreasNotInModel,
-                il.VarNotMonthly,
-                il.VarNotOnTimeScale,
-                il.NotTemporalVariable,
-                il.UnitConversionError,
-                il.AnalysisError,
-                il.VarsNotComparable,
-                il.NotLayeredVariable) as ex:
+        except Exception as ex:
+            logger.debug("[%s][%s]\n%s" % (c.longname,m.name,format_exc()))
             if verbose:
-                print ("    {0:>%d} {1:<%d} %s%s%s" % (maxCL,maxML,FAIL,ex,ENDC)).format(c.longname,m.name)
+                print ("    {0:>%d} {1:<%d} %s%s%s" % (maxCL,maxML,FAIL,ex.__class__.__name__,ENDC)).format(c.longname,m.name)
 
 def WorkPost(M,C,W,S,verbose=False):
     """Performs the post-processing
@@ -299,17 +293,27 @@ def WorkPost(M,C,W,S,verbose=False):
 
     for w in W:
         m,c = w
-        t0  = time.time()
-        c.modelPlots(m)
-        c.sitePlots(m)
-        c.computeOverallScore(m)
-        dt = time.time()-t0
-        proc[rank] += dt
-        if verbose: print ("    {0:>%d} {1:<%d} %sCompleted%s {2:>5.1f} s" % (maxCL,maxML,OK,ENDC)).format(c.longname,m.name,dt)
-        sys.stdout.flush()
-
+        try:
+            t0  = time.time()
+            c.modelPlots(m)
+            c.sitePlots(m)
+            c.computeOverallScore(m)
+            dt = time.time()-t0
+            proc[rank] += dt
+            if verbose:
+                print ("    {0:>%d} {1:<%d} %sCompleted%s {2:>5.1f} s" % (maxCL,maxML,OK,ENDC)).format(c.longname,m.name,dt)
+                sys.stdout.flush()
+        except Exception as ex:
+            logger.debug("[%s][%s]\n%s" % (c.longname,m.name,format_exc()))
+            if verbose:
+                print ("    {0:>%d} {1:<%d} %s%s%s" % (maxCL,maxML,FAIL,ex.__class__.__name__,ENDC)).format(c.longname,m.name)
+                sys.stdout.flush()
+                
     for c in C:
-        c.compositePlots()
+        try:
+            c.compositePlots()
+        except Exception as ex:
+            logger.debug("[compositePlots][%s]\n%s" % (c.longname,format_exc()))
         c.generateHtml()
 
     comm.Barrier()
@@ -388,6 +392,8 @@ parser.add_argument('--regions', dest="regions", metavar='r', type=str, nargs='+
                     help='specify which regions to compute over')
 parser.add_argument('--clean', dest="clean", action="store_true",
                     help='enable to remove analysis files and recompute')
+parser.add_argument('--disable_logging', dest="logging", action="store_false",
+                    help='disables logging')
 parser.add_argument('-q','--quiet', dest="quiet", action="store_true",
                     help='enable to silence screen output')
 parser.add_argument('--filter', dest="filter", metavar='filter', type=str, nargs=1, default=[""],
@@ -428,11 +434,12 @@ Cf = FilterConfrontationList(C,args.confront)
 
 # Setup logging
 logger    = logging.getLogger("%i" % comm.rank)
-mh        = MPIFileHandler('%s/ILAMB%02d.log' % (S.build_dir,len(glob.glob("%s/*.log" % S.build_dir))+1))
 formatter = logging.Formatter('[%(levelname)s][%(name)s][%(funcName)s]%(message)s')
 logger.setLevel(logging.DEBUG)
-mh.setFormatter(formatter)
-logger.addHandler(mh)
+if args.logging:
+    mh = MPIFileHandler('%s/ILAMB%02d.log' % (S.build_dir,len(glob.glob("%s/*.log" % S.build_dir))+1))
+    mh.setFormatter(formatter)
+    logger.addHandler(mh)
 
 if rank == 0:
     logger.info(" " + " ".join(os.uname()))

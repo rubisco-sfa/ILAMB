@@ -91,16 +91,18 @@ class ConfNBP(Confrontation):
                           data = np.exp(-0.287*np.abs(mod_diff.data/normalizer)))
 
         # Temporal distribution
-        np.seterr(over='ignore',under='ignore')
-        std0 = obs.data.std()
-        std  = mod.data.std()
-        np.seterr(over='raise' ,under='raise' )
-        R0    = 1.0
-        R     = obs.correlation(mod,ctype="temporal")
-        std  /= std0
-        score = Variable(name = "Temporal Distribution Score global",
-                         unit = "1",
-                         data = 4.0*(1.0+R.data)/((std+1.0/std)**2 *(1.0+R0)))
+        skip_taylor = self.keywords.get("skip_taylor",False)
+        if not skip_taylor:
+            np.seterr(over='ignore',under='ignore')
+            std0 = obs.data.std()
+            std  = mod.data.std()
+            np.seterr(over='raise' ,under='raise' )
+            R0    = 1.0
+            R     = obs.correlation(mod,ctype="temporal")
+            std  /= std0
+            score = Variable(name = "Temporal Distribution Score global",
+                             unit = "1",
+                             data = 4.0*(1.0+R.data)/((std+1.0/std)**2 *(1.0+R0)))
         
         # Change names to make things easier to parse later
         obs     .name = "spaceint_of_nbp_over_global"
@@ -116,7 +118,8 @@ class ConfNBP(Confrontation):
         mod_end   .toNetCDF4(results,group="MeanState")
         mod_diff  .toNetCDF4(results,group="MeanState")
         dscore    .toNetCDF4(results,group="MeanState")
-        score     .toNetCDF4(results,group="MeanState",attributes={"std":std,"R":R.data})
+        if not skip_taylor:
+            score .toNetCDF4(results,group="MeanState",attributes={"std":std,"R":R.data})
         results.close()
         
         if self.master:

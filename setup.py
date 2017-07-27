@@ -97,12 +97,13 @@ setup(
     keywords=['benchmarking','earth system modeling','climate modeling','model intercomparison'],
     packages=['ILAMB'],
     package_dir={'ILAMB' : 'src/ILAMB'},
-    scripts=['bin/ilamb-run','bin/ilamb-fetch'],
+    scripts=['bin/ilamb-run','bin/ilamb-fetch','bin/ilamb-mean','bin/ilamb-doctor'],
     install_requires=['numpy>=1.9.2',
                       'matplotlib>=1.4.3',
                       #'basemap>=1.0.7', # basemap is in pypi but broken, need to manually install
                       'netCDF4>=1.1.4,<=1.2.4', # upper limit is for cfunits
                       'cfunits>=1.1.4',
                       'sympy>=0.7.6',
-                      'mpi4py>=1.3.1']
+                      'mpi4py>=1.3.1',
+                      'scipy>=0.9.0']
 )
