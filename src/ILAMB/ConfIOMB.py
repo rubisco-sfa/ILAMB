@@ -73,11 +73,20 @@ class ConfIOMB(Confrontation):
         obs = Variable(filename       = self.source,
                        variable_name  = self.variable,
                        alternate_vars = self.alternate_vars)
+        print obs
+        t0  = obs.time_bnds[ 0,0]
+        tf  = obs.time_bnds[-1,1]
+        print np.asarray([t0,tf])/365.+1850.
+        if obs.cbounds is not None:
+            t0 = (obs.cbounds[0]  -1850)*365.
+            tf = (obs.cbounds[1]+1-1850)*365.
+        print np.asarray([t0,tf])/365.+1850.
+
         mod = m.extractTimeSeries(self.variable,
                                   alt_vars     = self.alternate_vars,
                                   expression   = self.derived,
-                                  initial_time = obs.time_bnds[ 0,0],
-                                  final_time   = obs.time_bnds[-1,1],
+                                  initial_time = t0,
+                                  final_time   = tf,
                                   lats         = None if obs.spatial else obs.lat,
                                   lons         = None if obs.spatial else obs.lon).convert(obs.unit)
         # push into MakeComparable

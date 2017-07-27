@@ -504,20 +504,29 @@ def FromNetCDF4(filename,variable_name,alternate_vars=[],t0=None,tf=None,group=N
         if  "data"  in key.lower():  data_name ,junk           = _get(key,grp)
         if ("layer" in key.lower() or
             "lev"   in key.lower()): depth_name,depth_bnd_name = _get(key,grp)
-        
-    # How many dimensions found vs how many in the variable
+
+    # It is possible that lat and lon are just the sizes of the data
+    # array, and the real latitude and longitude arrays are 2D. Then
+    # we need to interpolate.
     inter = False
-    ndim  = ( time_name is not None)
-    ndim += (  lat_name is not None)
-    ndim += (  lon_name is not None)
-    ndim += (depth_name is not None)
-    ndim += ( data_name is not None)
-    if var.ndim-ndim == 2:
-        inter = True
-        for key in grp.variables:
-            if "_" in key: continue
-            if  "lat" in key.lower(): lat_name,lat_bnd_name = _get(key,grp)
-            if  "lon" in key.lower(): lon_name,lon_bnd_name = _get(key,grp)
+    if (lat_name not in grp.variables):
+        inter    = True
+        possible = [key for key in grp.variables if ((key   not in grp.dimensions) and
+                                                     ("lat"     in key.lower()   ) and
+                                                     ("_"   not in key           ))]
+        if len(possible)==1:
+            lat_name = possible[0]
+        else:
+            raise RuntimeError("Unable to find latitudes in the file: %s" % (filename))
+    if (lon_name not in grp.variables):
+        inter    = True
+        possible = [key for key in grp.variables if ((key   not in grp.dimensions) and
+                                                     ("lon"     in key.lower()   ) and
+                                                     ("_"   not in key           ))]
+        if len(possible)==1:
+            lon_name = possible[0]
+        else:
+            raise RuntimeError("Unable to find longitudes in the file: %s" % (filename))
     
     # Based on present values, get dimensions and bounds
     if time_name is not None:
