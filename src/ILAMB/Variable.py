@@ -90,19 +90,21 @@ class Variable:
             ndata      = keywords.get("ndata"      ,None)
             assert data is not None
             assert unit is not None
+            cbounds    = None
         else:
             assert variable_name is not None
             t0 = keywords.get("t0",None)
             tf = keywords.get("tf",None)
             out = il.FromNetCDF4(filename,variable_name,alternate_vars,t0,tf,group=groupname)            
-            data,unit,name,time,time_bnds,lat,lat_bnds,lon,lon_bnds,depth,depth_bnds,ndata = out
+            data,unit,name,time,time_bnds,lat,lat_bnds,lon,lon_bnds,depth,depth_bnds,cbounds,ndata = out
             
         if not np.ma.isMaskedArray(data): data = np.ma.masked_array(data)
         self.data  = data 
         self.ndata = ndata
         self.unit  = unit
         self.name  = name
-
+        self.cbounds = cbounds
+        
         def _createBnds(x):
             x      = np.asarray(x)
             x_bnds = np.zeros((x.size,2))
@@ -205,6 +207,9 @@ class Variable:
         s += "{0:>20}: ".format("dataMin")    + "%e\n" % self.data.min()
         s += "{0:>20}: ".format("dataMean")   + "%e\n" % self.data.mean()
         np.seterr(over='warn',under='warn')
+        if self.cbounds is not None:
+            s += "{0:>20}: ".format("climatology")   + "%d thru %d\n" % (self.cbounds[0],self.cbounds[1])
+            
         return s
 
     def integrateInTime(self,**keywords):
