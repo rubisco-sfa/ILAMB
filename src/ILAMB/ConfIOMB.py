@@ -3,6 +3,7 @@ from ILAMB.Confrontation import getVariableList
 from ILAMB.constants import earth_rad,mid_months,lbl_months
 from ILAMB.Variable import Variable
 from ILAMB.Regions import Regions
+import ILAMB.ilamblib as il
 import ILAMB.Post as post
 from netCDF4 import Dataset
 from copy import deepcopy
@@ -94,9 +95,20 @@ class ConfIOMB(Confrontation):
         mod = mod.annualCycle()
         
         return obs,mod
-
+        
     def confront(self,m):
 
+        def _profileScore(ref,com,region):
+            db  = np.unique(np.hstack([np.unique(ref.depth_bnds),np.unique(com.depth_bnds)]))
+            d   = 0.5*(db[:-1]+db[1:])
+            w   = np.diff(db)
+            r   = ref.data[np.argmin(np.abs(d[:,np.newaxis]-ref.depth),axis=1)]
+            c   = com.data[np.argmin(np.abs(d[:,np.newaxis]-com.depth),axis=1)]
+            err = np.sqrt( (((r-c)**2)*w).sum() / ((r**2)*w).sum() ) # relative L2 error
+            return Variable(name = "Profile Score %s" % region,
+                            unit = "1",
+                            data = np.exp(-err))
+        
         # get the data
         obs,mod = self.stageData(m)
 
@@ -106,31 +118,36 @@ class ConfIOMB(Confrontation):
         o1   = VariableReduce(obs,time=ts,depth=ds)
         m1   = VariableReduce(mod,time=ts,depth=ds)
         d1   = o1.bias(m1)
-        m1.name = "timeint_surface_%s" % self.variable
-        d1.name = "bias_surface_%s"    % self.variable
-        o1.name = "timeint_surface_%s" % self.variable
+        s1   = il.Score(d1,o1.interpolate(lat=d1.lat,lon=d1.lon))
+        m1.name = "timeint_surface_%s"    % self.variable
+        d1.name = "bias_surface_%s"       % self.variable
+        o1.name = "timeint_surface_%s"    % self.variable
+        s1.name = "bias_score_surface_%s" % self.variable
 
         o2 = {}; m2 = {}; o3 = {}; m3 = {}; o4 = {}; m4 = {}
-        op = {}; mp = {}; mb = {}
+        op = {}; mp = {}; mb = {}; sb = {}; sp = {}
         for region in self.regions:
 
             op[region] = o1.integrateInSpace(mean=True,region=region)
             mp[region] = m1.integrateInSpace(mean=True,region=region)
             mb[region] = d1.integrateInSpace(mean=True,region=region)
+            sb[region] = s1.integrateInSpace(mean=True,region=region)
             op[region].name = "Period Mean %s" % region
             mp[region].name = "Period Mean %s" % region
             mb[region].name = "Bias %s"        % region
-
+            sb[region].name = "Bias Score %s"  % region
+            
             # Reduction 2/3: Zonal depth profiles
             o2[region] = VariableReduce(obs,region,time=ts,lon=[-180.,180.])
             m2[region] = VariableReduce(mod,region,time=ts,lon=[-180.,180.])
             o3[region] = obs.integrateInSpace(region=region,mean=True).integrateInTime(t0=ts[0],tf=ts[1],mean=True)
             m3[region] = mod.integrateInSpace(region=region,mean=True).integrateInTime(t0=ts[0],tf=ts[1],mean=True)
+            sp[region] = _profileScore(o3[region],m3[region],region)
             o2[region].name = "timelonint_of_%s_over_%s" % (self.variable,region)
             m2[region].name = "timelonint_of_%s_over_%s" % (self.variable,region)
             o3[region].name = "profile_of_%s_over_%s"    % (self.variable,region)
             m3[region].name = "profile_of_%s_over_%s"    % (self.variable,region)
-
+            
             # Reduction 4: Temporal depth profile
             o4[region] = obs.integrateInSpace(region=region,mean=True)
             m4[region] = mod.integrateInSpace(region=region,mean=True)
@@ -147,7 +164,7 @@ class ConfIOMB(Confrontation):
 
         results = Dataset("%s/%s_%s.nc" % (self.output_path,self.name,m.name),mode="w")
         results.setncatts({"name" :m.name, "color":m.color})
-        _write([m1,d1,mp,mb,m2,m3,m4],results)
+        _write([m1,d1,s1,sb,mp,mb,m2,m3,sp,m4],results)
         results.close()
         if self.master:
             results = Dataset("%s/%s_Benchmark.nc" % (self.output_path,self.name),mode="w")
@@ -268,9 +285,7 @@ class ConfIOMB(Confrontation):
                     b   = ind.min()
                     e   = ind.max()+1
                     ax.pcolormesh(l[b:(e+1)],d,var.data[:,b:e],
-                                  cmap = self.cmap)#,
-                    #vmin = self.limits["timeint"]["min"],
-                    #vmax = self.limits["timeint"]["max"])
+                                  cmap = self.cmap)
                     ax.set_xlabel("latitude")
                     ax.set_ylim((d.max(),d.min()))
                     ax.set_ylabel("depth [m]")
