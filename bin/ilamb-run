@@ -79,6 +79,68 @@ def InitializeModels(model_root,models=[],verbose=False,filter="",model_year=[])
 
     return M
 
+def ParseModelSetup(model_setup,models=[],verbose=False,filter=""):
+    """Initializes a list of models
+
+    Initializes a list of models where each model is the subdirectory
+    beneath the given model root directory. The global list of models
+    will exist on each processor.
+
+    Parameters
+    ----------
+    model_setup : str
+        the directory whose subdirectories will become the model results
+    models : list of str, optional
+        only initialize a model whose name is in this list
+    verbose : bool, optional
+        enable to print information to the screen
+
+    Returns
+    -------
+    M : list of ILAMB.ModelResults.ModelsResults
+       a list of the model results, sorted alphabetically by name
+
+    """
+    # initialize the models
+    M = []
+    max_model_name_len = 0
+    if rank == 0 and verbose: print "\nSetting up model results from %s\n" % model_setup
+    with file(model_setup) as f:
+        for line in f.readlines():
+            if line.strip().startswith("#"): continue
+            line       = line.split(",")
+            mname      = None
+            mdir       = None
+            model_year = None
+            if len(line) >= 2:
+                mname  = line[0].strip()
+                mdir   = os.path.join(os.environ["ILAMB_ROOT"],line[1].strip()).strip()
+            if len(line) == 4:
+                model_year = [float(line[2].strip()),float(line[3].strip())]
+            max_model_name_len = max(max_model_name_len,len(mname))
+            if (len(models) > 0 and mname not in models) or (mname is None): continue
+            M.append(ModelResult(mdir, modelname = mname, filter=filter, model_year = model_year))
+
+    M = sorted(M,key=lambda m: m.name.upper())
+
+    # assign unique colors
+    clrs = il.GenerateDistinctColors(len(M))
+    for m in M:
+        clr     = clrs.pop(0)
+        m.color = clr
+
+    # optionally output models which were found
+    if rank == 0 and verbose:
+        for m in M:
+            print ("    {0:>45}").format(m.name)
+
+    if len(M) == 0:
+        if verbose and rank == 0: print "No model results found"
+        comm.Barrier()
+        comm.Abort(0)
+
+    return M
+
 def InitializeRegions(filenames):
     """Initialize regions from a list of files.
 
@@ -109,8 +171,8 @@ def InitializeRegions(filenames):
                     r.addRegionLatLonBounds(line[0],
                                             line[1],
                                             [float(line[2]),float(line[3])],
-                                            [float(line[4]),float(line[5])])        
-    
+                                            [float(line[4]),float(line[5])])
+
 def MatchRelationshipConfrontation(C):
     """Match relationship strings to confrontation longnames
 
@@ -308,7 +370,7 @@ def WorkPost(M,C,W,S,verbose=False):
             if verbose:
                 print ("    {0:>%d} {1:<%d} %s%s%s" % (maxCL,maxML,FAIL,ex.__class__.__name__,ENDC)).format(c.longname,m.name)
                 sys.stdout.flush()
-                
+
     for c in C:
         try:
             c.compositePlots()
@@ -402,6 +464,8 @@ parser.add_argument('--build_dir', dest="build_dir", metavar='build_dir', type=s
                     help='path of where to save the output')
 parser.add_argument('--define_regions', dest="define_regions", type=str, nargs='+',default=[],
                     help='list files containing user-defined regions')
+parser.add_argument('--model_setup', dest="model_setup", type=str, nargs='+',default=None,
+                    help='list files model setup information')
 
 args = parser.parse_args()
 if args.config is None:
@@ -421,7 +485,10 @@ if len(missing) > 0:
 
 # Setup study
 T0 = time.time()
-M  = InitializeModels(args.model_root[0],args.models,not args.quiet,filter=args.filter[0],model_year=args.model_year)
+if args.model_setup is None:
+    M = InitializeModels(args.model_root[0],args.models,not args.quiet,filter=args.filter[0],model_year=args.model_year)
+else:
+    M = ParseModelSetup(args.model_setup[0],args.models,not args.quiet,filter=args.filter[0])
 if rank == 0 and not args.quiet: print "\nParsing config file %s...\n" % args.config[0]
 S = Scoreboard(args.config[0],
                regions   = args.regions,
