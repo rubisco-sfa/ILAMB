@@ -131,7 +131,7 @@ class ConfIOMB(Confrontation):
             op[region] = o1.integrateInSpace(mean=True,region=region)
             mp[region] = m1.integrateInSpace(mean=True,region=region)
             mb[region] = d1.integrateInSpace(mean=True,region=region)
-            sb[region] = s1.integrateInSpace(mean=True,region=region)
+            sb[region] = s1.integrateInSpace(mean=True,region=region,weight=o1.interpolate(lat=s1.lat,lon=s1.lon).data)
             op[region].name = "Period Mean %s" % region
             mp[region].name = "Period Mean %s" % region
             mb[region].name = "Bias %s"        % region
