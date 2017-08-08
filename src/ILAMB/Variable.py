@@ -1064,6 +1064,19 @@ class Variable:
         vmax   = keywords.get("vmax"  ,self.data.max())
         region = keywords.get("region","global")
         cmap   = keywords.get("cmap"  ,"jet")
+        land   = keywords.get("land"  ,0.875)
+        water  = keywords.get("water" ,0.750)
+        
+        lat_0  = {"arctic"   :  90,
+                  "atlantic" :   0,
+                  "pacific"  :  16,
+                  "indian"   : -22,
+                  "southern" : -90}
+        lon_0  = {"arctic"   :    0,
+                  "atlantic" : - 28,
+                  "pacific"  : -170,
+                  "indian"   :   78,
+                  "southern" :  180}
         
         rem_mask = None
         r = Regions()
@@ -1096,19 +1109,26 @@ class Variable:
                                ax         = ax,
                                resolution = 'c')
 
-            elif region == "arctic":
-                bmap = Basemap(projection = 'ortho',
-                               lat_0      =  90.,
-                               lon_0      = 180.,
+            elif region == 'arctic':
+                bmap = Basemap(projection  = 'npstere',
+                               boundinglat = 55.,
+                               lon_0       = lon_0[region],
+                               ax          = ax,
+                               resolution  = 'c')
+                
+            elif region == 'southern':
+                bmap = Basemap(projection  = 'spstere',
+                               boundinglat = -50.,
+                               lon_0       = lon_0[region],
+                               ax          = ax,
+                               resolution  = 'c')
+                
+            elif region in lat_0.keys():
+                bmap = Basemap(projection = 'robin',
+                               lon_0      = lon_0[region],
                                ax         = ax,
                                resolution = 'c')
                 
-            elif region == "southern":
-                bmap = Basemap(projection = 'ortho',
-                               lat_0      = -90.,
-                               lon_0      = 180.,
-                               ax         = ax,
-                               resolution = 'c')                
             else:
 
                 # Compute the plot limits based on the figure size and
@@ -1159,8 +1179,8 @@ class Variable:
                                ax         = ax,
                                resolution = 'c')
             try:
-                bmap.drawlsmask(land_color  = '0.875',
-                                ocean_color = '0.750',
+                bmap.drawlsmask(land_color  = str(land),
+                                ocean_color = str(water),
                                 lakes       = True)
             except:
                 bmap.drawcoastlines(linewidth = 0.2,

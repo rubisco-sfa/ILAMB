@@ -118,24 +118,33 @@ class ConfIOMB(Confrontation):
         o1   = VariableReduce(obs,time=ts,depth=ds)
         m1   = VariableReduce(mod,time=ts,depth=ds)
         d1   = o1.bias(m1)
-        s1   = il.Score(d1,o1.interpolate(lat=d1.lat,lon=d1.lon))
+        oint = obs.integrateInDepth(z0=ds[0],zf=ds[1],mean=True)
+        r1   = oint.rmse(mod.integrateInDepth(z0=ds[0],zf=ds[1],mean=True))
+        s1   = il.Score(d1,o1        .interpolate(lat=d1.lat,lon=d1.lon))
+        s2   = il.Score(r1,oint.rms().interpolate(lat=r1.lat,lon=r1.lon))
         m1.name = "timeint_surface_%s"    % self.variable
         d1.name = "bias_surface_%s"       % self.variable
+        r1.name = "rmse_surface_%s"       % self.variable
         o1.name = "timeint_surface_%s"    % self.variable
-        s1.name = "bias_score_surface_%s" % self.variable
+        s1.name = "biasscore_surface_%s"  % self.variable
+        s2.name = "rmsescore_surface_%s"  % self.variable
 
         o2 = {}; m2 = {}; o3 = {}; m3 = {}; o4 = {}; m4 = {}
-        op = {}; mp = {}; mb = {}; sb = {}; sp = {}
+        op = {}; mp = {}; mb = {}; mr = {}; sb = {}; sr = {}; sp = {}
         for region in self.regions:
 
             op[region] = o1.integrateInSpace(mean=True,region=region)
             mp[region] = m1.integrateInSpace(mean=True,region=region)
             mb[region] = d1.integrateInSpace(mean=True,region=region)
+            mr[region] = r1.integrateInSpace(mean=True,region=region)
             sb[region] = s1.integrateInSpace(mean=True,region=region,weight=o1.interpolate(lat=s1.lat,lon=s1.lon).data)
+            sr[region] = s2.integrateInSpace(mean=True,region=region,weight=o1.interpolate(lat=s1.lat,lon=s1.lon).data)
             op[region].name = "Period Mean %s" % region
             mp[region].name = "Period Mean %s" % region
             mb[region].name = "Bias %s"        % region
             sb[region].name = "Bias Score %s"  % region
+            mr[region].name = "RMSE %s"        % region
+            sr[region].name = "RMSE Score %s"  % region
             
             # Reduction 2/3: Zonal depth profiles
             o2[region] = VariableReduce(obs,region,time=ts,lon=[-180.,180.])
@@ -164,7 +173,7 @@ class ConfIOMB(Confrontation):
 
         results = Dataset("%s/%s_%s.nc" % (self.output_path,self.name,m.name),mode="w")
         results.setncatts({"name" :m.name, "color":m.color})
-        _write([m1,d1,s1,sb,mp,mb,m2,m3,sp,m4],results)
+        _write([m1,d1,r1,s1,s2,sb,mp,mb,m2,m3,sp,m4,mr,sr],results)
         results.close()
         if self.master:
             results = Dataset("%s/%s_Benchmark.nc" % (self.output_path,self.name),mode="w")
@@ -215,6 +224,10 @@ class ConfIOMB(Confrontation):
 
     def modelPlots(self,m):
 
+        def _fheight(region):
+            if region in ["arctic","southern"]: return 6.8
+            return 2.8
+        
         bname  = "%s/%s_Benchmark.nc" % (self.output_path,self.name)
         fname  = "%s/%s_%s.nc" % (self.output_path,self.name,m.name)
         if not os.path.isfile(bname): return
@@ -237,13 +250,15 @@ class ConfIOMB(Confrontation):
                                side   = "MODEL SURFACE MEAN",
                                legend = True)
                 for region in self.regions:
-                    fig = plt.figure(figsize=(6.8,2.8))
+                    fig = plt.figure(figsize=(6.8,_fheight(region)))
                     ax  = fig.add_axes([0.06,0.025,0.88,0.965])
                     var.plot(ax,
                              region = region,
                              vmin   = self.limits["timeint"]["min"],
                              vmax   = self.limits["timeint"]["max"],
-                             cmap   = self.cmap)
+                             cmap   = self.cmap,
+                             land   = 0.750,
+                             water  = 0.875)
                     fig.savefig("%s/%s_%s_timeint.png" % (self.output_path,m.name,region))
                     plt.close()
 
@@ -256,14 +271,79 @@ class ConfIOMB(Confrontation):
                                side   = "SURFACE MEAN BIAS",
                                legend = True)
                 for region in self.regions:
-                    fig = plt.figure(figsize=(6.8,2.8))
+                    fig = plt.figure(figsize=(6.8,_fheight(region)))
                     ax  = fig.add_axes([0.06,0.025,0.88,0.965])
                     var.plot(ax,
                              region = region,
                              vmin   = self.limits["bias"]["min"],
                              vmax   = self.limits["bias"]["max"],
-                             cmap   = "seismic")
+                             cmap   = "seismic",
+                             land   = 0.750,
+                             water  = 0.875)
                     fig.savefig("%s/%s_%s_bias.png" % (self.output_path,m.name,region))
+                    plt.close()
+
+            vname = "biasscore_surface_%s" % self.variable
+            if vname in variables:
+                var = Variable(filename=fname,variable_name=vname,groupname="MeanState")
+                page.addFigure("Period mean at surface",
+                               "biasscore",
+                               "MNAME_RNAME_biasscore.png",
+                               side   = "SURFACE MEAN BIAS SCORE",
+                               legend = True)
+                for region in self.regions:
+                    fig = plt.figure(figsize=(6.8,_fheight(region)))
+                    ax  = fig.add_axes([0.06,0.025,0.88,0.965])
+                    var.plot(ax,
+                             region = region,
+                             vmin   = 0,
+                             vmax   = 1,
+                             cmap   = "RdYlGn",
+                             land   = 0.750,
+                             water  = 0.875)
+                    fig.savefig("%s/%s_%s_biasscore.png" % (self.output_path,m.name,region))
+                    plt.close()
+                    
+            vname = "rmse_surface_%s" % self.variable
+            if vname in variables:
+                var = Variable(filename=fname,variable_name=vname,groupname="MeanState")
+                page.addFigure("Period mean at surface",
+                               "rmse",
+                               "MNAME_RNAME_rmse.png",
+                               side   = "SURFACE MEAN RMSE",
+                               legend = True)
+                for region in self.regions:
+                    fig = plt.figure(figsize=(6.8,_fheight(region)))
+                    ax  = fig.add_axes([0.06,0.025,0.88,0.965])
+                    var.plot(ax,
+                             region = region,
+                             vmin   = self.limits["rmse"]["min"],
+                             vmax   = self.limits["rmse"]["max"],
+                             cmap   = "YlOrRd",
+                             land   = 0.750,
+                             water  = 0.875)
+                    fig.savefig("%s/%s_%s_rmse.png" % (self.output_path,m.name,region))
+                    plt.close()
+
+            vname = "rmsescore_surface_%s" % self.variable
+            if vname in variables:
+                var = Variable(filename=fname,variable_name=vname,groupname="MeanState")
+                page.addFigure("Period mean at surface",
+                               "rmsescore",
+                               "MNAME_RNAME_rmsescore.png",
+                               side   = "SURFACE MEAN RMSE SCORE",
+                               legend = True)
+                for region in self.regions:
+                    fig = plt.figure(figsize=(6.8,_fheight(region)))
+                    ax  = fig.add_axes([0.06,0.025,0.88,0.965])
+                    var.plot(ax,
+                             region = region,
+                             vmin   = 0,
+                             vmax   = 1,
+                             cmap   = "RdYlGn",
+                             land   = 0.750,
+                             water  = 0.875)
+                    fig.savefig("%s/%s_%s_rmsescore.png" % (self.output_path,m.name,region))
                     plt.close()
 
             for region in self.regions:
@@ -285,6 +365,8 @@ class ConfIOMB(Confrontation):
                     b   = ind.min()
                     e   = ind.max()+1
                     ax.pcolormesh(l[b:(e+1)],d,var.data[:,b:e],
+                                  vmin = self.limits["timelonint"]["global"]["min"],
+                                  vmax = self.limits["timelonint"]["global"]["max"],
                                   cmap = self.cmap)
                     ax.set_xlabel("latitude")
                     ax.set_ylim((d.max(),d.min()))
@@ -308,13 +390,15 @@ class ConfIOMB(Confrontation):
                                side   = "BENCHMARK SURFACE MEAN",
                                legend = True)
                 for region in self.regions:
-                    fig = plt.figure(figsize=(6.8,2.8))
+                    fig = plt.figure(figsize=(6.8,_fheight(region)))
                     ax  = fig.add_axes([0.06,0.025,0.88,0.965])
                     var.plot(ax,
                              region = region,
                              vmin   = self.limits["timeint"]["min"],
                              vmax   = self.limits["timeint"]["max"],
-                             cmap   = self.cmap)
+                             cmap   = self.cmap,
+                             land   = 0.750,
+                             water  = 0.875)
                     fig.savefig("%s/Benchmark_%s_timeint.png" % (self.output_path,region))
                     plt.close()
 
@@ -337,11 +421,92 @@ class ConfIOMB(Confrontation):
                     b   = ind.min()
                     e   = ind.max()+1
                     ax.pcolormesh(l[b:(e+1)],d,var.data[:,b:e],
-                                  cmap = self.cmap)#,
-                    #vmin = self.limits["timeint"]["min"],
-                    #vmax = self.limits["timeint"]["max"])
+                                  vmin = self.limits["timelonint"]["global"]["min"],
+                                  vmax = self.limits["timelonint"]["global"]["max"],
+                                  cmap = self.cmap)
                     ax.set_xlabel("latitude")
                     ax.set_ylim((d.max(),d.min()))
                     ax.set_ylabel("depth [m]")
                     fig.savefig("%s/Benchmark_%s_timelonint.png" % (self.output_path,region))
                     plt.close()
+                    
+    def determinePlotLimits(self):
+
+        # Pick limit type
+        max_str = "up99"; min_str = "dn99"
+        if self.keywords.get("limit_type","99per") == "minmax":
+            max_str = "max"; min_str = "min"
+            
+        # Determine the min/max of variables over all models
+        limits = {}
+        for fname in glob.glob("%s/*.nc" % self.output_path):
+            with Dataset(fname) as dataset:
+                if "MeanState" not in dataset.groups: continue
+                group     = dataset.groups["MeanState"]
+                variables = [v for v in group.variables.keys() if (v not in group.dimensions.keys() and
+                                                                   "_bnds" not in v                 and
+                                                                   group.variables[v][...].size > 1)]
+                for vname in variables:
+                    var    = group.variables[vname]
+                    pname  = vname.split("_")[ 0]
+                    if "_over_" in vname:
+                        region = vname.split("_over_")[-1]
+                        if not limits.has_key(pname): limits[pname] = {}
+                        if not limits[pname].has_key(region):
+                            limits[pname][region] = {}
+                            limits[pname][region]["min"]  = +1e20
+                            limits[pname][region]["max"]  = -1e20
+                            limits[pname][region]["unit"] = post.UnitStringToMatplotlib(var.getncattr("units"))
+                        limits[pname][region]["min"] = min(limits[pname][region]["min"],var.getncattr("min"))
+                        limits[pname][region]["max"] = max(limits[pname][region]["max"],var.getncattr("max"))
+                    else:
+                        if not limits.has_key(pname):
+                            limits[pname] = {}
+                            limits[pname]["min"]  = +1e20
+                            limits[pname]["max"]  = -1e20
+                            limits[pname]["unit"] = post.UnitStringToMatplotlib(var.getncattr("units"))
+                        limits[pname]["min"] = min(limits[pname]["min"],var.getncattr(min_str))
+                        limits[pname]["max"] = max(limits[pname]["max"],var.getncattr(max_str))
+        self.limits = limits
+
+        # Second pass to plot legends
+        cmaps = {"bias":"seismic",
+                 "rmse":"YlOrRd"}
+        for pname in limits.keys():
+
+            # Pick colormap
+            cmap = self.cmap
+            if cmaps.has_key(pname):
+                cmap = cmaps[pname]
+            elif "score" in pname:
+                cmap = "RdYlGn"
+
+            # Need to symetrize?
+            if pname in ["bias"]:
+                vabs =  max(abs(limits[pname]["min"]),abs(limits[pname]["min"]))
+                limits[pname]["min"] = -vabs
+                limits[pname]["max"] =  vabs
+
+            # Some plots need legends
+            if pname in ["timeint","bias","biasscore","rmse","rmsescore","timelonint"]:
+                if limits[pname].has_key("min"):
+                    fig,ax = plt.subplots(figsize=(6.8,1.0),tight_layout=True)
+                    post.ColorBar(ax,
+                                  vmin  = limits[pname]["min" ],
+                                  vmax  = limits[pname]["max" ],
+                                  label = limits[pname]["unit"],
+                                  cmap  = cmap)
+                    fig.savefig("%s/legend_%s.png" % (self.output_path,pname))
+                    plt.close()
+                else:
+                    fig,ax = plt.subplots(figsize=(6.8,1.0),tight_layout=True)
+                    post.ColorBar(ax,
+                                  vmin  = limits[pname]["global"]["min" ],
+                                  vmax  = limits[pname]["global"]["max" ],
+                                  label = limits[pname]["global"]["unit"],
+                                  cmap  = cmap)
+                    fig.savefig("%s/legend_%s.png" % (self.output_path,pname))
+                    plt.close()
+                        
+
+            

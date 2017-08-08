@@ -14,6 +14,9 @@ def UseLatexPltOptions(fsize=18):
     plt.rcParams.update(params)
 
 def UnitStringToMatplotlib(unit,add_carbon=False):
+    # replace 1e-6 with micro
+    match = re.findall("(1e-6\s)",unit)
+    for m in match: unit = unit.replace(m,"$\mu$")
     # raise exponents using Latex
     match = re.findall("(-\d)",unit)
     for m in match: unit = unit.replace(m,"$^{%s}$" % m)
