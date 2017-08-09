@@ -425,8 +425,9 @@ class ConfIOMB(Confrontation):
                         page.addFigure("Mean regional depth profiles",
                                        "timelonint",
                                        "MNAME_RNAME_timelonint.png",
-                                       side   = "MODEL DEPTH PROFILE",
-                                       legend = True)
+                                       side     = "MODEL DEPTH PROFILE",
+                                       legend   = True,
+                                       longname = "Time/longitude averaged profile")
                     fig,ax = plt.subplots(figsize=(6.8,2.8),tight_layout=True)
                     l   = np.hstack([var.lat_bnds  [:,0],var.lat_bnds  [-1,1]])
                     d   = np.hstack([var.depth_bnds[:,0],var.depth_bnds[-1,1]])
@@ -482,7 +483,8 @@ class ConfIOMB(Confrontation):
                                        "benchmark_timelonint",
                                        "Benchmark_RNAME_timelonint.png",
                                        side   = "BENCHMARK DEPTH PROFILE",
-                                       legend = True)
+                                       legend = True,
+                                       longname = "Time/longitude averaged profile")
                     fig,ax = plt.subplots(figsize=(6.8,2.8),tight_layout=True)
                     l   = np.hstack([var.lat_bnds  [:,0],var.lat_bnds  [-1,1]])
                     d   = np.hstack([var.depth_bnds[:,0],var.depth_bnds[-1,1]])
