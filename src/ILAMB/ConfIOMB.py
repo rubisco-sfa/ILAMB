@@ -131,6 +131,7 @@ class ConfIOMB(Confrontation):
 
         o2 = {}; m2 = {}; o3 = {}; m3 = {}; o4 = {}; m4 = {}
         op = {}; mp = {}; mb = {}; mr = {}; sb = {}; sr = {}; sp = {}
+        sd = {}; cr = {}; ds = {}
         for region in self.regions:
 
             op[region] = o1.integrateInSpace(mean=True,region=region)
@@ -139,12 +140,14 @@ class ConfIOMB(Confrontation):
             mr[region] = r1.integrateInSpace(mean=True,region=region)
             sb[region] = s1.integrateInSpace(mean=True,region=region,weight=o1.interpolate(lat=s1.lat,lon=s1.lon).data)
             sr[region] = s2.integrateInSpace(mean=True,region=region,weight=o1.interpolate(lat=s1.lat,lon=s1.lon).data)
+            sd[region],cr[region],ds[region] = o1.spatialDistribution(m1,region=region)
             op[region].name = "Period Mean %s" % region
             mp[region].name = "Period Mean %s" % region
             mb[region].name = "Bias %s"        % region
             sb[region].name = "Bias Score %s"  % region
             mr[region].name = "RMSE %s"        % region
             sr[region].name = "RMSE Score %s"  % region
+            ds[region].name = "Spatial Distribution Score %s" % (region)
             
             # Reduction 2/3: Zonal depth profiles
             o2[region] = VariableReduce(obs,region,time=ts,lon=[-180.,180.])
@@ -174,6 +177,10 @@ class ConfIOMB(Confrontation):
         results = Dataset("%s/%s_%s.nc" % (self.output_path,self.name,m.name),mode="w")
         results.setncatts({"name" :m.name, "color":m.color})
         _write([m1,d1,r1,s1,s2,sb,mp,mb,m2,m3,sp,m4,mr,sr],results)
+        for key in ds.keys():
+            ds[key].toNetCDF4(results,group="MeanState",
+                              attributes={"std":sd[region].data,
+                                          "R"  :cr[region].data})
         results.close()
         if self.master:
             results = Dataset("%s/%s_Benchmark.nc" % (self.output_path,self.name),mode="w")
@@ -184,19 +191,16 @@ class ConfIOMB(Confrontation):
     def compositePlots(self):
 
         if not self.master: return
-
+        
         # get the HTML page
         page = [page for page in self.layout.pages if "MeanState" in page.name][0]
 
-        models = []
-        colors = []
+        # composite profile plot
         f1     = {}
         a1     = {}
         u1     = None
         for fname in glob.glob("%s/*.nc" % self.output_path):
             with Dataset(fname) as dset:
-                models.append(dset.getncattr("name"))
-                colors.append(dset.getncattr("color"))
                 if "MeanState" not in dset.groups: continue
                 group     = dset.groups["MeanState"]
                 variables = getVariableList(group)
@@ -222,6 +226,72 @@ class ConfIOMB(Confrontation):
             f1[key].savefig("%s/%s_profile.png" % (self.output_path,key))
         plt.close()
 
+        # spatial distribution Taylor plot
+        models  = []
+        colors  = []
+        corr    = {}
+        std     = {}
+        has_std = False
+        for fname in glob.glob("%s/*.nc" % self.output_path):
+            with Dataset(fname) as dset:
+                models.append(dset.getncattr("name"))
+                colors.append(dset.getncattr("color"))
+                if "MeanState" not in dset.groups: continue
+                dset = dset.groups["MeanState"]
+                for region in self.regions:
+                    if not std. has_key(region): std [region] = []
+                    if not corr.has_key(region): corr[region] = []
+                    key = []
+                    if "scalars" in dset.groups:
+                        key = [v for v in dset.groups["scalars"].variables.keys() if ("Spatial Distribution Score" in v and region in v)]
+                    if len(key) > 0:
+                        has_std = True
+                        sds     = dset.groups["scalars"].variables[key[0]]
+                        corr[region].append(sds.getncattr("R"  ))
+                        std [region].append(sds.getncattr("std"))
+                
+        if has_std:
+
+            # Legends
+            def _alphabeticalBenchmarkFirst(key):
+                key = key[0].upper()
+                if key == "BENCHMARK": return 0
+                return key
+            tmp = sorted(zip(models,colors),key=_alphabeticalBenchmarkFirst)
+            fig,ax = plt.subplots()
+            for model,color in tmp:
+                ax.plot(0,0,'o',mew=0,ms=8,color=color,label=model)
+            handles,labels = ax.get_legend_handles_labels()
+            plt.close()
+            ncol   = np.ceil(float(len(models))/11.).astype(int)
+            fig,ax = plt.subplots(figsize=(3.*ncol,2.8),tight_layout=True)
+            ax.legend(handles,labels,loc="upper right",ncol=ncol,fontsize=10,numpoints=1)
+            ax.axis('off')
+            fig.savefig("%s/legend_spatial_variance.png" % self.output_path)
+            plt.close()
+
+            
+            page.addFigure("Period mean at surface",
+                           "spatial_variance",
+                           "RNAME_spatial_variance.png",
+                           side   = "SPATIAL TAYLOR DIAGRAM",
+                           legend = False)
+            page.addFigure("Period mean at surface",
+                           "legend_spatial_variance",
+                           "legend_spatial_variance.png",
+                           side   = "MODEL COLORS",
+                           legend = False) 
+            if "Benchmark" in models: colors.pop(models.index("Benchmark"))
+            for region in self.regions:
+                if not (std.has_key(region) and corr.has_key(region)): continue
+                if len(std[region]) != len(corr[region]): continue
+                if len(std[region]) == 0: continue
+                fig = plt.figure(figsize=(6.0,6.0))
+                post.TaylorDiagram(np.asarray(std[region]),np.asarray(corr[region]),1.0,fig,colors)
+                fig.savefig("%s/%s_spatial_variance.png" % (self.output_path,region))
+                plt.close()
+
+        
     def modelPlots(self,m):
 
         def _fheight(region):
