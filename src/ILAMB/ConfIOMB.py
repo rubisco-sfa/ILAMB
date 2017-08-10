@@ -74,9 +74,10 @@ class ConfIOMB(Confrontation):
         obs = Variable(filename       = self.source,
                        variable_name  = self.variable,
                        alternate_vars = self.alternate_vars)
-        t0  = obs.time_bnds[ 0,0]
-        tf  = obs.time_bnds[-1,1]
-        if obs.cbounds is not None:
+        t0 = obs.time_bnds[ 0,0]
+        tf = obs.time_bnds[-1,1]
+        climatology = False if obs.cbounds is None else True
+        if climatology:
             t0 = (obs.cbounds[0]  -1850)*365.
             tf = (obs.cbounds[1]+1-1850)*365.
         mod = m.extractTimeSeries(self.variable,
@@ -85,15 +86,17 @@ class ConfIOMB(Confrontation):
                                   initial_time = t0,
                                   final_time   = tf,
                                   lats         = None if obs.spatial else obs.lat,
-                                  lons         = None if obs.spatial else obs.lon).convert(obs.unit)
-
-        # push into MakeComparable
-        dmin = max(obs.depth_bnds.min(),mod.depth_bnds.min())
-        dmax = min(obs.depth_bnds.max(),mod.depth_bnds.max())
-        obs.trim(d=[dmin,dmax])
-        mod.trim(d=[dmin,dmax])
-        mod = mod.annualCycle()
-        
+                                  lons         = None if obs.spatial else obs.lon)
+        if climatology:
+            mod           = mod.annualCycle()
+            mod.time      = obs.time     .copy()
+            mod.time_bnds = obs.time_bnds.copy()
+        obs,mod = il.MakeComparable(obs,mod,
+                                    mask_ref  = True,
+                                    clip_ref  = True,
+                                    extents   = self.extents,
+                                    logstring = "[%s][%s]" % (self.longname,m.name))
+              
         return obs,mod
         
     def confront(self,m):

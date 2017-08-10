@@ -1294,11 +1294,12 @@ def MakeComparable(ref,com,**keywords):
 
     # Apply the reference mask to the comparison dataset and
     # optionally vice-versa
-    mask = ref.interpolate(time=com.time,lat=com.lat,lon=com.lon)
-    com.data.mask += mask.data.mask
-    if mask_ref:
-        mask = com.interpolate(time=ref.time,lat=ref.lat,lon=ref.lon)
-        ref.data.mask += mask.data.mask
+    if not ref.layered:
+        mask = ref.interpolate(time=com.time,lat=com.lat,lon=com.lon)
+        com.data.mask += mask.data.mask
+        if mask_ref:
+            mask = com.interpolate(time=ref.time,lat=ref.lat,lon=ref.lon)
+            ref.data.mask += mask.data.mask
 
     # Convert the comparison to the units of the reference
     com = com.convert(ref.unit)
