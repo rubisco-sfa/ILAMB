@@ -1067,17 +1067,6 @@ class Variable:
         land   = keywords.get("land"  ,0.875)
         water  = keywords.get("water" ,0.750)
         
-        lat_0  = {"arctic"   :  90,
-                  "atlantic" :   0,
-                  "pacific"  :  16,
-                  "indian"   : -22,
-                  "southern" : -90}
-        lon_0  = {"arctic"   :    0,
-                  "atlantic" : - 28,
-                  "pacific"  : -170,
-                  "indian"   :   78,
-                  "southern" :  180}
-        
         rem_mask = None
         r = Regions()
         if self.temporal and not self.spatial:
@@ -1100,84 +1089,59 @@ class Variable:
             # Mask out areas outside our region
             rem_mask  = np.copy(self.data.mask)
             self.data.mask += r.getMask(region,self)
-            
-            # Setup the plot projection depending on data types
-            bmap = None
-            if region == "global":
-                bmap = Basemap(projection = 'robin',
-                               lon_0      = 0,
-                               ax         = ax,
-                               resolution = 'c')
 
-            elif region == 'arctic':
-                bmap = Basemap(projection  = 'npstere',
-                               boundinglat = 55.,
-                               lon_0       = lon_0[region],
-                               ax          = ax,
-                               resolution  = 'c')
-                
-            elif region == 'southern':
-                bmap = Basemap(projection  = 'spstere',
-                               boundinglat = -50.,
-                               lon_0       = lon_0[region],
-                               ax          = ax,
-                               resolution  = 'c')
-                
-            elif region in lat_0.keys():
-                bmap = Basemap(projection = 'robin',
-                               lon_0      = lon_0[region],
-                               ax         = ax,
-                               resolution = 'c')
-                
+            # Find the figure geometry
+            LAT,LON = np.meshgrid(self.lat,self.lon,indexing='ij')
+            LAT = np.ma.masked_array(LAT,mask=self.data.mask,copy=False)
+            LON = np.ma.masked_array(LON,mask=self.data.mask,copy=False)
+            LAT = self.lat[(LAT.mask==False).any(axis=1)]
+            TF  = (LON.mask==False).any(axis=0)
+            dateline = True if (TF[0] == TF[-1] == True and (TF==False).any()) else False
+            LON = self.lon[TF]
+            if dateline:
+                LON = (LON>=0)*LON+(LON<0)*(LON+360)
+            lat0 = LAT.min() ; latf = LAT.max()
+            lon0 = LON.min() ; lonf = LON.max()
+            latm = LAT.mean(); lonm = LON.mean()
+            if dateline:
+                LON  = (LON <=180)*LON +(LON >180)*(LON -360)
+                lon0 = (lon0<=180)*lon0+(lon0>180)*(lon0-360)
+                lonf = (lonf<=180)*lonf+(lonf>180)*(lonf-360)
+                lonm = (lonm<=180)*lonm+(lonm>180)*(lonm-360)
+            area = (latf-lat0)
+            if dateline:
+                area *= (360-lonf+lon0)
             else:
-
-                # Compute the plot limits based on the figure size and
-                # some aspect ratio math
-                mask = r.getMask(region,self)
-                if self.spatial:
-                    lats = np.ma.masked_array(self.lat,(mask==False).any(axis=1)==False)
-                    lons = np.ma.masked_array(self.lon,(mask==False).any(axis=0)==False)
-                else:
-                    lats = np.ma.masked_array(self.lat,mask)
-                    lons = np.ma.masked_array(self.lon,mask)
-                lats = np.asarray([lats.min(),lats.max()])
-                lons = np.asarray([lons.min(),lons.max()])
-                # add some padding for datasites
-                if not self.spatial:
-                    for l in [lats,lons]:
-                        dl    = 0.1*(l[1]-l[0])
-                        l[0] -= dl
-                        l[1] += dl
-                    
-                dlat,dlon = lats[1]-lats[0],lons[1]-lons[0]
-                if dlat < 1e-12:
-                    dlat     = 30.
-                    lats[0] -= 0.5*dlat
-                    lats[1] += 0.5*dlat
-                if dlon < 1e-12:
-                    dlon     = 30.
-                    lons[0] -= 0.5*dlon
-                    lons[1] += 0.5*dlon
-                fsize     = ax.get_figure().get_size_inches()
-                figure_ar = fsize[1]/fsize[0]
-                scale     = figure_ar*dlon/dlat
-                if scale >= 1.:
-                    lats[1] += 0.5*dlat*(scale-1.)
-                    lats[0] -= 0.5*dlat*(scale-1.)
-                else:
-                    scale = 1./scale
-                lons[1]  += 0.5*dlon*(scale-1.)
-                lons[0]  -= 0.5*dlon*(scale-1.)
-                lats      = lats.clip(- 90, 90)
-                lons      = lons.clip(-180,180)
-                
-                bmap = Basemap(projection = 'cyl',
-                               llcrnrlon  = lons[ 0],
-                               llcrnrlat  = lats[ 0],
-                               urcrnrlon  = lons[-1],
-                               urcrnrlat  = lats[-1],
+                area *= (lonf-lon0)
+            
+            # Setup the plot projection depending on data limits
+            bmap = Basemap(projection     = 'robin',
+                               lon_0      = lonm,
                                ax         = ax,
                                resolution = 'c')
+            if (lon0 < -170.) and (lonf > 170.):
+                if lat0 > 23.5: 
+                    bmap = Basemap(projection  = 'npstere',
+                                   boundinglat = lat0-5.,
+                                   lon_0       = 0.,
+                                   ax          = ax,
+                                   resolution  = 'c')
+                elif latf < -23.5:
+                    bmap = Basemap(projection  = 'spstere',
+                                   boundinglat = latf+5.,
+                                   lon_0       = 180.,
+                                   ax          = ax,
+                                   resolution  = 'c')
+            else:
+                if area < 10000. and not dateline:
+                    pad  = 5.0
+                    bmap = Basemap(projection = 'cyl',
+                                   llcrnrlon  = lon0-2*pad,
+                                   llcrnrlat  = lat0-  pad,
+                                   urcrnrlon  = lonf+2*pad,
+                                   urcrnrlat  = latf+  pad,
+                                   ax         = ax,
+                                   resolution = 'c')
             try:
                 bmap.drawlsmask(land_color  = str(land),
                                 ocean_color = str(water),
@@ -1185,24 +1149,11 @@ class Variable:
             except:
                 bmap.drawcoastlines(linewidth = 0.2,
                                     color     = "darkslategrey")
-            if self.spatial:
 
-                lat_bnds = self.lat_bnds
-                lon_bnds = self.lon_bnds
-                data     = self.data
-                if region == 'arctic':
-                    ind      = np.where(self.lat>=60)[0]
-                    lat_bnds = lat_bnds[ind,:]
-                    data     = data    [ind,:]
-                lat_bnds = lat_bnds.clip(- 90, 90)
-                lon_bnds = lon_bnds.clip(-180,180)
-                if region in ['global','arctic']:
-                    x,y  = np.meshgrid(il.ConvertBoundsTypes(lat_bnds),
-                                       il.ConvertBoundsTypes(lon_bnds),indexing='ij')
-                else:
-                    x,y  = np.meshgrid(self.lat,self.lon,indexing='ij')
-                ax   = bmap.pcolormesh(y,x,data,latlon=True,vmin=vmin,vmax=vmax,cmap=cmap)
-            
+            if self.spatial:
+                LAT,LON = np.meshgrid(self.lat,self.lon,indexing='ij')
+                ax = bmap.pcolormesh(LON,LAT,self.data,
+                                     latlon=True,vmin=vmin,vmax=vmax,cmap=cmap)
             elif self.ndata is not None:
                 x,y  = bmap(self.lon[self.data.mask==False],
                             self.lat[self.data.mask==False])
@@ -1213,7 +1164,6 @@ class Variable:
                 clrs = clmp(norm)
                 size = 35
                 ax   = bmap.scatter(x,y,s=size,color=clrs,ax=ax,linewidths=0,cmap=cmap)
-
             if rem_mask is not None: self.data.mask = rem_mask
         return ax
     

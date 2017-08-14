@@ -323,7 +323,7 @@ class ConfIOMB(Confrontation):
                                side   = "MODEL SURFACE MEAN",
                                legend = True)
                 for region in self.regions:
-                    fig = plt.figure(figsize=(6.8,_fheight(region)))
+                    fig = plt.figure()
                     ax  = fig.add_axes([0.06,0.025,0.88,0.965])
                     var.plot(ax,
                              region = region,
@@ -344,7 +344,7 @@ class ConfIOMB(Confrontation):
                                side   = "SURFACE MEAN BIAS",
                                legend = True)
                 for region in self.regions:
-                    fig = plt.figure(figsize=(6.8,_fheight(region)))
+                    fig = plt.figure()
                     ax  = fig.add_axes([0.06,0.025,0.88,0.965])
                     var.plot(ax,
                              region = region,
@@ -365,7 +365,7 @@ class ConfIOMB(Confrontation):
                                side   = "SURFACE MEAN BIAS SCORE",
                                legend = True)
                 for region in self.regions:
-                    fig = plt.figure(figsize=(6.8,_fheight(region)))
+                    fig = plt.figure()
                     ax  = fig.add_axes([0.06,0.025,0.88,0.965])
                     var.plot(ax,
                              region = region,
@@ -386,7 +386,7 @@ class ConfIOMB(Confrontation):
                                side   = "SURFACE MEAN RMSE",
                                legend = True)
                 for region in self.regions:
-                    fig = plt.figure(figsize=(6.8,_fheight(region)))
+                    fig = plt.figure()
                     ax  = fig.add_axes([0.06,0.025,0.88,0.965])
                     var.plot(ax,
                              region = region,
@@ -407,7 +407,7 @@ class ConfIOMB(Confrontation):
                                side   = "SURFACE MEAN RMSE SCORE",
                                legend = True)
                 for region in self.regions:
-                    fig = plt.figure(figsize=(6.8,_fheight(region)))
+                    fig = plt.figure()
                     ax  = fig.add_axes([0.06,0.025,0.88,0.965])
                     var.plot(ax,
                              region = region,
@@ -464,7 +464,7 @@ class ConfIOMB(Confrontation):
                                side   = "BENCHMARK SURFACE MEAN",
                                legend = True)
                 for region in self.regions:
-                    fig = plt.figure(figsize=(6.8,_fheight(region)))
+                    fig = plt.figure()
                     ax  = fig.add_axes([0.06,0.025,0.88,0.965])
                     var.plot(ax,
                              region = region,
@@ -543,7 +543,7 @@ class ConfIOMB(Confrontation):
                         limits[pname]["min"] = min(limits[pname]["min"],var.getncattr(min_str))
                         limits[pname]["max"] = max(limits[pname]["max"],var.getncattr(max_str))
         self.limits = limits
-
+        
         # Second pass to plot legends
         cmaps = {"bias":"seismic",
                  "rmse":"YlOrRd"}
