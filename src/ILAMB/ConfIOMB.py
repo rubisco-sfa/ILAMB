@@ -542,6 +542,17 @@ class ConfIOMB(Confrontation):
                             limits[pname]["unit"] = post.UnitStringToMatplotlib(var.getncattr("units"))
                         limits[pname]["min"] = min(limits[pname]["min"],var.getncattr(min_str))
                         limits[pname]["max"] = max(limits[pname]["max"],var.getncattr(max_str))
+
+        # Another pass to fix score limits
+        for pname in limits.keys():
+            if "score" in pname:
+                if "min" in limits[pname].keys():
+                    limits[pname]["min"] = 0.
+                    limits[pname]["max"] = 1.
+                else:
+                    for region in limits[pname].keys():
+                        limits[pname][region]["min"] = 0.
+                        limits[pname][region]["max"] = 1.
         self.limits = limits
         
         # Second pass to plot legends
