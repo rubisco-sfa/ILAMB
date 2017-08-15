@@ -208,7 +208,7 @@ class Scoreboard():
                 
             try:
                 if node.cmap is None: node.cmap = "jet"
-                node.source = "%s/%s" % (os.environ["ILAMB_ROOT"],node.source)
+                node.source = os.path.join(os.environ["ILAMB_ROOT"],node.source)
                 node.confrontation = Constructor(**(node.__dict__))
                 node.confrontation.extents = extents
                 
@@ -228,9 +228,9 @@ class Scoreboard():
             path   = ""
             parent = node
             while parent.name is not None:
-                path   = "%s/%s" % (parent.name.replace(" ",""),path)
+                path   = os.path.join(parent.name.replace(" ",""),path)
                 parent = parent.parent
-            path = "%s/%s" % (self.build_dir,path)
+            path = os.path.join(self.build_dir,path)
             if not os.path.isdir(path) and master: os.mkdir(path)
             node.output_path = path
 
@@ -473,9 +473,9 @@ def BuildHTMLTable(tree,M,build_dir):
                 c = node.confrontation
                 global_html += """
       <tr class="child" bgcolor="%s">
-        <td>&nbsp;&nbsp;&nbsp;<a href="%s/%s.html" rel="external" target="_blank">%s</a>&nbsp;(%.1f%%)</td>""" % (ccolor,
-                                                                                                                  c.output_path.replace(build_dir,"").lstrip("/"),
-                                                                                                                  c.name,c.name,weight)
+        <td>&nbsp;&nbsp;&nbsp;<a href="%s.html" rel="external" target="_blank">%s</a>&nbsp;(%.1f%%)</td>""" % (ccolor,
+                                                                                                               os.path.join(c.output_path.replace(build_dir,""),c.name),
+                                                                                                               c.name,weight)
                 try:
                     for ind in range(node.score.size):
                         if node.score.mask[ind]:

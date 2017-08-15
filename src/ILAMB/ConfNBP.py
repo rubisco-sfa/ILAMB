@@ -111,7 +111,7 @@ class ConfNBP(Confrontation):
         mod_sum .name = "accumulate_of_nbp_over_global"
         
         # Dump to files
-        results = Dataset("%s/%s_%s.nc" % (self.output_path,self.name,m.name),mode="w")
+        results = Dataset(os.path.join(self.output_path,"%s_%s.nc" % (self.name,m.name)),mode="w")
         results.setncatts({"name" :m.name, "color":m.color})
         mod       .toNetCDF4(results,group="MeanState")
         mod_sum   .toNetCDF4(results,group="MeanState")
@@ -123,7 +123,7 @@ class ConfNBP(Confrontation):
         results.close()
         
         if self.master:
-            results = Dataset("%s/%s_Benchmark.nc" % (self.output_path,self.name),mode="w")
+            results = Dataset(os.path.join(self.output_path,"%s_Benchmark.nc" % (self.name)),mode="w")
             results.setncatts({"name" :"Benchmark", "color":np.asarray([0.5,0.5,0.5])})
             obs     .toNetCDF4(results,group="MeanState")
             obs_sum .toNetCDF4(results,group="MeanState")
@@ -142,7 +142,7 @@ class ConfNBP(Confrontation):
         colors = []
         corr   = []
         std    = []
-        for fname in glob.glob("%s/*.nc" % self.output_path):
+        for fname in glob.glob(os.path.join(self.output_path,"*.nc")):
             if "Benchmark" in fname: continue
             dataset = Dataset(fname)
             if "MeanState" not in dataset.groups: continue
@@ -163,5 +163,5 @@ class ConfNBP(Confrontation):
                            legend = False)       
             fig = plt.figure(figsize=(6.0,6.0))
             post.TaylorDiagram(np.asarray(std),np.asarray(corr),1.0,fig,colors)
-            fig.savefig("%s/temporal_variance.png" % (self.output_path))
+            fig.savefig(os.path.join(self.output_path,"temporal_variance.png"))
             plt.close()

@@ -156,7 +156,7 @@ class ConfRunoff(Confrontation):
         iav_score      .name = "Interannual Variability Score global"
 
         # Dump to files
-        results = Dataset("%s/%s_%s.nc" % (self.output_path,self.name,m.name),mode="w")
+        results = Dataset(os.path.join(self.output_path,"%s_%s.nc" % (self.name,m.name)),mode="w")
         results.setncatts({"name" :m.name, "color":m.color})
         for var in [mod_period_mean,
                     mod_timeint,
@@ -168,7 +168,7 @@ class ConfRunoff(Confrontation):
         sd_score.toNetCDF4(results,group="MeanState",attributes={"std":std.data,"R":R.data})
         results.close()
         if self.master:
-            results = Dataset("%s/%s_Benchmark.nc" % (self.output_path,self.name),mode="w")
+            results = Dataset(os.path.join(self.output_path,"%s_Benchmark.nc" % self.name),mode="w")
             results.setncatts({"name" :"Benchmark", "color":np.asarray([0.5,0.5,0.5])})
             for var in [obs_period_mean,
                         obs_timeint]:

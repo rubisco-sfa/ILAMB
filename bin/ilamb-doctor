@@ -46,7 +46,7 @@ def InitializeModels(model_root,models=[],verbose=False,filter="",model_year=[])
     for subdir, dirs, files in os.walk(model_root):
         for mname in dirs:
             if len(models) > 0 and mname not in models: continue
-            M.append(ModelResult(subdir + "/" + mname, modelname = mname, filter=filter, model_year = model_year))
+            M.append(ModelResult(os.path.join(subdir,mname), modelname = mname, filter=filter, model_year = model_year))
             max_model_name_len = max(max_model_name_len,len(mname))
         break
     M = sorted(M,key=lambda m: m.name.upper())

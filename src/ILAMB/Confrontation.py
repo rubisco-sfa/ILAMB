@@ -273,8 +273,8 @@ class Confrontation(object):
         # Grab the data
         obs,mod = self.stageData(m)
         
-        mod_file = "%s/%s_%s.nc"        % (self.output_path,self.name,m.name)
-        obs_file = "%s/%s_Benchmark.nc" % (self.output_path,self.name       )
+        mod_file = os.path.join(self.output_path,"%s_%s.nc"        % (self.name,m.name))
+        obs_file = os.path.join(self.output_path,"%s_Benchmark.nc" % (self.name,      ))
         with FileContextManager(self.master,mod_file,obs_file) as fcm:
 
             # Encode some names and colors
@@ -319,7 +319,7 @@ class Confrontation(object):
         # Determine the min/max of variables over all models
         limits = {}
         prune  = False
-        for fname in glob.glob("%s/*.nc" % self.output_path):
+        for fname in glob.glob(os.path.join(self.output_path,"*.nc")):
             with Dataset(fname) as dataset:
                 if "MeanState" not in dataset.groups: continue
                 group     = dataset.groups["MeanState"]
@@ -380,12 +380,11 @@ class Confrontation(object):
                               ticks = opts["ticks"],
                               ticklabels = opts["ticklabels"],
                               label = label)
-                fig.savefig("%s/legend_%s.png" % (self.output_path,pname))
-                
+                fig.savefig(os.path.join(self.output_path,"legend_%s.png" % (pname)))                
                 plt.close()
 
         # Determine min/max of relationship variables
-        for fname in glob.glob("%s/*.nc" % self.output_path):
+        for fname in glob.glob(os.path.join(self.output_path,"*.nc")):
             with Dataset(fname) as dataset:
                 for g in dataset.groups.keys():
                     if "relationship" not in g: continue
@@ -439,7 +438,7 @@ class Confrontation(object):
                 scores["Overall Score %s" % region] = overall_score
             return scores
 
-        fname = "%s/%s_%s.nc" % (self.output_path,self.name,m.name)
+        fname = os.path.join(self.output_path,"%s_%s.nc" % (self.name,m.name))
         if not os.path.isfile(fname): return
         with Dataset(fname,mode="r+") as dataset:
             datasets = [dataset.groups[grp] for grp in dataset.groups if "scalars" not in grp]
@@ -477,7 +476,7 @@ class Confrontation(object):
         cycle  = {}
         has_cycle = False
         has_std   = False
-        for fname in glob.glob("%s/*.nc" % self.output_path):
+        for fname in glob.glob(os.path.join(self.output_path,"*.nc")):
             dataset = Dataset(fname)
             if "MeanState" not in dataset.groups: continue
             dset    = dataset.groups["MeanState"]
@@ -524,7 +523,7 @@ class Confrontation(object):
                 ylbl = time_opts["cycle"]["ylabel"]
                 if ylbl == "unit": ylbl = post.UnitStringToMatplotlib(var.unit)
                 ax.set_ylabel(ylbl)
-            fig.savefig("%s/%s_compcycle.png" % (self.output_path,region))
+            fig.savefig(os.path.join(self.output_path,"%s_compcycle.png" % (region)))
             plt.close()
 
         # plot legends with model colors (sorted with Benchmark data on top)
@@ -547,9 +546,9 @@ class Confrontation(object):
         fig,ax = plt.subplots(figsize=(3.*ncol,2.8),tight_layout=True)
         ax.legend(handles,labels,loc="upper right",ncol=ncol,fontsize=10,numpoints=1)
         ax.axis('off')
-        fig.savefig("%s/legend_compcycle.png" % self.output_path)
-        fig.savefig("%s/legend_spatial_variance.png" % self.output_path)
-        fig.savefig("%s/legend_temporal_variance.png" % self.output_path)
+        fig.savefig(os.path.join(self.output_path,"legend_compcycle.png"))
+        fig.savefig(os.path.join(self.output_path,"legend_spatial_variance.png"))
+        fig.savefig(os.path.join(self.output_path,"legend_temporal_variance.png"))
         plt.close()
         
         # spatial distribution Taylor plot
@@ -571,7 +570,7 @@ class Confrontation(object):
             if len(std[region]) == 0: continue
             fig = plt.figure(figsize=(6.0,6.0))
             post.TaylorDiagram(np.asarray(std[region]),np.asarray(corr[region]),1.0,fig,colors)
-            fig.savefig("%s/%s_spatial_variance.png" % (self.output_path,region))
+            fig.savefig(os.path.join(self.output_path,"%s_spatial_variance.png" % region))
             plt.close()
             
     def modelPlots(self,m):
@@ -584,8 +583,8 @@ class Confrontation(object):
 
         """
         self._relationship(m)
-        bname     = "%s/%s_Benchmark.nc" % (self.output_path,self.name)
-        fname     = "%s/%s_%s.nc" % (self.output_path,self.name,m.name)
+        bname     = os.path.join(self.output_path,"%s_Benchmark.nc" % (self.name       ))
+        fname     = os.path.join(self.output_path,"%s_%s.nc"        % (self.name,m.name))
         if not os.path.isfile(bname): return
         if not os.path.isfile(fname): return
 
@@ -625,7 +624,7 @@ class Confrontation(object):
 	                             vmin   = self.limits[pname]["min"],
 	                             vmax   = self.limits[pname]["max"],
 	                             cmap   = self.limits[pname]["cmap"])
-	                    fig.savefig("%s/%s_%s_%s.png" % (self.output_path,m.name,region,pname))
+	                    fig.savefig(os.path.join(self.output_path,"%s_%s_%s.png" % (m.name,region,pname)))
 	                    plt.close()
                             
 	                # Jumping through hoops to get the benchmark plotted and in the html output
@@ -650,7 +649,7 @@ class Confrontation(object):
 	                                 vmin   = self.limits[pname]["min"],
 	                                 vmax   = self.limits[pname]["max"],
 	                                 cmap   = self.limits[pname]["cmap"])
-	                        fig.savefig("%s/Benchmark_%s_%s.png" % (self.output_path,region,pname))
+	                        fig.savefig(os.path.join(self.output_path,"Benchmark_%s_%s.png" % (region,pname)))
 	                        plt.close()
 	                    
 	            if not (var.spatial or (var.ndata is not None)) and var.temporal:
@@ -683,7 +682,7 @@ class Confrontation(object):
 	                    ylbl = opts["ylabel"]
 	                    if ylbl == "unit": ylbl = post.UnitStringToMatplotlib(var.unit)
 	                    ax.set_ylabel(ylbl)
-	                    fig.savefig("%s/%s_%s_%s.png" % (self.output_path,m.name,region,pname))
+	                    fig.savefig(os.path.join(self.output_path,"%s_%s_%s.png" % (m.name,region,pname)))
 	                    plt.close()
 
         logger.info("[%s][%s] Success" % (self.longname,m.name))
@@ -715,7 +714,7 @@ class Confrontation(object):
             ax.set_xticks     (ticks     )
             ax.set_xticklabels(ticklabels)
             ax.set_ylabel(post.UnitStringToMatplotlib(mod.unit))
-	    fig.savefig("%s/%s_%s_%s.png" % (self.output_path,m.name,self.lbls[i],"time"))
+	    fig.savefig(os.path.join(self.output_path,"%s_%s_%s.png" % (m.name,self.lbls[i],"time")))
 	    plt.close()
             
             
@@ -736,7 +735,7 @@ class Confrontation(object):
             # build the metric dictionary
             metrics = {}
             page.models = []
-            for fname in glob.glob("%s/*.nc" % self.output_path):
+            for fname in glob.glob(os.path.join(self.output_path,"*.nc")):
                 with Dataset(fname) as dataset:
                     mname = dataset.getncattr("name")
                     if mname != "Benchmark": page.models.append(mname)
@@ -774,7 +773,7 @@ class Confrontation(object):
             page.setMetrics(metrics)
                         
         # write the HTML page
-        f = file("%s/%s.html" % (self.output_path,self.name),"w")
+        f = file(os.path.join(self.output_path,"%s.html" % (self.name)),"w")
         f.write(str(self.layout))
         f.close()
 
@@ -804,8 +803,8 @@ class Confrontation(object):
         
         # try to get the dependent data from the model and obs
         try:
-            obs_dep  = _retrieveData("%s/%s_%s.nc" % (self.output_path,self.name,"Benchmark"))
-            mod_dep  = _retrieveData("%s/%s_%s.nc" % (self.output_path,self.name,m.name))
+            obs_dep  = _retrieveData(os.path.join(self.output_path,"%s_%s.nc" % (self.name,"Benchmark")))
+            mod_dep  = _retrieveData(os.path.join(self.output_path,"%s_%s.nc" % (self.name,m.name     )))
             dep_name = self.longname.split("/")[0]
             dep_min  = self.limits["timeint"]["min"]
             dep_max  = self.limits["timeint"]["max"]
@@ -814,7 +813,7 @@ class Confrontation(object):
 
         # open a dataset for recording the results of this
         # confrontation (FIX: should be a with statement)
-        results = Dataset("%s/%s_%s.nc" % (self.output_path,self.name,m.name),mode="r+")
+        results = Dataset(os.path.join(self.output_path,"%s_%s.nc" % (self.name,m.name)),mode="r+")
 
         # grab/create a relationship and scalars group
         group = None
@@ -832,8 +831,8 @@ class Confrontation(object):
 
             # try to get the independent data from the model and obs
             try:
-                obs_ind  = _retrieveData("%s/%s_%s.nc" % (c.output_path,c.name,"Benchmark"))
-                mod_ind  = _retrieveData("%s/%s_%s.nc" % (c.output_path,c.name,m.name))
+                obs_ind  = _retrieveData(os.path.join(c.output_path,"%s_%s.nc" % (c.name,"Benchmark")))
+                mod_ind  = _retrieveData(os.path.join(c.output_path,"%s_%s.nc" % (c.name,m.name     )))
                 ind_name = c.longname.split("/")[0]          
                 ind_min  = c.limits["timeint"]["min"]-1e-12
                 ind_max  = c.limits["timeint"]["max"]+1e-12
@@ -896,7 +895,7 @@ class Confrontation(object):
                     ax.set_xlim(ind_min,ind_max)
                     ax.set_ylim(dep_min,dep_max)
                     short_name = "rel_%s" % ind_name
-                    fig.savefig("%s/%s_%s_%s.png" % (self.output_path,name,region,short_name))
+                    fig.savefig(os.path.join(self.output_path,"%s_%s_%s.png" % (name,region,short_name)))
                     plt.close()
 
                     # add the figure to the HTML layout
@@ -963,7 +962,7 @@ class Confrontation(object):
                 ax.set_xlim(ind_min,ind_max)
                 ax.set_ylim(dep_min,dep_max)
                 short_name = "rel_diff_%s" % ind_name
-                fig.savefig("%s/%s_%s_%s.png" % (self.output_path,name,region,short_name))
+                fig.savefig(os.path.join(self.output_path,"%s_%s_%s.png" % (name,region,short_name)))
                 plt.close()
                 page.addFigure(c.longname,
                                short_name,
@@ -990,7 +989,7 @@ class Confrontation(object):
                 ax.set_xlim(ind_min,ind_max)
                 ax.set_ylim(dep_min,dep_max)
                 short_name = "rel_func_%s" % ind_name
-                fig.savefig("%s/%s_%s_%s.png" % (self.output_path,name,region,short_name))
+                fig.savefig(os.path.join(self.output_path,"%s_%s_%s.png" % (name,region,short_name)))
                 plt.close()
                 page.addFigure(c.longname,
                                short_name,

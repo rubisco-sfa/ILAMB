@@ -56,7 +56,7 @@ def InitializeModels(model_root,models=[],verbose=False,filter="",model_year=[])
     for subdir, dirs, files in os.walk(model_root):
         for mname in dirs:
             if len(models) > 0 and mname not in models: continue
-            M.append(ModelResult(subdir + "/" + mname, modelname = mname, filter=filter, model_year = model_year))
+            M.append(ModelResult(os.path.join(subdir,mname), modelname = mname, filter=filter, model_year = model_year))
             max_model_name_len = max(max_model_name_len,len(mname))
         break
     M = sorted(M,key=lambda m: m.name.upper())
@@ -244,7 +244,7 @@ def WorkConfront(W,verbose=False,clean=False):
         m,c = w
 
         # if the results file exists, skip this confrontation unless we want to clean
-        if os.path.isfile("%s/%s_%s.nc" % (c.output_path,c.name,m.name)) and clean is False:
+        if os.path.isfile(os.path.join(c.output_path,"%s_%s.nc" % (c.name,m.name))) and clean is False:
             if verbose:
                 print ("    {0:>%d} {1:<%d} %sUsingCachedData%s " % (maxCL,maxML,OK,ENDC)).format(c.longname,m.name)
                 sys.stdout.flush()

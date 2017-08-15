@@ -11,9 +11,9 @@ class ConfEvapFraction(Confrontation):
     def stageData(self,m):
 
         energy_threshold = float(self.keywords.get("energy_threshold",20.))
-        sh  = Variable(filename       = os.environ["ILAMB_ROOT"] + "/DATA/sh/GBAF/sh_0.5x0.5.nc",
+        sh  = Variable(filename       = os.path.join(os.environ["ILAMB_ROOT"],"DATA/sh/GBAF/sh_0.5x0.5.nc"),
                        variable_name  = "sh")
-        le  = Variable(filename       = os.environ["ILAMB_ROOT"] + "/DATA/le/GBAF/le_0.5x0.5.nc",
+        le  = Variable(filename       = os.path.join(os.environ["ILAMB_ROOT"],"DATA/le/GBAF/le_0.5x0.5.nc"),
                        variable_name  = "le")
         obs = Variable(name      = self.variable,
                        unit      = "1",
