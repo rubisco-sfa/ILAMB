@@ -307,6 +307,11 @@ class HtmlPage(object):
         regions  = self.regions
         metrics  = self.metrics
         units    = self.units
+        cname    = self.cname.split(" / ")
+        if len(cname) == 3:
+            cname = cname[1].strip()
+        else:
+            cname = cname[-1].strip()
         callback = "%sTable()" % self.name
         head     = """
       function %sTable() {
@@ -321,7 +326,7 @@ class HtmlPage(object):
         data.addRows(["""
         for model in models:
             head += """
-          ['%s','<a href="%s_%s.nc" download>[-]</a>'""" % (model,self.cname,model)
+          ['%s','<a href="%s_%s.nc" download>[-]</a>'""" % (model,cname,model)
             for region in regions:
                 for metric in metrics:
                     add = ", null"
