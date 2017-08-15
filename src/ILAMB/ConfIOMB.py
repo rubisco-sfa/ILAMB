@@ -17,7 +17,7 @@ def VariableReduce(var,region="global",time=None,depth=None,lat=None,lon=None):
     out.data.mask += ILAMBregions.getMask(region,out)
     if time  is not None:
         out = out.integrateInTime (t0=time[0] ,tf=time[1] ,mean=True)
-    if depth is not None:
+    if depth is not None and var.layered:
         out = out.integrateInDepth(z0=depth[0],zf=depth[1],mean=True)
     if lat   is not None:
         lat0        = np.argmin(np.abs(var.lat-lat[0]))
@@ -87,6 +87,7 @@ class ConfIOMB(Confrontation):
                                   final_time   = tf,
                                   lats         = None if obs.spatial else obs.lat,
                                   lons         = None if obs.spatial else obs.lon)
+        if obs.layered and not mod.layered: obs = obs.integrateInDepth(z0=0,zf=0.1,mean=True)
         if climatology:
             mod           = mod.annualCycle()
             mod.time      = obs.time     .copy()
@@ -114,15 +115,21 @@ class ConfIOMB(Confrontation):
         
         # get the data
         obs,mod = self.stageData(m)
-
+        layered = obs.layered
+        
         # Reduction 1: Surface states
         ds   = [   0.,  10.]
         ts   = [-1e20,+1e20]
         o1   = VariableReduce(obs,time=ts,depth=ds)
         m1   = VariableReduce(mod,time=ts,depth=ds)
         d1   = o1.bias(m1)
-        oint = obs.integrateInDepth(z0=ds[0],zf=ds[1],mean=True)
-        r1   = oint.rmse(mod.integrateInDepth(z0=ds[0],zf=ds[1],mean=True))
+        if layered:
+            oint = obs.integrateInDepth(z0=ds[0],zf=ds[1],mean=True)
+            mint = mod.integrateInDepth(z0=ds[0],zf=ds[1],mean=True)
+        else:
+            oint = obs
+            mint = mod
+        r1   = oint.rmse(mint)
         s1   = il.Score(d1,o1        .interpolate(lat=d1.lat,lon=d1.lon))
         s2   = il.Score(r1,oint.rms().interpolate(lat=r1.lat,lon=r1.lon))
         m1.name = "timeint_surface_%s"    % self.variable
@@ -135,6 +142,8 @@ class ConfIOMB(Confrontation):
         o2 = {}; m2 = {}; o3 = {}; m3 = {}; o4 = {}; m4 = {}
         op = {}; mp = {}; mb = {}; mr = {}; sb = {}; sr = {}; sp = {}
         sd = {}; cr = {}; ds = {}
+        obsout = [o1,op]        
+        modout = [m1,d1,r1,s1,s2,sb,mp,mb,mr,sr]
         for region in self.regions:
 
             op[region] = o1.integrateInSpace(mean=True,region=region)
@@ -152,23 +161,29 @@ class ConfIOMB(Confrontation):
             sr[region].name = "RMSE Score %s"  % region
             ds[region].name = "Spatial Distribution Score %s" % (region)
             
-            # Reduction 2/3: Zonal depth profiles
-            o2[region] = VariableReduce(obs,region,time=ts,lon=[-180.,180.])
-            m2[region] = VariableReduce(mod,region,time=ts,lon=[-180.,180.])
-            o3[region] = obs.integrateInSpace(region=region,mean=True).integrateInTime(t0=ts[0],tf=ts[1],mean=True)
-            m3[region] = mod.integrateInSpace(region=region,mean=True).integrateInTime(t0=ts[0],tf=ts[1],mean=True)
-            sp[region] = _profileScore(o3[region],m3[region],region)
-            o2[region].name = "timelonint_of_%s_over_%s" % (self.variable,region)
-            m2[region].name = "timelonint_of_%s_over_%s" % (self.variable,region)
-            o3[region].name = "profile_of_%s_over_%s"    % (self.variable,region)
-            m3[region].name = "profile_of_%s_over_%s"    % (self.variable,region)
+            if layered:
+                
+                # Reduction 2/3: Zonal depth profiles
+                o2[region] = VariableReduce(obs,region,time=ts,lon=[-180.,180.])
+                m2[region] = VariableReduce(mod,region,time=ts,lon=[-180.,180.])
+                o3[region] = obs.integrateInSpace(region=region,mean=True).integrateInTime(t0=ts[0],tf=ts[1],mean=True)
+                m3[region] = mod.integrateInSpace(region=region,mean=True).integrateInTime(t0=ts[0],tf=ts[1],mean=True)
+                sp[region] = _profileScore(o3[region],m3[region],region)
+                o2[region].name = "timelonint_of_%s_over_%s" % (self.variable,region)
+                m2[region].name = "timelonint_of_%s_over_%s" % (self.variable,region)
+                o3[region].name = "profile_of_%s_over_%s"    % (self.variable,region)
+                m3[region].name = "profile_of_%s_over_%s"    % (self.variable,region)
             
-            # Reduction 4: Temporal depth profile
-            o4[region] = obs.integrateInSpace(region=region,mean=True)
-            m4[region] = mod.integrateInSpace(region=region,mean=True)
-            o4[region].name = "latlonint_of_%s_over_%s" % (self.variable,region)
-            m4[region].name = "latlonint_of_%s_over_%s" % (self.variable,region)
+                # Reduction 4: Temporal depth profile
+                o4[region] = obs.integrateInSpace(region=region,mean=True)
+                m4[region] = mod.integrateInSpace(region=region,mean=True)
+                o4[region].name = "latlonint_of_%s_over_%s" % (self.variable,region)
+                m4[region].name = "latlonint_of_%s_over_%s" % (self.variable,region)
 
+        if layered:
+            obsout += [o2,o3,o4]
+            modout += [m2,m3,m4,sp]
+                
         # Dump to files
         def _write(out_vars,results):
             for var in out_vars:
@@ -179,7 +194,7 @@ class ConfIOMB(Confrontation):
 
         results = Dataset("%s/%s_%s.nc" % (self.output_path,self.name,m.name),mode="w")
         results.setncatts({"name" :m.name, "color":m.color})
-        _write([m1,d1,r1,s1,s2,sb,mp,mb,m2,m3,sp,m4,mr,sr],results)
+        _write(modout,results)
         for key in ds.keys():
             ds[key].toNetCDF4(results,group="MeanState",
                               attributes={"std":sd[region].data,
@@ -188,7 +203,7 @@ class ConfIOMB(Confrontation):
         if self.master:
             results = Dataset("%s/%s_Benchmark.nc" % (self.output_path,self.name),mode="w")
             results.setncatts({"name" :"Benchmark", "color":np.asarray([0.5,0.5,0.5])})
-            _write([o1,op,o2,o3,o4],results)
+            _write(obsout,results)
             results.close()
 
     def compositePlots(self):
