@@ -474,7 +474,7 @@ def BuildHTMLTable(tree,M,build_dir):
                 global_html += """
       <tr class="child" bgcolor="%s">
         <td>&nbsp;&nbsp;&nbsp;<a href="%s.html" rel="external" target="_blank">%s</a>&nbsp;(%.1f%%)</td>""" % (ccolor,
-                                                                                                               os.path.join(c.output_path.replace(build_dir,""),c.name),
+                                                                                                               os.path.join(c.output_path.replace(build_dir,"").lstrip("/"),c.name),
                                                                                                                c.name,weight)
                 try:
                     for ind in range(node.score.size):
