@@ -75,7 +75,7 @@ class ModelResult():
             for fileName in files:
                 if ".nc"       not in fileName: continue
                 if self.filter not in fileName: continue
-                pathName  = "%s/%s" % (subdir,fileName)
+                pathName  = os.path.join(subdir,fileName)
                 dataset   = Dataset(pathName)
                 # populate dictionary for which variables are in which files
                 for key in dataset.variables.keys():
