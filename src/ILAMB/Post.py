@@ -551,13 +551,14 @@ class HtmlAllModelsPage(HtmlPage):
         var PNAME  = document.getElementById("%s").options[pid].value;
         header     = header.replace("RNAME",RNAME);
         $("#%sHead").text(header);""" % (self.header,self.cname,self.name+"Region",self.name+"Region",self.name+"Plot",self.name+"Plot",self.name)
-        
+        cond  = " || ".join(['PNAME == "%s"' % n for n in self.nobench])
+        if cond == "": cond = "0"
         head += """
         if(%s){
           document.getElementById("Benchmark_div").style.display = 'none';
         }else{
           document.getElementById("Benchmark_div").style.display = 'inline';
-        }""" % (" || ".join(['PNAME == "%s"' % n for n in self.nobench]))
+        }""" % (cond)
 
         cond  = " || ".join(['PNAME == "%s"' % n for n in self.nolegend])
         if cond == "": cond = "0"
