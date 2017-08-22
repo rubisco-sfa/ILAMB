@@ -927,8 +927,8 @@ def AnalysisMeanState(ref,com,**keywords):
                 var.toNetCDF4(dataset,group="MeanState")
     for key in sd_score.keys():
         sd_score[key].toNetCDF4(dataset,group="MeanState",
-                                attributes={"std":space_std[region].data,
-                                            "R"  :space_cor[region].data})
+                                attributes={"std":space_std[key].data,
+                                            "R"  :space_cor[key].data})
         
     # Rename and optionally dump out information to netCDF4 files
     out_vars = [ref_period_mean,ref_timeint]
