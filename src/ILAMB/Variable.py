@@ -123,7 +123,11 @@ class Variable:
         self.monthly   = False     # flag for monthly means
         if time is not None:
             self.temporal = True
-            if self.time_bnds is None: self.time_bnds = _createBnds(self.time)
+            if self.time_bnds is None:
+                self.time_bnds      = np.zeros((self.time.size,2))
+                self.time_bnds[ :,1] = np.copy(self.time)
+                self.time_bnds[1:,0] = self.time_bnds[:-1,1]
+                self.time_bnds[ 0,0] = self.time_bnds[1,0]-np.diff(self.time_bnds[1,:])
             self.dt = (self.time_bnds[:,1]-self.time_bnds[:,0]).mean()
             if np.allclose(self.dt,30,atol=3): self.monthly = True
             assert (2*self.time.size) == (self.time_bnds.size)
