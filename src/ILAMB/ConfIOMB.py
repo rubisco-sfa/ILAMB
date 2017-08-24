@@ -197,8 +197,8 @@ class ConfIOMB(Confrontation):
         _write(modout,results)
         for key in ds.keys():
             ds[key].toNetCDF4(results,group="MeanState",
-                              attributes={"std":sd[region].data,
-                                          "R"  :cr[region].data})
+                              attributes={"std":sd[key].data,
+                                          "R"  :cr[key].data})
         results.close()
         if self.master:
             results = Dataset("%s/%s_Benchmark.nc" % (self.output_path,self.name),mode="w")

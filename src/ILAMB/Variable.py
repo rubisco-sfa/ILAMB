@@ -1091,15 +1091,21 @@ class Variable:
             self.data.mask += r.getMask(region,self)
 
             # Find the figure geometry
-            LAT,LON = np.meshgrid(self.lat,self.lon,indexing='ij')
-            LAT = np.ma.masked_array(LAT,mask=self.data.mask,copy=False)
-            LON = np.ma.masked_array(LON,mask=self.data.mask,copy=False)
-            LAT = self.lat[(LAT.mask==False).any(axis=1)]
-            TF  = (LON.mask==False).any(axis=0)
-            dateline = True if (TF[0] == TF[-1] == True and (TF==False).any()) else False
-            LON = self.lon[TF]
-            if dateline:
-                LON = (LON>=0)*LON+(LON<0)*(LON+360)
+            if self.ndata:
+                LAT = np.ma.masked_array(self.lat,mask=self.data.mask,copy=True)
+                LON = np.ma.masked_array(self.lon,mask=self.data.mask,copy=True)
+                dateline = False
+            else:
+                LAT,LON = np.meshgrid(self.lat,self.lon,indexing='ij')
+                LAT = np.ma.masked_array(LAT,mask=self.data.mask,copy=False)
+                LON = np.ma.masked_array(LON,mask=self.data.mask,copy=False)
+                LAT = self.lat[(LAT.mask==False).any(axis=1)]
+                TF  = (LON.mask==False).any(axis=0)
+                dateline = True if (TF[0] == TF[-1] == True and (TF==False).any()) else False
+                LON = self.lon[TF]
+                if dateline:
+                    LON = (LON>=0)*LON+(LON<0)*(LON+360)
+                    
             lat0 = LAT.min() ; latf = LAT.max()
             lon0 = LON.min() ; lonf = LON.max()
             latm = LAT.mean(); lonm = LON.mean()
