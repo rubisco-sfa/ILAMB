@@ -5,6 +5,7 @@ from ILAMB.Variable import Variable
 from netCDF4 import Dataset
 import ILAMB.ilamblib as il
 import numpy as np
+import os
 
 class ConfRunoff(Confrontation):
     """A confrontation for examining the runoff in 50 of the world's largest river basins.
