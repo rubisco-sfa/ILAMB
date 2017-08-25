@@ -117,7 +117,7 @@ class Confrontation(object):
         y0 = None; yf = None
         with Dataset(self.source) as dataset:
             if dataset.dimensions.has_key("data"):
-                self.hasSites = True
+                #self.hasSites = True
                 if "site_name" in dataset.ncattrs():
                     self.lbls = dataset.site_name.split(",")
                 else:
@@ -131,7 +131,7 @@ class Confrontation(object):
                 else:
                     y0 = int(round(t[ 0]/365.)+1850.)
                     yf = int(round(t[-1]/365.)+1850.)-1
-        
+
         if self.hasSites:
             pages.append(post.HtmlSitePlotsPage("SitePlots","Site Plots"))
             pages[-1].setHeader("CNAME / RNAME / MNAME")

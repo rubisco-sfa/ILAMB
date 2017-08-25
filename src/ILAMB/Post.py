@@ -14,6 +14,9 @@ def UseLatexPltOptions(fsize=18):
     plt.rcParams.update(params)
 
 def UnitStringToMatplotlib(unit,add_carbon=False):
+    # replace 1e-6 with micro
+    match = re.findall("(1e-6\s)",unit)
+    for m in match: unit = unit.replace(m,"$\mu$")
     # raise exponents using Latex
     match = re.findall("(-\d)",unit)
     for m in match: unit = unit.replace(m,"$^{%s}$" % m)
@@ -149,13 +152,14 @@ def TaylorDiagram(stddev,corrcoef,refstd,fig,colors,normalize=True):
 
 class HtmlFigure():
 
-    def __init__(self,name,pattern,side=None,legend=False,benchmark=False):
+    def __init__(self,name,pattern,side=None,legend=False,benchmark=False,longname=None):
 
         self.name      = name
         self.pattern   = pattern
         self.side      = side
         self.legend    = legend
         self.benchmark = benchmark
+        self.longname  = longname
         
     def generateClickRow(self,allModels=False):
         name = self.pattern
@@ -291,12 +295,12 @@ class HtmlPage(object):
         self.sections = sections
         for section in sections: self.figures[section] = []
 
-    def addFigure(self,section,name,pattern,side=None,legend=False,benchmark=False):
+    def addFigure(self,section,name,pattern,side=None,legend=False,benchmark=False,longname=None):
 
         assert section in self.sections
         for fig in self.figures[section]:
             if fig.name == name: return
-        self.figures[section].append(HtmlFigure(name,pattern,side=side,legend=legend,benchmark=benchmark))
+        self.figures[section].append(HtmlFigure(name,pattern,side=side,legend=legend,benchmark=benchmark,longname=longname))
     
     def setMetricPriority(self,priority):
         self.priority = priority
@@ -441,7 +445,7 @@ class HtmlAllModelsPage(HtmlPage):
                 for section in page.sections:
                     if len(page.figures[section]) == 0: continue
                     for figure in page.figures[section]:
-                        if (figure.name in ["spatial_variance","compcycle",
+                        if (figure.name in ["spatial_variance","compcycle","profile",
                                             "legend_spatial_variance","legend_compcycle"]): continue # ignores
                         if "benchmark" in figure.name:
                             if figure.name not in bench: bench.append(figure.name)
@@ -495,8 +499,12 @@ class HtmlAllModelsPage(HtmlPage):
       <select id="%sPlot" onchange="AllSelect()">""" % (self.name)
             for plot in self.plots:                
                 name  = ''
-                if space_opts.has_key(plot.name): name = space_opts[plot.name]["name"]
-                if time_opts.has_key(plot.name):  name = time_opts[plot.name]["name"]
+                if space_opts.has_key(plot.name):
+                    name = space_opts[plot.name]["name"]
+                elif time_opts.has_key(plot.name):
+                    name = time_opts[plot.name]["name"]
+                elif plot.longname is not None:
+                    name = plot.longname
                 if "rel_" in plot.name: name = plot.name.replace("rel_","Relationship with ")
                 opts  = ''
                 if plot.name == "timeint" or len(self.plots) == 1:
@@ -548,13 +556,14 @@ class HtmlAllModelsPage(HtmlPage):
         var PNAME  = document.getElementById("%s").options[pid].value;
         header     = header.replace("RNAME",RNAME);
         $("#%sHead").text(header);""" % (self.header,self.cname,self.name+"Region",self.name+"Region",self.name+"Plot",self.name+"Plot",self.name)
-        
+        cond  = " || ".join(['PNAME == "%s"' % n for n in self.nobench])
+        if cond == "": cond = "0"
         head += """
         if(%s){
           document.getElementById("Benchmark_div").style.display = 'none';
         }else{
           document.getElementById("Benchmark_div").style.display = 'inline';
-        }""" % (" || ".join(['PNAME == "%s"' % n for n in self.nobench]))
+        }""" % (cond)
 
         cond  = " || ".join(['PNAME == "%s"' % n for n in self.nolegend])
         if cond == "": cond = "0"

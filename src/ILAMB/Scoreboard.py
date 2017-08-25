@@ -3,6 +3,8 @@ from ConfNBP import ConfNBP
 from ConfTWSA import ConfTWSA
 from ConfRunoff import ConfRunoff
 from ConfEvapFraction import ConfEvapFraction
+from ConfIOMB import ConfIOMB
+from ConfDiurnal import ConfDiurnal
 import os,re
 from netCDF4 import Dataset
 import numpy as np
@@ -175,7 +177,9 @@ ConfrontationTypes = { None              : Confrontation,
                        "ConfNBP"         : ConfNBP,
                        "ConfTWSA"        : ConfTWSA,
                        "ConfRunoff"      : ConfRunoff,
-                       "ConfEvapFraction": ConfEvapFraction}
+                       "ConfEvapFraction": ConfEvapFraction,
+                       "ConfIOMB"        : ConfIOMB,
+                       "ConfDiurnal"     : ConfDiurnal}
 
 class Scoreboard():
     """

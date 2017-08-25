@@ -1,3 +1,4 @@
+from scipy.interpolate import NearestNDInterpolator
 from constants import dpy,mid_months,bnd_months
 from Regions import Regions
 from netCDF4 import Dataset,num2date,date2num
@@ -392,6 +393,26 @@ def SympifyWithArgsUnits(expression,args,units):
     return args[ekey],units[ekey]
 
 
+def ComputeIndexingArrays(lat2d,lon2d,lat,lon):
+    """Blah.
+
+    Parameters
+    ----------
+    lat : numpy.ndarray
+        A 1D array of latitudes of cell centroids
+    lon : numpy.ndarray
+        A 1D array of longitudes of cell centroids
+
+    """
+    # Prepare the interpolator
+    points   = np.asarray([lat2d.flatten(),lon2d.flatten()]).T
+    values   = np.asarray([(np.arange(lat2d.shape[0])[:,np.newaxis]*np.ones  (lat2d.shape[1])).flatten(),
+                           (np.ones  (lat2d.shape[0])[:,np.newaxis]*np.arange(lat2d.shape[1])).flatten()]).T
+    fcn      = NearestNDInterpolator(points,values)
+    LAT,LON  = np.meshgrid(lat,lon,indexing='ij')
+    gmap     = fcn(LAT.flatten(),LON.flatten()).astype(int)
+    return gmap[:,0].reshape(LAT.shape),gmap[:,1].reshape(LAT.shape)
+
 def FromNetCDF4(filename,variable_name,alternate_vars=[],t0=None,tf=None,group=None):
     """Extracts data from a netCDF4 datafile for use in a Variable object.
     
@@ -482,14 +503,45 @@ def FromNetCDF4(filename,variable_name,alternate_vars=[],t0=None,tf=None,group=N
         if  "lon"   in key.lower():  lon_name  ,lon_bnd_name   = _get(key,grp)
         if  "data"  in key.lower():  data_name ,junk           = _get(key,grp)
         if ("layer" in key.lower() or
-            "lev"   in key.lower()): depth_name,depth_bnd_name = _get(key,grp)
+            "lev"   in key.lower() or
+            "z_t"   in key.lower() or
+            "depth" in key.lower()): depth_name,depth_bnd_name = _get(key,grp)
+
+    # It is possible that lat and lon are just the sizes of the data
+    # array, and the real latitude and longitude arrays are 2D. Then
+    # we need to interpolate.
+    inter = False
+    if (lat_name is not None and lat_name not in grp.variables):
+        inter    = True
+        possible = [key for key in grp.variables if ((key   not in grp.dimensions) and
+                                                     ("lat"     in key.lower()   ) and
+                                                     ("_"   not in key           ))]
+        if len(possible)==1:
+            lat_name = possible[0]
+        else:
+            raise RuntimeError("Unable to find latitudes in the file: %s" % (filename))
+    if (lon_name is not None and lon_name not in grp.variables):
+        inter    = True
+        possible = [key for key in grp.variables if ((key   not in grp.dimensions) and
+                                                     ("lon"     in key.lower()   ) and
+                                                     ("_"   not in key           ))]
+        if len(possible)==1:
+            lon_name = possible[0]
+        else:
+            raise RuntimeError("Unable to find longitudes in the file: %s" % (filename))
     
     # Based on present values, get dimensions and bounds
+    cbounds = None
     if time_name is not None:
         if time_bnd_name is None:
             t       = ConvertCalendar(grp.variables[time_name])
         else:
             t,t_bnd = ConvertCalendar(grp.variables[time_name],grp.variables[time_bnd_name])
+        if "climatology" in grp.variables[time_name].ncattrs():
+            cbounds = grp.variables[grp.variables[time_name].climatology]
+            if not np.allclose(cbounds.shape,[12,2]):
+                raise RuntimeError("ILAMB only supports annual cycle style climatologies")
+            cbounds = np.round(cbounds[0,:]/365.+1850.)
     if lat_name       is not None: lat       = grp.variables[lat_name]      [...]
     if lat_bnd_name   is not None: lat_bnd   = grp.variables[lat_bnd_name]  [...]
     if lon_name       is not None: lon       = grp.variables[lon_name]      [...]
@@ -523,6 +575,30 @@ def FromNetCDF4(filename,variable_name,alternate_vars=[],t0=None,tf=None,group=N
     else:
         v = var[...]
 
+    # If lat and lon are 2D, then we will need to interpolate things
+    if inter:
+        if lat.ndim == 2 and lon.ndim == 2:
+            assert lat.shape == lon.shape
+            
+            # Create the grid
+            res          = 1.0
+            lat_bnds     = np.arange(- 90, 90+res/2.,res)
+            lon_bnds     = np.arange(round(lon.min(),0),
+                                     round(lon.max(),0)+res/2.,res)
+            lats         = 0.5*(lat_bnds[:-1]+lat_bnds[1:])
+            lons         = 0.5*(lon_bnds[:-1]+lon_bnds[1:])
+            ilat,ilon    = ComputeIndexingArrays(lat,lon,lats,lons)
+            v            = v[...,ilat,ilon]
+            lat          = lats
+            lon          = lons
+            lat_bnd      = np.zeros((lat.size,2))
+            lat_bnd[:,0] = lat_bnds[:-1]
+            lat_bnd[:,1] = lat_bnds[+1:]
+            lon_bnd      = lon_bnds
+            lon_bnd      = np.zeros((lon.size,2))
+            lon_bnd[:,0] = lon_bnds[:-1]
+            lon_bnd[:,1] = lon_bnds[+1:]
+        
     # handle incorrect or absent masking of arrays
     if type(v) != type(np.ma.empty(1)):
         mask = np.zeros(v.shape,dtype=int)
@@ -537,7 +613,7 @@ def FromNetCDF4(filename,variable_name,alternate_vars=[],t0=None,tf=None,group=N
         units = "1"
     dset.close()
     
-    return v,units,variable_name,t,t_bnd,lat,lat_bnd,lon,lon_bnd,depth,depth_bnd,data
+    return v,units,variable_name,t,t_bnd,lat,lat_bnd,lon,lon_bnd,depth,depth_bnd,cbounds,data
 
         
 def Score(var,normalizer,FC=0.999999):
@@ -851,8 +927,8 @@ def AnalysisMeanState(ref,com,**keywords):
                 var.toNetCDF4(dataset,group="MeanState")
     for key in sd_score.keys():
         sd_score[key].toNetCDF4(dataset,group="MeanState",
-                                attributes={"std":space_std[region].data,
-                                            "R"  :space_cor[region].data})
+                                attributes={"std":space_std[key].data,
+                                            "R"  :space_cor[key].data})
         
     # Rename and optionally dump out information to netCDF4 files
     out_vars = [ref_period_mean,ref_timeint]
@@ -1218,11 +1294,12 @@ def MakeComparable(ref,com,**keywords):
 
     # Apply the reference mask to the comparison dataset and
     # optionally vice-versa
-    mask = ref.interpolate(time=com.time,lat=com.lat,lon=com.lon)
-    com.data.mask += mask.data.mask
-    if mask_ref:
-        mask = com.interpolate(time=ref.time,lat=ref.lat,lon=ref.lon)
-        ref.data.mask += mask.data.mask
+    if not ref.layered:
+        mask = ref.interpolate(time=com.time,lat=com.lat,lon=com.lon)
+        com.data.mask += mask.data.mask
+        if mask_ref:
+            mask = com.interpolate(time=ref.time,lat=ref.lat,lon=ref.lon)
+            ref.data.mask += mask.data.mask
 
     # Convert the comparison to the units of the reference
     com = com.convert(ref.unit)
