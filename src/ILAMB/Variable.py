@@ -1,4 +1,4 @@
-from constants import spd,dpy,mid_months
+from constants import spd,dpy,mid_months,bnd_months
 from Regions import Regions
 from mpl_toolkits.basemap import Basemap
 import matplotlib.colors as colors
@@ -603,6 +603,7 @@ class Variable:
                         unit       = self.unit,
                         name       = "annual_cycle_mean_of_%s" % self.name,
                         time       = mid_months,
+                        time_bnds  = np.asarray([bnd_months[:-1],bnd_months[1:]]).T,
                         lat        = self.lat,
                         lat_bnds   = self.lat_bnds,
                         lon        = self.lon,
@@ -1196,14 +1197,14 @@ class Variable:
             The interpolated variable
         """
         if time is None and lat is None and lon is None: return self
-        output_time = self.time if (time is None) else time
-        output_lat  = self.lat  if (lat  is None) else lat
-        output_lon  = self.lon  if (lon  is None) else lon
-        output_area = self.area if (lat is None and lon is None) else None
+        output_time = self.time      if (time is None) else time
+        output_tbnd = self.time_bnds if (time is None) else None
+        output_lat  = self.lat       if (lat  is None) else lat
+        output_lon  = self.lon       if (lon  is None) else lon
+        output_area = self.area      if (lat  is None and lon is None) else None
         
         data = self.data
         if self.spatial and (lat is not None or lon is not None):
-            output_tbnd = self.time_bnds
             if lat is None: lat = self.lat
             if lon is None: lon = self.lon
             if itype == 'nearestneighbor':
@@ -1239,12 +1240,12 @@ class Variable:
             else:
                 raise ValueError("Uknown interpolation type: %s" % itype)
         if self.temporal and time is not None:
-            output_tbnd = None
             times = np.apply_along_axis(np.argmin,1,np.abs(time[:,np.newaxis]-self.time))
             mask  = data.mask
             if mask.size > 1: mask = data.mask[times,...]
             data  = data.data[times,...]
             data  = np.ma.masked_array(data,mask=mask)
+            output_tbnd = self.time_bnds[times]
         return Variable(data = data, unit = self.unit, name = self.name, ndata = self.ndata,
                         lat  = output_lat,
                         lon  = output_lon,
