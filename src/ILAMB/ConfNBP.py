@@ -43,12 +43,17 @@ class ConfNBP(Confrontation):
                        alternate_vars = self.alternate_vars)
 
         # the model data needs integrated over the globe
-        mod = m.extractTimeSeries(self.variable,
-                                  alt_vars = self.alternate_vars)
-        mod = mod.integrateInSpace().convert(obs.unit)
-        
+        mod  = m.extractTimeSeries(self.variable,
+                                   alt_vars = self.alternate_vars)
+        mod  = mod.integrateInSpace().convert(obs.unit)
+        tmin = mod.time_bnds[ 0,0]
+        tmax = mod.time_bnds[-1,1]        
         obs,mod = il.MakeComparable(obs,mod,clip_ref=True)
 
+        # The obs can go beyond the information which models have
+        obs.trim(t=[tmin,tmax])
+        mod.trim(t=[tmin,tmax])
+        
         # sign convention is backwards
         obs.data *= -1.
         mod.data *= -1.
