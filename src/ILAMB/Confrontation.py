@@ -973,12 +973,12 @@ class Confrontation(object):
                 # score the distributions = 1 - Hellinger distance
                 score = 1.-np.sqrt(((np.sqrt(obs_dist)-np.sqrt(mod_dist))**2).sum())/np.sqrt(2)
                 vname = '%s Score %s' % (c.longname.split('/')[0],region)
-                if vname in scalars.variables:
-                    scalars.variables[vname][0] = score
-                else:
-                    Variable(name = vname, 
-                             unit = "1",
-                             data = score).toNetCDF4(results,group="Relationships")
+                #if vname in scalars.variables:
+                #    scalars.variables[vname][0] = score
+                #else:
+                #    Variable(name = vname, 
+                #             unit = "1",
+                #             data = score).toNetCDF4(results,group="Relationships")
 
                 # plot the 1D curve
                 fig,ax = plt.subplots(figsize=(6,5.25),tight_layout=True)
