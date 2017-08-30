@@ -365,13 +365,14 @@ class Scoreboard():
       </div>
 
       <div data-role="main" class="ui-content">
+        <div data-role="collapsible" data-collapsed="false"><h1>Mean State Scores</h1>
 	<table data-role="table" data-mode="columntoggle" class="ui-responsive ui-shadow" id="myTable">
 	  <thead>
 	    <tr>
-              <th style="width:300px"> </th>"""
+              <th> </th>"""
         for m in M:
             html += """
-              <th style="width:80px" data-priority="1">%s</th>""" % m.name
+              <th data-priority="1">%s</th>""" % m.name
         html += """
               <th style="width:20px"></th>
 	    </tr>
@@ -379,11 +380,30 @@ class Scoreboard():
           <tbody>"""
         
         for tree in self.tree.children: html += GenerateTable(tree,M,self)
-        print "HERE"
+        html += """
+          </tbody>
+        </table>
+        </div>"""
+
+        html += """
+        <div data-role="collapsible" data-collapsed="false"><h1>Relationship Scores</h1>
+	<table data-role="table" data-mode="columntoggle" class="ui-responsive ui-shadow" id="myTable">
+	  <thead>
+	    <tr>
+              <th> </th>"""
+        for m in M:
+            html += """
+              <th data-priority="1">%s</th>""" % m.name
+        html += """
+              <th style="width:20px"></th>
+	    </tr>
+	  </thead>
+          <tbody>"""
         for tree in  rel_tree.children: html += GenerateTable(tree,M,self)
         html += """
           </tbody>
         </table>
+        </div>
       </div>
       <div data-role="footer"></div>
     </div>
@@ -469,47 +489,38 @@ def BuildHTMLTable(tree,M,build_dir):
         global global_html
         global global_table_color
         ccolor = DarkenRowColor(global_table_color,fraction=0.95)
+
+        # setup a html table row
         if node.isLeaf():
-            print node.name,node.score
-            weight = np.round(100.0*node.normalize_weight,1)
-            print weight
-            if node.confrontation is None:
-                global_html += """
-      <tr class="child" bgcolor="%s">
-        <td>&nbsp;&nbsp;&nbsp;%s&nbsp;(%.1f%%)</td>""" % (ccolor,node.name,weight)
-                for m in global_model_list: global_html += '\n        <td>~</td>'
-            else:                
-                c = node.confrontation
-                global_html += """
-      <tr class="child" bgcolor="%s">
-        <td>&nbsp;&nbsp;&nbsp;<a href="%s.html" rel="external" target="_blank">%s</a>&nbsp;(%.1f%%)</td>""" % (ccolor,
-                                                                                                               os.path.join(c.output_path.replace(build_dir,"").lstrip("/"),c.name),
-                                                                                                               c.name,weight)
-                try:
-                    for ind in range(node.score.size):
-                        if node.score.mask[ind]:
-                            global_html += '\n        <td>~</td>'
-                        else:
-                            global_html += '\n        <td>%.2f</td>' % (node.score[ind])
-                except:
-                    for ind in range(len(global_model_list)):
-                        global_html += '\n        <td>~</td>'
-            global_html += """
-        <td></td>
-      </tr>"""
+            row = '<tr class="child" bgcolor="%s">'  % ccolor
         else:
-            global_html += """
-      <tr class="parent" bgcolor="%s">
-        <td>%s</td>""" % (global_table_color,node.name)
-            for ind,m in enumerate(global_model_list):
-                try:
-                    if node.score.mask[ind]: raise ValueError()
-                    global_html += '\n        <td>%.2f</td>' % (node.score[ind])
-                except:
-                    global_html += '\n        <td>~</td>' 
-            global_html += """
-        <td><div class="arrow"></div></td>
-      </tr>"""
+            row = '<tr class="parent" bgcolor="%s">' % global_table_color
+
+        # first table column
+        tab = ''
+        if node.isLeaf(): tab = '&nbsp;&nbsp;&nbsp;'
+        name = node.name
+        if node.confrontation:
+            conf = node.confrontation
+            path = os.path.join(conf.output_path.replace(build_dir,"").lstrip("/"),conf.name)
+            name = '<a href="%s.html" rel="external" target="_blank">%s</a>' % (path,node.name)
+        if node.isLeaf():
+            row += '<td>%s%s&nbsp;(%.1f%%)</td>' % (tab,name,100*node.normalize_weight)
+        else:
+            row += '<td>%s%s</td>' % (tab,name)
+
+        # populate the rest of the columns
+        if type(node.score) != type(np.ma.empty(0)): node.score = np.ma.masked_array(np.zeros(len(global_model_list)),mask=True)
+        for i,m in enumerate(global_model_list):
+            if not node.score.mask[i]:
+                row += '<td>%.2f</td>' % node.score[i]
+            else:
+                row += '<td>~</td>'
+                
+        # end the table row
+        row += '<td><div class="arrow"></div></td></tr>'
+        global_html += row
+        
     TraversePreorder(tree,_genHTML)
     
 def GenerateTable(tree,M,S):
@@ -522,30 +533,6 @@ def GenerateTable(tree,M,S):
     global_html = ""
     for cat in tree.children: BuildHTMLTable(cat,M,S.build_dir)
     return global_html
-
-"""
-def GenerateBarCharts(tree,M):
-    return
-    table = []
-    row   = [m.name for m in M] 
-    row.insert(0,"Variables")
-    table.append(row)
-    for cat in tree.children:
-        for var in cat.children:
-            row = [var.name]
-            try:
-                for i in range(var.score.size): row.append(var.score[i])
-            except:
-                for i in range(len(M)): row.append(0)
-            table.append(row)
-    from jinja2 import FileSystemLoader,Environment
-    templateLoader = FileSystemLoader(searchpath="./")
-    templateEnv    = Environment(loader=templateLoader)
-    template       = templateEnv.get_template("tmp.html")
-    templateVars   = { "table" : table }
-    outputText     = template.render( templateVars )
-    file('gen.html',"w").write(outputText)
-"""
 
 def GenerateSummaryFigure(tree,M,build_dir):
 
@@ -572,9 +559,8 @@ def GenerateSummaryFigure(tree,M,build_dir):
 
 def GenerateRelationshipTree(S,M):
 
-    # create a tree which mimics the scoreboard for relationships
-
-    # But we need
+    # Create a tree which mimics the scoreboard for relationships, but
+    # we need
     #
     # root -> category -> datasets -> relationships
     #
@@ -604,7 +590,6 @@ def GenerateRelationshipTree(S,M):
                     v.parent = h2
                     v.score  = np.ma.masked_array(np.zeros(len(M)),mask=True)
                     v.normalize_weight = 1./len(data.relationships)
-                    v.confrontation = rel
                     
                 # load scores
                 for i,m in enumerate(M):
@@ -621,10 +606,10 @@ def GenerateRelationshipTree(S,M):
                         if "Overall Score global" not in grp.variables.keys(): continue
                         h2.score[i] = grp.variables["Overall Score global"][...]
 
-    global global_print_node_string
-    global_print_node_string = ""
-    TraversePreorder(rel_tree,PrintNode)
-    print global_print_node_string
+    #global global_print_node_string
+    #global_print_node_string = ""
+    #TraversePreorder(rel_tree,PrintNode)
+    #print global_print_node_string
 
     return rel_tree
 
