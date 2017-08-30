@@ -50,9 +50,9 @@ class Node(object):
         name   = self.name if self.name is not None else ""
         weight = self.weight
         if self.isLeaf():
-            s = "%s%s %d %.2f%%" % ("   "*(self.getDepth()-1),name,weight,100*self.overall_weight)
+            s = "%s%s %s" % ("   "*(self.getDepth()-1),name,self.score) 
         else:
-            s = "%s%s %f" % ("   "*(self.getDepth()-1),name,weight)
+            s = "%s%s %s" % ("   "*(self.getDepth()-1),name,self.score)
         return s
 
     def isLeaf(self):
@@ -266,6 +266,7 @@ class Scoreboard():
             arrows[ 4+i,(7-i):(7+i+1),3] = 1
             arrows[27-i,(7-i):(7+i+1),3] = 1
         imsave("%s/arrows.png" % self.build_dir,arrows)
+        rel_tree = GenerateRelationshipTree(self,M)
         from ILAMB.generated_version import version as ilamb_version
         html = r"""
 <html>
@@ -378,6 +379,8 @@ class Scoreboard():
           <tbody>"""
         
         for tree in self.tree.children: html += GenerateTable(tree,M,self)
+        print "HERE"
+        for tree in  rel_tree.children: html += GenerateTable(tree,M,self)
         html += """
           </tbody>
         </table>
@@ -467,7 +470,9 @@ def BuildHTMLTable(tree,M,build_dir):
         global global_table_color
         ccolor = DarkenRowColor(global_table_color,fraction=0.95)
         if node.isLeaf():
+            print node.name,node.score
             weight = np.round(100.0*node.normalize_weight,1)
+            print weight
             if node.confrontation is None:
                 global_html += """
       <tr class="child" bgcolor="%s">
@@ -563,3 +568,64 @@ def GenerateSummaryFigure(tree,M,build_dir):
                 data[row,:] = var.score
 
     BenchmarkSummaryFigure(models,variables,data,"%s/overview.png" % build_dir,vcolor=vcolors)
+
+
+def GenerateRelationshipTree(S,M):
+
+    # create a tree which mimics the scoreboard for relationships
+
+    # But we need
+    #
+    # root -> category -> datasets -> relationships
+    #
+    # instead of
+    #
+    # root -> category -> variable -> datasets
+    #    
+    rel_tree = Node("root")
+    for cat in S.tree.children:
+        h1 = Node(cat.name)
+        h1.bgcolor = cat.bgcolor
+        h1.parent  = rel_tree
+        rel_tree.children.append(h1)
+        for var in cat.children:
+            for data in var.children:
+                if data               is None: continue
+                if data.relationships is None: continue
+
+                # build tree
+                h2 = Node(data.confrontation.longname)
+                h1.children.append(h2)
+                h2.parent = h1
+                h2.score  = np.ma.masked_array(np.zeros(len(M)),mask=True)
+                for rel in data.relationships:
+                    v = Node(rel.longname)
+                    h2.children.append(v)
+                    v.parent = h2
+                    v.score  = np.ma.masked_array(np.zeros(len(M)),mask=True)
+                    v.normalize_weight = 1./len(data.relationships)
+                    v.confrontation = rel
+                    
+                # load scores
+                for i,m in enumerate(M):
+                    fname = os.path.join(data.output_path,"%s_%s.nc" % (data.name,m.name))
+                    if not os.path.isfile(fname): continue
+                    with Dataset(fname) as dset:
+                        grp = dset.groups["Relationships"]["scalars"]
+                        for rel,v in zip(data.relationships,h2.children):
+                            rs  = [key for key in grp.variables.keys() if (rel.longname.split("/")[0] in key and
+                                                                           "global"                   in key and
+                                                                           "RMSE"                     in key)]
+                            if len(rs) != 1: continue
+                            v.score[i] = grp.variables[rs[0]][...]
+                        if "Overall Score global" not in grp.variables.keys(): continue
+                        h2.score[i] = grp.variables["Overall Score global"][...]
+
+    global global_print_node_string
+    global_print_node_string = ""
+    TraversePreorder(rel_tree,PrintNode)
+    print global_print_node_string
+
+    return rel_tree
+
+    
