@@ -266,7 +266,20 @@ class Scoreboard():
             arrows[ 4+i,(7-i):(7+i+1),3] = 1
             arrows[27-i,(7-i):(7+i+1),3] = 1
         imsave("%s/arrows.png" % self.build_dir,arrows)
+
+        # Create a tree for relationship scores (hack)
         rel_tree = GenerateRelationshipTree(self,M)
+        has_rel  = np.asarray([len(rel.children) for rel in rel_tree.children]).sum() > 0
+        nav      = ""
+        if has_rel:
+            GenerateSummaryFigure(rel_tree,M,"%s/overview_rel.png" % self.build_dir)
+            nav = """
+	    <li><a href="#pageRel">Relationship</a></li>"""
+            #global global_print_node_string
+            #global_print_node_string = ""
+            #TraversePreorder(rel_tree,PrintNode)
+            #print global_print_node_string
+
         from ILAMB.generated_version import version as ilamb_version
         html = r"""
 <html>
@@ -334,13 +347,13 @@ class Scoreboard():
   <body>"""
         
         html += """
-    <div data-role="page" id="page1">
+    <div data-role="page" id="pageOverview">
       <div data-role="header" data-position="fixed" data-tap-toggle="false">
 	<h1>ILAMB Benchmark Results</h1>
 	<div data-role="navbar">
 	  <ul>
-	    <li><a href="#page1" class="ui-btn-active ui-state-persist">Overview</a></li>
-	    <li><a href="#page2">Results Table</a></li>
+	    <li><a href="#pageOverview" class="ui-btn-active ui-state-persist">Mean State</a></li>%s
+	    <li><a href="#pageTable">Results Table</a></li>
 	  </ul>
 	</div>
       </div>
@@ -350,26 +363,46 @@ class Scoreboard():
       <div data-role="footer">
 	<center>ILAMB %s</center>
       </div>
-    </div>""" % (ilamb_version)
+    </div>""" % (nav,ilamb_version)
 
-        html += """
-    <div data-role="page" id="page2">
+        if has_rel:
+            html += """
+    <div data-role="page" id="pageRel">
       <div data-role="header" data-position="fixed" data-tap-toggle="false">
 	<h1>ILAMB Benchmark Results</h1>
 	<div data-role="navbar">
 	  <ul>
-	    <li><a href="#page1">Overview</a></li>
-	    <li><a href="#page2" class="ui-btn-active ui-state-persist">Results Table</a></li>
+	    <li><a href="#pageOverview">Mean State</a></li>
+            <li><a href="#pageRel" class="ui-btn-active ui-state-persist">Relationship</a></li>
+	    <li><a href="#pageTable">Results Table</a></li>
+	  </ul>
+	</div>
+      </div>
+      <div data-role="main" class="ui-content">
+	<img class="displayed" src="./overview_rel.png"></img>
+      </div>
+      <div data-role="footer">
+      </div>
+    </div>"""
+        
+        html += """
+    <div data-role="page" id="pageTable">
+      <div data-role="header" data-position="fixed" data-tap-toggle="false">
+	<h1>ILAMB Benchmark Results</h1>
+	<div data-role="navbar">
+	  <ul>
+	    <li><a href="#pageOverview">Mean State</a></li>%s
+	    <li><a href="#pageTable" class="ui-btn-active ui-state-persist">Results Table</a></li>
 	  </ul>
 	</div>
       </div>
 
       <div data-role="main" class="ui-content">
         <div data-role="collapsible" data-collapsed="false"><h1>Mean State Scores</h1>
-	<table data-role="table" data-mode="columntoggle" class="ui-responsive ui-shadow" id="myTable">
+	<table data-role="table" data-mode="columntoggle" class="ui-responsive ui-shadow" id="meanTable">
 	  <thead>
 	    <tr>
-              <th> </th>"""
+              <th> </th>""" % nav
         for m in M:
             html += """
               <th data-priority="1">%s</th>""" % m.name
@@ -378,32 +411,35 @@ class Scoreboard():
 	    </tr>
 	  </thead>
           <tbody>"""
-        
+            
         for tree in self.tree.children: html += GenerateTable(tree,M,self)
         html += """
           </tbody>
         </table>
         </div>"""
-
-        html += """
+            
+        if has_rel:
+            html += """
         <div data-role="collapsible" data-collapsed="false"><h1>Relationship Scores</h1>
-	<table data-role="table" data-mode="columntoggle" class="ui-responsive ui-shadow" id="myTable">
+	<table data-role="table" data-mode="columntoggle" class="ui-responsive ui-shadow" id="relTable">
 	  <thead>
 	    <tr>
               <th> </th>"""
-        for m in M:
-            html += """
+            for m in M:
+                html += """
               <th data-priority="1">%s</th>""" % m.name
-        html += """
+            html += """
               <th style="width:20px"></th>
 	    </tr>
 	  </thead>
           <tbody>"""
-        for tree in  rel_tree.children: html += GenerateTable(tree,M,self)
-        html += """
+            for tree in  rel_tree.children: html += GenerateTable(tree,M,self,composite=False)
+            html += """
           </tbody>
         </table>
-        </div>
+        </div>"""
+        
+        html += """
       </div>
       <div data-role="footer"></div>
     </div>
@@ -416,7 +452,7 @@ class Scoreboard():
         html = GenerateBarCharts(self.tree,M)
 
     def createSummaryFigure(self,M):
-        GenerateSummaryFigure(self.tree,M,self.build_dir)
+        GenerateSummaryFigure(self.tree,M,"%s/overview.png" % self.build_dir)
 
     def dumpScores(self,M,filename):
         out = file("%s/%s" % (self.build_dir,filename),"w")
@@ -516,25 +552,25 @@ def BuildHTMLTable(tree,M,build_dir):
                 row += '<td>%.2f</td>' % node.score[i]
             else:
                 row += '<td>~</td>'
-                
+
         # end the table row
         row += '<td><div class="arrow"></div></td></tr>'
         global_html += row
-        
+
     TraversePreorder(tree,_genHTML)
     
-def GenerateTable(tree,M,S):
+def GenerateTable(tree,M,S,composite=True):
     global global_html
     global global_model_list
     global global_table_color
-    CompositeScores(tree,M)
+    if composite: CompositeScores(tree,M)
     global_model_list = M
     global_table_color = tree.bgcolor
     global_html = ""
     for cat in tree.children: BuildHTMLTable(cat,M,S.build_dir)
     return global_html
 
-def GenerateSummaryFigure(tree,M,build_dir):
+def GenerateSummaryFigure(tree,M,filename):
 
     models    = [m.name for m in M]
     variables = []
@@ -554,7 +590,7 @@ def GenerateSummaryFigure(tree,M,build_dir):
             else:
                 data[row,:] = var.score
 
-    BenchmarkSummaryFigure(models,variables,data,"%s/overview.png" % build_dir,vcolor=vcolors)
+    BenchmarkSummaryFigure(models,variables,data,filename,vcolor=vcolors)
 
 
 def GenerateRelationshipTree(S,M):
@@ -606,10 +642,6 @@ def GenerateRelationshipTree(S,M):
                         if "Overall Score global" not in grp.variables.keys(): continue
                         h2.score[i] = grp.variables["Overall Score global"][...]
 
-    #global global_print_node_string
-    #global_print_node_string = ""
-    #TraversePreorder(rel_tree,PrintNode)
-    #print global_print_node_string
 
     return rel_tree
 
