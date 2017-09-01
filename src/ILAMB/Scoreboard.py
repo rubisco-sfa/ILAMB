@@ -538,8 +538,11 @@ def BuildHTMLTable(tree,M,build_dir):
         name = node.name
         if node.confrontation:
             conf = node.confrontation
-            path = os.path.join(conf.output_path.replace(build_dir,"").lstrip("/"),conf.name)
-            name = '<a href="%s.html" rel="external" target="_blank">%s</a>' % (path,node.name)
+            if type(conf) == str:
+                path = conf.replace(build_dir,"").lstrip("/")
+            else:
+                path = os.path.join(conf.output_path.replace(build_dir,"").lstrip("/"),conf.name + ".html")
+            name = '<a href="%s" rel="external" target="_blank">%s</a>' % (path,node.name)
         if node.isLeaf():
             row += '<td>%s%s&nbsp;(%.1f%%)</td>' % (tab,name,100*node.normalize_weight)
         else:
@@ -626,6 +629,9 @@ def GenerateRelationshipTree(S,M):
                     v.parent = h2
                     v.score  = np.ma.masked_array(np.zeros(len(M)),mask=True)
                     v.normalize_weight = 1./len(data.relationships)
+                    path = data.confrontation.output_path
+                    path = os.path.join(path,data.confrontation.name + ".html#Relationships")
+                    v.confrontation = path
                     
                 # load scores
                 for i,m in enumerate(M):
