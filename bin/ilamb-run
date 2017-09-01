@@ -121,7 +121,7 @@ def ParseModelSetup(model_setup,models=[],verbose=False,filter=""):
             if (len(models) > 0 and mname not in models) or (mname is None): continue
             M.append(ModelResult(mdir, modelname = mname, filter=filter, model_year = model_year))
 
-    M = sorted(M,key=lambda m: m.name.upper())
+    #M = sorted(M,key=lambda m: m.name.upper())
 
     # assign unique colors
     clrs = il.GenerateDistinctColors(len(M))
