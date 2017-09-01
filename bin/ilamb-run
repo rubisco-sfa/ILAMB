@@ -164,7 +164,7 @@ def InitializeRegions(filenames):
     for filename in filenames:
         try:
             r.addRegionNetCDF4(filename)
-        except:
+        except IOError:
             for line in file(filename):
                 line = line.split(",")
                 if len(line) == 6:
@@ -172,7 +172,7 @@ def InitializeRegions(filenames):
                                             line[1],
                                             [float(line[2]),float(line[3])],
                                             [float(line[4]),float(line[5])])
-
+            
 def MatchRelationshipConfrontation(C):
     """Match relationship strings to confrontation longnames
 
