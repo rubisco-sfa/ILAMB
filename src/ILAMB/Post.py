@@ -839,7 +839,7 @@ def RegisterCustomColormaps():
     plt.register_cmap(name='RdGn', data=RdGn)
 
 
-def BenchmarkSummaryFigure(models,variables,data,figname,vcolor=None):
+def BenchmarkSummaryFigure(models,variables,data,figname,vcolor=None,rel_only=False):
     """Creates a summary figure for the benchmark results contained in the
     data array.
 
@@ -880,30 +880,36 @@ def BenchmarkSummaryFigure(models,variables,data,figname,vcolor=None):
     if "stoplight" not in plt.colormaps(): RegisterCustomColormaps()
     
     # plot the variable scores
-    fig,ax = plt.subplots(figsize=(w,h),ncols=2,tight_layout=True)
-    cmap   = plt.get_cmap('stoplight')
-    cmap.set_bad('k',bad)
-    qc     = ax[0].pcolormesh(np.ma.masked_invalid(data[::-1,:]),cmap=cmap,vmin=0,vmax=1,linewidth=0)
-    div    = make_axes_locatable(ax[0])
-    fig.colorbar(qc,
-                 ticks=(0,0.25,0.5,0.75,1.0),
-                 format="%g",
-                 cax=div.append_axes("bottom", size="5%", pad=0.05),
-                 orientation="horizontal",
-                 label="Variable Score")
-    plt.tick_params(which='both', length=0)
-    ax[0].xaxis.tick_top()
-    ax[0].set_xticks     (np.arange(nmodels   )+0.5)
-    ax[0].set_xticklabels(models,rotation=90)
-    ax[0].set_yticks     (np.arange(nvariables)+0.5)
-    ax[0].set_yticklabels(variables[::-1])
-    ax[0].set_ylim(0,nvariables)
-    ax[0].tick_params('both',length=0,width=0,which='major')
-    ax[0].tick_params(axis='y', pad=10)
-    if vcolor is not None:
-        for i,t in enumerate(ax[0].yaxis.get_ticklabels()):
-            t.set_backgroundcolor(vcolor[::-1][i])
-    
+    nc     = 2
+    if rel_only: nc = 1
+    fig,ax = plt.subplots(figsize=(w,h),ncols=nc,tight_layout=True)
+
+    if not rel_only:
+        cmap   = plt.get_cmap('stoplight')
+        cmap.set_bad('k',bad)
+        qc     = ax[0].pcolormesh(np.ma.masked_invalid(data[::-1,:]),cmap=cmap,vmin=0,vmax=1,linewidth=0)
+        div    = make_axes_locatable(ax[0])
+        fig.colorbar(qc,
+                     ticks=(0,0.25,0.5,0.75,1.0),
+                     format="%g",
+                     cax=div.append_axes("bottom", size="5%", pad=0.05),
+                     orientation="horizontal",
+                     label="Variable Score")
+        plt.tick_params(which='both', length=0)
+        ax[0].xaxis.tick_top()
+        ax[0].set_xticks     (np.arange(nmodels   )+0.5)
+        ax[0].set_xticklabels(models,rotation=90)
+        ax[0].tick_params('both',length=0,width=0,which='major')
+        ax[0].tick_params(axis='y', pad=10)
+        if vcolor is not None:
+            for i,t in enumerate(ax[0].yaxis.get_ticklabels()):
+                t.set_backgroundcolor(vcolor[::-1][i])
+
+    i = 1
+    if rel_only:
+        i  = 0
+        ax = [ax]
+
     # compute and plot the variable z-scores
     np.seterr(invalid='ignore',under='ignore')
     data = np.ma.masked_invalid(data)
@@ -917,8 +923,8 @@ def BenchmarkSummaryFigure(models,variables,data,figname,vcolor=None):
     np.seterr(invalid='warn',under='raise')
     cmap = plt.get_cmap('RdGn')
     cmap.set_bad('k',bad)
-    qc   = ax[1].pcolormesh(Z[::-1],cmap=cmap,vmin=-2,vmax=2,linewidth=0)
-    div  = make_axes_locatable(ax[1])
+    qc   = ax[i].pcolormesh(Z[::-1],cmap=cmap,vmin=-2,vmax=2,linewidth=0)
+    div  = make_axes_locatable(ax[i])
     fig.colorbar(qc,
                  ticks=(-2,-1,0,1,2),
                  format="%+d",
@@ -926,12 +932,15 @@ def BenchmarkSummaryFigure(models,variables,data,figname,vcolor=None):
                  orientation="horizontal",
                  label="Variable Z-score")
     plt.tick_params(which='both', length=0)
-    ax[1].xaxis.tick_top()
-    ax[1].set_xticks(np.arange(nmodels)+0.5)
-    ax[1].set_xticklabels(models,rotation=90)
-    ax[1].tick_params('both',length=0,width=0,which='major')
-    ax[1].set_yticks([])
-    ax[1].set_ylim(0,nvariables)
+    ax[i].xaxis.tick_top()
+    ax[i].set_xticks(np.arange(nmodels)+0.5)
+    ax[i].set_xticklabels(models,rotation=90)
+    ax[i].tick_params('both',length=0,width=0,which='major')
+    ax[i].set_yticks([])
+    ax[i].set_ylim(0,nvariables)
+    
+    ax[0].set_yticks     (np.arange(nvariables)+0.5)
+    ax[0].set_yticklabels(variables[::-1])
 
     # save figure
     fig.savefig(figname)
