@@ -880,10 +880,13 @@ def BenchmarkSummaryFigure(models,variables,data,figname,vcolor=None,rel_only=Fa
     if "stoplight" not in plt.colormaps(): RegisterCustomColormaps()
     
     # plot the variable scores
-    nc     = 2
-    if rel_only: nc = 1
-    fig,ax = plt.subplots(figsize=(w,h),ncols=nc,tight_layout=True)
+    if rel_only:
+        fig,ax = plt.subplots(figsize=(w,h),ncols=1,tight_layout=True)
+        ax     = [ax]
+    else:
+        fig,ax = plt.subplots(figsize=(w,h),ncols=2,tight_layout=True)
 
+    # absolute score
     if not rel_only:
         cmap   = plt.get_cmap('stoplight')
         cmap.set_bad('k',bad)
@@ -899,18 +902,16 @@ def BenchmarkSummaryFigure(models,variables,data,figname,vcolor=None,rel_only=Fa
         ax[0].xaxis.tick_top()
         ax[0].set_xticks     (np.arange(nmodels   )+0.5)
         ax[0].set_xticklabels(models,rotation=90)
+        ax[0].set_yticks     (np.arange(nvariables)+0.5)
+        ax[0].set_yticklabels(variables[::-1])
         ax[0].tick_params('both',length=0,width=0,which='major')
         ax[0].tick_params(axis='y', pad=10)
         if vcolor is not None:
             for i,t in enumerate(ax[0].yaxis.get_ticklabels()):
                 t.set_backgroundcolor(vcolor[::-1][i])
 
-    i = 1
-    if rel_only:
-        i  = 0
-        ax = [ax]
-
-    # compute and plot the variable z-scores
+    # relative score
+    i = 0 if rel_only else 1
     np.seterr(invalid='ignore',under='ignore')
     data = np.ma.masked_invalid(data)
     data.data[data.mask] = 1.
@@ -938,9 +939,12 @@ def BenchmarkSummaryFigure(models,variables,data,figname,vcolor=None,rel_only=Fa
     ax[i].tick_params('both',length=0,width=0,which='major')
     ax[i].set_yticks([])
     ax[i].set_ylim(0,nvariables)
-    
-    ax[0].set_yticks     (np.arange(nvariables)+0.5)
-    ax[0].set_yticklabels(variables[::-1])
+    if rel_only:
+        ax[i].set_yticks     (np.arange(nvariables)+0.5)
+        ax[i].set_yticklabels(variables[::-1])
+        if vcolor is not None:
+            for i,t in enumerate(ax[i].yaxis.get_ticklabels()):
+                t.set_backgroundcolor(vcolor[::-1][i])
 
     # save figure
     fig.savefig(figname)
