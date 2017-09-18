@@ -1071,7 +1071,8 @@ class Variable:
         cmap   = keywords.get("cmap"  ,"jet")
         land   = keywords.get("land"  ,0.875)
         water  = keywords.get("water" ,0.750)
-        
+        pad    = keywords.get("pad"   ,5.0)
+
         rem_mask = None
         r = Regions()
         if self.temporal and not self.spatial:
@@ -1145,7 +1146,6 @@ class Variable:
                                    resolution  = 'c')
             else:
                 if area < 10000. and not dateline:
-                    pad  = 5.0
                     bmap = Basemap(projection = 'cyl',
                                    llcrnrlon  = lon0-2*pad,
                                    llcrnrlat  = lat0-  pad,
