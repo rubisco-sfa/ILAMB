@@ -16,7 +16,8 @@ you need to know!
    first_steps
    add_model
    add_data
-
+   format_data
+   
 Developer Level
 ---------------
 
