@@ -17,6 +17,11 @@ you need to know!
    add_model
    add_data
    format_data
+   ilamb_fetch
+   ilamb_run
+   ilamb_doctor
+   custom_regions
+   
    
 Developer Level
 ---------------
