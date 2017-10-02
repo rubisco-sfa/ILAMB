@@ -171,6 +171,9 @@ class Variable:
             # Fix potential problems with rolling the axes of the lon_bnds
             if self.lon_bnds[ 0,0] > self.lon_bnds[ 0,1]: self.lon_bnds[ 0,0] = -180.
             if self.lon_bnds[-1,0] > self.lon_bnds[-1,1]: self.lon_bnds[-1,1] = +180.
+            # Make sure that the value lies within the bounds
+            assert np.all((self.lat>=self.lat_bnds[:,0])*(self.lat<=self.lat_bnds[:,1]))
+            assert np.all((self.lon>=self.lon_bnds[:,0])*(self.lon<=self.lon_bnds[:,1]))
             
         # Is the data layered
         self.layered    = False
