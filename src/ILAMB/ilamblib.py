@@ -635,7 +635,9 @@ def Score(var,normalizer,FC=0.999999):
 
     data = None
     if "bias" in var.name or "diff" in var.name:
-        data = np.exp(-np.abs(var.data/(normalizer.data - normalizer.data.min()*FC)))
+        deno = np.ma.copy(normalizer.data)
+        if (deno.size - deno.mask.sum()) > 1: deno -= deno.min()*FC       
+        data = np.exp(-np.abs(var.data/deno))
     elif "rmse" in var.name:
         data = np.exp(-var.data/normalizer.data)
     elif "iav" in var.name:
