@@ -114,7 +114,10 @@ def ParseModelSetup(model_setup,models=[],verbose=False,filter=""):
             model_year = None
             if len(line) >= 2:
                 mname  = line[0].strip()
-                mdir   = os.path.join(os.environ["ILAMB_ROOT"],line[1].strip()).strip()
+                mdir   = line[1].strip()
+                # if mdir not a directory, then maybe path is relative to ILAMB_ROOT
+                if not os.path.isdir(mdir): 
+                    mdir = os.path.join(os.environ["ILAMB_ROOT"],mdir).strip()
             if len(line) == 4:
                 model_year = [float(line[2].strip()),float(line[3].strip())]
             max_model_name_len = max(max_model_name_len,len(mname))
@@ -166,10 +169,12 @@ def InitializeRegions(filenames):
             r.addRegionNetCDF4(filename)
         except IOError:
             for line in file(filename):
+                line = line.strip()
+                if line.startswith("#"): continue
                 line = line.split(",")
                 if len(line) == 6:
-                    r.addRegionLatLonBounds(line[0],
-                                            line[1],
+                    r.addRegionLatLonBounds(line[0].strip(),
+                                            line[1].strip(),
                                             [float(line[2]),float(line[3])],
                                             [float(line[4]),float(line[5])])
             

@@ -121,7 +121,7 @@ definition by latitude and longitude bounds which can be done in the
 form of a text file in the following comma delimited format::
 
   #label,name       ,lat_min,lat_max,lon_min,lon_max
-  usa,Continental US,     24,     50,    -66,   -126
+  usa,Continental US,     24,     50,   -126,    -66
 
 Additional rows in the same format may be included to define more
 regions in the same file. The first column is the label to be used,
