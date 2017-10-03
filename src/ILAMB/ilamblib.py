@@ -106,7 +106,7 @@ def ConvertCalendar(t,tbnd=None):
     # If not calendar is given, we will assume it is 365_day
     unit     = t.units
     if "calendar" in t.ncattrs():
-        calendar = t.calendar
+        calendar = t.calendar.lower()
     else:
         calendar = "365_day"
         
@@ -153,7 +153,7 @@ def ConvertCalendar(t,tbnd=None):
             ta = _dpyShift(tmid,ta,366)
         elif calendar in ["365_day","noleap"]:
             ta = _dpyShift(tmid,ta,365)           
-        elif calendar in ["proleptic_gregorian","gregorian","standard"]:
+        elif calendar in ["proleptic_gregorian","gregorian","standard","julian"]:
             # we can use datetime to get the Julian day and then find
             # how these line up with mid_months
             tmid = num2date(tmid,"days since 1850-1-1",calendar=calendar)
