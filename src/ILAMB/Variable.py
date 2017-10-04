@@ -139,9 +139,6 @@ class Variable:
         self.lat_bnds = lat_bnds
         self.lon_bnds = lon_bnds
         self.area     = keywords.get("area",None)
-        #if ((lat is     None) and (lon is not None) or
-        #    (lat is not None) and (lon is     None)):
-        #    raise ValueError("If one of lat or lon is specified, they both must specified")
         
         # Shift possible values on [0,360] to [-180,180]
         if self.lon       is not None:
@@ -154,9 +151,14 @@ class Variable:
             if (data.shape[-2] == lat.size and data.shape[-1] == lon.size): self.spatial = True
 
         if self.spatial is True:
+            if np.all(np.diff(self.lat)<0): # Flip if monotonically decreasing
+                self.lat      = self.lat     [::-1     ]
+                self.data     = self.data[...,::-1,:   ]
+                if self.lat_bnds is not None: self.lat_bnds = self.lat_bnds[::-1,::-1]
+                if self.area     is not None: self.area     = self.area    [::-1,:]
             if self.lat_bnds is None: self.lat_bnds = _createBnds(self.lat)
             if self.lon_bnds is None: self.lon_bnds = _createBnds(self.lon)
-            if self.area     is None: self.area     = il.CellAreas(self.lat,self.lon)
+            if self.area     is None: self.area     = il.CellAreas(self.lat,self.lon)                
             # Some data arrays are arranged such that the first column
             # of data is arranged at the prime meridian. This does not
             # work well with some of the plotting and/or analysis
