@@ -91,11 +91,11 @@ class ModelResult():
                 if (lat_name or lon_name) is None: continue
                 try:
                     if lat_bnd_name is None or lat_bnd_name not in dataset.variables:
-                        self.extents[0,0] = max(self.extents[0,0],dataset.variables[lat_name][ 0])
-                        self.extents[0,1] = min(self.extents[0,1],dataset.variables[lat_name][-1])
+                        self.extents[0,0] = max(self.extents[0,0],dataset.variables[lat_name].min())
+                        self.extents[0,1] = min(self.extents[0,1],dataset.variables[lat_name].max())
                     else:
-                        self.extents[0,0] = max(self.extents[0,0],dataset.variables[lat_bnd_name][ 0,0])
-                        self.extents[0,1] = min(self.extents[0,1],dataset.variables[lat_bnd_name][-1,1])
+                        self.extents[0,0] = max(self.extents[0,0],dataset.variables[lat_bnd_name].min())
+                        self.extents[0,1] = min(self.extents[0,1],dataset.variables[lat_bnd_name].max())
                     if lon_bnd_name is None or lon_bnd_name not in dataset.variables:
                         lon = dataset.variables[lon_name][...]
                         lon = (lon<=180)*lon + (lon>180)*(lon-360)
