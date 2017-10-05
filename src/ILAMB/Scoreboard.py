@@ -624,7 +624,11 @@ def GenerateRelationshipTree(S,M):
                 h2.parent = h1
                 h2.score  = np.ma.masked_array(np.zeros(len(M)),mask=True)
                 for rel in data.relationships:
-                    v = Node(rel.longname)
+                    try:
+                        longname = rel.longname
+                    except:
+                        longname = rel
+                    v = Node(longname)
                     h2.children.append(v)
                     v.parent = h2
                     v.score  = np.ma.masked_array(np.zeros(len(M)),mask=True)
@@ -640,9 +644,13 @@ def GenerateRelationshipTree(S,M):
                     with Dataset(fname) as dset:
                         grp = dset.groups["Relationships"]["scalars"]
                         for rel,v in zip(data.relationships,h2.children):
-                            rs  = [key for key in grp.variables.keys() if (rel.longname.split("/")[0] in key and
-                                                                           "global"                   in key and
-                                                                           "RMSE"                     in key)]
+                            try:
+                                longname = rel.longname
+                            except:
+                                longname = rel
+                            rs  = [key for key in grp.variables.keys() if (longname.split("/")[0] in key and
+                                                                           "global"               in key and
+                                                                           "RMSE"                 in key)]
                             if len(rs) != 1: continue
                             v.score[i] = grp.variables[rs[0]][...]
                         if "Overall Score global" not in grp.variables.keys(): continue
