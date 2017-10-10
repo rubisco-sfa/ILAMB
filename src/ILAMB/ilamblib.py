@@ -338,13 +338,26 @@ def SympifyWithArgsUnits(expression,args,units):
     """
     from sympy import sympify,postorder_traversal
 
-    expression = sympify(expression)
+    # The traversal needs that we make units commensurate when
+    # possible
+    keys = args.keys()
+    for i in range(len(keys)):
+        ikey = keys[i]
+        for j in range(i+1,len(keys)):
+            jkey = keys[j]
+            if Units(units[jkey]).equivalent(Units(units[ikey])):
+                args [jkey] = Units.conform(args[jkey],
+                                            Units(units[jkey]),
+                                            Units(units[ikey]),
+                                            inplace=True)
+                units[jkey] = units[ikey]
     
     # We need to do what sympify does but also with unit
     # conversions. So we traverse the expression tree in post order
     # and take actions based on the kind of operation being performed.
+    expression = sympify(expression)
     for expr in postorder_traversal(expression):
-
+            
         if expr.is_Atom: continue        
         ekey = str(expr) # expression key
         
@@ -367,8 +380,6 @@ def SympifyWithArgsUnits(expression,args,units):
                                   inplace=True)
                     units[key] = units[key0]
 
-            # Now add the result of the addition the the disctionary
-            # of arguments.
             args [ekey] = sympify(str(expr),locals=args)
             units[ekey] = units[key0]
 
@@ -391,7 +402,6 @@ def SympifyWithArgsUnits(expression,args,units):
             units[ekey] = Units(unit).formatted()
 
     return args[ekey],units[ekey]
-
 
 def ComputeIndexingArrays(lat2d,lon2d,lat,lon):
     """Blah.
