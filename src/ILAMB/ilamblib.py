@@ -490,57 +490,119 @@ def FromNetCDF4(filename,variable_name,alternate_vars=[],t0=None,tf=None,group=N
     if found == False:
         alternate_vars.insert(0,variable_name)
         raise RuntimeError("Unable to find [%s] in the file: %s" % (",".join(alternate_vars),filename))
-    
-    # Initialize names/values of dimensions to None
-    time_name  = None; time_bnd_name  = None; t     = None; t_bnd     = None
-    lat_name   = None; lat_bnd_name   = None; lat   = None; lat_bnd   = None
-    lon_name   = None; lon_bnd_name   = None; lon   = None; lon_bnd   = None
-    depth_name = None; depth_bnd_name = None; depth = None; depth_bnd = None
-    data_name  = None;                        data  = None;
 
-    # Read in possible dimension information and their bounds
-    def _get(key,dset):
-        dim_name = key
-        try:
-            v = dset.variables[key]
-            dim_bnd_name = v.getncattr("bounds")
-        except:
-            dim_bnd_name = None
-        return dim_name,dim_bnd_name    
-    for key in var.dimensions:
-        if  "time"  in key.lower():  time_name ,time_bnd_name  = _get(key,grp)
-        if  "lat"   in key.lower():  lat_name  ,lat_bnd_name   = _get(key,grp)
-        if  "lon"   in key.lower():  lon_name  ,lon_bnd_name   = _get(key,grp)
-        if  "data"  in key.lower():  data_name ,junk           = _get(key,grp)
-        if ("layer" in key.lower() or
-            "lev"   in key.lower() or
-            "z_t"   in key.lower() or
-            "depth" in key.lower()): depth_name,depth_bnd_name = _get(key,grp)
+    # Check on dimensions
+    time_name = [name for name in var.dimensions if "time" in name.lower()]
+    lat_name  = [name for name in var.dimensions if "lat"  in name.lower()]
+    lon_name  = [name for name in var.dimensions if "lon"  in name.lower()]
+    data_name = [name for name in var.dimensions if "data" in name.lower()]
+    missed    = [name for name in var.dimensions if name not in (time_name +
+                                                                 lat_name  +
+                                                                 lon_name  +
+                                                                 data_name)]
 
-    # It is possible that lat and lon are just the sizes of the data
-    # array, and the real latitude and longitude arrays are 2D. Then
-    # we need to interpolate.
-    inter = False
-    if (lat_name is not None and lat_name not in grp.variables):
-        inter    = True
-        possible = [key for key in grp.variables if ((key   not in grp.dimensions) and
-                                                     ("lat"     in key.lower()   ) and
-                                                     ("_"   not in key           ))]
-        if len(possible)==1:
-            lat_name = possible[0]
-        else:
-            raise RuntimeError("Unable to find latitudes in the file: %s" % (filename))
-    if (lon_name is not None and lon_name not in grp.variables):
-        inter    = True
-        possible = [key for key in grp.variables if ((key   not in grp.dimensions) and
-                                                     ("lon"     in key.lower()   ) and
-                                                     ("_"   not in key           ))]
-        if len(possible)==1:
-            lon_name = possible[0]
-        else:
-            raise RuntimeError("Unable to find longitudes in the file: %s" % (filename))
-    
+    # Lat/lon might be indexing arrays, find their shape
+    shp = None
+    if (len(lat_name) == 0 and len(lon_name) == 0 and len(missed) >= 2 and len(data_name) == 0):
+        # remove these dimensions from the missed variables
+        i,j = var.dimensions[-2],var.dimensions[-1]
+        if i in missed: missed.pop(missed.index(i))
+        if j in missed: missed.pop(missed.index(j))
+        i = grp.variables[i]
+        j = grp.variables[j]
+        if (np.issubdtype(i.dtype,np.integer) and
+            np.issubdtype(j.dtype,np.integer)): shp = [len(i),len(j)]
+
+    # Lat/lon might just be sizes
+    if (len(lat_name) == 1 and len(lon_name) == 1):
+        if not (lat_name[0] in grp.variables and lon_name[0] in grp.variables):
+            shp = [len(grp.dimensions[lat_name[0]]),len(grp.dimensions[lon_name[0]])]
+
+    # If these were sizes, then we need to find the correct 2D lat/lon arrays
+    if shp is not None:
+
+        # We want to remove any false positives we might find. I don't
+        # want to consider variables which are 'bounds' or dimensions
+        # of others, nor those that don't have the correct shape.
+        bnds = [grp.variables[v].bounds for v in grp.variables if "bounds" in grp.variables[v].ncattrs()]
+        dims = [v for v in grp.variables if (v in grp.dimensions)]
+        poss = [v for v in grp.variables if (v not in dims and
+                                             v not in bnds and
+                                             np.allclose(shp,grp.variables[v].shape) if len(shp) == len(grp.variables[v].shape) else False)]
+        lat_name = [name for name in poss if "lat" in name.lower()]
+        lon_name = [name for name in poss if "lon" in name.lower()]
+        
+        # If still ambiguous, look inside the variable attributes for
+        # the presence of the variable name to give further
+        # preference.
+        if len(lat_name) == 0: raise ValueError("Unable to find values for the latitude dimension in %s" % (filename))
+        if len(lat_name) > 1:
+            tmp_name = [name for name in lat_name if np.any([name in str(var.getncattr(attr)) for attr in var.ncattrs()])]
+            if len(tmp_name) == 0: lat_name = tmp_name
+        if len(lon_name) == 0: raise ValueError("Unable to find values for the longitude dimension in %s" % (filename))
+        if len(lon_name) > 1:
+            tmp_name = [name for name in lon_name if np.any([name in str(var.getncattr(attr)) for attr in var.ncattrs()])]
+            if len(tmp_name) == 0: lon_name = tmp_name
+
+    # Time dimension
+    if len(time_name) == 1:
+        time_name     = time_name[0]
+        time_bnd_name = grp.variables[time_name].bounds if (time_name in grp.variables and
+                                                            "bounds" in grp.variables[time_name].ncattrs()) else None
+    elif len(time_name) >= 1:
+        raise ValueError("Ambiguous choice of values for the time dimension [%s] in %s" % (",".join(time_name),filename))
+    else:
+        time_name     = None
+        time_bnd_name = None
+
+    # Lat dimension
+    if len(lat_name) == 1:
+        lat_name     = lat_name[0]
+        lat_bnd_name = grp.variables[lat_name].bounds if (lat_name in grp.variables and
+                                                          "bounds" in grp.variables[lat_name].ncattrs()) else None
+    elif len(lat_name) >= 1:
+        raise ValueError("Ambiguous choice of values for the latitude dimension [%s] in %s" % (",".join(lat_name),filename))
+    else:
+        lat_name     = None
+        lat_bnd_name = None
+
+    # Lon dimension
+    if len(lon_name) == 1:
+        lon_name     = lon_name[0]
+        lon_bnd_name = grp.variables[lon_name].bounds if (lon_name in grp.variables and
+                                                          "bounds" in grp.variables[lon_name].ncattrs()) else None
+    elif len(lon_name) >= 1:
+        raise ValueError("Ambiguous choice of values for the longitude dimension [%s] in %s" % (",".join(lon_name),filename))
+    else:
+        lon_name     = None
+        lon_bnd_name = None
+
+    # Data dimension
+    if len(data_name) == 1:
+        data_name     = data_name[0]
+    elif len(data_name) >= 1:
+        raise ValueError("Ambiguous choice of values for the data dimension [%s] in %s" % (",".join(data_name),filename))
+    else:
+        data_name     = None
+
+    # The layered dimension is whatever is leftover since its name
+    # could be many things
+    if len(missed) == 1:
+        depth_name = missed[0]
+        depth_bnd_name = grp.variables[depth_name].bounds if (depth_name in grp.variables and
+                                                              "bounds" in grp.variables[depth_name].ncattrs()) else None
+    elif len(missed) >= 1:
+        raise ValueError("Ambiguous choice of values for the layered dimension [%s] in %s" % (",".join(missed),filename))
+    else:
+        depth_name     = None
+        depth_bnd_name = None
+        
     # Based on present values, get dimensions and bounds
+    t       = None; t_bnd     = None
+    lat     = None; lat_bnd   = None
+    lon     = None; lon_bnd   = None
+    depth   = None; depth_bnd = None
+    data    = None;
     cbounds = None
     if time_name is not None:
         if time_bnd_name is None:
@@ -570,10 +632,8 @@ def FromNetCDF4(filename,variable_name,alternate_vars=[],t0=None,tf=None,group=N
         if lat.size != data: lat = None
         if lon.size != data: lon = None
 
-    
     # read in data array, roughly subset in time if bounds are
-    # provided for added effciency, what do we do if no time in this
-    # file falls within the time bounds?
+    # provided for added effciency
     if (t is not None) and (t0 is not None or tf is not None):
         begin = 0; end = t.size
         if t0 is not None: begin = max(t.searchsorted(t0)-1,begin)
@@ -586,13 +646,14 @@ def FromNetCDF4(filename,variable_name,alternate_vars=[],t0=None,tf=None,group=N
         v = var[...]
 
     # If lat and lon are 2D, then we will need to interpolate things
-    if inter:
+    if lat is not None and lon is not None:
         if lat.ndim == 2 and lon.ndim == 2:
             assert lat.shape == lon.shape
-            
+        
             # Create the grid
             res          = 1.0
-            lat_bnds     = np.arange(- 90, 90+res/2.,res)
+            lat_bnds     = np.arange(round(lat.min(),0),
+                                     round(lat.max(),0)+res/2.,res)
             lon_bnds     = np.arange(round(lon.min(),0),
                                      round(lon.max(),0)+res/2.,res)
             lats         = 0.5*(lat_bnds[:-1]+lat_bnds[1:])
@@ -608,7 +669,7 @@ def FromNetCDF4(filename,variable_name,alternate_vars=[],t0=None,tf=None,group=N
             lon_bnd      = np.zeros((lon.size,2))
             lon_bnd[:,0] = lon_bnds[:-1]
             lon_bnd[:,1] = lon_bnds[+1:]
-        
+            
     # handle incorrect or absent masking of arrays
     if type(v) != type(np.ma.empty(1)):
         mask = np.zeros(v.shape,dtype=int)
@@ -624,7 +685,6 @@ def FromNetCDF4(filename,variable_name,alternate_vars=[],t0=None,tf=None,group=N
     dset.close()
     
     return v,units,variable_name,t,t_bnd,lat,lat_bnd,lon,lon_bnd,depth,depth_bnd,cbounds,data
-
         
 def Score(var,normalizer,FC=0.999999):
     """Remaps a normalized variable to the interval [0,1].
