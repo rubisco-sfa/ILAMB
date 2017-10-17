@@ -175,6 +175,11 @@ class ModelResult():
         # prepend the target variable to the list of possible variables
         altvars = list(alt_vars)
         altvars.insert(0,variable)
+
+        # checks on input consistency
+        if lats is not None: assert lons is not None
+        if lons is not None: assert lats is not None
+        if lats is not None: assert lats.shape == lons.shape
         
         # create a list of datafiles which have a non-null intersection
         # over the desired time range
@@ -190,7 +195,20 @@ class ModelResult():
                                tf             = final_time   - self.shift)
                 if ((var.time_bnds.max() < initial_time - self.shift) or
                     (var.time_bnds.min() >   final_time - self.shift)): continue
-                if lats is not None: var = var.extractDatasites(lats,lons)
+                if lats is not None and var.ndata:
+                    r = np.sqrt((lats[:,np.newaxis]-var.lat)**2 +
+                                (lons[:,np.newaxis]-var.lon)**2)
+                    imin = r.argmin(axis=1)
+                    rmin = r.   min(axis=1)
+                    imin = imin[np.where(rmin<1.0)]
+                    if imin.size == 0:
+                        logger.debug("[%s] Could not find [%s] at the input sites in the model results" % (self.name,",".join(altvars)))
+                        raise il.VarNotInModel()
+                    var.lat   = var.lat [  imin]
+                    var.lon   = var.lon [  imin]
+                    var.data  = var.data[:,imin]
+                    var.ndata = var.data.shape[1]
+                if lats is not None and var.spatial: var = var.extractDatasites(lats,lons)                    
                 var.time      += self.shift 
                 var.time_bnds += self.shift
                 V.append(var)
