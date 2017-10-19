@@ -77,37 +77,34 @@ class ModelResult():
                 if self.filter not in fileName: continue
                 pathName  = os.path.join(subdir,fileName)
                 dataset   = Dataset(pathName)
+                
                 # populate dictionary for which variables are in which files
                 for key in dataset.variables.keys():
                     if not variables.has_key(key):
                         variables[key] = []
                     variables[key].append(pathName)
-                # check for model spatial extents
-                lat_name = lat_bnd_name = None
-                lon_name = lon_bnd_name = None
-                for key in dataset.dimensions:
-                    if "lat" in key.lower(): lat_name,lat_bnd_name = _get(key,dataset)
-                    if "lon" in key.lower(): lon_name,lon_bnd_name = _get(key,dataset)
-                if (lat_name or lon_name) is None: continue
-                try:
-                    if lat_bnd_name is None or lat_bnd_name not in dataset.variables:
-                        self.extents[0,0] = max(self.extents[0,0],dataset.variables[lat_name].min())
-                        self.extents[0,1] = min(self.extents[0,1],dataset.variables[lat_name].max())
-                    else:
-                        self.extents[0,0] = max(self.extents[0,0],dataset.variables[lat_bnd_name].min())
-                        self.extents[0,1] = min(self.extents[0,1],dataset.variables[lat_bnd_name].max())
-                    if lon_bnd_name is None or lon_bnd_name not in dataset.variables:
-                        lon = dataset.variables[lon_name][...]
-                        lon = (lon<=180)*lon + (lon>180)*(lon-360)
-                        self.extents[1,0] = max(self.extents[1,0],lon.min())
-                        self.extents[1,1] = min(self.extents[1,1],lon.max())
-                    else:
-                        lon = dataset.variables[lon_bnd_name][...]
-                        lon = (lon<=180)*lon + (lon>180)*(lon-360)
-                        self.extents[1,0] = max(self.extents[1,0],lon.min())
-                        self.extents[1,1] = min(self.extents[1,1],lon.max())
-                except:
-                    pass
+
+        # determine spatial extents
+        lats = [key for key in variables.keys() if (key.lower().startswith("lat" ) or
+                                                    key.lower().  endswith("lat" ))]
+        lons = [key for key in variables.keys() if (key.lower().startswith("lon" ) or
+                                                    key.lower().  endswith("lon" ) or
+                                                    key.lower().startswith("long") or
+                                                    key.lower().  endswith("long"))]
+        for key in lats:
+            for pathName in variables[key]:
+                with Dataset(pathName) as dset:
+                    lat = dset.variables[key][...]
+                    self.extents[0,0] = max(self.extents[0,0],lat.min())
+                    self.extents[0,1] = min(self.extents[0,1],lat.max())
+        for key in lons:
+            for pathName in variables[key]:
+                with Dataset(pathName) as dset:
+                    lon = dset.variables[key][...]
+                    lon = (lon<=180)*lon + (lon>180)*(lon-360)
+                    self.extents[1,0] = max(self.extents[1,0],lon.min())
+                    self.extents[1,1] = min(self.extents[1,1],lon.max())
+                    
         # fix extents
         eps = 5.
         if self.extents[0,0] < (- 90.+eps): self.extents[0,0] = - 90.
