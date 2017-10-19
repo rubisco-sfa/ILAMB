@@ -600,7 +600,7 @@ def FromNetCDF4(filename,variable_name,alternate_vars=[],t0=None,tf=None,group=N
     else:
         depth_name     = None
         depth_bnd_name = None
-        
+    
     # Based on present values, get dimensions and bounds
     t       = None; t_bnd     = None
     lat     = None; lat_bnd   = None
@@ -1445,15 +1445,17 @@ def CombineVariables(V):
     if np.any((time_bnds[:,1]-time_bnds[:,0])<1e-12): time_bnds = None
     
     v = V[0]
-    return Variable(data      = np.ma.masked_array(data,mask=mask),
-                    unit      = v.unit,
-                    name      = v.name,
-                    time      = time,
-                    time_bnds = time_bnds,
-                    lat       = v.lat,
-                    lon       = v.lon,
-                    area      = v.area,
-                    ndata     = v.ndata)
+    return Variable(data       = np.ma.masked_array(data,mask=mask),
+                    unit       = v.unit,
+                    name       = v.name,
+                    time       = time,
+                    time_bnds  = time_bnds,
+                    depth      = v.depth,
+                    depth_bnds = v.depth_bnds,
+                    lat        = v.lat,
+                    lon        = v.lon,
+                    area       = v.area,
+                    ndata      = v.ndata)
 
 def ConvertBoundsTypes(x):
     y = None
