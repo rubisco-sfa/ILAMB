@@ -1437,6 +1437,13 @@ def CombineVariables(V):
         time_bnds[ind[i]:ind[i+1],...] = v.time_bnds
         data     [ind[i]:ind[i+1],...] = v.data
         mask     [ind[i]:ind[i+1],...] = v.data.mask
+
+    # If assembled from single slice files and no time bounds were
+    # provided, they will not be reflective of true bounds here. If
+    # any dt's are 0, make time_bounds none and recompute in the
+    # constructor.
+    if np.any((time_bnds[:,1]-time_bnds[:,0])<1e-12): time_bnds = None
+    
     v = V[0]
     return Variable(data      = np.ma.masked_array(data,mask=mask),
                     unit      = v.unit,
