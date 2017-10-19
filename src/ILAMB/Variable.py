@@ -110,7 +110,9 @@ class Variable:
             x_bnds = np.zeros((x.size,2))
             x_bnds[+1:,0] = 0.5*(x[:-1]+x[+1:])
             x_bnds[:-1,1] = 0.5*(x[:-1]+x[+1:])
-            if x.size > 1:
+            if x.size == 1:
+                x_bnds[ ...] = x
+            else:
                 x_bnds[ 0,0] = x[ 0] - 0.5*(x[ 1]-x[ 0])
                 x_bnds[-1,1] = x[-1] + 0.5*(x[-1]-x[-2])
             return x_bnds
@@ -123,11 +125,7 @@ class Variable:
         self.monthly   = False     # flag for monthly means
         if time is not None:
             self.temporal = True
-            if self.time_bnds is None:
-                self.time_bnds      = np.zeros((self.time.size,2))
-                self.time_bnds[ :,1] = np.copy(self.time)
-                self.time_bnds[1:,0] = self.time_bnds[:-1,1]
-                self.time_bnds[ 0,0] = self.time_bnds[1,0]-np.diff(self.time_bnds[1,:])
+            if self.time_bnds is None: self.time_bnds = _createBnds(self.time)
             self.dt = (self.time_bnds[:,1]-self.time_bnds[:,0]).mean()
             if np.allclose(self.dt,30,atol=3): self.monthly = True
             assert (2*self.time.size) == (self.time_bnds.size)
