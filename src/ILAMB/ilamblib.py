@@ -549,6 +549,7 @@ def FromNetCDF4(filename,variable_name,alternate_vars=[],t0=None,tf=None,group=N
         time_name     = time_name[0]
         time_bnd_name = grp.variables[time_name].bounds if (time_name in grp.variables and
                                                             "bounds" in grp.variables[time_name].ncattrs()) else None
+        if time_bnd_name not in grp.variables: time_bnd_name = None
     elif len(time_name) >= 1:
         raise ValueError("Ambiguous choice of values for the time dimension [%s] in %s" % (",".join(time_name),filename))
     else:
@@ -560,6 +561,7 @@ def FromNetCDF4(filename,variable_name,alternate_vars=[],t0=None,tf=None,group=N
         lat_name     = lat_name[0]
         lat_bnd_name = grp.variables[lat_name].bounds if (lat_name in grp.variables and
                                                           "bounds" in grp.variables[lat_name].ncattrs()) else None
+        if lat_bnd_name not in grp.variables: lat_bnd_name = None
     elif len(lat_name) >= 1:
         raise ValueError("Ambiguous choice of values for the latitude dimension [%s] in %s" % (",".join(lat_name),filename))
     else:
@@ -571,6 +573,7 @@ def FromNetCDF4(filename,variable_name,alternate_vars=[],t0=None,tf=None,group=N
         lon_name     = lon_name[0]
         lon_bnd_name = grp.variables[lon_name].bounds if (lon_name in grp.variables and
                                                           "bounds" in grp.variables[lon_name].ncattrs()) else None
+        if lon_bnd_name not in grp.variables: lon_bnd_name = None
     elif len(lon_name) >= 1:
         raise ValueError("Ambiguous choice of values for the longitude dimension [%s] in %s" % (",".join(lon_name),filename))
     else:
@@ -591,6 +594,7 @@ def FromNetCDF4(filename,variable_name,alternate_vars=[],t0=None,tf=None,group=N
         depth_name = missed[0]
         depth_bnd_name = grp.variables[depth_name].bounds if (depth_name in grp.variables and
                                                               "bounds" in grp.variables[depth_name].ncattrs()) else None
+        if depth_bnd_name not in grp.variables: depth_bnd_name = None
     elif len(missed) >= 1:
         raise ValueError("Ambiguous choice of values for the layered dimension [%s] in %s" % (",".join(missed),filename))
     else:
