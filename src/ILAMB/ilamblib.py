@@ -535,14 +535,15 @@ def FromNetCDF4(filename,variable_name,alternate_vars=[],t0=None,tf=None,group=N
         # If still ambiguous, look inside the variable attributes for
         # the presence of the variable name to give further
         # preference.
+        attrs = [str(var.getncattr(attr)) for attr in var.ncattrs()]
         if len(lat_name) == 0: raise ValueError("Unable to find values for the latitude dimension in %s" % (filename))
         if len(lat_name) > 1:
-            tmp_name = [name for name in lat_name if np.any([name in str(var.getncattr(attr)) for attr in var.ncattrs()])]
-            if len(tmp_name) == 0: lat_name = tmp_name
+            tmp_name = [name for name in lat_name if np.any([name in attr for attr in attrs])]
+            if len(tmp_name) > 0: lat_name = tmp_name
         if len(lon_name) == 0: raise ValueError("Unable to find values for the longitude dimension in %s" % (filename))
         if len(lon_name) > 1:
-            tmp_name = [name for name in lon_name if np.any([name in str(var.getncattr(attr)) for attr in var.ncattrs()])]
-            if len(tmp_name) == 0: lon_name = tmp_name
+            tmp_name = [name for name in lon_name if np.any([name in attr for attr in attrs])]
+            if len(tmp_name) > 0: lon_name = tmp_name
 
     # Time dimension
     if len(time_name) == 1:
