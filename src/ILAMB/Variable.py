@@ -8,6 +8,9 @@ import ilamblib as il
 import Post as post
 import numpy as np
 
+def _shiftLon(lon):
+    return (lon<=180)*lon + (lon>180)*(lon-360) + (lon<-180)*360
+    
 class Variable:
     r"""A class for managing variables and their analysis.
 
@@ -139,11 +142,9 @@ class Variable:
         self.area     = keywords.get("area",None)
         
         # Shift possible values on [0,360] to [-180,180]
-        if self.lon       is not None:
-            self.lon      = (self.lon     <=180)*self.lon     +(self.lon     >180)*(self.lon     -360)
-        if  self.lon_bnds is not None:   
-            self.lon_bnds = (self.lon_bnds<=180)*self.lon_bnds+(self.lon_bnds>180)*(self.lon_bnds-360)
-            
+        if self.lon      is not None: self.lon      = _shiftLon(self.lon     )
+        if self.lon_bnds is not None: self.lon_bnds = _shiftLon(self.lon_bnds)
+
         # If the last dimensions are lat and lon, this is spatial data
         if lat is not None and lon is not None and data.ndim >= 2:
             if (data.shape[-2] == lat.size and data.shape[-1] == lon.size): self.spatial = True

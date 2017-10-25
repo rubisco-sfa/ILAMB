@@ -95,13 +95,16 @@ class ModelResult():
             for pathName in variables[key]:
                 with Dataset(pathName) as dset:
                     lat = dset.variables[key][...]
+                    if lat.size == 1: continue
                     self.extents[0,0] = max(self.extents[0,0],lat.min())
                     self.extents[0,1] = min(self.extents[0,1],lat.max())
         for key in lons:
             for pathName in variables[key]:
                 with Dataset(pathName) as dset:
                     lon = dset.variables[key][...]
-                    lon = (lon<=180)*lon + (lon>180)*(lon-360)
+                    if lon.size == 1: continue
+                    if lon.ndim < 1 or lon.ndim > 2: continue
+                    lon = (lon<=180)*lon + (lon>180)*(lon-360) + (lon<-180)*360
                     self.extents[1,0] = max(self.extents[1,0],lon.min())
                     self.extents[1,1] = min(self.extents[1,1],lon.max())
                     
@@ -177,10 +180,12 @@ class ModelResult():
         if lats is not None: assert lons is not None
         if lons is not None: assert lats is not None
         if lats is not None: assert lats.shape == lons.shape
-        
+
         # create a list of datafiles which have a non-null intersection
         # over the desired time range
         V = []
+        tmin =  1e20
+        tmax = -1e20
         for v in altvars:
             if not self.variables.has_key(v): continue
             for pathName in self.variables[v]:
@@ -190,6 +195,8 @@ class ModelResult():
                                area           = self.land_areas,
                                t0             = initial_time - self.shift,
                                tf             = final_time   - self.shift)
+                tmin = min(tmin,var.time_bnds.min())
+                tmax = max(tmax,var.time_bnds.max())
                 if ((var.time_bnds.max() < initial_time - self.shift) or
                     (var.time_bnds.min() >   final_time - self.shift)): continue
                 if lats is not None and var.ndata:
@@ -222,7 +229,9 @@ class ModelResult():
                                          initial_time = initial_time,
                                          final_time   = final_time)
             else:
-                logger.debug("[%s] Could not find [%s] in the model results in the given time frame" % (self.name,",".join(altvars)))
+                tstr = ""
+                if tmin < tmax: tstr = " in the given time frame, tinput = [%.1f,%.1f], tmodel = [%.1f,%.1f]" % (initial_time,final_time,tmin+self.shift,tmax+self.shift)
+                logger.debug("[%s] Could not find [%s] in the model results%s" % (self.name,",".join(altvars),tstr))
                 raise il.VarNotInModel()
         else:
             v = il.CombineVariables(V)
