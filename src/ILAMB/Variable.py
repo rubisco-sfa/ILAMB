@@ -1111,10 +1111,14 @@ class Variable:
                 LON = np.ma.masked_array(LON,mask=self.data.mask,copy=False)
                 LAT = self.lat[(LAT.mask==False).any(axis=1)]
                 TF  = (LON.mask==False).any(axis=0)
-                dateline = True if (TF[0] == TF[-1] == True and (TF==False).any()) else False
+                # do we need to shift longitudes to plot continuously
+                # over the dateline? 
+                dateline = True if (TF[0] == TF[-1] == True and
+                                    (TF==False).any()       and
+                                    LAT.min() < -45.        and
+                                    LAT.max() >  45.           ) else False
                 LON = self.lon[TF]
-                if dateline:
-                    LON = (LON>=0)*LON+(LON<0)*(LON+360)
+                if dateline: LON = (LON>=0)*LON+(LON<0)*(LON+360)
                     
             lat0 = LAT.min() ; latf = LAT.max()
             lon0 = LON.min() ; lonf = LON.max()
@@ -1129,7 +1133,7 @@ class Variable:
                 area *= (360-lonf+lon0)
             else:
                 area *= (lonf-lon0)
-            
+
             # Setup the plot projection depending on data limits
             bmap = Basemap(projection     = 'robin',
                                lon_0      = lonm,
