@@ -654,7 +654,7 @@ def FromNetCDF4(filename,variable_name,alternate_vars=[],t0=None,tf=None,group=N
     if lat is not None and lon is not None:
         if lat.ndim == 2 and lon.ndim == 2:
             assert lat.shape == lon.shape
-        
+            
             # Create the grid
             res          = 1.0
             lat_bnds     = np.arange(round(lat.min(),0),
@@ -664,7 +664,10 @@ def FromNetCDF4(filename,variable_name,alternate_vars=[],t0=None,tf=None,group=N
             lats         = 0.5*(lat_bnds[:-1]+lat_bnds[1:])
             lons         = 0.5*(lon_bnds[:-1]+lon_bnds[1:])
             ilat,ilon    = ComputeIndexingArrays(lat,lon,lats,lons)
+            r            = np.sqrt( (lat[ilat,ilon]-lats[:,np.newaxis])**2 +
+                                    (lon[ilat,ilon]-lons[np.newaxis,:])**2 )
             v            = v[...,ilat,ilon]
+            v            = np.ma.masked_array(v,mask=v.mask+(r>2*res))
             lat          = lats
             lon          = lons
             lat_bnd      = np.zeros((lat.size,2))
