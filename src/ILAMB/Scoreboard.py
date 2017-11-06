@@ -29,7 +29,7 @@ class Node(object):
         self.land                = False
         self.confrontation       = None
         self.output_path         = None
-        self.bgcolor             = None
+        self.bgcolor             = "#EDEDED"
         self.table_unit          = None
         self.plot_unit           = None
         self.space_mean          = True
