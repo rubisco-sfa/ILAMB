@@ -1133,14 +1133,14 @@ class Variable:
                 area *= (360-lonf+lon0)
             else:
                 area *= (lonf-lon0)
-
+                
             # Setup the plot projection depending on data limits
-            bmap = Basemap(projection     = 'robin',
-                               lon_0      = lonm,
-                               ax         = ax,
-                               resolution = 'c')
+            bmap = Basemap(projection = 'robin',
+                           lon_0      = lonm if dateline else 0,
+                           ax         = ax,
+                           resolution = 'c')
             if (lon0 < -170.) and (lonf > 170.):
-                if lat0 > 23.5: 
+                if lat0 > 23.5:
                     bmap = Basemap(projection  = 'npstere',
                                    boundinglat = lat0-5.,
                                    lon_0       = 0.,
