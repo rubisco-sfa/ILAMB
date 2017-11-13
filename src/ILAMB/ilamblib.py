@@ -832,6 +832,7 @@ def AnalysisMeanState(ref,com,**keywords):
         the unit to use when displaying output on plots on the HTML page
 
     """
+    from Variable import Variable
     regions           = keywords.get("regions"          ,["global"])
     dataset           = keywords.get("dataset"          ,None)
     benchmark_dataset = keywords.get("benchmark_dataset",None)
@@ -855,7 +856,17 @@ def AnalysisMeanState(ref,com,**keywords):
         lat,lon,lat_bnds,lon_bnds = _composeGrids(ref,com)
         REF = ref.interpolate(lat=lat,lon=lon)
         COM = com.interpolate(lat=lat,lon=lon)
-    
+
+        # Masks 
+        ref_mask = REF.data.mask.all(axis=0)
+        com_mask = COM.data.mask.all(axis=0)
+        ref_and_com = (ref_mask == False) * (com_mask == False)
+        ref_not_com = (ref_mask == False) * (com_mask == True )
+        com_not_ref = (ref_mask == True ) * (com_mask == False)
+
+        print ( ref_and_com * ref_not_com ).sum()
+        
+        
     # We find the mean values over the time period on the original
     # grid/datasites of each dataset
     ref_timeint = ref.integrateInTime(mean=True)
@@ -863,6 +874,24 @@ def AnalysisMeanState(ref,com,**keywords):
     if spatial:
         REF_timeint = REF.integrateInTime(mean=True)
         COM_timeint = COM.integrateInTime(mean=True)
+        ref_and_COM = Variable(name = "ref_and_COM", unit = ref.unit,
+                               data = np.ma.masked_array(COM_timeint.data,mask=(ref_and_com==False)),
+                               lat  = lat, lat_bnds = lat_bnds,
+                               lon  = lon, lon_bnds = lon_bnds)
+        COM_not_ref = Variable(name = "COM_not_ref", unit = ref.unit,
+                               data = np.ma.masked_array(COM_timeint.data,mask=(com_not_ref==False)),
+                               lat  = lat, lat_bnds = lat_bnds,
+                               lon  = lon, lon_bnds = lon_bnds)
+        REF_and_com = Variable(name = "REF_and_com", unit = REF.unit,
+                               data = np.ma.masked_array(REF_timeint.data,mask=(ref_and_com==False)),
+                               lat  = lat, lat_bnds = lat_bnds,
+                               lon  = lon, lon_bnds = lon_bnds)
+        REF_not_com = Variable(name = "REF_not_com", unit = REF.unit,
+                               data = np.ma.masked_array(REF_timeint.data,mask=(ref_not_com==False)),
+                               lat  = lat, lat_bnds = lat_bnds,
+                               lon  = lon, lon_bnds = lon_bnds)
+        print ref_timeint    .integrateInSpace(region="global",mean=space_mean)
+        print REF_timeint    .integrateInSpace(region="global",mean=space_mean)
     else:
         REF         = ref
         COM         = com
@@ -894,9 +923,15 @@ def AnalysisMeanState(ref,com,**keywords):
     com_period_mean = {}; com_spaceint = {}; com_mean_cycle = {}; com_dtcycle = {}
     bias_val  = {}; bias_score = {}; rmse_val = {}; rmse_score = {}
     space_std = {}; space_cor  = {}; sd_score = {}; shift = {}; shift_score = {}
+    ref_union_mean = {}; ref_comp_mean = {}
+    com_union_mean = {}; com_comp_mean = {}
     for region in regions:
         if spatial:
             ref_period_mean[region] = ref_timeint    .integrateInSpace(region=region,mean=space_mean)
+            ref_union_mean [region] = REF_and_com    .integrateInSpace(region=region,mean=space_mean)
+            com_union_mean [region] = ref_and_COM    .integrateInSpace(region=region,mean=space_mean)
+            ref_comp_mean  [region] = REF_not_com    .integrateInSpace(region=region,mean=space_mean)
+            com_comp_mean  [region] = COM_not_ref    .integrateInSpace(region=region,mean=space_mean)
             ref_spaceint   [region] = ref            .integrateInSpace(region=region,mean=True)
             com_period_mean[region] = com_timeint    .integrateInSpace(region=region,mean=space_mean)
             com_spaceint   [region] = com            .integrateInSpace(region=region,mean=True)
@@ -939,6 +974,10 @@ def AnalysisMeanState(ref,com,**keywords):
         ref_spaceint   [region].name = "spaceint_of_%s_over_%s"        % (ref.name,region)
         com_period_mean[region].name = "Period Mean %s"                % (region)
         com_spaceint   [region].name = "spaceint_of_%s_over_%s"        % (ref.name,region)
+        ref_union_mean [region].name = "Period Mean (REF U com) %s"    % (region)
+        com_union_mean [region].name = "Period Mean (ref U COM) %s"    % (region)        
+        ref_comp_mean  [region].name = "Period Mean (REF C com) %s"   % (region)
+        com_comp_mean  [region].name = "Period Mean (COM C ref) %s"   % (region)        
         bias_val       [region].name = "Bias %s"                       % (region)
         bias_score     [region].name = "Bias Score %s"                 % (region)
         if not skip_rmse:
@@ -962,7 +1001,7 @@ def AnalysisMeanState(ref,com,**keywords):
             var.convert(unit)
 
     if table_unit is not None:
-        for var in [ref_period_mean,com_period_mean]:
+        for var in [ref_period_mean,com_period_mean,ref_union_mean,com_union_mean,ref_comp_mean,com_comp_mean]:
             _convert(var,table_unit)
     if plot_unit is not None:
         plot_vars = [com_timeint,ref_timeint,bias,com_spaceint,ref_spaceint,bias_val]
@@ -976,6 +1015,10 @@ def AnalysisMeanState(ref,com,**keywords):
     bias_score_map .name = "biasscore_map_of_%s"  % ref.name
     
     out_vars = [com_period_mean,
+                ref_union_mean,
+                com_union_mean,
+                ref_comp_mean,
+                com_comp_mean,
                 com_timeint,
                 com_mean_cycle,
                 com_dtcycle,
