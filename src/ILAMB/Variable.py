@@ -1187,7 +1187,7 @@ class Variable:
         return ax
     
 
-    def interpolate(self,time=None,lat=None,lon=None,itype='nearestneighbor'):
+    def interpolate(self,time=None,lat=None,lon=None,lat_bnds=None,lon_bnds=None,itype='nearestneighbor'):
         """Use nearest-neighbor interpolation to interpolate time and/or space at given values.
 
         Parameters
@@ -1216,8 +1216,8 @@ class Variable:
             if lat is None: lat = self.lat
             if lon is None: lon = self.lon
             if itype == 'nearestneighbor':
-                rows  = np.apply_along_axis(np.argmin,1,np.abs(lat[:,np.newaxis]-self.lat))
-                cols  = np.apply_along_axis(np.argmin,1,np.abs(lon[:,np.newaxis]-self.lon))
+                rows  = (np.abs(lat[:,np.newaxis]-self.lat)).argmin(axis=1)
+                cols  = (np.abs(lon[:,np.newaxis]-self.lon)).argmin(axis=1)
                 args  = []
                 if self.temporal: args.append(range(self.time.size))
                 if self.layered:  args.append(range(self.depth.size))
@@ -1227,10 +1227,10 @@ class Variable:
                 mask  = data.mask[ind]
                 data  = data.data[ind]
                 data  = np.ma.masked_array(data,mask=mask)
-                frac  = self.area / il.CellAreas(self.lat,self.lon).clip(1e-12)
+                frac  = self.area / il.CellAreas(self.lat,self.lon,self.lat_bnds,self.lon_bnds).clip(1e-12)
                 frac  = frac.clip(0,1)
                 frac  = frac[np.ix_(rows,cols)]
-                output_area = frac * il.CellAreas(lat,lon)
+                output_area = frac * il.CellAreas(lat,lon,lat_bnds,lon_bnds)
             elif itype == 'bilinear':
                 from scipy.interpolate import RectBivariateSpline
                 if self.data.ndim == 3:
