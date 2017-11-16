@@ -974,9 +974,9 @@ def AnalysisMeanState(ref,com,**keywords):
                 rmse_val   [region] = rmse           .siteStats(region=region)
                 rmse_score [region] = rmse_score_map .siteStats(region=region,weight=normalizer)
                 
-        ref_period_mean[region].name = "Period Mean %s"                % (region)
+        ref_period_mean[region].name = "Period Mean (original grids) %s" % (region)
         ref_spaceint   [region].name = "spaceint_of_%s_over_%s"        % (ref.name,region)
-        com_period_mean[region].name = "Period Mean %s"                % (region)
+        com_period_mean[region].name = "Period Mean (original grids) %s" % (region)
         com_spaceint   [region].name = "spaceint_of_%s_over_%s"        % (ref.name,region)
         bias_val       [region].name = "Bias %s"                       % (region)
         bias_score     [region].name = "Bias Score %s"                 % (region)
@@ -991,11 +991,11 @@ def AnalysisMeanState(ref,com,**keywords):
             shift         [region].name = "Phase Shift %s"                % (region)
             shift_score   [region].name = "Seasonal Cycle Score %s"       % (region)
         if spatial:
-            ref_union_mean[region].name = "Period Mean (REF U com) %s"    % (region)
-            com_union_mean[region].name = "Period Mean (ref U COM) %s"    % (region)        
-            ref_comp_mean [region].name = "Period Mean (REF C com) %s"   % (region)
-            com_comp_mean [region].name = "Period Mean (COM C ref) %s"   % (region)        
-            sd_score      [region].name = "Spatial Distribution Score %s" % (region)
+            ref_union_mean[region].name = "Benchmark Period Mean (intersection) %s" % (region)
+            com_union_mean[region].name = "Model Period Mean (intersection) %s"     % (region)        
+            ref_comp_mean [region].name = "Benchmark Period Mean (complement) %s"   % (region)
+            com_comp_mean [region].name = "Model Period Mean (complement) %s"       % (region)        
+            sd_score      [region].name = "Spatial Distribution Score %s"           % (region)
         
     # Unit conversions
     def _convert(var,unit):

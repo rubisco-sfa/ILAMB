@@ -213,7 +213,7 @@ class HtmlPage(object):
         self.regions     = None
         self.metrics     = None
         self.units       = None
-        self.priority    = ["Bias","RMSE","Phase","Seasonal","Spatial","Interannual","Score","Overall"]
+        self.priority    = ["original","Model","intersection","complement","Benchmark","Bias","RMSE","Phase","Seasonal","Spatial","Interannual","Score","Overall"]
         self.header      = "CNAME"
         self.sections    = []
         self.figures     = {}
@@ -249,7 +249,7 @@ class HtmlPage(object):
 
         if self.regions:
             code += """
-      <select id="%sRegion" onchange="%sTable()">""" % (self.name,self.name)
+      <select id="%sRegion" onchange="toggleTables()">""" % (self.name)
             for region in self.regions:
                 try:
                     rname = r.getRegionName(region)
@@ -263,10 +263,8 @@ class HtmlPage(object):
             code += """
       </select>"""
                 
-        if self.metric_dict:
-            code += """
-      <div id="%s_table" align="center"></div>""" % self.name
-
+        if self.metric_dict: code += self.metricsToHtmlTables()
+        
         if self.text is not None:
             code += """
       %s""" % self.text
@@ -305,6 +303,62 @@ class HtmlPage(object):
     def setMetricPriority(self,priority):
         self.priority = priority
 
+    def metricsToHtmlTables(self):
+        if not self.metric_dict: return ""
+        regions = self.regions
+        metrics = self.metrics
+        units   = self.units
+        cname   = self.cname.split(" / ")
+        if len(cname) == 3:
+            cname = cname[1].strip()
+        else:
+            cname = cname[-1].strip()
+        html    = ""
+        inserts = [5,6]
+        for region in regions:
+            html += """
+        <center>
+        <table class="table-header-rotated" id="%s_table_%s">
+           <thead>
+             <tr>
+               <th></th>
+               <th class="rotate"><div><span>Download Data</span></div></th>""" % (self.name,region)
+            for i,metric in enumerate(metrics):
+                if i in inserts: html += """
+               <th></th>"""
+                html += """
+               <th class="rotate"><div><span>%s [%s]</span></div></th>""" % (metric,units[metric])
+            html += """
+             </tr>
+           </thead>
+           <tbody>"""
+
+            for j,model in enumerate(self.models):
+                opts = ' onclick="highlightRow(this)"' if j > 0 else ''
+                html += """
+             <tr>
+               <td%s class="row-header">%s</td>
+               <td%s><a href="%s_%s.nc" download>[-]</a></td>""" % (opts,model,opts,cname,model)
+                for i,metric in enumerate(metrics):
+                    if i in inserts: html += """
+               <td%s class="divider"></td>""" % (opts)
+                    add = ""
+                    try:
+                        add = "%.03f" % self.metric_dict[model][region][metric].data
+                        add = add.lower().replace("nan","")
+                    except:
+                        pass
+                    html += """
+               <td%s>%s</td>""" % (opts,add)
+                html += """
+             </tr>"""
+            html += """
+          </tbody>
+        </table>
+        </center>"""
+        
+        return html
+    
     def googleScript(self):
         if not self.metric_dict: return ""
         models   = self.models
@@ -316,77 +370,87 @@ class HtmlPage(object):
             cname = cname[1].strip()
         else:
             cname = cname[-1].strip()
-        callback = "%sTable()" % self.name
-        head     = """
-      function %sTable() {
-        var data = new google.visualization.DataTable();
-        data.addColumn('string','Model');
-        data.addColumn('string','Data');""" % (self.name)
-        for region in regions:
-            for metric in metrics:
-                head += """
-        data.addColumn('number','<span title="%s">%s [%s]</span>');""" % (metric,metric,units[metric])
-        head += """
-        data.addRows(["""
-        for model in models:
-            head += """
-          ['%s','<a href="%s_%s.nc" download>[-]</a>'""" % (model,cname,model)
-            for region in regions:
-                for metric in metrics:
-                    add = ", null"
-                    try:
-                        add = ",%.03f" % self.metric_dict[model][region][metric].data
-                        add = add.lower().replace("nan","null")
-                    except:
-                        pass
-                    head += add
-            head += "],"
-        head += """
-        ]);"""
 
-        n     = len(metrics)
-        cols  = (str(range(2,n+2))[1:]).replace(", ",", %d*rid+" % n)
-        cols  = "%d*rid+2" % n + cols[1:]
-        head += """
-        var view  = new google.visualization.DataView(data);
-        var rid   = document.getElementById("%sRegion").selectedIndex
-        view.setColumns([0,1,%s);""" % (self.name,cols)
+        head = """
 
-        head += """
-        var table = new google.visualization.Table(document.getElementById('%s_table'));
-        table.draw(view, {showRowNumber: false,allowHtml: true});""" % self.name
+	function highlightRow(cell) {
+	    var select = document.getElementById("MeanStateRegion");
+	    for (var i = 0; i < select.length; i++){
+		var table = document.getElementById("%s_table_" + select.options[i].value);
+		var rows  = table.getElementsByTagName("tr");
+		for (var r = 2; r < rows.length; r++) {
+        	    for (var c = 0; c < rows[r].cells.length-4; c++) {
+        		rows[r].cells[c].style.backgroundColor = "#ffffff";
+        	    }
+		}
+		var r = cell.closest("tr").rowIndex;
+		for (var c = 0; c < rows[r].cells.length-4; c++) {
+        	    rows[r].cells[c].style.backgroundColor = "#c1c1c1";
+		}
+	    }
+	}
+	
+        function paintScoreCells(RNAME) {
+	    var colors = ['#fb6a4a','#fc9272','#fcbba1','#fee0d2','#fff5f0','#f7fcf5','#e5f5e0','#c7e9c0','#a1d99b','#74c476'];
+            var table  = document.getElementById("%s_table_" + RNAME);
+            var rows   = table.getElementsByTagName("tr");
+            for (var c = rows[0].cells.length-3; c < rows[0].cells.length; c++) {		
+		var scores = [];
+		for (var r = 2; r < rows.length; r++) {
+		    scores[r-2] = parseFloat(rows[r].cells[c].innerHTML);
+		}
+		var mean = math.mean(scores);
+		var std  = math.max(0.02,math.std(scores));
+		for (var r = 2; r < rows.length; r++) {
+		    scores[r-2] = (scores[r-2]-mean)/std;
+		}
+		var smax = math.max(scores);
+		var smin = math.min(scores);
+		for (var r = 2; r < rows.length; r++) {
+		    var clr = math.round((scores[r-2]-smin)/(smax-smin)*10);
+		    clr     = math.min(9,math.max(0,clr));
+		    rows[r].cells[c].style.backgroundColor = colors[clr];
+		}
+	    }
+	}
 
-        head += """
-        function clickRow() {
-          var header = "%s";
-          var CNAME  = "%s";
-          header     = header.replace("CNAME",CNAME);
-          var rid    = document.getElementById("%s").selectedIndex;
-          var RNAME  = document.getElementById("%s").options[rid].value;
-          header     = header.replace("RNAME",RNAME);
-          var select = table.getSelection()
-          row = select[0].row;""" % (self.header,self.cname,self.name+"Region",self.name+"Region")
-        if "Benchmark" in models:
-            head += """
-          if (row == 0) {
-            table.setSelection([{'row': 1}]);
-            clickRow();
-            return;
-          }"""
-        head += """
-          var MNAME  = data.getValue(row,0);
-          header     = header.replace("MNAME",MNAME);
-          $("#%sHead").text(header);""" % (self.name) 
-        for section in self.sections:
-            for figure in self.figures[section]:
-                head += figure.generateClickRow()
-        head += """
-        }
-        google.visualization.events.addListener(table, 'select', clickRow);
-      table.setSelection([{'row': 0}]);
-      clickRow();
-      }"""
-        return head,callback,"table"
+	function pageLoad() {
+	    var select = document.getElementById("MeanStateRegion");
+	    var region = getQueryVariable("region");
+	    var model  = getQueryVariable("model");
+	    if (region) {
+		for (var i = 0; i < select.length; i++){
+		    if (select.options[i].value == region) select.selectedIndex = i;
+		}
+	    }
+	    var table = document.getElementById("%s_table_" + select.options[select.selectedIndex].value);
+	    var rows  = table.getElementsByTagName("tr");
+	    if (model) {
+		for (var r = 0; r < rows.length; r++) {
+		    if(rows[r].cells[0].innerHTML==model) highlightRow(rows[r].cells[0]);
+		}
+	    }else{
+		highlightRow(rows[2]);
+	    }
+	    for (var i = 0; i < select.length; i++){
+		paintScoreCells(select.options[i].value);
+	    }
+	    toggleTables();
+	}
+
+        function toggleTables() {
+	    var select = document.getElementById("MeanStateRegion");
+	    for (var i = 0; i < select.length; i++){
+		RNAME = select.options[i].value;
+		if (i == select.selectedIndex) {
+		    document.getElementById("%s_table_" + RNAME).style.display = "table";
+		}else{
+		    document.getElementById("%s_table_" + RNAME).style.display = "none";
+		}		
+	    }   
+	}""" % (self.name,self.name,self.name,self.name,self.name)
+            
+        return head,"",""
 
     def setRegions(self,regions):
         assert type(regions) == type([])
@@ -721,9 +785,20 @@ class HtmlLayout():
     <link rel="stylesheet" href="https://code.jquery.com/mobile/1.4.5/jquery.mobile-1.4.5.min.css">
     <script src="https://code.jquery.com/jquery-1.11.3.min.js"></script>
     <script src="https://code.jquery.com/mobile/1.4.5/jquery.mobile-1.4.5.min.js"></script>
-    <script type="text/javascript" src="https://www.google.com/jsapi"></script>"""
-    
-        ### stick in javascript stuff here
+    <script src="http://cdnjs.cloudflare.com/ajax/libs/mathjs/3.16.5/math.min.js"></script>
+    <script>
+        function getQueryVariable(variable) {
+	    var query = window.location.search.substring(1);
+	    var vars = query.split("&");
+	    for (var i=0;i<vars.length;i++) {
+		var pair = vars[i].split("=");
+		if(pair[0] == variable){return pair[1];}
+	    }
+	    return(false);
+	}
+    </script>"""
+
+
         functions = []
         callbacks = []
         packages  = []
@@ -736,23 +811,16 @@ class HtmlLayout():
                 if p != "": packages.append(p)
                 
         code += """
-    <script type='text/javascript'>
-      google.load("visualization", "1", {packages: %s});
-      google.setOnLoadCallback(allLoad);
-      function allLoad() {""" % packages
-        for c in callbacks:
-            code += """
-        %s""" % c
-        code += """
-      };"""
+    <script type='text/javascript'>"""
         for f in functions:
             code += f
         code += """
     </script>"""
 
-        for page in self.pages: code += page.head()
+
+
         
-        ### stick in css stuff here
+        max_height = 280 # will be related to max column header length across all pages
         code += """
     <style type="text/css">
       .container{
@@ -765,11 +833,42 @@ class HtmlLayout():
         font-size: 20px;
         font-weight: bold;
       }   
-    </style>"""
+      table.table-header-rotated {
+          border-collapse: collapse;
+      }
+      td {
+          width: 30px;
+          text-align: center;
+          padding: 10px 5px;
+          border: 1px solid #ccc;
+      }
+      th {
+          padding: 5px 10px;
+      }
+      th.rotate {
+          height: %dpx;
+          white-space: nowrap;    
+      }
+      th.rotate > div {
+          transform: translate(10px, %dpx) rotate(-45deg);
+          width: 0px;
+      }
+      th.rotate > div > span {
+      }
+      th.row-header {
+          padding: 0px 10px;
+          text-align: right;
+      }
+      td.divider {
+          width: 0px;
+          border: 0px solid #ccc;
+          padding: 0px 0px
+      }
+    </style>""" % (max_height,max_height/2-5)
 
         code += """
   </head>
-  <body>"""
+  <body onload="pageLoad()">"""
 
         ### loop over pages
         for page in self.pages: code += "%s" % (page)
