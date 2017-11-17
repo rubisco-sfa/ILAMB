@@ -218,6 +218,7 @@ class HtmlPage(object):
         self.sections    = []
         self.figures     = {}
         self.text        = None
+        self.inserts     = []
         
     def __str__(self):
 
@@ -262,6 +263,18 @@ class HtmlPage(object):
         <option value='%s'%s>%s</option>""" % (region,opts,rname)
             code += """
       </select>"""
+            
+        if self.models:
+            code += """
+      <div style="display:none">
+      <select id="%sModel">""" % (self.name)
+            for i,model in enumerate(self.models):
+                opts  = ' selected="selected"' if i == 1 else '' 
+                code += """
+        <option value='%s'%s>%s</option>""" % (model,opts,model)
+            code += """
+      </select>
+      </div>"""
                 
         if self.metric_dict: code += self.metricsToHtmlTables()
         
@@ -314,7 +327,7 @@ class HtmlPage(object):
         else:
             cname = cname[-1].strip()
         html    = ""
-        inserts = [5,6]
+        inserts = self.inserts
         for region in regions:
             html += """
         <center>
@@ -371,7 +384,32 @@ class HtmlPage(object):
         else:
             cname = cname[-1].strip()
 
+
+
+        rows = ""
+        for section in self.sections:
+            for figure in self.figures[section]:
+                rows += figure.generateClickRow()
+        
         head = """
+
+        function updateImagesAndHeaders(){
+            var rsel  = document.getElementById("MeanStateRegion");
+            var msel  = document.getElementById("MeanStateModel");
+            var rid   = rsel.selectedIndex;
+            var mid   = msel.selectedIndex;
+            var RNAME = rsel.options[rid].value;
+            var MNAME = msel.options[mid].value;
+            var CNAME = "%s";
+            var head  = "%s";
+            head      = head.replace("CNAME",CNAME).replace("RNAME",RNAME).replace("MNAME",MNAME);
+            $("#%sHead").text(head);
+            %s
+        }""" % (self.cname,self.header,self.name,rows)
+
+        nscores = len(metrics) - self.inserts[-1]
+        
+        head += """
 
 	function highlightRow(cell) {
 	    var select = document.getElementById("MeanStateRegion");
@@ -379,22 +417,26 @@ class HtmlPage(object):
 		var table = document.getElementById("%s_table_" + select.options[i].value);
 		var rows  = table.getElementsByTagName("tr");
 		for (var r = 2; r < rows.length; r++) {
-        	    for (var c = 0; c < rows[r].cells.length-4; c++) {
+        	    for (var c = 0; c < rows[r].cells.length-%d; c++) {
         		rows[r].cells[c].style.backgroundColor = "#ffffff";
         	    }
 		}
 		var r = cell.closest("tr").rowIndex;
-		for (var c = 0; c < rows[r].cells.length-4; c++) {
+                document.getElementById("MeanStateModel").selectedIndex = r-1;
+		for (var c = 0; c < rows[r].cells.length-%d; c++) {
         	    rows[r].cells[c].style.backgroundColor = "#c1c1c1";
 		}
 	    }
-	}
-	
+            updateImagesAndHeaders();
+	}""" % (self.name,nscores+1,nscores+1)
+
+        head += """
+
         function paintScoreCells(RNAME) {
 	    var colors = ['#fb6a4a','#fc9272','#fcbba1','#fee0d2','#fff5f0','#f7fcf5','#e5f5e0','#c7e9c0','#a1d99b','#74c476'];
             var table  = document.getElementById("%s_table_" + RNAME);
             var rows   = table.getElementsByTagName("tr");
-            for (var c = rows[0].cells.length-3; c < rows[0].cells.length; c++) {		
+            for (var c = rows[0].cells.length-%d; c < rows[0].cells.length; c++) {		
 		var scores = [];
 		for (var r = 2; r < rows.length; r++) {
 		    scores[r-2] = parseFloat(rows[r].cells[c].innerHTML);
@@ -412,7 +454,9 @@ class HtmlPage(object):
 		    rows[r].cells[c].style.backgroundColor = colors[clr];
 		}
 	    }
-	}
+	}""" % (self.name,nscores)
+
+        head += """
 
 	function pageLoad() {
 	    var select = document.getElementById("MeanStateRegion");
@@ -447,8 +491,9 @@ class HtmlPage(object):
 		}else{
 		    document.getElementById("%s_table_" + RNAME).style.display = "none";
 		}		
-	    }   
-	}""" % (self.name,self.name,self.name,self.name,self.name)
+	    }
+            updateImagesAndHeaders();
+	}""" % (self.name,self.name,self.name)
             
         return head,"",""
 
@@ -488,6 +533,11 @@ class HtmlPage(object):
         self.metrics = metrics
         self.units   = units
 
+        tmp = [("bias" in m.lower()) for m in metrics]
+        if tmp.count(True) > 0: self.inserts.append(tmp.index(True))
+        tmp = [("score" in m.lower()) for m in metrics]
+        if tmp.count(True) > 0: self.inserts.append(tmp.index(True))
+        
     def head(self):
         return ""
     
