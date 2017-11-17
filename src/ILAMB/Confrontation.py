@@ -365,6 +365,12 @@ class Confrontation(object):
                 vabs =  max(abs(limits[pname]["min"]),abs(limits[pname]["min"]))
                 limits[pname]["min"] = -vabs
                 limits[pname]["max"] =  vabs
+
+            # if a score, force to be [0,1]
+            if "score" in pname:
+                limits[pname]["min"] = 0
+                limits[pname]["max"] = 1
+
             limits[pname]["cmap"] = opts["cmap"]
             if limits[pname]["cmap"] == "choose": limits[pname]["cmap"] = self.cmap
 
