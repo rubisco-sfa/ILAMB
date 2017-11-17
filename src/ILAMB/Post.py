@@ -328,6 +328,7 @@ class HtmlPage(object):
             cname = cname[-1].strip()
         html    = ""
         inserts = self.inserts
+        j0 = 0 if "Benchmark" in self.models else -1
         for region in regions:
             html += """
         <center>
@@ -347,7 +348,7 @@ class HtmlPage(object):
            <tbody>"""
 
             for j,model in enumerate(self.models):
-                opts = ' onclick="highlightRow%s(this)"' % (self.name) if j > 0 else ''
+                opts = ' onclick="highlightRow%s(this)"' % (self.name) if j > j0 else ''
                 html += """
              <tr>
                <td%s class="row-header">%s</td>
@@ -408,7 +409,8 @@ class HtmlPage(object):
         }""" % (self.name,self.name,self.name,self.cname,self.header,self.name,rows)
 
         nscores = len(metrics) - self.inserts[-1]
-        
+        r0      = 2 if "Benchmark" in models else 1
+
         head += """
 
 	function highlightRow%s(cell) {
@@ -416,7 +418,7 @@ class HtmlPage(object):
 	    for (var i = 0; i < select.length; i++){
 		var table = document.getElementById("%s_table_" + select.options[i].value);
 		var rows  = table.getElementsByTagName("tr");
-		for (var r = 2; r < rows.length; r++) {
+		for (var r = %d; r < rows.length; r++) {
         	    for (var c = 0; c < rows[r].cells.length-%d; c++) {
         		rows[r].cells[c].style.backgroundColor = "#ffffff";
         	    }
@@ -428,8 +430,8 @@ class HtmlPage(object):
 		}
 	    }
             updateImagesAndHeaders%s();
-	}""" % (self.name,self.name,self.name,nscores+1,self.name,nscores+1,self.name)
-
+	}""" % (self.name,self.name,self.name,r0,nscores+1,self.name,nscores+1,self.name)
+        
         head += """
 
         function paintScoreCells%s(RNAME) {
@@ -438,13 +440,13 @@ class HtmlPage(object):
             var rows   = table.getElementsByTagName("tr");
             for (var c = rows[0].cells.length-%d; c < rows[0].cells.length; c++) {		
 		var scores = [];
-		for (var r = 2; r < rows.length; r++) {
-		    scores[r-2] = parseFloat(rows[r].cells[c].innerHTML);
+		for (var r = %d; r < rows.length; r++) {
+		    scores[r-%d] = parseFloat(rows[r].cells[c].innerHTML);
 		}
 		var mean = math.mean(scores);
 		var std  = math.max(0.02,math.std(scores));
-		for (var r = 2; r < rows.length; r++) {
-		    scores[r-2] = (scores[r-2]-mean)/std;
+		for (var r = %d; r < rows.length; r++) {
+		    scores[r-%d] = (scores[r-%d]-mean)/std;
 		}
 		var smax = math.max(scores);
 		var smin = math.min(scores);
@@ -452,13 +454,13 @@ class HtmlPage(object):
 		    smin = -1.0;
 		    smax =  1.0;
 		}
-		for (var r = 2; r < rows.length; r++) {
-		    var clr = math.round((scores[r-2]-smin)/(smax-smin)*10);
+		for (var r = %d; r < rows.length; r++) {
+		    var clr = math.round((scores[r-%d]-smin)/(smax-smin)*10);
 		    clr     = math.min(9,math.max(0,clr));
 		    rows[r].cells[c].style.backgroundColor = colors[clr];
 		}
 	    }
-	}""" % (self.name,self.name,nscores)
+	}""" % (self.name,self.name,nscores,r0,r0,r0,r0,r0,r0,r0)
 
         head += """
 
@@ -478,7 +480,7 @@ class HtmlPage(object):
 		    if(rows[r].cells[0].innerHTML==model) highlightRow%s(rows[r].cells[0]);
 		}
 	    }else{
-		highlightRow%s(rows[2]);
+		highlightRow%s(rows[%d]);
 	    }
 	    for (var i = 0; i < select.length; i++){
 		paintScoreCells%s(select.options[i].value);
@@ -497,7 +499,7 @@ class HtmlPage(object):
 		}		
 	    }
             updateImagesAndHeaders%s();
-	}""" % (self.name,self.name,self.name,self.name,self.name,self.name,self.name,self.name,self.name,self.name,self.name,self.name)
+	}""" % (self.name,self.name,self.name,self.name,self.name,r0,self.name,self.name,self.name,self.name,self.name,self.name,self.name)
             
         return head,"pageLoad%s" % self.name,""
 
