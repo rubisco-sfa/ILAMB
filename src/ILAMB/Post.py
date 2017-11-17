@@ -250,7 +250,7 @@ class HtmlPage(object):
 
         if self.regions:
             code += """
-      <select id="%sRegion" onchange="toggleTables()">""" % (self.name)
+      <select id="%sRegion" onchange="changeRegion%s()">""" % (self.name,self.name)
             for region in self.regions:
                 try:
                     rname = r.getRegionName(region)
@@ -347,7 +347,7 @@ class HtmlPage(object):
            <tbody>"""
 
             for j,model in enumerate(self.models):
-                opts = ' onclick="highlightRow(this)"' if j > 0 else ''
+                opts = ' onclick="highlightRow%s(this)"' % (self.name) if j > 0 else ''
                 html += """
              <tr>
                <td%s class="row-header">%s</td>
@@ -393,9 +393,9 @@ class HtmlPage(object):
         
         head = """
 
-        function updateImagesAndHeaders(){
-            var rsel  = document.getElementById("MeanStateRegion");
-            var msel  = document.getElementById("MeanStateModel");
+        function updateImagesAndHeaders%s(){
+            var rsel  = document.getElementById("%sRegion");
+            var msel  = document.getElementById("%sModel");
             var rid   = rsel.selectedIndex;
             var mid   = msel.selectedIndex;
             var RNAME = rsel.options[rid].value;
@@ -405,14 +405,14 @@ class HtmlPage(object):
             head      = head.replace("CNAME",CNAME).replace("RNAME",RNAME).replace("MNAME",MNAME);
             $("#%sHead").text(head);
             %s
-        }""" % (self.cname,self.header,self.name,rows)
+        }""" % (self.name,self.name,self.name,self.cname,self.header,self.name,rows)
 
         nscores = len(metrics) - self.inserts[-1]
         
         head += """
 
-	function highlightRow(cell) {
-	    var select = document.getElementById("MeanStateRegion");
+	function highlightRow%s(cell) {
+	    var select = document.getElementById("%sRegion");
 	    for (var i = 0; i < select.length; i++){
 		var table = document.getElementById("%s_table_" + select.options[i].value);
 		var rows  = table.getElementsByTagName("tr");
@@ -422,17 +422,17 @@ class HtmlPage(object):
         	    }
 		}
 		var r = cell.closest("tr").rowIndex;
-                document.getElementById("MeanStateModel").selectedIndex = r-1;
+                document.getElementById("%sModel").selectedIndex = r-1;
 		for (var c = 0; c < rows[r].cells.length-%d; c++) {
         	    rows[r].cells[c].style.backgroundColor = "#c1c1c1";
 		}
 	    }
-            updateImagesAndHeaders();
-	}""" % (self.name,nscores+1,nscores+1)
+            updateImagesAndHeaders%s();
+	}""" % (self.name,self.name,self.name,nscores+1,self.name,nscores+1,self.name)
 
         head += """
 
-        function paintScoreCells(RNAME) {
+        function paintScoreCells%s(RNAME) {
 	    var colors = ['#fb6a4a','#fc9272','#fcbba1','#fee0d2','#fff5f0','#f7fcf5','#e5f5e0','#c7e9c0','#a1d99b','#74c476'];
             var table  = document.getElementById("%s_table_" + RNAME);
             var rows   = table.getElementsByTagName("tr");
@@ -448,18 +448,22 @@ class HtmlPage(object):
 		}
 		var smax = math.max(scores);
 		var smin = math.min(scores);
+                if (math.abs(smax-smin) < 1e-12) {
+		    smin = -1.0;
+		    smax =  1.0;
+		}
 		for (var r = 2; r < rows.length; r++) {
 		    var clr = math.round((scores[r-2]-smin)/(smax-smin)*10);
 		    clr     = math.min(9,math.max(0,clr));
 		    rows[r].cells[c].style.backgroundColor = colors[clr];
 		}
 	    }
-	}""" % (self.name,nscores)
+	}""" % (self.name,self.name,nscores)
 
         head += """
 
-	function pageLoad() {
-	    var select = document.getElementById("MeanStateRegion");
+	function pageLoad%s() {
+	    var select = document.getElementById("%sRegion");
 	    var region = getQueryVariable("region");
 	    var model  = getQueryVariable("model");
 	    if (region) {
@@ -471,19 +475,19 @@ class HtmlPage(object):
 	    var rows  = table.getElementsByTagName("tr");
 	    if (model) {
 		for (var r = 0; r < rows.length; r++) {
-		    if(rows[r].cells[0].innerHTML==model) highlightRow(rows[r].cells[0]);
+		    if(rows[r].cells[0].innerHTML==model) highlightRow%s(rows[r].cells[0]);
 		}
 	    }else{
-		highlightRow(rows[2]);
+		highlightRow%s(rows[2]);
 	    }
 	    for (var i = 0; i < select.length; i++){
-		paintScoreCells(select.options[i].value);
+		paintScoreCells%s(select.options[i].value);
 	    }
-	    toggleTables();
+	    changeRegion%s();
 	}
 
-        function toggleTables() {
-	    var select = document.getElementById("MeanStateRegion");
+        function changeRegion%s() {
+	    var select = document.getElementById("%sRegion");
 	    for (var i = 0; i < select.length; i++){
 		RNAME = select.options[i].value;
 		if (i == select.selectedIndex) {
@@ -492,10 +496,10 @@ class HtmlPage(object):
 		    document.getElementById("%s_table_" + RNAME).style.display = "none";
 		}		
 	    }
-            updateImagesAndHeaders();
-	}""" % (self.name,self.name,self.name)
+            updateImagesAndHeaders%s();
+	}""" % (self.name,self.name,self.name,self.name,self.name,self.name,self.name,self.name,self.name,self.name,self.name,self.name)
             
-        return head,"",""
+        return head,"pageLoad%s" % self.name,""
 
     def setRegions(self,regions):
         assert type(regions) == type([])
@@ -848,7 +852,6 @@ class HtmlLayout():
 	}
     </script>"""
 
-
         functions = []
         callbacks = []
         packages  = []
@@ -859,7 +862,17 @@ class HtmlLayout():
                 if f != "": functions.append(f)
                 if c != "": callbacks.append(c)
                 if p != "": packages.append(p)
-                
+
+        code += """
+    <script type='text/javascript'>
+        function pageLoad() {"""
+        for c in callbacks:
+            code += """
+           %s();""" % c
+        code += """
+        }
+    </script>"""
+        
         code += """
     <script type='text/javascript'>"""
         for f in functions:
@@ -867,9 +880,6 @@ class HtmlLayout():
         code += """
     </script>"""
 
-
-
-        
         max_height = 280 # will be related to max column header length across all pages
         code += """
     <style type="text/css">
