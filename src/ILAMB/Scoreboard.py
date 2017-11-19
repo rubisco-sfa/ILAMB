@@ -412,7 +412,8 @@ class Scoreboard():
 	  </thead>
           <tbody>"""
             
-        for tree in self.tree.children: html += GenerateTable(tree,M,self)
+        html += GenerateTable(self.tree,M,self)
+        
         html += """
           </tbody>
         </table>
@@ -433,7 +434,7 @@ class Scoreboard():
 	    </tr>
 	  </thead>
           <tbody>"""
-            for tree in  rel_tree.children: html += GenerateTable(tree,M,self,composite=False)
+            html += GenerateTable(rel_tree,M,self,composite=False)
             html += """
           </tbody>
         </table>
@@ -521,6 +522,7 @@ def DarkenRowColor(clr,fraction=0.9):
 def BuildHTMLTable(tree,M,build_dir):
     global global_model_list
     global_model_list = M
+    global global_table_color    
     def _genHTML(node):
         global global_html
         global global_table_color
@@ -560,17 +562,24 @@ def BuildHTMLTable(tree,M,build_dir):
         row += '<td><div class="arrow"></div></td></tr>'
         global_html += row
 
-    TraversePreorder(tree,_genHTML)
+    for cat in tree.children:
+        global_table_color = cat.bgcolor
+        for var in cat.children:
+            TraversePreorder(var,_genHTML)
+        cat.name += " Summary"
+        _genHTML(cat)
+        cat.name.replace(" Summary","")
+    global_table_color = tree.bgcolor
+    tree.name = "Overall Summary"
+    _genHTML(tree)
     
 def GenerateTable(tree,M,S,composite=True):
     global global_html
     global global_model_list
-    global global_table_color
     if composite: CompositeScores(tree,M)
     global_model_list = M
-    global_table_color = tree.bgcolor
     global_html = ""
-    for cat in tree.children: BuildHTMLTable(cat,M,S.build_dir)
+    BuildHTMLTable(tree,M,S.build_dir)
     return global_html
 
 def GenerateSummaryFigure(tree,M,filename):
