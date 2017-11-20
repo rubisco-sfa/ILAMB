@@ -657,7 +657,8 @@ class HtmlAllModelsPage(HtmlPage):
         return code
 
     def googleScript(self):
-        return "","",""
+        head = self.head()
+        return head,"",""
     
     def head(self):
         
@@ -670,7 +671,6 @@ class HtmlAllModelsPage(HtmlPage):
         except:
             pass
         head    = """
-    <script>
       function AllSelect() {
         var header = "%s";
         var CNAME  = "%s";
@@ -710,12 +710,10 @@ class HtmlAllModelsPage(HtmlPage):
         document.getElementById('%s_legend').src = 'legend_' + PNAME + '.png';""" % (model,model,model)
         head += """
       }
-    </script>
-    <script>
+
       $(document).on('pageshow', '[data-role="page"]', function(){ 
         AllSelect()
-      });
-    </script>"""
+      });"""
         return head
 
 class HtmlSitePlotsPage(HtmlPage):
