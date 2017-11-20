@@ -441,7 +441,12 @@ class HtmlPage(object):
             for (var c = rows[0].cells.length-%d; c < rows[0].cells.length; c++) {		
 		var scores = [];
 		for (var r = %d; r < rows.length; r++) {
-		    scores[r-%d] = parseFloat(rows[r].cells[c].innerHTML);
+                    val = rows[r].cells[c].innerHTML;
+                    if (val=="") {
+      		      scores[r-%d] = 0;
+                    }else{
+		      scores[r-%d] = parseFloat(val);
+                    }
 		}
 		var mean = math.mean(scores);
 		var std  = math.max(0.02,math.std(scores));
@@ -460,7 +465,7 @@ class HtmlPage(object):
 		    rows[r].cells[c].style.backgroundColor = colors[clr];
 		}
 	    }
-	}""" % (self.name,self.name,nscores,r0,r0,r0,r0,r0,r0,r0)
+	}""" % (self.name,self.name,nscores,r0,r0,r0,r0,r0,r0,r0,r0)
 
         head += """
 
