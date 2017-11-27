@@ -329,6 +329,8 @@ class HtmlPage(object):
         html    = ""
         inserts = self.inserts
         j0 = 0 if "Benchmark" in self.models else -1
+        score_sig = 2 # number of significant digits used in the score tables
+        other_sig = 3 # number of significant digits used for non-score quantities
         for region in regions:
             html += """
         <center>
@@ -354,11 +356,12 @@ class HtmlPage(object):
                <td%s class="row-header">%s</td>
                <td%s><a href="%s_%s.nc" download>[-]</a></td>""" % (opts,model,opts,cname,model)
                 for i,metric in enumerate(metrics):
+                    sig = score_sig if "score" in metric.lower() else other_sig
                     if i in inserts: html += """
                <td%s class="divider"></td>""" % (opts)
                     add = ""
                     try:
-                        add = "%.03f" % self.metric_dict[model][region][metric].data
+                        add = ("%#." + "%d" % sig + "g") % self.metric_dict[model][region][metric].data
                         add = add.lower().replace("nan","")
                     except:
                         pass
