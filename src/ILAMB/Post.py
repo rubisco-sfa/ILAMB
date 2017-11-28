@@ -634,6 +634,7 @@ class HtmlAllModelsPage(HtmlPage):
                 elif plot.longname is not None:
                     name = plot.longname
                 if "rel_" in plot.name: name = plot.name.replace("rel_","Relationship with ")
+                if name == "": continue
                 opts  = ''
                 if plot.name == "timeint" or len(self.plots) == 1:
                     opts  = ' selected="selected"'
@@ -642,12 +643,15 @@ class HtmlAllModelsPage(HtmlPage):
             code += """
       </select>"""
             
-            fig      = self.plots[0]
-            rem_side = fig.side
-            fig.side = "MNAME"
-            img      = "%s" % (fig)
-            img      = img.replace('"leg"','"MNAME_legend"').replace("%s" % fig.name,"MNAME")
-            fig.side = rem_side
+            fig        = self.plots[0]
+            rem_side   = fig.side
+            fig.side   = "MNAME"
+            rem_leg    = fig.legend
+            fig.legend = True
+            img        = "%s" % (fig)
+            img        = img.replace('"leg"','"MNAME_legend"').replace("%s" % fig.name,"MNAME")
+            fig.side   = rem_side
+            fig.legend = rem_leg
             for model in self.pages[0].models:
                 code += img.replace("MNAME",model)
                         
