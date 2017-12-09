@@ -1007,7 +1007,10 @@ class Confrontation(object):
 
                 # score the relationship
                 i0,i1 = np.where(np.abs(obs_x[:,np.newaxis]-mod_x)<1e-12)
-                score = np.exp(-np.linalg.norm(obs_y[i0]-mod_y[i1])/np.linalg.norm(obs_y[i0]))
+                obs_y = obs_y[i0]; mod_y = mod_y[i1]
+                isnan = np.isnan(obs_y)*np.isnan(mod_y)
+                obs_y[isnan] = 0.; mod_y[isnan] = 0.
+                score = np.exp(-np.linalg.norm(obs_y-mod_y)/np.linalg.norm(obs_y))
                 vname = '%s RMSE Score %s' % (c.longname.split('/')[0],region)
                 if vname in scalars.variables:
                     scalars.variables[vname][0] = score
