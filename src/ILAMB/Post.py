@@ -411,7 +411,8 @@ class HtmlPage(object):
             %s
         }""" % (self.name,self.name,self.name,self.cname,self.header,self.name,rows)
 
-        nscores = len(metrics) - self.inserts[-1]
+        nscores = len(metrics)
+        if len(self.inserts) > 0: ncores -= self.inserts[-1]
         r0      = 2 if "Benchmark" in models else 1
 
         head += """
