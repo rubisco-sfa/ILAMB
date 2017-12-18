@@ -916,6 +916,7 @@ def AnalysisMeanState(ref,com,**keywords):
     # quantities
     bias = REF_timeint.bias(COM_timeint)
     bias_score_map = Score(bias,REF_timeint)
+    bias_score_map.data.mask = (ref_and_com==False) # for some reason I need to explicitly force the mask
     if not skip_rmse:
         rmse = REF.rmse(COM)
         rms  = REF.rms ()
