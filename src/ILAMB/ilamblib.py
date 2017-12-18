@@ -867,6 +867,7 @@ def AnalysisMeanState(ref,com,**keywords):
     ref_timeint = ref.integrateInTime(mean=True)
     com_timeint = com.integrateInTime(mean=True)
     if spatial:
+        
         REF_timeint = REF.integrateInTime(mean=True)
         COM_timeint = COM.integrateInTime(mean=True)
 
@@ -896,7 +897,15 @@ def AnalysisMeanState(ref,com,**keywords):
                                lat  = lat, lat_bnds = lat_bnds,
                                lon  = lon, lon_bnds = lon_bnds,
                                area = REF_timeint.area)
+        
+        # Apply intersection mask
+        REF.data.mask += np.ones(REF.time.size,dtype=bool)[:,np.newaxis,np.newaxis] * (ref_and_com==False)
+        COM.data.mask += np.ones(COM.time.size,dtype=bool)[:,np.newaxis,np.newaxis] * (ref_and_com==False)
+        REF_timeint.data.mask = (ref_and_com==False)
+        COM_timeint.data.mask = (ref_and_com==False)
+        
     else:
+        
         REF         = ref
         COM         = com
         REF_timeint = ref_timeint
@@ -936,9 +945,9 @@ def AnalysisMeanState(ref,com,**keywords):
             com_union_mean [region] = ref_and_COM    .integrateInSpace(region=region,mean=space_mean)
             ref_comp_mean  [region] = REF_not_com    .integrateInSpace(region=region,mean=space_mean)
             com_comp_mean  [region] = COM_not_ref    .integrateInSpace(region=region,mean=space_mean)
-            ref_spaceint   [region] = ref            .integrateInSpace(region=region,mean=True)
+            ref_spaceint   [region] = REF            .integrateInSpace(region=region,mean=True)
             com_period_mean[region] = com_timeint    .integrateInSpace(region=region,mean=space_mean)
-            com_spaceint   [region] = com            .integrateInSpace(region=region,mean=True)
+            com_spaceint   [region] = COM            .integrateInSpace(region=region,mean=True)
             bias_val       [region] = bias           .integrateInSpace(region=region,mean=True)
             bias_score     [region] = bias_score_map .integrateInSpace(region=region,mean=True,weight=normalizer)
             if not skip_cycle:
