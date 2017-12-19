@@ -1046,8 +1046,15 @@ def BenchmarkSummaryFigure(models,variables,data,figname,vcolor=None,rel_only=Fa
     # define some parameters
     nmodels    = len(models)
     nvariables = len(variables)
-    w          = max((nmodels-3.)/(14.-3.)*(9.5-5.08)+5.08,7.) # heuristic for figure size
-    h          = 8.
+    maxV       = max([len(v) for v in variables])
+    maxM       = max([len(m) for m in models])
+    wpchar     = 0.1
+    wpcell     = 0.19
+    hpcell     = 0.25
+    w          = maxV*wpchar + max(4,nmodels)*wpcell
+    if not rel_only: w += (max(4,nmodels)+1)*wpcell
+    h          = maxM*wpchar + nvariables*hpcell + 1.0
+
     bad        = 0.5
     if "stoplight" not in plt.colormaps(): RegisterCustomColormaps()
     
@@ -1069,7 +1076,7 @@ def BenchmarkSummaryFigure(models,variables,data,figname,vcolor=None,rel_only=Fa
                      format="%g",
                      cax=div.append_axes("bottom", size="5%", pad=0.05),
                      orientation="horizontal",
-                     label="Variable Score")
+                     label="Absolute Score")
         plt.tick_params(which='both', length=0)
         ax[0].xaxis.tick_top()
         ax[0].set_xticks     (np.arange(nmodels   )+0.5)
@@ -1077,7 +1084,7 @@ def BenchmarkSummaryFigure(models,variables,data,figname,vcolor=None,rel_only=Fa
         ax[0].set_yticks     (np.arange(nvariables)+0.5)
         ax[0].set_yticklabels(variables[::-1])
         ax[0].tick_params('both',length=0,width=0,which='major')
-        ax[0].tick_params(axis='y', pad=10)
+        ax[0].tick_params(axis='y',pad=10)
         if vcolor is not None:
             for i,t in enumerate(ax[0].yaxis.get_ticklabels()):
                 t.set_backgroundcolor(vcolor[::-1][i])
@@ -1103,7 +1110,7 @@ def BenchmarkSummaryFigure(models,variables,data,figname,vcolor=None,rel_only=Fa
                  format="%+d",
                  cax=div.append_axes("bottom", size="5%", pad=0.05),
                  orientation="horizontal",
-                 label="Variable Z-score")
+                 label="Relative Score")
     plt.tick_params(which='both', length=0)
     ax[i].xaxis.tick_top()
     ax[i].set_xticks(np.arange(nmodels)+0.5)
