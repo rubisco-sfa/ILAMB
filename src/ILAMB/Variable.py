@@ -1076,7 +1076,8 @@ class Variable:
         land   = keywords.get("land"  ,0.875)
         water  = keywords.get("water" ,0.750)
         pad    = keywords.get("pad"   ,5.0)
-
+        cbar   = keywords.get("cbar"  ,False)
+        
         rem_mask = None
         r = Regions()
         if self.temporal and not self.spatial:
@@ -1164,6 +1165,9 @@ class Variable:
                 clrs = clmp(norm)
                 size = 35
                 ax   = bmap.scatter(x,y,s=size,color=clrs,ax=ax,linewidths=0,cmap=cmap)
+            if cbar:
+                cb = bmap.colorbar(ax,location='bottom',pad="5%")
+                if label is not None: cb.set_label(label)
             if rem_mask is not None: self.data.mask = rem_mask
         return ax
     
