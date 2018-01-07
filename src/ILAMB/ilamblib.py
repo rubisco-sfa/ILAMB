@@ -628,8 +628,19 @@ def FromNetCDF4(filename,variable_name,alternate_vars=[],t0=None,tf=None,group=N
     if lat_bnd_name   is not None: lat_bnd   = grp.variables[lat_bnd_name]  [...]
     if lon_name       is not None: lon       = grp.variables[lon_name]      [...]
     if lon_bnd_name   is not None: lon_bnd   = grp.variables[lon_bnd_name]  [...]
-    if depth_name     is not None: depth     = grp.variables[depth_name]    [...]
-    if depth_bnd_name is not None: depth_bnd = grp.variables[depth_bnd_name][...]
+    if depth_name     is not None:
+        dunit = None
+        if "units" in grp.variables[depth_name].ncattrs(): dunit = grp.variables[depth_name].units
+        depth = grp.variables[depth_name][...]
+        if depth_bnd_name is not None:
+            depth_bnd = grp.variables[depth_bnd_name][...]
+        if dunit is not None:
+            if not Units(dunit).equivalent(Units("m")):
+                raise ValueError("Non-linear units [%s] of the layered dimension [%s] in %s" % (dunit,depth_name,filename))
+            depth = Units.conform(depth,Units(dunit),Units("m"),inplace=True)
+            if depth_bnd is not None:
+                depth_bnd = Units.conform(depth_bnd,Units(dunit),Units("m"),inplace=True)
+                
     if data_name      is not None:
         data = len(grp.dimensions[data_name])
         # if we have data sites, there may be lat/lon data to come
