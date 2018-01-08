@@ -691,7 +691,8 @@ def GenerateRelSummaryFigure(S,M,figname):
                 data[i,j] = score[row][col] / count[row][col]
             except:
                 data[i,j] = np.nan
-    BenchmarkSummaryFigure(models,rows,data,figname,rel_only=False)
+    if len(rows) > 0: 
+        BenchmarkSummaryFigure(models,rows,data,figname,rel_only=False)
     
 def GenerateRelationshipTree(S,M):
 
