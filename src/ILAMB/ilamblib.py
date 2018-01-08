@@ -710,7 +710,7 @@ def FromNetCDF4(filename,variable_name,alternate_vars=[],t0=None,tf=None,group=N
     
     return v,units,variable_name,t,t_bnd,lat,lat_bnd,lon,lon_bnd,depth,depth_bnd,cbounds,data
         
-def Score(var,normalizer,FC=0.999999):
+def Score(var,normalizer):
     """Remaps a normalized variable to the interval [0,1].
 
     Parameters
@@ -726,16 +726,7 @@ def Score(var,normalizer,FC=0.999999):
     name =     name.replace("rmse","rmse_score")
     name =     name.replace("iav" ,"iav_score")
     np.seterr(over='ignore',under='ignore')
-
-    data = None
-    if "bias" in var.name or "diff" in var.name:
-        deno = np.ma.copy(normalizer.data)
-        if (deno.size - deno.mask.sum()) > 1: deno -= deno.min()*FC       
-        data = np.exp(-np.abs(var.data/deno))
-    elif "rmse" in var.name:
-        data = np.exp(-var.data/normalizer.data)
-    elif "iav" in var.name:
-        data = np.exp(-np.abs(var.data/normalizer.data))
+    data = np.exp(-np.abs(var.data/normalizer.data))
     data[data<1e-16] = 0.
     np.seterr(over='raise',under='raise')
     return Variable(name  = name,
@@ -867,7 +858,6 @@ def AnalysisMeanState(ref,com,**keywords):
     if    not ref.monthly: skip_cycle = True
     if ref.time.size < 12: skip_cycle = True
 
-    # We find 
     if spatial:
         lat,lon,lat_bnds,lon_bnds = _composeGrids(ref,com)
         REF = ref.interpolate(lat=lat,lon=lon,lat_bnds=lat_bnds,lon_bnds=lon_bnds)
@@ -926,13 +916,26 @@ def AnalysisMeanState(ref,com,**keywords):
     # Compute the bias, RMSE, and RMS maps using the interpolated
     # quantities
     bias = REF_timeint.bias(COM_timeint)
-    bias_score_map = Score(bias,REF_timeint)
+    cREF = Variable(name = "centralized %s" % REF.name, unit = REF.unit,
+                    data = np.ma.masked_array(REF.data-REF_timeint.data[np.newaxis,...],mask=REF.data.mask),
+                    time = REF.time, time_bnds = REF.time_bnds,
+                    lat  = REF.lat , lat_bnds  = REF.lat_bnds,
+                    lon  = REF.lon , lon_bnds  = REF.lon_bnds,
+                    area = REF.area, ndata     = REF.ndata)   
+    crms = cREF.rms ()
+    bias_score_map = Score(bias,crms)
     if spatial:
         bias_score_map.data.mask = (ref_and_com==False) # for some reason I need to explicitly force the mask
     if not skip_rmse:
-        rmse = REF.rmse(COM)
-        rms  = REF.rms ()
-        rmse_score_map = Score(rmse,rms)
+        cCOM = Variable(name = "centralized %s" % COM.name, unit = COM.unit,
+                        data = np.ma.masked_array(COM.data-COM_timeint.data[np.newaxis,...],mask=COM.data.mask),
+                        time = COM.time, time_bnds = COM.time_bnds,
+                        lat  = COM.lat , lat_bnds  = COM.lat_bnds,
+                        lon  = COM.lon , lon_bnds  = COM.lon_bnds,
+                        area = COM.area, ndata     = COM.ndata)
+        rmse  =  REF.rmse( COM)
+        crmse = cREF.rmse(cCOM)
+        rmse_score_map = Score(crmse,crms)
 
     # The phase shift comes from the interpolated quantities
     if not skip_cycle:
@@ -1064,10 +1067,8 @@ def AnalysisMeanState(ref,com,**keywords):
         out_vars.append(shift_score_map)
     if not skip_rmse:
         rmse          .name = "rmse_map_of_%s"       % ref.name
-        rms           .name = "rms_map_of_%s"        % ref.name
         rmse_score_map.name = "rmsescore_map_of_%s"  % ref.name
         out_vars.append(rmse)
-        out_vars.append(rms )
         out_vars.append(rmse_score_map)
         out_vars.append(rmse_val)
         out_vars.append(rmse_score)
