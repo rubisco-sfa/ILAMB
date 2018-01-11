@@ -625,10 +625,10 @@ def GenerateRelSummaryFigure(S,M,figname):
                     counts[key]  = 1.
                     rows   .append(key)
                     vcolors.append(h1.bgcolor)
+    if len(rows) == 0: return
     data = np.ma.zeros((len(rows),len(M)))
     for i,row in enumerate(rows):
         data[i,:] = scores[row] / counts[row]
-    
     BenchmarkSummaryFigure([m.name for m in M],rows,data,figname,rel_only=False,vcolor=vcolors)
     
 def GenerateRelationshipTree(S,M):
