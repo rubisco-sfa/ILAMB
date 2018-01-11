@@ -272,7 +272,7 @@ class Scoreboard():
         has_rel  = np.asarray([len(rel.children) for rel in rel_tree.children]).sum() > 0
         nav      = ""
         if has_rel:
-            GenerateRelSummaryFigure(self,M,"%s/overview_rel.png" % self.build_dir)
+            GenerateRelSummaryFigure(rel_tree,M,"%s/overview_rel.png" % self.build_dir)
             nav = """
 	    <li><a href="#pageRel">Relationship</a></li>"""
             #global global_print_node_string
@@ -606,93 +606,30 @@ def GenerateSummaryFigure(tree,M,filename):
 
 def GenerateRelSummaryFigure(S,M,figname):
 
-    def _parse(node):
-        global score,count,rows
-        if node.level != 5: return
-        row = "%s vs. %s" % (node.parent.parent.parent.name,node.parent.name)
-        col = node.name
-        if row not in rows: rows.append(row)
-        if not score     .has_key(row): score[row] = {}
-        if not count     .has_key(row): count[row] = {}
-        if not score[row].has_key(col): score[row][col] = 0.
-        if not count[row].has_key(col): count[row][col] = 0.
-        score[row][col] += node.score
-        count[row][col] += 1.
-
-    class rnode():
-        def __init__(self,name,level):
-            self.name     = name
-            self.level    = level
-            self.parent   = None
-            self.score    = None
-            self.children = []
-
-    
-    root = S.build_dir
-    tree = rnode("root",0)
-    previous_node = tree
-    current_level = 0
-    
-    for subdir, dirs, files in os.walk(root):
-        if subdir == root: continue
-        flat  = subdir.replace(root,"").lstrip("/").split("/")
-        level = len(flat)
-        name  = flat[-1]
-        child = rnode(name,level)
-        if level == current_level:
-            child.parent = previous_node.parent
-            previous_node.parent.children.append(child)
-            if level == 3:
-                for fname in [f for f in files if f.endswith(".nc") and "Benchmark" not in f]:
-                    with Dataset(os.path.join(subdir,fname)) as dset:
-                        if "Relationships" not in dset.groups: continue
-                        grp   = dset.groups["Relationships"]["scalars"]
-                        model = dset.name
-                        for var in [var for var in grp.variables.keys() if ("Overall" not in var and
-                                                                            "global"      in var)]:
-                            rname = var.split(" ")[0]
-                            hadrel = False
-                            for c in child.children:
-                                if c.name == rname:
-                                    rel    = c
-                                    hadrel = True
-                            if not hadrel: rel = rnode(rname,level+1)
-                            mod = rnode(model,level+2)
-                            mod.score    = grp.variables[var][...]
-                            mod.parent   = rel
-                            rel.children.append(mod)
-                            rel.parent   = child
-                            if not hadrel: child.children.append(rel)
-        elif level > current_level:
-            child.parent = previous_node
-            previous_node.children.append(child)
-            current_level = level
-        else:
-            addto = tree
-            for i in range(level-1): addto = addto.children[-1]
-            child.parent = addto
-            addto.children.append(child)
-            current_level = level
-        previous_node = child
-    
-    global score,count,rows
-    score = {}
-    count = {}
-    rows  = []
-    TraversePreorder(tree,_parse)
-    models = []
-    for row in rows:
-        for key in score[row].keys():
-            if key not in models: models.append(key)
-    data = np.zeros((len(rows),len(models)))
+    # reorganize the relationship data
+    scores  = {}
+    counts  = {}
+    rows    = []
+    vcolors = []
+    for h1 in S.children:
+        for dep in h1.children:
+            dname = dep.name.split("/")[0]
+            for ind in dep.children:
+                iname = ind.name.split("/")[0]
+                key   = "%s/%s" % (dname,iname)
+                if scores.has_key(key):
+                    scores[key] += ind.score
+                    counts[key] += 1.
+                else:
+                    scores[key]  = np.copy(ind.score)
+                    counts[key]  = 1.
+                    rows   .append(key)
+                    vcolors.append(h1.bgcolor)
+    data = np.ma.zeros((len(rows),len(M)))
     for i,row in enumerate(rows):
-        for j,col in enumerate(models):
-            try:
-                data[i,j] = score[row][col] / count[row][col]
-            except:
-                data[i,j] = np.nan
-    if len(rows) > 0: 
-        BenchmarkSummaryFigure(models,rows,data,figname,rel_only=False)
+        data[i,:] = scores[row] / counts[row]
+    
+    BenchmarkSummaryFigure([m.name for m in M],rows,data,figname,rel_only=False,vcolor=vcolors)
     
 def GenerateRelationshipTree(S,M):
 
@@ -753,7 +690,6 @@ def GenerateRelationshipTree(S,M):
                             v.score[i] = grp.variables[rs[0]][...]
                         if "Overall Score global" not in grp.variables.keys(): continue
                         h2.score[i] = grp.variables["Overall Score global"][...]
-
 
     return rel_tree
 
