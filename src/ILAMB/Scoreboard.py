@@ -185,11 +185,12 @@ class Scoreboard():
     """
     A class for managing confrontations
     """
-    def __init__(self,filename,regions=["global"],verbose=False,master=True,build_dir="./_build",extents=None):
+    def __init__(self,filename,regions=["global"],verbose=False,master=True,build_dir="./_build",extents=None,rel_only=False):
         
         if not os.environ.has_key('ILAMB_ROOT'):
             raise ValueError("You must set the environment variable 'ILAMB_ROOT'")
         self.build_dir = build_dir
+        self.rel_only  = rel_only
         
         if (master and not os.path.isdir(self.build_dir)): os.mkdir(self.build_dir)        
 
@@ -272,7 +273,7 @@ class Scoreboard():
         has_rel  = np.asarray([len(rel.children) for rel in rel_tree.children]).sum() > 0
         nav      = ""
         if has_rel:
-            GenerateRelSummaryFigure(rel_tree,M,"%s/overview_rel.png" % self.build_dir)
+            GenerateRelSummaryFigure(rel_tree,M,"%s/overview_rel.png" % self.build_dir,rel_only=self.rel_only)
             nav = """
 	    <li><a href="#pageRel">Relationship</a></li>"""
             #global global_print_node_string
@@ -453,7 +454,7 @@ class Scoreboard():
         html = GenerateBarCharts(self.tree,M)
 
     def createSummaryFigure(self,M):
-        GenerateSummaryFigure(self.tree,M,"%s/overview.png" % self.build_dir)
+        GenerateSummaryFigure(self.tree,M,"%s/overview.png" % self.build_dir,rel_only=self.rel_only)
 
     def dumpScores(self,M,filename):
         out = file("%s/%s" % (self.build_dir,filename),"w")
@@ -582,7 +583,7 @@ def GenerateTable(tree,M,S,composite=True):
     BuildHTMLTable(tree,M,S.build_dir)
     return global_html
 
-def GenerateSummaryFigure(tree,M,filename):
+def GenerateSummaryFigure(tree,M,filename,rel_only=False):
 
     models    = [m.name for m in M]
     variables = []
@@ -602,9 +603,9 @@ def GenerateSummaryFigure(tree,M,filename):
             else:
                 data[row,:] = var.score
 
-    BenchmarkSummaryFigure(models,variables,data,filename,vcolor=vcolors)
+    BenchmarkSummaryFigure(models,variables,data,filename,vcolor=vcolors,rel_only=rel_only)
 
-def GenerateRelSummaryFigure(S,M,figname):
+def GenerateRelSummaryFigure(S,M,figname,rel_only=False):
 
     # reorganize the relationship data
     scores  = {}
@@ -629,7 +630,7 @@ def GenerateRelSummaryFigure(S,M,figname):
     data = np.ma.zeros((len(rows),len(M)))
     for i,row in enumerate(rows):
         data[i,:] = scores[row] / counts[row]
-    BenchmarkSummaryFigure([m.name for m in M],rows,data,figname,rel_only=False,vcolor=vcolors)
+    BenchmarkSummaryFigure([m.name for m in M],rows,data,figname,rel_only=rel_only,vcolor=vcolors)
     
 def GenerateRelationshipTree(S,M):
 

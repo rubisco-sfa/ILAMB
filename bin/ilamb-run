@@ -476,7 +476,8 @@ parser.add_argument('--model_setup', dest="model_setup", type=str, nargs='+',def
                     help='list files model setup information')
 parser.add_argument('--skip_plots', dest="skip_plots", action="store_true",
                     help='enable to skip the plotting phase')
-
+parser.add_argument('--rel_only', dest="rel_only", action="store_true",
+                    help='enable only display relative differences in overall scores')
 args = parser.parse_args()
 if args.config is None:
     if rank == 0:
@@ -505,7 +506,8 @@ S = Scoreboard(args.config[0],
                master    = rank==0,
                verbose   = not args.quiet,
                build_dir = args.build_dir[0],
-               extents   = RestrictiveModelExtents(M))
+               extents   = RestrictiveModelExtents(M),
+               rel_only  = args.rel_only)
 C  = MatchRelationshipConfrontation(S.list())
 Cf = FilterConfrontationList(C,args.confront)
 
