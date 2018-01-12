@@ -1048,7 +1048,7 @@ def BenchmarkSummaryFigure(models,variables,data,figname,vcolor=None,rel_only=Fa
     nvariables = len(variables)
     maxV       = max([len(v) for v in variables])
     maxM       = max([len(m) for m in models])
-    wpchar     = 0.1
+    wpchar     = 0.15
     wpcell     = 0.19
     hpcell     = 0.25
     w          = maxV*wpchar + max(4,nmodels)*wpcell
