@@ -378,6 +378,7 @@ def WorkPost(M,C,W,S,verbose=False,skip_plots=False):
                 print ("    {0:>%d} {1:<%d} %s%s%s" % (maxCL,maxML,FAIL,ex.__class__.__name__,ENDC)).format(c.longname,m.name)
                 sys.stdout.flush()
 
+    comm.Barrier()
     for c in C:
         if not skip_plots:
             try:
