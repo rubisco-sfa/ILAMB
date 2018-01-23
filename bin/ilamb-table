@@ -4,7 +4,7 @@
 from ILAMB.Scoreboard import Scoreboard
 from netCDF4 import Dataset
 from cfunits import Units
-import os,argparse,os
+import os,argparse,sys
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--config', dest="config", metavar='config', type=str, nargs=1,
