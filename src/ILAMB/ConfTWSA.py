@@ -97,8 +97,16 @@ class ConfTWSA(Confrontation):
         return ["tws"],[]
         
     def confront(self,m):
-        """Confront
+        """Confront the GRACE data by computing a mean over river
+        basins. Fine-scale, point comparisons aren't meaningful as the
+        underlying resolution of the GRACE data is 300-400 [m]. See
+        the following publication for more information.
 
+        Swenson, Sean & National Center for Atmospheric Research Staff
+        (Eds). Last modified 08 Oct 2013. "The Climate Data Guide:
+        GRACE: Gravity Recovery and Climate Experiment: Surface mass,
+        total water storage, and derived variables." Retrieved from
+        https://climatedataguide.ucar.edu/climate-data/grace-gravity-recovery-and-climate-experiment-surface-mass-total-water-storage-and.
 
         """
         obs,mod = self.stageData(m)
