@@ -1183,10 +1183,10 @@ def MakeComparable(ref,com,**keywords):
 
     # If the reference is spatial, the comparison must be
     if ref.spatial and not com.spatial:
-        msg  = "%s Datasets are not uniformly spatial: " % logstring
-        msg += "reference = %s, comparison = %s" % (ref.spatial,com.spatial)
-        logger.debug(msg)
-        raise VarsNotComparable()
+        ref  = ref.extractDatasites(com.lat,com.lon)
+        msg  = "%s The reference dataset is spatial but the comparison is site-based. " % logstring
+        msg += "Extracted %s sites from the reference to match the comparison." % ref.ndata
+        logger.info(msg)
 
     # If the reference is layered, the comparison must be
     if ref.layered and not com.layered:
@@ -1266,7 +1266,7 @@ def MakeComparable(ref,com,**keywords):
         # comparison, coarsen the comparison
         if np.log10(ref.dt/com.dt) > 0.5:
             com = com.coarsenInTime(ref.time_bnds,window=window)
-        
+            
         # Time bounds of the reference dataset
         t0  = ref.time_bnds[ 0,0]
         tf  = ref.time_bnds[-1,1]
