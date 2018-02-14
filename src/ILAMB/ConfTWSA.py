@@ -125,7 +125,10 @@ class ConfTWSA(Confrontation):
                                 lat   = obs.lat,
                                 lon   = obs.lon)
         rmse_score   = rmse_smap.siteStats()
-
+        iav_score    = Variable(name = "Interannual Variability Score global",
+                                unit = "1",
+                                data = np.exp(-np.abs(mod_anom_val.data-obs_anom_val.data)/obs_anom_val.data))
+        
         # remap for plotting
         obs_anom_map = self._extendSitesToMap(obs_anom )
         mod_anom_map = self._extendSitesToMap(mod_anom )
@@ -152,6 +155,7 @@ class ConfTWSA(Confrontation):
         rmse_smap   .toNetCDF4(results,group="MeanState")
         rmse_val    .toNetCDF4(results,group="MeanState")
         rmse_score  .toNetCDF4(results,group="MeanState")
+        iav_score   .toNetCDF4(results,group="MeanState")
         results.close()
         if self.master:
             results = Dataset(os.path.join(self.output_path,"%s_Benchmark.nc" % (self.name)),mode="w")
@@ -219,14 +223,14 @@ class ConfTWSA(Confrontation):
 
             page.addFigure("Spatially integrated regional mean",
                            basin,
-                           "MNAME_%s.png" % basin,
-                           basin,False)
+                           "MNAME_global_%s.png" % basin,
+                           basin,False,longname=basin)
             
             fig,ax = plt.subplots(figsize=(6.8,2.8),tight_layout=True)
             ax.plot(obs.time/365+1850,obs.data[:,i],lw=2,color='k',alpha=0.5)
             ax.plot(mod.time/365+1850,mod.data[:,i],lw=2,color=m.color      )
             ax.grid()
             ax.set_ylabel(post.UnitStringToMatplotlib(obs.unit))
-            fig.savefig(os.path.join(self.output_path,"%s_%s.png" % (m.name,basin)))
+            fig.savefig(os.path.join(self.output_path,"%s_global_%s.png" % (m.name,basin)))
             plt.close()
 
