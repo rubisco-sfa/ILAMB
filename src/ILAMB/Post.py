@@ -834,11 +834,14 @@ class HtmlSitePlotsPage(HtmlPage):
 class HtmlLayout():
 
     def __init__(self,pages,cname,years=None):
-
+        
         self.pages = pages
         self.cname = cname.replace("/"," / ")
         if years is not None:
-            self.cname += " / %d-%d" % (years)
+            try:
+                self.cname += " / %d-%d" % (years)
+            except:
+                pass
         for page in self.pages:
             page.pages = self.pages
             page.cname = self.cname

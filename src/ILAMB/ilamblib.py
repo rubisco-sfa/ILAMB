@@ -7,7 +7,7 @@ from cfunits import Units
 from copy import deepcopy
 from mpi4py import MPI
 import numpy as np
-import logging
+import logging,re
 
 logger = logging.getLogger("%i" % MPI.COMM_WORLD.rank)
 
@@ -53,7 +53,30 @@ class NotLayeredVariable(Exception):
 class NotDatasiteVariable(Exception):
     def __str__(self): return "NotDatasiteVariable"
 
+def FixDumbUnits(unit):
+    r"""Try to fix the dumb units people insist on using.
     
+    Parameters
+    ----------
+    unit : str
+        the trial unit
+
+    Returns
+    -------
+    unit : str
+        the fixed unit
+    """
+    # Various synonyms for 1
+    if unit.lower().strip() in ["unitless",
+                                "n/a",
+                                "none"]: unit = "1"
+    # Remove the C which so often is used to mean carbon but actually means coulomb
+    tokens = re.findall(r"[\w']+", unit)
+    for token in tokens:
+        if token.endswith("C") and Units(token[:-1]).equivalent(Units("g")):
+            unit = unit.replace(token,token[:-1])
+    return unit
+
 def GenerateDistinctColors(N,saturation=0.67,value=0.67):
     r"""Generates a series of distinct colors.
 
@@ -701,9 +724,8 @@ def FromNetCDF4(filename,variable_name,alternate_vars=[],t0=None,tf=None,group=N
         if "missing_value" in var.ncattrs(): mask += (np.abs(v-var.missing_value)<1e-12)
         v = np.ma.masked_array(v,mask=mask,copy=False)
 
-    # handle units problems that cfunits doesn't
     if "units" in var.ncattrs():
-        units = var.units.replace("unitless","1")
+        units = FixDumbUnits(var.units)
     else:
         units = "1"
     dset.close()
