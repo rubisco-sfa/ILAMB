@@ -223,11 +223,19 @@ class HtmlPage(object):
     def __str__(self):
 
         r = Regions()
-        def _sortFigures(figure,priority=["benchmark_timeint","timeint","timeintremap","bias","rmse","benchmark_phase","phase","shift","biasscore","rmsescore","shiftscore","spatial_variance","legend_spatial_variance","spaceint","accumulate","cycle","dtcycle","compcycle","temporal_variance"]):
+        def _sortFigures(figure):
+            macro = ["timeint","bias","rmse","iav","phase","shift","variance","spaceint","accumulate","cycle"]
             val = 1.
-            for i,pname in enumerate(priority):
-                if pname == figure.name: val += 2**i
-            return val
+            for i,m in enumerate(macro):
+                if m in figure.name: val += 3**i
+            if figure.name.startswith("benchmark"): val -= 1.
+            if figure.name.endswith("score"): val += 1.
+            if figure.name.startswith("legend"):
+                if "variance" in figure.name:
+                    val += 1.
+                else:
+                    val  = 0.
+            return val        
         
         code = """
     <div data-role="page" id="%s">

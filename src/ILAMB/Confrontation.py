@@ -636,7 +636,7 @@ class Confrontation(object):
 	                    plt.close()
                             
 	                # Jumping through hoops to get the benchmark plotted and in the html output
-	                if self.master and (pname == "timeint" or pname == "phase"):
+	                if self.master and (pname == "timeint" or pname == "phase" or pname == "iav"):
 	
 	                    opts = space_opts[pname]
 	

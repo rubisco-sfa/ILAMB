@@ -879,7 +879,8 @@ def AnalysisMeanState(ref,com,**keywords):
     # Only study the annual cycle if it makes sense
     if    not ref.monthly: skip_cycle = True
     if ref.time.size < 12: skip_cycle = True
-
+    if skip_rmse         : skip_iav   = True
+    
     if spatial:
         lat,lon,lat_bnds,lon_bnds = _composeGrids(ref,com)
         REF = ref.interpolate(lat=lat,lon=lon,lat_bnds=lat_bnds,lon_bnds=lon_bnds)
@@ -958,7 +959,38 @@ def AnalysisMeanState(ref,com,**keywords):
         rmse  =  REF.rmse( COM)
         crmse = cREF.rmse(cCOM)
         rmse_score_map = Score(crmse,crms)
-
+    if not skip_iav:
+        ref_iav = Variable(name = "centralized %s" % ref.name, unit = ref.unit,
+                           data = np.ma.masked_array(ref.data-ref_timeint.data[np.newaxis,...],mask=ref.data.mask),
+                           time = ref.time, time_bnds = ref.time_bnds,
+                           lat  = ref.lat , lat_bnds  = ref.lat_bnds,
+                           lon  = ref.lon , lon_bnds  = ref.lon_bnds,
+                           area = ref.area, ndata     = ref.ndata).rms()
+        com_iav = Variable(name = "centralized %s" % com.name, unit = com.unit,
+                           data = np.ma.masked_array(com.data-com_timeint.data[np.newaxis,...],mask=com.data.mask),
+                           time = com.time, time_bnds = com.time_bnds,
+                           lat  = com.lat , lat_bnds  = com.lat_bnds,
+                           lon  = com.lon , lon_bnds  = com.lon_bnds,
+                           area = com.area, ndata     = com.ndata).rms()
+        REF_iav = Variable(name = "centralized %s" % REF.name, unit = REF.unit,
+                           data = np.ma.masked_array(REF.data-REF_timeint.data[np.newaxis,...],mask=REF.data.mask),
+                           time = REF.time, time_bnds = REF.time_bnds,
+                           lat  = REF.lat , lat_bnds  = REF.lat_bnds,
+                           lon  = REF.lon , lon_bnds  = REF.lon_bnds,
+                           area = REF.area, ndata     = REF.ndata).rms()
+        COM_iav = Variable(name = "centralized %s" % COM.name, unit = COM.unit,
+                           data = np.ma.masked_array(COM.data-COM_timeint.data[np.newaxis,...],mask=COM.data.mask),
+                           time = COM.time, time_bnds = COM.time_bnds,
+                           lat  = COM.lat , lat_bnds  = COM.lat_bnds,
+                           lon  = COM.lon , lon_bnds  = COM.lon_bnds,
+                           area = COM.area, ndata     = COM.ndata).rms()
+        iav_score_map = Score(Variable(name = "diff %s" % REF.name, unit = REF.unit,
+                                       data = (COM_iav.data-REF_iav.data),
+                                       lat  = REF.lat , lat_bnds  = REF.lat_bnds,
+                                       lon  = REF.lon , lon_bnds  = REF.lon_bnds,
+                                       area = REF.area, ndata     = REF.ndata),
+                              REF_iav)
+        
     # The phase shift comes from the interpolated quantities
     if not skip_cycle:
         ref_cycle       = REF.annualCycle()
@@ -973,7 +1005,7 @@ def AnalysisMeanState(ref,com,**keywords):
     ref_period_mean = {}; ref_spaceint = {}; ref_mean_cycle = {}; ref_dtcycle = {}
     com_period_mean = {}; com_spaceint = {}; com_mean_cycle = {}; com_dtcycle = {}
     bias_val  = {}; bias_score = {}; rmse_val = {}; rmse_score = {}
-    space_std = {}; space_cor  = {}; sd_score = {}; shift = {}; shift_score = {}
+    space_std = {}; space_cor  = {}; sd_score = {}; shift = {}; shift_score = {}; iav_score = {}
     ref_union_mean = {}; ref_comp_mean = {}
     com_union_mean = {}; com_comp_mean = {}
     for region in regions:
@@ -1000,6 +1032,8 @@ def AnalysisMeanState(ref,com,**keywords):
             if not skip_rmse:
                 rmse_val   [region] = rmse           .integrateInSpace(region=region,mean=True)
                 rmse_score [region] = rmse_score_map .integrateInSpace(region=region,mean=True,weight=normalizer)
+            if not skip_iav:
+                iav_score  [region] = iav_score_map .integrateInSpace(region=region,mean=True,weight=normalizer)
             space_std[region],space_cor[region],sd_score[region] = REF_timeint.spatialDistribution(COM_timeint,region=region)
         else:
             ref_period_mean[region] = ref_timeint    .siteStats(region=region)
@@ -1020,6 +1054,8 @@ def AnalysisMeanState(ref,com,**keywords):
             if not skip_rmse:
                 rmse_val   [region] = rmse           .siteStats(region=region)
                 rmse_score [region] = rmse_score_map .siteStats(region=region,weight=normalizer)
+            if not skip_iav:
+                iav_score  [region] = iav_score_map .siteStats(region=region,weight=normalizer)
                 
         ref_period_mean[region].name = "Period Mean (original grids) %s" % (region)
         ref_spaceint   [region].name = "spaceint_of_%s_over_%s"        % (ref.name,region)
@@ -1030,6 +1066,8 @@ def AnalysisMeanState(ref,com,**keywords):
         if not skip_rmse:
             rmse_val   [region].name = "RMSE %s"                       % (region)
             rmse_score [region].name = "RMSE Score %s"                 % (region)
+        if not skip_iav:
+            iav_score  [region].name = "Interannual Variability Score %s" % (region)
         if not skip_cycle:
             ref_mean_cycle[region].name = "cycle_of_%s_over_%s"           % (ref.name,region)
             ref_dtcycle   [region].name = "dtcycle_of_%s_over_%s"         % (ref.name,region)
@@ -1058,6 +1096,7 @@ def AnalysisMeanState(ref,com,**keywords):
         plot_vars = [com_timeint,ref_timeint,bias,com_spaceint,ref_spaceint,bias_val]
         if not skip_rmse:  plot_vars += [rmse,rmse_val]
         if not skip_cycle: plot_vars += [com_mean_cycle,ref_mean_cycle,com_dtcycle,ref_dtcycle]
+        if not skip_iav:   plot_vars += [com_iav]
         for var in plot_vars: _convert(var,plot_unit)
             
     # Rename and optionally dump out information to netCDF4 files
@@ -1094,6 +1133,12 @@ def AnalysisMeanState(ref,com,**keywords):
         out_vars.append(rmse_score_map)
         out_vars.append(rmse_val)
         out_vars.append(rmse_score)
+    if not skip_iav:
+        com_iav.name       = "iav_map_of_%s" % ref.name
+        iav_score_map.name = "iavscore_map_of_%s"  % ref.name
+        out_vars.append(com_iav)
+        out_vars.append(iav_score_map)
+        out_vars.append(iav_score)
     if dataset is not None:
         for var in out_vars:
             if type(var) == type({}):
@@ -1112,6 +1157,9 @@ def AnalysisMeanState(ref,com,**keywords):
     if not skip_cycle:
         ref_maxt_map.name = "phase_map_of_%s"      % ref.name
         out_vars += [ref_maxt_map,ref_mean_cycle,ref_dtcycle]
+    if not skip_iav:
+        ref_iav.name      = "iav_map_of_%s" % ref.name
+        out_vars.append(ref_iav)
     if benchmark_dataset is not None:
         for var in out_vars:
             if type(var) == type({}):
