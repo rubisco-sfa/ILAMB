@@ -300,7 +300,7 @@ class Variable:
             else:
                 dt = dt.sum(axis=0)   
             np.seterr(over='ignore',under='ignore')
-            integral /= dt
+            integral = integral / dt
             np.seterr(over='raise' ,under='raise' )
             
         else:
@@ -417,7 +417,7 @@ class Variable:
             else:
                 dz = dz.sum(axis=axis)   
             np.seterr(over='ignore',under='ignore')
-            integral /= dz
+            integral = integral / dz
             np.seterr(over='raise' ,under='raise' )
             
         else:
@@ -521,7 +521,7 @@ class Variable:
         integral = _integrate(self.data,measure)
         if mean:
             np.seterr(under='ignore')
-            integral /= measure.sum()
+            integral = integral / measure.sum()
             np.seterr(under='raise')
 
         # handle the name and unit
@@ -813,9 +813,9 @@ class Variable:
              (tar_unit.equivalent(linear     ) and src_unit.equivalent(area_density     )) or
              (tar_unit.equivalent(mass_conc  ) and src_unit.equivalent(volume_conc      )) ):
             np.seterr(over='ignore',under='ignore')
-            self.data /= density
+            self.data = self.data / density
             np.seterr(over='raise',under='raise')
-            src_unit /= mass_density
+            src_unit = src_unit / mass_density
             
         # Convert units
         try:
@@ -1599,7 +1599,7 @@ class Variable:
             R0    = 1.0
             std0  = std0.clip(1e-12)
             std   = std .clip(1e-12)
-            std  /= std0
+            std   = std/std0
             score = 4.0*(1.0+R.data)/((std+1.0/std)**2 *(1.0+R0))
         except:
             std   = np.asarray([0.0])
