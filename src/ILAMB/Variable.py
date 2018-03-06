@@ -220,6 +220,17 @@ class Variable:
             
         return s
 
+    def nbytes(self):
+        r"""Estimate the memory usage of a variable in bytes.
+        """
+        nbytes = 0.
+        for key in self.__dict__.keys():
+            try:
+                nbytes += self.__dict__[key].nbytes
+            except:
+                pass
+        return nbytes
+
     def integrateInTime(self,**keywords):
         r"""Integrates the variable over a given time period.
 
