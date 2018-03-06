@@ -366,71 +366,56 @@ def SympifyWithArgsUnits(expression,args,units):
     """
     from sympy import sympify,postorder_traversal
 
-    # The traversal needs that we make units commensurate when
-    # possible
-    keys = args.keys()
-    for i in range(len(keys)):
-        ikey = keys[i]
-        for j in range(i+1,len(keys)):
-            jkey = keys[j]
-            if Units(units[jkey]).equivalent(Units(units[ikey])):
-                args [jkey] = Units.conform(args[jkey],
-                                            Units(units[jkey]),
-                                            Units(units[ikey]),
-                                            inplace=True)
-                units[jkey] = units[ikey]
-    
-    # We need to do what sympify does but also with unit
-    # conversions. So we traverse the expression tree in post order
-    # and take actions based on the kind of operation being performed.
     expression = sympify(expression)
+
+    # try to convert all arguments to same units if possible, it
+    # catches most use cases
+    keys = args.keys()
+    for i,key0 in enumerate(keys):
+        for key in keys[(i+1):]:
+            try:
+                Units.conform(args[key],
+                              Units(units[key ]),
+                              Units(units[key0]),
+                              inplace=True)
+                units[key] = units[key0]
+            except:
+                pass
+
     for expr in postorder_traversal(expression):
-            
-        if expr.is_Atom: continue        
-        ekey = str(expr) # expression key
-        
+        ekey = str(expr)
         if expr.is_Add:
 
-            # Addition will require that all args should be the same
-            # unit. As a convention, we will try to conform all units
-            # to the first variable's units. 
-            key0 = None
-            for arg in expr.args:
-                key = str(arg)
-                if not args.has_key(key): continue
-                if key0 is None:
-                    key0 = key
-                else:
-                    # Conform these units to the units of the first arg
-                    Units.conform(args[key],
-                                  Units(units[key]),
-                                  Units(units[key0]),
-                                  inplace=True)
-                    units[key] = units[key0]
+            # if there are scalars in the expression, these will not
+            # be in the units dictionary. Add them and give them an
+            # implicit unit of 1
+            keys = [str(arg) for arg in expr.args]
+            for key in keys:
+                if not units.has_key(key): units[key] = "1"
 
-            args [ekey] = sympify(str(expr),locals=args)
-            units[ekey] = units[key0]
+            # if we are adding, all arguments must have the same unit.
+            key0 = keys[0]
+            for key in keys:
+                Units.conform(np.ones(1),
+                              Units(units[key ]),
+                              Units(units[key0]))                    
+                units[key] = units[key0]
+            units[ekey] = "%s" % (units[key0])
 
         elif expr.is_Pow:
 
-            assert len(expr.args) == 2 # check on an assumption
-            power = float(expr.args[1])
-            args [ekey] = args[str(expr.args[0])]**power
-            units[ekey] = Units(units[str(expr.args[0])])
-            units[ekey] = units[ekey]**power
-        
+            # if raising to a power, just create the new unit
+            keys = [str(arg) for arg in expr.args]
+            units[ekey] = "(%s)%s" % (units[keys[0]],keys[1])
+
         elif expr.is_Mul:
+            
+            # just create the new unit
+            keys = [str(arg) for arg in expr.args]
+            units[ekey] = " ".join(["(%s)" % units[key] for key in keys if units.has_key(key)])
+    return sympify(str(expression),locals=args),units[ekey]            
 
-            unit = Units("1")
-            for arg in expr.args:
-                key   = str(arg)
-                if units.has_key(key): unit *= Units(units[key])
-        
-            args [ekey] = sympify(str(expr),locals=args)
-            units[ekey] = Units(unit).formatted()
-
-    return args[ekey],units[ekey]
-
+            
 def ComputeIndexingArrays(lat2d,lon2d,lat,lon):
     """Blah.
 
