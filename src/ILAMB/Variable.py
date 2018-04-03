@@ -788,6 +788,7 @@ class Variable:
             this object with its unit converted
 
         """
+        if unit is None: return self
         src_unit  = Units(self.unit)
         tar_unit  = Units(     unit)
         mask      = self.data.mask
