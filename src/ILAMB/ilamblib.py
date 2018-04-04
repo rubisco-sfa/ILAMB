@@ -846,7 +846,6 @@ def AnalysisMeanState(ref,com,**keywords):
         the unit to use when displaying output on plots on the HTML page
 
     """
-def AnalysisMeanState(ref,com,**keywords):
     from Variable import Variable
     regions           = keywords.get("regions"          ,["global"])
     dataset           = keywords.get("dataset"          ,None)
