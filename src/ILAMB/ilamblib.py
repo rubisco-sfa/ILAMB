@@ -1319,17 +1319,16 @@ def AnalysisMeanStateSpace(ref,com,**keywords):
         ref_cycle         = REF.annualCycle()
         ref_maxt_map      = ref_cycle.timeOfExtrema(etype="max")
         ref_maxt_map.name = "phase_map_of_%s" % name
-        ref_maxt_map.toNetCDF4(benchmark_dataset,group="MeanState")
         com_cycle         = COM.annualCycle()
         com_maxt_map      = com_cycle.timeOfExtrema(etype="max")
         com_maxt_map.name = "phase_map_of_%s" % name
-        com_maxt_map.toNetCDF4(dataset,group="MeanState")
         shift_map         = ref_maxt_map.phaseShift(com_maxt_map)
         shift_map.name    = "shift_map_of_%s" % name
         shift_score_map   = ScoreSeasonalCycle(shift_map)
         shift_score_map.name  = "shiftscore_map_of_%s" % name
         shift_map.data   /= 30.; shift_map.unit = "months"        
         if benchmark_dataset is not None:
+            ref_maxt_map.toNetCDF4(benchmark_dataset,group="MeanState")
             for region in regions:
                 ref_mean_cycle      = ref_cycle.integrateInSpace(region=region,mean=True)
                 ref_mean_cycle.name = "cycle_of_%s_over_%s" % (name,region)
@@ -1339,6 +1338,7 @@ def AnalysisMeanStateSpace(ref,com,**keywords):
                 ref_dtcycle.name  = "dtcycle_of_%s_over_%s" % (name,region)
                 ref_dtcycle.toNetCDF4(benchmark_dataset,group="MeanState")
         if dataset is not None:
+            com_maxt_map.toNetCDF4(dataset,group="MeanState")
             shift_map      .toNetCDF4(dataset,group="MeanState")
             shift_score_map.toNetCDF4(dataset,group="MeanState")
             for region in regions:
