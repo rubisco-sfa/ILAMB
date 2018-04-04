@@ -288,6 +288,7 @@ class Confrontation(object):
             mass_weighting = self.keywords.get("mass_weighting",False)
             skip_rmse      = self.keywords.get("skip_rmse"     ,False)
             skip_iav       = self.keywords.get("skip_iav"      ,False)
+            skip_cycle     = self.keywords.get("skip_cycle"    ,False)
             il.AnalysisMeanState(obs,mod,dataset   = fcm.mod_dset,
                                  regions           = self.regions,
                                  benchmark_dataset = fcm.obs_dset,
@@ -296,6 +297,7 @@ class Confrontation(object):
                                  space_mean        = self.space_mean,
                                  skip_rmse         = skip_rmse,
                                  skip_iav          = skip_iav,
+                                 skip_cycle        = skip_cycle,
                                  mass_weighting    = mass_weighting)
 
         logger.info("[%s][%s] Success" % (self.longname,m.name))

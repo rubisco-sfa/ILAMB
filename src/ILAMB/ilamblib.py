@@ -867,7 +867,7 @@ def AnalysisMeanState(ref,com,**keywords):
         skip_iav  = (skip_iav .lower() == "true")
     if type(skip_cycle) == type(""):
         skip_cycle = (skip_cycle.lower() == "true")
-
+    
     # Check if we need to skip parts of the analysis
     if not ref.monthly   : skip_cycle = True
     if ref.time.size < 12: skip_cycle = True
@@ -948,7 +948,7 @@ def AnalysisMeanState(ref,com,**keywords):
                                      area = COM_timeint.area).integrateInSpace(region=region,mean=space_mean).convert(table_unit)
             com_comp_mean.name = "Period Mean (complement) %s" % region
             com_comp_mean.toNetCDF4(dataset,group="MeanState")
-
+            
     # Now that we are done reporting on the intersection / complement,
     # set all masks to the intersection
     REF.data.mask += np.ones(REF.time.size,dtype=bool)[:,np.newaxis,np.newaxis] * (ref_and_com==False)
@@ -957,6 +957,59 @@ def AnalysisMeanState(ref,com,**keywords):
     COM_timeint.data.mask = (ref_and_com==False)
     if mass_weighting: normalizer.mask = (ref_and_com==False)
 
+    # Spatial Distribution: scalars and scores
+    if dataset is not None:
+        for region in regions:
+            space_std,space_cor,sd_score = REF_timeint.spatialDistribution(COM_timeint,region=region)
+            sd_score.name = "Spatial Distribution Score %s" % region
+            sd_score.toNetCDF4(dataset,group="MeanState",
+                               attributes={"std":space_std.data,
+                                           "R"  :space_cor.data})
+    
+    # Cycle: maps, scalars, and scores
+    if not skip_cycle:
+        ref_cycle         = REF.annualCycle()
+        ref_maxt_map      = ref_cycle.timeOfExtrema(etype="max")
+        ref_maxt_map.name = "phase_map_of_%s" % name
+        ref_maxt_map.toNetCDF4(benchmark_dataset,group="MeanState")
+        com_cycle         = COM.annualCycle()
+        com_maxt_map      = com_cycle.timeOfExtrema(etype="max")
+        com_maxt_map.name = "phase_map_of_%s" % name
+        com_maxt_map.toNetCDF4(dataset,group="MeanState")
+        shift_map         = ref_maxt_map.phaseShift(com_maxt_map)
+        shift_map.name    = "shift_map_of_%s" % name
+        shift_score_map   = ScoreSeasonalCycle(shift_map)
+        shift_score_map.name  = "shiftscore_map_of_%s" % name
+        shift_map.data   /= 30.; shift_map.unit = "months"        
+        if benchmark_dataset is not None:
+            for region in regions:
+                ref_mean_cycle      = ref_cycle.integrateInSpace(region=region,mean=True)
+                ref_mean_cycle.name = "cycle_of_%s_over_%s" % (name,region)
+                ref_mean_cycle.toNetCDF4(benchmark_dataset,group="MeanState")
+                ref_dtcycle       = deepcopy(ref_mean_cycle)
+                ref_dtcycle.data -= ref_mean_cycle.data.mean()
+                ref_dtcycle.name  = "dtcycle_of_%s_over_%s" % (name,region)
+                ref_dtcycle.toNetCDF4(benchmark_dataset,group="MeanState")
+        if dataset is not None:
+            shift_map      .toNetCDF4(dataset,group="MeanState")
+            shift_score_map.toNetCDF4(dataset,group="MeanState")
+            for region in regions:
+                com_mean_cycle      = com_cycle.integrateInSpace(region=region,mean=True)
+                com_mean_cycle.name = "cycle_of_%s_over_%s" % (name,region)
+                com_mean_cycle.toNetCDF4(dataset,group="MeanState")
+                com_dtcycle       = deepcopy(com_mean_cycle)
+                com_dtcycle.data -= com_mean_cycle.data.mean()
+                com_dtcycle.name  = "dtcycle_of_%s_over_%s" % (name,region)
+                com_dtcycle.toNetCDF4(dataset,group="MeanState")
+                shift       = shift_map.integrateInSpace(region=region,mean=True,intabs=True)
+                shift_score = shift_score_map.integrateInSpace(region=region,mean=True,weight=normalizer) 
+                shift      .name = "Phase Shift %s" % region
+                shift      .toNetCDF4(dataset,group="MeanState")
+                shift_score.name = "Seasonal Cycle Score %s" % region
+                shift_score.toNetCDF4(dataset,group="MeanState")
+                
+        del ref_cycle,com_cycle,shift_map,shift_score_map
+        
     # Bias: maps, scalars, and scores
     bias = REF_timeint.bias(COM_timeint).convert(plot_unit)
     cREF = Variable(name = "centralized %s" % name, unit = REF.unit,
@@ -1029,6 +1082,9 @@ def AnalysisMeanState(ref,com,**keywords):
                                            lat  = lat, lat_bnds = lat_bnds, lon = lon, lon_bnds = lon_bnds,
                                            area = area, ndata = ndata),
                                   REF_iav)
+            if benchmark_dataset is not None:
+                REF_iav.name = "iav_map_of_%s" % name
+                REF_iav.toNetCDF4(benchmark_dataset,group="MeanState")
             if dataset is not None:
                 COM_iav.name = "iav_map_of_%s" % name
                 COM_iav.toNetCDF4(dataset,group="MeanState")
