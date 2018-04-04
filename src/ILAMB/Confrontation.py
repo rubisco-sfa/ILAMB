@@ -289,16 +289,28 @@ class Confrontation(object):
             skip_rmse      = self.keywords.get("skip_rmse"     ,False)
             skip_iav       = self.keywords.get("skip_iav"      ,False)
             skip_cycle     = self.keywords.get("skip_cycle"    ,False)
-            il.AnalysisMeanState(obs,mod,dataset   = fcm.mod_dset,
-                                 regions           = self.regions,
-                                 benchmark_dataset = fcm.obs_dset,
-                                 table_unit        = self.table_unit,
-                                 plot_unit         = self.plot_unit,
-                                 space_mean        = self.space_mean,
-                                 skip_rmse         = skip_rmse,
-                                 skip_iav          = skip_iav,
-                                 skip_cycle        = skip_cycle,
-                                 mass_weighting    = mass_weighting)
+            if obs.spatial:
+                il.AnalysisMeanStateSpace(obs,mod,dataset   = fcm.mod_dset,
+                                          regions           = self.regions,
+                                          benchmark_dataset = fcm.obs_dset,
+                                          table_unit        = self.table_unit,
+                                          plot_unit         = self.plot_unit,
+                                          space_mean        = self.space_mean,
+                                          skip_rmse         = skip_rmse,
+                                          skip_iav          = skip_iav,
+                                          skip_cycle        = skip_cycle,
+                                          mass_weighting    = mass_weighting)
+            else:
+                il.AnalysisMeanStateSites(obs,mod,dataset   = fcm.mod_dset,
+                                          regions           = self.regions,
+                                          benchmark_dataset = fcm.obs_dset,
+                                          table_unit        = self.table_unit,
+                                          plot_unit         = self.plot_unit,
+                                          space_mean        = self.space_mean,
+                                          skip_rmse         = skip_rmse,
+                                          skip_iav          = skip_iav,
+                                          skip_cycle        = skip_cycle,
+                                          mass_weighting    = mass_weighting)
 
         logger.info("[%s][%s] Success" % (self.longname,m.name))
                 
