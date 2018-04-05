@@ -1370,6 +1370,7 @@ def AnalysisMeanStateSpace(ref,com,**keywords):
     REF_iav = cREF.rms()
     if skip_rmse: del cREF
     bias_score_map = Score(bias,REF_iav if REF.time.size > 1 else REF_timeint)
+    bias_score_map.data.mask = (ref_and_com==False) # for some reason I need to explicitly force the mask
     if dataset is not None:
         bias.name = "bias_map_of_%s" % name
         bias.toNetCDF4(dataset,group="MeanState")
