@@ -1255,26 +1255,27 @@ def AnalysisMeanStateSpace(ref,com,**keywords):
             ref_period_mean.name = "Period Mean (original grids) %s" % region
             ref_period_mean.toNetCDF4(benchmark_dataset,group="MeanState")
 
+    if dataset is not None:
+
+        com_timeint.name = "timeint_of_%s" % name
+        com_timeint.toNetCDF4(dataset,group="MeanState")
+        for region in regions:
+
             # reference period mean on intersection of land
             ref_union_mean = Variable(name = "REF_and_com", unit = REF.unit,
                                       data = np.ma.masked_array(REF_timeint.data,mask=(ref_and_com==False)),
                                       lat  = lat, lat_bnds = lat_bnds, lon  = lon, lon_bnds = lon_bnds,
                                       area = REF_timeint.area).integrateInSpace(region=region,mean=space_mean).convert(table_unit)
-            ref_union_mean.name = "Period Mean (intersection) %s" % region
-            ref_union_mean.toNetCDF4(benchmark_dataset,group="MeanState")
+            ref_union_mean.name = "Benchmark Period Mean (intersection) %s" % region
+            ref_union_mean.toNetCDF4(dataset,group="MeanState")
 
             # reference period mean on complement of land
             ref_comp_mean = Variable(name = "REF_not_com", unit = REF.unit,
                                      data = np.ma.masked_array(REF_timeint.data,mask=(ref_not_com==False)),
                                      lat  = lat, lat_bnds = lat_bnds, lon  = lon, lon_bnds = lon_bnds,
                                      area = REF_timeint.area).integrateInSpace(region=region,mean=space_mean).convert(table_unit)
-            ref_comp_mean.name = "Period Mean (complement) %s" % region
-            ref_comp_mean.toNetCDF4(benchmark_dataset,group="MeanState")
-    if dataset is not None:
-
-        com_timeint.name = "timeint_of_%s" % name
-        com_timeint.toNetCDF4(dataset,group="MeanState")
-        for region in regions:
+            ref_comp_mean.name = "Benchmark Period Mean (complement) %s" % region
+            ref_comp_mean.toNetCDF4(dataset,group="MeanState")
 
             # comparison period mean on original grid
             com_period_mean = com_timeint.integrateInSpace(region=region,mean=space_mean).convert(table_unit)
@@ -1286,7 +1287,7 @@ def AnalysisMeanStateSpace(ref,com,**keywords):
                                       data = np.ma.masked_array(COM_timeint.data,mask=(ref_and_com==False)),
                                       lat  = lat, lat_bnds = lat_bnds, lon  = lon, lon_bnds = lon_bnds,
                                       area = COM_timeint.area).integrateInSpace(region=region,mean=space_mean).convert(table_unit)
-            com_union_mean.name = "Period Mean (intersection) %s" % region
+            com_union_mean.name = "Model Period Mean (intersection) %s" % region
             com_union_mean.toNetCDF4(dataset,group="MeanState")
 
             # comparison period mean on complement of land
@@ -1294,7 +1295,7 @@ def AnalysisMeanStateSpace(ref,com,**keywords):
                                      data = np.ma.masked_array(COM_timeint.data,mask=(com_not_ref==False)),
                                      lat  = lat, lat_bnds = lat_bnds, lon  = lon, lon_bnds = lon_bnds,
                                      area = COM_timeint.area).integrateInSpace(region=region,mean=space_mean).convert(table_unit)
-            com_comp_mean.name = "Period Mean (complement) %s" % region
+            com_comp_mean.name = "Model Period Mean (complement) %s" % region
             com_comp_mean.toNetCDF4(dataset,group="MeanState")
             
     # Now that we are done reporting on the intersection / complement,
@@ -1366,7 +1367,7 @@ def AnalysisMeanStateSpace(ref,com,**keywords):
                     lat  = lat, lat_bnds = lat_bnds, lon = lon, lon_bnds = lon_bnds, area = REF.area).convert(plot_unit)
     REF_iav = cREF.rms()
     if skip_rmse: del cREF
-    bias_score_map = Score(bias,REF_iav)
+    bias_score_map = Score(bias,REF_iav if REF.time.size > 1 else REF_timeint)
     if dataset is not None:
         bias.name = "bias_map_of_%s" % name
         bias.toNetCDF4(dataset,group="MeanState")
@@ -1382,16 +1383,17 @@ def AnalysisMeanStateSpace(ref,com,**keywords):
     del bias,bias_score_map
 
     # Spatial mean: plots
-    if benchmark_dataset is not None:
-        for region in regions:
-            ref_spaceint = REF.integrateInSpace(region=region,mean=True)
-            ref_spaceint.name = "spaceint_of_%s_over_%s" % (name,region)
-            ref_spaceint.toNetCDF4(benchmark_dataset,group="MeanState")
-    if dataset is not None:
-        for region in regions:
-            com_spaceint = COM.integrateInSpace(region=region,mean=True)
-            com_spaceint.name = "spaceint_of_%s_over_%s" % (name,region)
-            com_spaceint.toNetCDF4(dataset,group="MeanState")
+    if REF.time.size > 1:
+        if benchmark_dataset is not None:
+            for region in regions:
+                ref_spaceint = REF.integrateInSpace(region=region,mean=True)
+                ref_spaceint.name = "spaceint_of_%s_over_%s" % (name,region)
+                ref_spaceint.toNetCDF4(benchmark_dataset,group="MeanState")
+        if dataset is not None:
+            for region in regions:
+                com_spaceint = COM.integrateInSpace(region=region,mean=True)
+                com_spaceint.name = "spaceint_of_%s_over_%s" % (name,region)
+                com_spaceint.toNetCDF4(dataset,group="MeanState")
  
     # RMSE: maps, scalars, and scores
     if not skip_rmse:
