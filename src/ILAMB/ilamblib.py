@@ -1225,6 +1225,8 @@ def AnalysisMeanStateSpace(ref,com,**keywords):
 
     # Interpolate both reference and comparison to a grid composed of
     # their cell breaks
+    ref.convert(plot_unit)
+    com.convert(plot_unit)
     lat,lon,lat_bnds,lon_bnds = _composeGrids(ref,com)
     REF   = ref.interpolate(lat=lat,lon=lon,lat_bnds=lat_bnds,lon_bnds=lon_bnds)
     COM   = com.interpolate(lat=lat,lon=lon,lat_bnds=lat_bnds,lon_bnds=lon_bnds)
@@ -1262,7 +1264,7 @@ def AnalysisMeanStateSpace(ref,com,**keywords):
         for region in regions:
 
             # reference period mean on intersection of land
-            ref_union_mean = Variable(name = "REF_and_com", unit = REF.unit,
+            ref_union_mean = Variable(name = "REF_and_com", unit = REF_timeint.unit,
                                       data = np.ma.masked_array(REF_timeint.data,mask=(ref_and_com==False)),
                                       lat  = lat, lat_bnds = lat_bnds, lon  = lon, lon_bnds = lon_bnds,
                                       area = REF_timeint.area).integrateInSpace(region=region,mean=space_mean).convert(table_unit)
@@ -1270,7 +1272,7 @@ def AnalysisMeanStateSpace(ref,com,**keywords):
             ref_union_mean.toNetCDF4(dataset,group="MeanState")
 
             # reference period mean on complement of land
-            ref_comp_mean = Variable(name = "REF_not_com", unit = REF.unit,
+            ref_comp_mean = Variable(name = "REF_not_com", unit = REF_timeint.unit,
                                      data = np.ma.masked_array(REF_timeint.data,mask=(ref_not_com==False)),
                                      lat  = lat, lat_bnds = lat_bnds, lon  = lon, lon_bnds = lon_bnds,
                                      area = REF_timeint.area).integrateInSpace(region=region,mean=space_mean).convert(table_unit)
@@ -1283,7 +1285,7 @@ def AnalysisMeanStateSpace(ref,com,**keywords):
             com_period_mean.toNetCDF4(dataset,group="MeanState")
 
             # comparison period mean on intersection of land
-            com_union_mean = Variable(name = "ref_and_COM", unit = COM.unit,
+            com_union_mean = Variable(name = "ref_and_COM", unit = COM_timeint.unit,
                                       data = np.ma.masked_array(COM_timeint.data,mask=(ref_and_com==False)),
                                       lat  = lat, lat_bnds = lat_bnds, lon  = lon, lon_bnds = lon_bnds,
                                       area = COM_timeint.area).integrateInSpace(region=region,mean=space_mean).convert(table_unit)
@@ -1291,7 +1293,7 @@ def AnalysisMeanStateSpace(ref,com,**keywords):
             com_union_mean.toNetCDF4(dataset,group="MeanState")
 
             # comparison period mean on complement of land
-            com_comp_mean = Variable(name = "COM_not_ref", unit = COM.unit,
+            com_comp_mean = Variable(name = "COM_not_ref", unit = COM_timeint.unit,
                                      data = np.ma.masked_array(COM_timeint.data,mask=(com_not_ref==False)),
                                      lat  = lat, lat_bnds = lat_bnds, lon  = lon, lon_bnds = lon_bnds,
                                      area = COM_timeint.area).integrateInSpace(region=region,mean=space_mean).convert(table_unit)
