@@ -835,7 +835,6 @@ class Variable:
             self.data = np.ma.masked_array(self.data,mask=mask)
             self.unit = unit
         except:
-            print "var_name = %s, src_unit = %s, target_unit = %s " % (self.name,src_unit,tar_unit)
             raise il.UnitConversionError()
         return self
     

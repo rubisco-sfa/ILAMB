@@ -32,7 +32,7 @@ class ConfTWSA(Confrontation):
         r = Regions()
         nbasins = self.keywords.get("nbasins",30)
         self.basins = r.addRegionNetCDF4(os.path.join("/".join(self.source.split("/")[:-3]),"runoff/Dai/basins_0.5x0.5.nc"))[:nbasins]
-        
+
     def stageData(self,m):
         r"""Extracts model data which is comparable to the observations.
 
@@ -72,8 +72,19 @@ class ConfTWSA(Confrontation):
 
         # get the model data, in the units of the obseravtions
         mod = m.extractTimeSeries(self.variable,
-                                  alt_vars = self.alternate_vars).convert(obs.unit)
-        obs,mod   = il.MakeComparable(obs,mod,clip_ref=True)
+                                  alt_vars     = self.alternate_vars,
+                                  expression   = self.derived,
+                                  initial_time = obs.time_bnds[ 0,0],
+                                  final_time   = obs.time_bnds[-1,1])
+
+        # if the derived expression is used, then we get a mass flux
+        # rate and need to accumulate
+        try:
+            mod.convert(obs.unit)
+        except:
+            mod = mod.accumulateInTime()
+            mod.name = obs.name
+        obs,mod = il.MakeComparable(obs,mod,clip_ref=True)
 
         # subtract off the mean
         mean      = obs.integrateInTime(mean=True)
