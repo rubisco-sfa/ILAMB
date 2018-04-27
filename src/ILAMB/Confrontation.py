@@ -836,7 +836,7 @@ class Confrontation(object):
                 lim[1] = max(lmax,lim[1])
             return lim
     
-        def _buildDistributionResponse(ind,dep,ind_lim=None,dep_lim=None,region=None,nbin=25):
+        def _buildDistributionResponse(ind,dep,ind_lim=None,dep_lim=None,region=None,nbin=25,eps=3e-3):
             
             r = Regions()
 
@@ -862,13 +862,16 @@ class Confrontation(object):
             which_bin = np.digitize(x,xedges).clip(1,xedges.size-1)-1
             mean = np.ma.zeros(xedges.size-1)
             std  = np.ma.zeros(xedges.size-1)
+            cnt  = np.ma.zeros(xedges.size-1)
             np.seterr(under='ignore')
             for i in range(mean.size):
                 yi = y[which_bin==i]
+                cnt [i] = yi.size
                 mean[i] = yi.mean()
                 std [i] = yi.std()
+            mean = np.ma.masked_array(mean,mask = (cnt/cnt.sum()) < eps)
+            std  = np.ma.masked_array( std,mask = (cnt/cnt.sum()) < eps)     
             np.seterr(under='warn')
-
             return dist,xedges,yedges,mean,std
 
         def _scoreDistribution(ref,com):
