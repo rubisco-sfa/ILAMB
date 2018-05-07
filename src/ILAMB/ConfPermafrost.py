@@ -18,15 +18,15 @@ class ConfPermafrost(Confrontation):
         self.layout
         self.regions        = ["global"]
         self.layout.regions = self.regions
-        self.weight         = { "Obs Score" : 1.,
-                                "Mod Score" : 1. }
+        self.weight         = { "Missed Score" : 1.,
+                                "Excess Score" : 1. }
         for page in self.layout.pages:
             page.setMetricPriority(["Total Area"  ,
                                     "Overlap Area",
                                     "Missed Area" ,
                                     "Excess Area" ,
-                                    "Obs Score"   ,
-                                    "Mod Score"   ,
+                                    "Missed Score"   ,
+                                    "Excess Score"   ,
                                     "Overall Score"])
                 
     def stageData(self,m):
@@ -59,6 +59,7 @@ class ConfPermafrost(Confrontation):
             table[frozen] = mod.depth_bnds[i,0]
         table = np.ma.masked_invalid(table)
         table.data[table.mask==0] = 1
+        table[np.where((mod.area>1e-12)*(table.mask==1))] = 0.
         mod = Variable(name = "permafrost_extent",
                        unit = "1",
                        data = table,
@@ -69,51 +70,90 @@ class ConfPermafrost(Confrontation):
         
     def confront(self,m):
 
-        obs,mod  = self.stageData(m)        
+        obs,mod  = self.stageData(m)
         obs_area = obs.integrateInSpace().convert("1e6 km2")
         mod_area = mod.integrateInSpace().convert("1e6 km2")
         
-        # interpolate to a composed grid
-        lat,lon = il.ComposeSpatialGrids(obs,mod)
-        iobs    = obs.interpolate(lat=lat,lon=lon)
-        imod    = mod.interpolate(lat=lat,lon=lon)
-        
+        # Interpolate to a composed grid
+        lat,lon,lat_bnds,lon_bnds = il._composeGrids(obs,mod)
+        OBS = obs.interpolate(lat=lat,lon=lon,lat_bnds=lat_bnds,lon_bnds=lon_bnds)
+        MOD = mod.interpolate(lat=lat,lon=lon,lat_bnds=lat_bnds,lon_bnds=lon_bnds)
+
+        # Compute the different extent areas
+        o_mask       =  OBS.data.mask
+        o_land       = (OBS.area > 1e-12)*(o_mask==0)
+        o_data       =  np.copy(OBS.data.data)
+        o_data[np.where(OBS.data.mask)] = 0.
+
+        m_mask       =  MOD.data.mask
+        m_land       = (MOD.area > 1e-12)
+        m_data       =  np.copy(MOD.data.data)
+        m_data[np.where(MOD.data.mask)] = 0.
+
+        o_and_m      = (np.abs(o_data-1)<1e-12)*(np.abs(m_data-1)<1e-12)
+        o_not_m_land = (np.abs(o_data-1)<1e-12)*(np.abs(m_data  )<1e-12)*(m_land==0)
+        o_not_m_miss = (np.abs(o_data-1)<1e-12)*(np.abs(m_data  )<1e-12)*(m_land==1)
+        o_zones      = 1.*o_and_m
+        o_zones     += 2.*o_not_m_land
+        o_zones     += 4.*o_not_m_miss
+        o_zones = np.ma.masked_array(o_zones,mask=o_mask)
+
+        m_and_o      = (np.abs(m_data-1)<1e-12)*(np.abs(o_data-1)<1e-12)
+        m_not_o_land = (np.abs(m_data-1)<1e-12)*(np.abs(o_data  )<1e-12)*(o_land==0)
+        m_not_o_miss = (np.abs(m_data-1)<1e-12)*(np.abs(o_data  )<1e-12)*(o_land==1)
+        m_zones      = 1.*m_and_o
+        m_zones     += 2.*m_not_o_land
+        m_zones     += 4.*m_not_o_miss
+        m_zones = np.ma.masked_array(m_zones,mask=m_mask)
+
+        zones  = 1.*o_and_m
+        zones += 2.*o_not_m_miss
+        zones += 4.*m_not_o_miss
+        zones += 8.*m_not_o_land
+        zones  = np.ma.masked_less(zones,1)
+        for i,u in enumerate(np.unique(zones.compressed())):
+            zones[np.where(zones==u)] = i
+
         # compute the intersection of obs and mod
-        data = (iobs.data.mask==0)*(imod.data.mask==0)
         obs_and_mod = Variable(name = "obs_and_mod",
                                unit = "1",
-                               data = np.ma.masked_values(data,0).astype(float),
-                               lat  = lat,
-                               lon  = lon)
+                               data = np.ma.masked_values(zones==0,0).astype(float),
+                               lat  = lat, lon = lon, area = MOD.area)
 
         # compute the obs that is not the mod
-        data = (iobs.data.mask==0)*(imod.data.mask==1)
+        data = (OBS.data.mask==0)*(MOD.data.mask==1)
         obs_not_mod = Variable(name = "obs_not_mod",
                                unit = "1",
-                               data = np.ma.masked_values(data,0).astype(float),
-                               lat  = lat,
-                               lon  = lon)
+                               data = np.ma.masked_values(zones==1,0).astype(float),
+                               lat  = lat, lon  = lon, area = OBS.area)
 
         # compute the mod that is not the obs
-        data = (iobs.data.mask==1)*(imod.data.mask==0)
+        data = (OBS.data.mask==1)*(MOD.data.mask==0)
         mod_not_obs = Variable(name = "mod_not_obs",
                                unit = "1",
-                               data = np.ma.masked_values(data,0).astype(float),
-                               lat  = lat,
-                               lon  = lon)
+                               data = np.ma.masked_values(zones==2,0).astype(float),
+                               lat  = lat, lon  = lon, area = MOD.area)
+        
+        # compute the mod that is not the obs but because of land representation
+        data = (OBS.data.mask==1)*(MOD.data.mask==0)
+        mod_not_obs_land = Variable(name = "mod_not_obs_land",
+                                    unit = "1",
+                                    data = np.ma.masked_values(zones==3,0).astype(float),
+                                    lat  = lat, lon  = lon, area = MOD.area)
 
         # compute areas
         obs_and_mod_area = obs_and_mod.integrateInSpace().convert("1e6 km2")
         obs_not_mod_area = obs_not_mod.integrateInSpace().convert("1e6 km2")
         mod_not_obs_area = mod_not_obs.integrateInSpace().convert("1e6 km2")
+        mod_not_obs_land_area = mod_not_obs_land.integrateInSpace().convert("1e6 km2")
         
         # determine score
-        obs_score = Variable(name = "Obs Score global",
+        obs_score = Variable(name = "Missed Score global",
                              unit = "1",
-                             data = obs_and_mod_area.data / obs_area.data)
-        mod_score = Variable(name = "Mod Score global",
+                             data = obs_and_mod_area.data / (obs_and_mod_area.data + obs_not_mod_area.data))
+        mod_score = Variable(name = "Excess Score global",
                              unit = "1",
-                             data = obs_and_mod_area.data / mod_area.data)
+                             data = obs_and_mod_area.data / (obs_and_mod_area.data + mod_not_obs_area.data))
                 
         # Write to datafiles --------------------------------------
 
@@ -122,19 +162,22 @@ class ConfPermafrost(Confrontation):
         obs_and_mod_area.name = "Overlap Area"
         obs_not_mod_area.name = "Missed Area"
         mod_not_obs_area.name = "Excess Area"
+        mod_not_obs_land_area.name = "Excess Area (Land Representation)"
         
         results = Dataset("%s/%s_%s.nc" % (self.output_path,self.name,m.name),mode="w")
         results.setncatts({"name" :m.name, "color":m.color})
-        mod             .toNetCDF4(results,group="MeanState")
-        obs_and_mod     .toNetCDF4(results,group="MeanState")
-        obs_not_mod     .toNetCDF4(results,group="MeanState")
-        mod_not_obs     .toNetCDF4(results,group="MeanState")        
-        mod_area        .toNetCDF4(results,group="MeanState")
-        obs_and_mod_area.toNetCDF4(results,group="MeanState")
-        obs_not_mod_area.toNetCDF4(results,group="MeanState")
-        mod_not_obs_area.toNetCDF4(results,group="MeanState")
-        obs_score       .toNetCDF4(results,group="MeanState")
-        mod_score       .toNetCDF4(results,group="MeanState")
+        mod                  .toNetCDF4(results,group="MeanState")
+        obs_and_mod          .toNetCDF4(results,group="MeanState")
+        obs_not_mod          .toNetCDF4(results,group="MeanState")
+        mod_not_obs          .toNetCDF4(results,group="MeanState")        
+        mod_not_obs_land     .toNetCDF4(results,group="MeanState")        
+        mod_area             .toNetCDF4(results,group="MeanState")
+        obs_and_mod_area     .toNetCDF4(results,group="MeanState")
+        obs_not_mod_area     .toNetCDF4(results,group="MeanState")
+        mod_not_obs_area     .toNetCDF4(results,group="MeanState")
+        mod_not_obs_land_area.toNetCDF4(results,group="MeanState")
+        obs_score            .toNetCDF4(results,group="MeanState")
+        mod_score            .toNetCDF4(results,group="MeanState")
         results.close()
 
         if self.master:
@@ -168,13 +211,13 @@ class ConfPermafrost(Confrontation):
         page.addFigure("Temporally integrated period mean",
                        "bias",
                        "MNAME_global_bias.png",
-                       side   = "SPATIAL BIAS",
+                       side   = "BIAS",
                        legend = True)
         
         plt.figure(figsize=(10,10),dpi=60)
         mp  = Basemap(projection='ortho',lat_0=90.,lon_0=180.,resolution='c')
         X,Y = np.meshgrid(mod.lat,mod.lon,indexing='ij')
-        mp.pcolormesh(Y,X,mod.data,latlon=True,cmap="Blues",vmin=0,vmax=2)
+        mp.pcolormesh(Y,X,np.ma.masked_values(mod.data,0),latlon=True,cmap="Blues",vmin=0,vmax=2)
         mp.drawlsmask(land_color='lightgrey',ocean_color='grey',lakes=True)
         plt.savefig("%s/%s_global_timeint.png" % (self.output_path,m.name),dpi='figure')
         plt.close()
@@ -188,11 +231,12 @@ class ConfPermafrost(Confrontation):
         tmp = Variable(filename = fname,variable_name = "mod_not_obs",groupname = "MeanState")
         bias[tmp.data.mask==0] = +1.0
         bias = np.ma.masked_invalid(bias)
-        
+
+        cmap = plt.get_cmap('bwr',3)
         plt.figure(figsize=(10,10),dpi=60)
         mp  = Basemap(projection='ortho',lat_0=90.,lon_0=180.,resolution='c')
         X,Y = np.meshgrid(tmp.lat,tmp.lon,indexing='ij')
-        mp.pcolormesh(Y,X,bias,latlon=True,cmap="seismic",vmin=-1.5,vmax=+1.5)
+        mp.pcolormesh(Y,X,bias,latlon=True,cmap=cmap,vmin=-1.5,vmax=+1.5)
         mp.drawlsmask(land_color='lightgrey',ocean_color='grey',lakes=True)
         plt.savefig("%s/%s_global_bias.png" % (self.output_path,m.name),dpi='figure')
         plt.close()
@@ -204,20 +248,20 @@ class ConfPermafrost(Confrontation):
             plt.figure(figsize=(10,10),dpi=60)
             mp  = Basemap(projection='ortho',lat_0=90.,lon_0=180.,resolution='c')
             X,Y = np.meshgrid(obs.lat,obs.lon,indexing='ij')
-            mp.pcolormesh(Y,X,obs.data,latlon=True,cmap="Blues",vmin=0,vmax=2)
+            mp.pcolormesh(Y,X,np.ma.masked_values(obs.data,0),latlon=True,cmap="Blues",vmin=0,vmax=2)
             mp.drawlsmask(land_color='lightgrey',ocean_color='grey',lakes=True)
             plt.savefig("%s/Benchmark_global_timeint.png" % (self.output_path),dpi='figure')
             plt.close()
 
             # plot legend for bias
-            fig,ax = plt.subplots(figsize=(6.8,1.0),tight_layout=True)
+            fig,ax = plt.subplots(figsize=(6.8,0.8),tight_layout=True)
             ColorBar(ax,
                      vmin = -1.5,
                      vmax = +1.5,
-                     cmap = "seismic",
+                     cmap = cmap,
                      ticks = [-1,0,1],
-                     ticklabels = ["Obs $\\backslash$ Mod","Obs $\cap$ Mod","Mod $\\backslash$ Obs"],
-                     label = "Spatial Extent Bias")
+                     ticklabels = ["Missed Area","Shared Area","Excess Area"],
+                     label = "")
             fig.savefig("%s/legend_%s.png" % (self.output_path,"bias"))
             plt.close()
 
