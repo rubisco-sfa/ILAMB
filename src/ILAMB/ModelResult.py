@@ -37,7 +37,7 @@ class ModelResult():
         used to shift model times, all model years at model_year[0]
         are shifted to model_year[1]
     """
-    def __init__(self,path,modelname="unamed",color=(0,0,0),filter="",regex=None,model_year=None):
+    def __init__(self,path,modelname="unamed",color=(0,0,0),filter="",regex="",model_year=None):
         self.path           = path
         self.color          = color
         self.filter         = filter
@@ -76,7 +76,7 @@ class ModelResult():
             for fileName in files:
                 if not fileName.endswith(".nc"): continue
                 if self.filter not in fileName: continue
-                if self.regex is not None:
+                if self.regex is not "":
                     m = re.search(self.regex,fileName)
                     if not m: continue                    
                 pathName  = os.path.join(subdir,fileName)
