@@ -7,6 +7,38 @@ from netCDF4 import Dataset
 import ilamblib as il
 import numpy as np
 
+def _ALTFromTSL(tsl,dmax=3.5,dres=0.01,Teps=273.15):
+    """
+
+    """
+    from scipy.interpolate import interp1d
+    
+    # find the annual cycle
+    mask = tsl.data.mask.all(axis=(0,1))
+    area = tsl.area
+    tsl  = tsl.annualCycle()
+    
+    # which month is the mean soil temperature maximum?    
+    T = tsl.data.mean(axis=1).argmax(axis=0)
+    T = T[np.newaxis,np.newaxis,...]*np.ones((1,)+tsl.data.shape[-3:],dtype=int)
+    D,X,Y = np.ix_(np.arange(tsl.data.shape[1]),
+                   np.arange(tsl.data.shape[2]),
+                   np.arange(tsl.data.shape[3]))
+    d   = tsl.depth
+    tsl = tsl.data[T,D,X,Y]
+    tsl = tsl.reshape(tsl.shape[-3:])
+    
+    # now we interpolate to find a more precise active layer thickness
+    D   = np.arange(0,dmax+0.1*dres,dres)
+    TSL = interp1d(d,tsl,axis=0,fill_value="extrapolate")
+    TSL = TSL(D)
+        
+    # the active layer thickness is then the sum of all level
+    # thicknesses whose temperature is greater than the threshold.
+    ALT = np.ma.masked_array((TSL>Teps).sum(axis=0)*dres,mask=mask+(TSL>Teps).all(axis=0))
+
+    return ALT
+    
 class ConfPermafrost(Confrontation):
 
     def __init__(self,**keywords):
@@ -47,22 +79,12 @@ class ConfPermafrost(Confrontation):
                                   final_time   = tf)
         mod.trim(t   = [t0           ,tf  ],
                  lat = [obs.lat.min(),90  ],
-                 d   = [0            ,dmax])
-        mod          = mod.annualCycle()
-        Tmax         = mod.data.max(axis=0)
-        table        = np.zeros(Tmax.shape[-2:])
-        table[...]   = np.NAN
-        thaw         = np.zeros(table.shape,dtype=bool)
-        for i in range(mod.depth_bnds.shape[0]-1,-1,-1):
-            thaw  += (Tmax[i]>=Teps)
-            frozen = np.where((Tmax[i]<Teps)*(thaw==0))
-            table[frozen] = mod.depth_bnds[i,0]
-        table = np.ma.masked_invalid(table)
-        table.data[table.mask==0] = 1
-        table[np.where((mod.area>1e-12)*(table.mask==1))] = 0.
+                 d   = [0            ,dmax]) #.annualCycle()
+
+        alt = _ALTFromTSL(mod)
         mod = Variable(name = "permafrost_extent",
                        unit = "1",
-                       data = table,
+                       data = np.ma.masked_array((alt>=0).astype(float),mask=alt.mask),
                        lat  = mod.lat,
                        lon  = mod.lon,
                        area = mod.area)
