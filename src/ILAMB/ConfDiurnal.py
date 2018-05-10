@@ -57,7 +57,7 @@ class ConfDiurnal(Confrontation):
                        alternate_vars = self.alternate_vars)
         if obs.time is None: raise il.NotTemporalVariable()
         self.pruneRegions(obs)
-        
+
         # Try to extract a commensurate quantity from the model
         mod = m.extractTimeSeries(self.variable,
                                   alt_vars     = self.alternate_vars,
@@ -66,6 +66,7 @@ class ConfDiurnal(Confrontation):
                                   final_time   = obs.time_bnds[-1,1],
                                   lats         = None if obs.spatial else obs.lat,
                                   lons         = None if obs.spatial else obs.lon).convert(obs.unit)
+        obs,mod = il.MakeComparable(obs,mod,clip_ref=True,prune_sites=True)
         return obs,mod
 
     def confront(self,m):

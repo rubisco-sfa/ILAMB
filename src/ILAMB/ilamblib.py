@@ -1523,12 +1523,13 @@ def MakeComparable(ref,com,**keywords):
 
     """    
     # Process keywords
-    clip_ref  = keywords.get("clip_ref" ,False)
-    mask_ref  = keywords.get("mask_ref" ,False)
-    eps       = keywords.get("eps"      ,30./60./24.)
-    window    = keywords.get("window"   ,0.)
-    extents   = keywords.get("extents"  ,np.asarray([[-90.,+90.],[-180.,+180.]]))
-    logstring = keywords.get("logstring","")
+    clip_ref    = keywords.get("clip_ref" ,False)
+    mask_ref    = keywords.get("mask_ref" ,False)
+    eps         = keywords.get("eps"      ,30./60./24.)
+    window      = keywords.get("window"   ,0.)
+    extents     = keywords.get("extents"  ,np.asarray([[-90.,+90.],[-180.,+180.]]))
+    logstring   = keywords.get("logstring","")
+    prune_sites = keywords.get("prune_sites",False)
     
     # If one variable is temporal, then they both must be
     if ref.temporal != com.temporal:
@@ -1569,11 +1570,31 @@ def MakeComparable(ref,com,**keywords):
     # have the same number of sites and that they represent the same
     # location. Note this is after the above extraction so at this
     # point the ndata field of both variables should be equal.
-    if ref.ndata != com.ndata:
-        msg  = "%s One or both datasets are understood as site data but differ in number of sites: " % logstring
-        msg += "reference = %d, comparison = %d" % (ref.ndata,com.ndata)
-        logger.debug(msg)
-        raise VarsNotComparable()
+    if (prune_sites) and (ref.ndata is not None) and (com.ndata is not None):
+        deps = 1.0
+        
+        # prune the reference
+        r    = np.sqrt((ref.lat[:,np.newaxis]-com.lat)**2+(ref.lon[:,np.newaxis]-com.lon)**2)
+        rind = r.argmin(axis=0)
+        rind = rind[np.where(r[rind,range(com.ndata)]<deps)]
+        ref.lat = ref.lat[rind]; ref.lon = ref.lon[rind]; ref.data = ref.data[...,rind]
+        msg  = "%s Pruned %d sites from the reference and " % (logstring,ref.ndata-ref.lat.size)
+        ref.ndata = ref.lat.size
+        
+        # prune the comparison
+        r    = np.sqrt((com.lat[:,np.newaxis]-ref.lat)**2+(com.lon[:,np.newaxis]-ref.lon)**2)
+        rind = r.argmin(axis=0)
+        rind = rind[np.where(r[rind,range(ref.ndata)]<deps)]
+        com.lat = com.lat[rind]; com.lon = com.lon[rind]; com.data = com.data[...,rind]
+        msg += "%d sites from the comparison." % (com.ndata-com.lat.size)
+        com.ndata = com.lat.size
+        logger.info(msg)
+    else:
+        if ref.ndata != com.ndata:
+            msg  = "%s One or both datasets are understood as site data but differ in number of sites: " % logstring
+            msg += "reference = %d, comparison = %d" % (ref.ndata,com.ndata)
+            logger.debug(msg)
+            raise VarsNotComparable()
     if ref.ndata is not None:
         if not (np.allclose(ref.lat,com.lat) or np.allclose(ref.lon,com.lon)):
             msg  = "%s Datasets represent sites, but the locations are different: " % logstring
