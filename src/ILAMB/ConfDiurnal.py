@@ -57,7 +57,7 @@ class ConfDiurnal(Confrontation):
                        alternate_vars = self.alternate_vars)
         if obs.time is None: raise il.NotTemporalVariable()
         self.pruneRegions(obs)
-
+        
         # Try to extract a commensurate quantity from the model
         mod = m.extractTimeSeries(self.variable,
                                   alt_vars     = self.alternate_vars,
@@ -66,7 +66,15 @@ class ConfDiurnal(Confrontation):
                                   final_time   = obs.time_bnds[-1,1],
                                   lats         = None if obs.spatial else obs.lat,
                                   lons         = None if obs.spatial else obs.lon).convert(obs.unit)
+
+        # When we make things comparable, sites can get pruned, we
+        # also need to prune the site labels
+        lat = np.copy(obs.lat); lon = np.copy(obs.lon)
         obs,mod = il.MakeComparable(obs,mod,clip_ref=True,prune_sites=True)
+        ind = np.sqrt((lat[:,np.newaxis]-obs.lat)**2 +
+                      (lon[:,np.newaxis]-obs.lon)**2).argmin(axis=0)
+        maxS = max([len(s) for s in self.lbls])
+        self.lbls = np.asarray(self.lbls,dtype='S%d' % maxS)[ind]
         return obs,mod
 
     def confront(self,m):
@@ -75,11 +83,11 @@ class ConfDiurnal(Confrontation):
         page = [page for page in self.layout.pages if "MeanState" in page.name][0]
         
         # Grab the data
-        obs,mod      = self.stageData(m)
+        obs,mod      = self.stageData(m)    
         odata,ot,otb = DiurnalReshape(obs)
         mdata,mt,mtb = DiurnalReshape(mod)
 
-        n            = len(self.lbls)
+        n            = self.lbls.size
         obs_amp      = np.zeros(n)
         mod_amp      = np.zeros(n)
         amp_score    = np.zeros(n)
@@ -134,7 +142,11 @@ class ConfDiurnal(Confrontation):
                 obs_amp    [site] = aobs
                 obs_phase  [site] = otmx
                 amp_score  [site] = np.exp(-np.abs(amod-aobs)/aobs)
-                phase_score[site] =       1-np.abs(mtmx-otmx)/0.5 
+                s = np.abs(mtmx-otmx)
+                s = (s<=0.5)*s + (s>0.5)*(1.-s)
+                s = 1.-s/0.5
+                phase_score[site] = s
+
             mod_amp    [site] = amod
             mod_phase  [site] = mtmx
 
@@ -188,7 +200,7 @@ class ConfDiurnal(Confrontation):
         page = [page for page in self.layout.pages if "MeanState" in page.name][0]
         page.priority = ["Amplitude","Max","Min","Max time","Bias","RMSE","Shift","Score","Overall"]
 
-        for site in range(len(self.lbls)):
+        for site in range(self.lbls.size):
 
             # Site name
             lbl   = self.lbls[site]

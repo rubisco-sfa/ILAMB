@@ -439,6 +439,55 @@ def ComputeIndexingArrays(lat2d,lon2d,lat,lon):
     gmap     = fcn(LAT.flatten(),LON.flatten()).astype(int)
     return gmap[:,0].reshape(LAT.shape),gmap[:,1].reshape(LAT.shape)
 
+def _shiftDatum(t,datum="days since 1850-1-1"):
+    return date2num(num2date(t[...],t.units,calendar=t.calendar),
+                    datum,
+                    calendar=t.calendar)
+
+def _removeLeapDay(t,v,datum="days since 1850-1-1",t0=None,tf=None):
+    """
+    Shifts the datum and removes leap day if present.
+
+    Parameters
+    ----------
+    t : netCDF4._netCDF4.Variable
+        the variable representing time in any calendar with any datum
+    v : netCDF4._netCDF4.Variable
+        the variable representing the data
+    datum : str, optional
+        the datum to which we will shift the variable
+    t0 : float, optional
+        the initial time in 'days since 1850-1-1'
+    tf : float, optional
+        the final time in 'days since 1850-1-1'
+    """
+    # shift their datum to our datum
+    tdata = _shiftDatum(t)
+    
+    # convert the time array to datetime objects in the native calendar
+    T  = num2date(tdata,"days since 1850-1-1",calendar=t.calendar)
+    
+    # find a boolean array which is true where time values are on leap day
+    leap_day = np.asarray([1 if (x.month == 2 and x.day == 29) else 0 for x in T],dtype=bool)
+    
+    # then we need to shift the times by the times we will remove
+    dt       = np.hstack([0,np.diff(tdata)]) # assumes that the time is at the beginning of the interval
+    tdata   -= (leap_day*dt).cumsum()        # shift by removed time
+    t_index  = np.where(leap_day==False)[0]  # indices that we keep
+    tdata    = tdata[t_index]                # remove leap day
+    
+    # finally we need to shift by the number of leap days since our new datum
+    tdata   -= date2num(T[0],"days since 1850-1-1",t.calendar) - date2num(T[0],"days since 1850-1-1","noleap")
+
+    # where do we slice the array
+    begin = 0; end = t.size
+    if t0 is not None: begin = max(tdata.searchsorted(t0)-1,begin)
+    if tf is not None: end   = min(tdata.searchsorted(tf)+1,end)    
+    tdata = tdata[             begin:end    ]
+    vdata =     v[t_index,...][begin:end,...] # not as memory efficient as it could be
+    
+    return tdata,vdata
+
 def FromNetCDF4(filename,variable_name,alternate_vars=[],t0=None,tf=None,group=None):
     """Extracts data from a netCDF4 datafile for use in a Variable object.
     
@@ -625,16 +674,6 @@ def FromNetCDF4(filename,variable_name,alternate_vars=[],t0=None,tf=None,group=N
     depth   = None; depth_bnd = None
     data    = None;
     cbounds = None
-    if time_name is not None:
-        if time_bnd_name is None:
-            t       = ConvertCalendar(grp.variables[time_name])
-        else:
-            t,t_bnd = ConvertCalendar(grp.variables[time_name],grp.variables[time_bnd_name])
-        if "climatology" in grp.variables[time_name].ncattrs():
-            cbounds = grp.variables[grp.variables[time_name].climatology]
-            if not np.allclose(cbounds.shape,[12,2]):
-                raise RuntimeError("ILAMB only supports annual cycle style climatologies")
-            cbounds = np.round(cbounds[0,:]/365.+1850.)
     if lat_name       is not None: lat       = grp.variables[lat_name]      [...]
     if lat_bnd_name   is not None: lat_bnd   = grp.variables[lat_bnd_name]  [...]
     if lon_name       is not None: lon       = grp.variables[lon_name]      [...]
@@ -650,8 +689,7 @@ def FromNetCDF4(filename,variable_name,alternate_vars=[],t0=None,tf=None,group=N
                 raise ValueError("Non-linear units [%s] of the layered dimension [%s] in %s" % (dunit,depth_name,filename))
             depth = Units.conform(depth,Units(dunit),Units("m"),inplace=True)
             if depth_bnd is not None:
-                depth_bnd = Units.conform(depth_bnd,Units(dunit),Units("m"),inplace=True)
-                
+                depth_bnd = Units.conform(depth_bnd,Units(dunit),Units("m"),inplace=True)                
     if data_name      is not None:
         data = len(grp.dimensions[data_name])
         # if we have data sites, there may be lat/lon data to come
@@ -666,15 +704,38 @@ def FromNetCDF4(filename,variable_name,alternate_vars=[],t0=None,tf=None,group=N
 
     # read in data array, roughly subset in time if bounds are
     # provided for added effciency
-    if (t is not None) and (t0 is not None or tf is not None):
-        begin = 0; end = t.size
-        if t0 is not None: begin = max(t.searchsorted(t0)-1,begin)
-        if tf is not None: end   = min(t.searchsorted(tf)+1,end)
-        v = var[begin:end,...]
-        t = t  [begin:end]
-        if t_bnd is not None:
-            t_bnd = t_bnd[begin:end,:]
-    else:
+    if time_name is not None:
+
+        DT = grp.variables[time_name]
+        sub_day = False
+        if DT.size > 1:
+            if (DT[1]-DT[0]): sub_day = True
+
+        if sub_day:
+            t,v  = _removeLeapDay(grp.variables[time_name],var,t0=t0,tf=tf)
+            tbnd = np.vstack([t,np.hstack([t[1:],2*t[-1]-t[-2]])]).T
+            t    = tbnd.mean(axis=1)
+            
+        else:
+            if time_bnd_name is None:
+                t       = ConvertCalendar(grp.variables[time_name])
+            else:
+                t,t_bnd = ConvertCalendar(grp.variables[time_name],grp.variables[time_bnd_name])
+            if "climatology" in grp.variables[time_name].ncattrs():
+                cbounds = grp.variables[grp.variables[time_name].climatology]
+                if not np.allclose(cbounds.shape,[12,2]):
+                    raise RuntimeError("ILAMB only supports annual cycle style climatologies")
+            cbounds = np.round(cbounds[0,:]/365.+1850.)
+            
+            if (t0 is not None or tf is not None):
+                begin = 0; end = t.size
+                if t0 is not None: begin = max(t.searchsorted(t0)-1,begin)
+                if tf is not None: end   = min(t.searchsorted(tf)+1,end)
+                v = var[begin:end,...]
+                t = t  [begin:end]
+                if t_bnd is not None: t_bnd = t_bnd[begin:end,:]
+                
+    else: # not a time variable
         v = var[...]
 
     # If lat and lon are 2D, then we will need to interpolate things
