@@ -439,12 +439,12 @@ def ComputeIndexingArrays(lat2d,lon2d,lat,lon):
     gmap     = fcn(LAT.flatten(),LON.flatten()).astype(int)
     return gmap[:,0].reshape(LAT.shape),gmap[:,1].reshape(LAT.shape)
 
-def _shiftDatum(t,datum="days since 1850-1-1"):
-    return date2num(num2date(t[...],t.units,calendar=t.calendar),
-                    datum,
-                    calendar=t.calendar)
+def _shiftDatum(t,datum,calendar):
+    return date2num(num2date(t[...],datum,calendar=calendar),
+                    "days since 1850-1-1",
+                    calendar=calendar)
 
-def _removeLeapDay(t,v,datum="days since 1850-1-1",t0=None,tf=None):
+def _removeLeapDay(t,v,datum=None,calendar=None,t0=None,tf=None):
     """
     Shifts the datum and removes leap day if present.
 
@@ -461,11 +461,18 @@ def _removeLeapDay(t,v,datum="days since 1850-1-1",t0=None,tf=None):
     tf : float, optional
         the final time in 'days since 1850-1-1'
     """
+    datum0 = "days since 1850-1-1"
+    if calendar is None:
+        if "calendar" in t.ncattrs(): calendar = t.calendar
+    if datum is None:
+        if "units" in t.ncattrs(): datum = t.units
+        
     # shift their datum to our datum
-    tdata = _shiftDatum(t)
+    tdata = _shiftDatum(t,datum,calendar)
+    if tdata.ndim > 1: tdata = tdata[:,0]
     
     # convert the time array to datetime objects in the native calendar
-    T  = num2date(tdata,"days since 1850-1-1",calendar=t.calendar)
+    T  = num2date(tdata,"days since 1850-1-1",calendar=calendar)
     
     # find a boolean array which is true where time values are on leap day
     leap_day = np.asarray([1 if (x.month == 2 and x.day == 29) else 0 for x in T],dtype=bool)
@@ -477,7 +484,7 @@ def _removeLeapDay(t,v,datum="days since 1850-1-1",t0=None,tf=None):
     tdata    = tdata[t_index]                # remove leap day
     
     # finally we need to shift by the number of leap days since our new datum
-    tdata   -= date2num(T[0],"days since 1850-1-1",t.calendar) - date2num(T[0],"days since 1850-1-1","noleap")
+    tdata   -= date2num(T[0],"days since 1850-1-1",calendar) - date2num(T[0],"days since 1850-1-1","noleap")
 
     # where do we slice the array
     begin = 0; end = t.size
@@ -712,10 +719,12 @@ def FromNetCDF4(filename,variable_name,alternate_vars=[],t0=None,tf=None,group=N
             if (DT[1]-DT[0]): sub_day = True
 
         if sub_day:
-            t,v  = _removeLeapDay(grp.variables[time_name],var,t0=t0,tf=tf)
+            t    = grp.variables[time_name]
+            tbnd = grp.variables[time_bnd_name] if time_bnd_name is not None else None
+            t,v  = _removeLeapDay(tbnd if tbnd is not None else t,
+                                  var,calendar=t.calendar,datum=t.units,t0=t0,tf=tf)
             tbnd = np.vstack([t,np.hstack([t[1:],2*t[-1]-t[-2]])]).T
             t    = tbnd.mean(axis=1)
-            
         else:
             if time_bnd_name is None:
                 t       = ConvertCalendar(grp.variables[time_name])
@@ -1533,16 +1542,18 @@ def ClipTime(v,t0,tf):
     """
     begin = np.argmin(np.abs(v.time_bnds[:,0]-t0))
     end   = np.argmin(np.abs(v.time_bnds[:,1]-tf))
-    while v.time_bnds[begin,0] > t0:
-        begin    -= 1
-        if begin <= 0:
-            begin = 0
-            break
-    while v.time_bnds[end,  1] < tf:
-        end      += 1
-        if end   >= v.time.size-1:
-            end   = v.time.size-1
-            break
+    if np.abs(v.time_bnds[begin,0]-t0) > 1e-6:
+        while v.time_bnds[begin,0] > t0:
+            begin    -= 1
+            if begin <= 0:
+                begin = 0
+                break
+    if np.abs(v.time_bnds[end,1]-tf) > 1e-6:
+        while v.time_bnds[end,  1] < tf:
+            end      += 1
+            if end   >= v.time.size-1:
+                end   = v.time.size-1
+                break
     v.time      = v.time     [begin:(end+1)    ]
     v.time_bnds = v.time_bnds[begin:(end+1),...]
     v.data      = v.data     [begin:(end+1),...]
@@ -1591,6 +1602,7 @@ def MakeComparable(ref,com,**keywords):
     extents     = keywords.get("extents"  ,np.asarray([[-90.,+90.],[-180.,+180.]]))
     logstring   = keywords.get("logstring","")
     prune_sites = keywords.get("prune_sites",False)
+    allow_diff_times = keywords.get("allow_diff_times",False)
     
     # If one variable is temporal, then they both must be
     if ref.temporal != com.temporal:
@@ -1717,7 +1729,7 @@ def MakeComparable(ref,com,**keywords):
             # We will clip the reference dataset too
             t0  = max(t0,com.time_bnds[ 0,0])
             tf  = min(tf,com.time_bnds[-1,1])
-            ref = ClipTime(ref,t0,tf)
+            ref = ref.trim(t=[t0,tf])
 
         else:
             
@@ -1731,15 +1743,16 @@ def MakeComparable(ref,com,**keywords):
                 raise VarsNotComparable()
 
         # Check that we now are on the same time intervals
-        if ref.time.size != com.time.size:
-            msg  = "%s Datasets have differing numbers of time intervals: " % logstring
-            msg += "reference = %d, comparison = %d" % (ref.time.size,com.time.size)
-            logger.debug(msg)
-            raise VarsNotComparable()        
-        if not np.allclose(ref.time_bnds,com.time_bnds,atol=0.75*ref.dt):
-            msg  = "%s Datasets are defined at different times" % logstring
-            logger.debug(msg)
-            raise VarsNotComparable()
+        if not allow_diff_times:
+            if ref.time.size != com.time.size:
+                msg  = "%s Datasets have differing numbers of time intervals: " % logstring
+                msg += "reference = %d, comparison = %d" % (ref.time.size,com.time.size)
+                logger.debug(msg)
+                raise VarsNotComparable()        
+            if not np.allclose(ref.time_bnds,com.time_bnds,atol=0.75*ref.dt):
+                msg  = "%s Datasets are defined at different times" % logstring
+                logger.debug(msg)
+                raise VarsNotComparable()
 
     if ref.layered:
 
