@@ -1,6 +1,6 @@
 __author__       = 'Nathan Collier'
-__date__         = 'Nov 2017'
-__version__      = '2.2'
+__date__         = 'Jun 2018'
+__version__      = '2.3'
 
 from distutils.version import LooseVersion
 import platform
