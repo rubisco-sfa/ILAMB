@@ -127,7 +127,7 @@ class ConfTWSA(Confrontation):
         obs_anom_val = obs_anom.siteStats()
         mod_anom     = mod.rms()
         mod_anom_val = mod_anom.siteStats()      
-        rmse         = obs.rmse(mod)
+        rmse         = obs.rmse(mod).convert(obs.unit)
         rmse_val     = rmse.siteStats()
         rmse_smap    = Variable(name = "",
                                 unit = "1",

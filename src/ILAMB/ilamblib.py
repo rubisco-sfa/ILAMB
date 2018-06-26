@@ -3,7 +3,7 @@ from constants import dpy,mid_months,bnd_months
 from Regions import Regions
 from netCDF4 import Dataset,num2date,date2num
 from datetime import datetime
-from cfunits import Units
+from cf_units import Unit
 from copy import deepcopy
 from mpi4py import MPI
 import numpy as np
@@ -73,7 +73,7 @@ def FixDumbUnits(unit):
     # Remove the C which so often is used to mean carbon but actually means coulomb
     tokens = re.findall(r"[\w']+", unit)
     for token in tokens:
-        if token.endswith("C") and Units(token[:-1]).equivalent(Units("g")):
+        if token.endswith("C") and Unit(token[:-1]).is_convertible(Unit("g")):
             unit = unit.replace(token,token[:-1])
     return unit
 
@@ -374,10 +374,7 @@ def SympifyWithArgsUnits(expression,args,units):
     for i,key0 in enumerate(keys):
         for key in keys[(i+1):]:
             try:
-                Units.conform(args[key],
-                              Units(units[key ]),
-                              Units(units[key0]),
-                              inplace=True)
+                Unit(units[key]).convert(args[key],Unit(units[key0]),inplace=True)
                 units[key] = units[key0]
             except:
                 pass
@@ -396,9 +393,7 @@ def SympifyWithArgsUnits(expression,args,units):
             # if we are adding, all arguments must have the same unit.
             key0 = keys[0]
             for key in keys:
-                Units.conform(np.ones(1),
-                              Units(units[key ]),
-                              Units(units[key0]))                    
+                Unit(units[key]).convert(np.ones(1),Unit(units[key0]))                    
                 units[key] = units[key0]
             units[ekey] = "%s" % (units[key0])
 
@@ -643,11 +638,11 @@ def FromNetCDF4(filename,variable_name,alternate_vars=[],t0=None,tf=None,group=N
         if depth_bnd_name is not None:
             depth_bnd = grp.variables[depth_bnd_name][...]
         if dunit is not None:
-            if not Units(dunit).equivalent(Units("m")):
+            if not Unit(dunit).is_convertible(Unit("m")):
                 raise ValueError("Non-linear units [%s] of the layered dimension [%s] in %s" % (dunit,depth_name,filename))
-            depth = Units.conform(depth,Units(dunit),Units("m"),inplace=True)
+            depth = Unit(dunit).convert(depth,Unit("m"),inplace=True)
             if depth_bnd is not None:
-                depth_bnd = Units.conform(depth_bnd,Units(dunit),Units("m"),inplace=True)
+                depth_bnd = Unit(dunit).convert(depth_bnd,Unit("m"),inplace=True)
                 
     if data_name      is not None:
         data = len(grp.dimensions[data_name])
