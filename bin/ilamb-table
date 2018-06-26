@@ -3,7 +3,6 @@
 """
 from ILAMB.Scoreboard import Scoreboard
 from netCDF4 import Dataset
-from cfunits import Units
 import os,argparse,sys
 
 parser = argparse.ArgumentParser(description=__doc__)

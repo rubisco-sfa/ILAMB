@@ -109,7 +109,7 @@ def ConvertCalendar(t,tbnd=None):
     This routine converts the representation of time to the ILAMB
     default: days since 1850-1-1 00:00:00 on a 365-day calendar. This
     is so we can make comparisons with data from other models and
-    benchmarks. We use cfunits time conversion capability.
+    benchmarks. 
 
     Parameters
     ----------

@@ -763,7 +763,7 @@ class Variable:
     def convert(self,unit,density=998.2):
         """Convert the variable to a given unit.
 
-        We use the UDUNITS library via the cfunits python interface to
+        We use the UDUNITS library via the cf_units python interface to
         convert the variable's unit. Additional support is provided
         for unit conversions in which substance information is
         required. For example, in quantities such as precipitation it
@@ -802,7 +802,7 @@ class Variable:
         volume_conc       = Unit("mol m-3")
         mass_conc         = Unit("mol kg-1")
 
-        # cfunits doesn't handle frequently found temperature expressions
+        # UDUNITS doesn't handle frequently found temperature expressions
         synonyms = {"K":"degK",
                     "R":"degR",
                     "C":"degC",
