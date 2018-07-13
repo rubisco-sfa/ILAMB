@@ -71,7 +71,7 @@ class ConfIOMB(Confrontation):
 
     def stageData(self,m):
 
-        mem_slab = self.keywords.get("mem_slab",30.) # Mb
+        mem_slab = self.keywords.get("mem_slab",100.) # Mb
         
         # peak at the obs dataset without reading much into memory,
         # this assumes that the reference dataset was encoded using
@@ -138,8 +138,6 @@ class ConfIOMB(Confrontation):
                 dnum[mind,...] += 1
 
             data /= dnum
-
-            
             obs = Variable(filename       = self.source,
                            variable_name  = self.variable,
                            alternate_vars = self.alternate_vars)
@@ -158,18 +156,31 @@ class ConfIOMB(Confrontation):
 
             
         # if obs is historical, then we yield slabs of both
-
         else:
-            yield climatology,None
+            mt0  = int(mt0/365)*365 + bnd_months[mid_months.searchsorted(mt0 % 365)]
+            mtf  = int(mtf/365)*365 + bnd_months[mid_months.searchsorted(mtf % 365)+1]
+            om  *= (mtf-mt0)/(tf-t0)
+            ns   = int(max(om,mm)/mem_slab)+1
+            dt   = (mtf-mt0)/ns
+            
+            for i in range(ns):
+                
+                # find slab begin/end to the nearest month
+                st0 = mt0 +  i   *dt
+                st0 = int(st0/365)*365 + bnd_months[mid_months.searchsorted(st0 % 365)]
+                stf = mt0 + (i+1)*dt
+                stf = int(stf/365)*365 + bnd_months[mid_months.searchsorted(stf % 365)]
+                obs = Variable(filename       = self.source,
+                               variable_name  = self.variable,
+                               alternate_vars = self.alternate_vars,
+                               t0             = st0,
+                               tf             = stf).trim(t=[st0,stf])
+                mod = m.extractTimeSeries(vname,initial_time=st0,final_time=stf).trim(t=[st0,stf]).convert(obs.unit)                     
+                yield obs,mod
               
-
-        
     def confront(self,m):
         
         for obs,mod in self.stageData(m):
             print obs
             print mod
-
-        
-# I wish I knew how many hours of my life I have wasted because people
-# don't give the bounds of the times on which their data is defined.
+            
