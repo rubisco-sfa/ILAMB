@@ -523,7 +523,7 @@ if args.logging:
 
 if rank == 0:
     logger.info(" " + " ".join(os.uname()))
-    for key in ["ILAMB","numpy","matplotlib","netCDF4","cfunits","sympy","mpi4py"]:
+    for key in ["ILAMB","numpy","matplotlib","netCDF4","cf_units","sympy","mpi4py"]:
         pkg  = __import__(key)
         try:
             path = pkg.__path__[0]

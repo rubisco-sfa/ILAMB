@@ -161,7 +161,11 @@ class Confrontation(object):
         pages[-1].text = "\n"
         with Dataset(self.source) as dset:
             for attr in dset.ncattrs():
-                pages[-1].text += "<p><b>&nbsp;&nbsp;%s:&nbsp;</b>%s</p>\n" % (attr,dset.getncattr(attr).encode('ascii','ignore'))
+                try:
+                    attr_line = "<p><b>&nbsp;&nbsp;%s:&nbsp;</b>%s</p>\n" % (attr,str(dset.getncattr(attr)).encode('ascii','ignore'))
+                    pages[-1].text += attr_line
+                except:
+                    pass
         self.layout = post.HtmlLayout(pages,self.longname,years=(y0,yf))
 
         # Define relative weights of each score in the overall score
@@ -288,15 +292,29 @@ class Confrontation(object):
             mass_weighting = self.keywords.get("mass_weighting",False)
             skip_rmse      = self.keywords.get("skip_rmse"     ,False)
             skip_iav       = self.keywords.get("skip_iav"      ,False)
-            il.AnalysisMeanState(obs,mod,dataset   = fcm.mod_dset,
-                                 regions           = self.regions,
-                                 benchmark_dataset = fcm.obs_dset,
-                                 table_unit        = self.table_unit,
-                                 plot_unit         = self.plot_unit,
-                                 space_mean        = self.space_mean,
-                                 skip_rmse         = skip_rmse,
-                                 skip_iav          = skip_iav,
-                                 mass_weighting    = mass_weighting)
+            skip_cycle     = self.keywords.get("skip_cycle"    ,False)
+            if obs.spatial:
+                il.AnalysisMeanStateSpace(obs,mod,dataset   = fcm.mod_dset,
+                                          regions           = self.regions,
+                                          benchmark_dataset = fcm.obs_dset,
+                                          table_unit        = self.table_unit,
+                                          plot_unit         = self.plot_unit,
+                                          space_mean        = self.space_mean,
+                                          skip_rmse         = skip_rmse,
+                                          skip_iav          = skip_iav,
+                                          skip_cycle        = skip_cycle,
+                                          mass_weighting    = mass_weighting)
+            else:
+                il.AnalysisMeanStateSites(obs,mod,dataset   = fcm.mod_dset,
+                                          regions           = self.regions,
+                                          benchmark_dataset = fcm.obs_dset,
+                                          table_unit        = self.table_unit,
+                                          plot_unit         = self.plot_unit,
+                                          space_mean        = self.space_mean,
+                                          skip_rmse         = skip_rmse,
+                                          skip_iav          = skip_iav,
+                                          skip_cycle        = skip_cycle,
+                                          mass_weighting    = mass_weighting)
 
         logger.info("[%s][%s] Success" % (self.longname,m.name))
                 
@@ -818,7 +836,7 @@ class Confrontation(object):
                 lim[1] = max(lmax,lim[1])
             return lim
     
-        def _buildDistributionResponse(ind,dep,ind_lim=None,dep_lim=None,region=None,nbin=25):
+        def _buildDistributionResponse(ind,dep,ind_lim=None,dep_lim=None,region=None,nbin=25,eps=3e-3):
             
             r = Regions()
 
@@ -844,13 +862,16 @@ class Confrontation(object):
             which_bin = np.digitize(x,xedges).clip(1,xedges.size-1)-1
             mean = np.ma.zeros(xedges.size-1)
             std  = np.ma.zeros(xedges.size-1)
+            cnt  = np.ma.zeros(xedges.size-1)
             np.seterr(under='ignore')
             for i in range(mean.size):
                 yi = y[which_bin==i]
+                cnt [i] = yi.size
                 mean[i] = yi.mean()
                 std [i] = yi.std()
+            mean = np.ma.masked_array(mean,mask = (cnt/cnt.sum()) < eps)
+            std  = np.ma.masked_array( std,mask = (cnt/cnt.sum()) < eps)     
             np.seterr(under='warn')
-
             return dist,xedges,yedges,mean,std
 
         def _scoreDistribution(ref,com):
