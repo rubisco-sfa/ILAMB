@@ -196,6 +196,8 @@ def ConvertCalendar(t,tbnd=None):
     t = ta.mean(axis=1)
     return t,ta
 
+
+
 def CellAreas(lat,lon,lat_bnds=None,lon_bnds=None):
     """Given arrays of latitude and longitude, return cell areas in square meters.
 
@@ -620,6 +622,8 @@ def FromNetCDF4(filename,variable_name,alternate_vars=[],t0=None,tf=None,group=N
     if time_name is not None:
         if time_bnd_name is None:
             t       = ConvertCalendar(grp.variables[time_name])
+            t_bnd   = np.asarray([int(t[0]/365)*365 + bnd_months[mid_months.searchsorted(t % 365)  ],
+                                  int(t[0]/365)*365 + bnd_months[mid_months.searchsorted(t % 365)+1]],dtype=float).T
         else:
             t,t_bnd = ConvertCalendar(grp.variables[time_name],grp.variables[time_bnd_name])
         if "climatology" in grp.variables[time_name].ncattrs():
