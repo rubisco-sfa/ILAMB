@@ -7,7 +7,7 @@ from cf_units import Unit
 from copy import deepcopy
 from mpi4py import MPI
 import numpy as np
-import logging,re
+import logging,re,os
 
 logger = logging.getLogger("%i" % MPI.COMM_WORLD.rank)
 
@@ -1796,3 +1796,33 @@ def LandLinInterMissingValues(mdata):
     smooth /= suml.clip(1)
     smooth  = (mdata.mask==True)*smooth + (mdata.mask==False)*mdata.data
     return smooth
+
+              
+class FileContextManager():
+
+    def __init__(self,master,mod_results,obs_results):
+        
+        self.master       = master
+        self.mod_results  = mod_results
+        self.obs_results  = obs_results
+        self.mod_dset     = None
+        self.obs_dset     = None
+        
+    def __enter__(self):
+
+        # Open the file on entering, both if you are the master
+        self.mod_dset                 = Dataset(self.mod_results,mode="w")
+        if self.master: self.obs_dset = Dataset(self.obs_results,mode="w")
+        return self
+    
+    def __exit__(self, exc_type, exc_value, traceback):
+
+        # Always close the file(s) on exit
+        self.mod_dset.close()
+        if self.master: self.obs_dset.close()
+
+        # If an exception occurred, also remove the files
+        if exc_type is not None:
+            os.system("rm -f %s" % self.mod_results)
+
+        
