@@ -224,7 +224,7 @@ class HtmlPage(object):
 
         r = Regions()
         def _sortFigures(figure):
-            macro = ["timeint","bias","rmse","iav","phase","shift","variance","spaceint","accumulate","cycle"]
+            macro = ["timeint","timelonint","bias","rmse","iav","phase","shift","variance","spaceint","accumulate","cycle"]
             val = 1.
             for i,m in enumerate(macro):
                 if m in figure.name: val += 3**i

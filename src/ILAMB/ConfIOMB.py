@@ -11,6 +11,8 @@ import pylab as plt
 import numpy as np
 import os,glob,re
 
+    
+
 def VariableReduce(var,region="global",time=None,depth=None,lat=None,lon=None):
     ILAMBregions = Regions()
     out = deepcopy(var)
@@ -52,6 +54,7 @@ class ConfIOMB(Confrontation):
         self.depths = np.asarray(self.keywords.get("depths",[0,100,250]),dtype=float)
         sections    = ["Period Mean at %d [m]" % d for d in self.depths]
         sections   += ["Mean regional depth profiles"]
+        sections   += ["Overlapping mean regional depth profiles"]
         
         # Setup a html layout for generating web views of the results
         pages = []
@@ -195,18 +198,22 @@ class ConfIOMB(Confrontation):
                                         "color":np.asarray([0.5,0.5,0.5])})
         
             obs_timeint = {}; mod_timeint = {}
+            obs_depth   = {}; mod_depth   = {}
             for depth in self.depths:
                 dlbl = "%d" % depth
                 obs_timeint[dlbl] = []
                 mod_timeint[dlbl] = []
-            
+            for region in self.regions:
+                obs_depth[region] = []
+                mod_depth[region] = []
+                    
             for obs,mod in self.stageData(m):
                 
                 # time bounds for this slab
                 tb = obs.time_bnds[[0,-1],[0,1]].reshape((1,2))
                 t  = np.asarray([tb.mean()])
                 
-                # mean values at various depths
+                # mean lat/lon slices at various depths
                 for depth in self.depths:
                     
                     dlbl = "%d" % depth
@@ -224,22 +231,34 @@ class ConfIOMB(Confrontation):
                                                       time = t,     time_bnds = tb,
                                                       lat  = z.lat, lat_bnds  = z.lat_bnds,
                                                       lon  = z.lon, lon_bnds  = z.lon_bnds))
+                # mean
+                for region in self.regions:
                     
-            # combine time slabs
+                    z = VariableReduce(obs,region=region,time=tb[0],lon=[-180.,+180.])                    
+                    z.time = t; z.time_bnds  = tb; z.temporal = True; z.data.shape = (1,)+z.data.shape
+                    obs_depth[region].append(z)
+                    
+                    z = VariableReduce(mod,region=region,time=tb[0],lon=[-180.,+180.])                    
+                    z.time = t; z.time_bnds  = tb; z.temporal = True; z.data.shape = (1,)+z.data.shape
+                    mod_depth[region].append(z)
+
+                    
+                    
+            # combine time slabs from the different depths
             for dlbl in obs_timeint.keys():
 
                 # period means and bias
-                obs = il.CombineVariables(obs_timeint[dlbl]).integrateInTime(mean=True)
-                mod = il.CombineVariables(mod_timeint[dlbl]).integrateInTime(mean=True)
-                obs.name = obs.name.split("_")[0]
-                mod.name = mod.name.split("_")[0]
-                bias = obs.spatialDifference(mod)
-                bias.name = mod.name.replace("timeint","bias")
-                mod .toNetCDF4(fcm.mod_dset,group="MeanState")
+                obs_tmp = il.CombineVariables(obs_timeint[dlbl]).integrateInTime(mean=True)
+                mod_tmp = il.CombineVariables(mod_timeint[dlbl]).integrateInTime(mean=True)
+                obs_tmp.name = obs_tmp.name.split("_")[0]
+                mod_tmp.name = mod_tmp.name.split("_")[0]
+                bias = obs_tmp.spatialDifference(mod_tmp)
+                bias.name = mod_tmp.name.replace("timeint","bias")
+                mod_tmp.toNetCDF4(fcm.mod_dset,group="MeanState")
                 bias.toNetCDF4(fcm.mod_dset,group="MeanState")
                 for region in self.regions:
                     
-                    sval = mod.integrateInSpace(region=region,mean=True)
+                    sval = mod_tmp.integrateInSpace(region=region,mean=True)
                     sval.name = "Period Mean at %s %s" % (dlbl,region)
                     sval.toNetCDF4(fcm.mod_dset,group="MeanState")
 
@@ -248,13 +267,22 @@ class ConfIOMB(Confrontation):
                     sval.toNetCDF4(fcm.mod_dset,group="MeanState")
                     
                 if self.master:
-                    obs.toNetCDF4(fcm.obs_dset,group="MeanState")
+                    obs_tmp.toNetCDF4(fcm.obs_dset,group="MeanState")
                     for region in self.regions:
-                        sval = obs.integrateInSpace(region=region,mean=True)
+                        sval = obs_tmp.integrateInSpace(region=region,mean=True)
                         sval.name = "Period Mean at %s %s" % (dlbl,region)
                         sval.toNetCDF4(fcm.obs_dset,group="MeanState")
 
-  
+            # combine slabs from different regions
+            for region in self.regions:
+                mod_tmp = il.CombineVariables(mod_depth[region]).integrateInTime(mean=True)
+                mod_tmp.name = "timelonint_of_%s_over_%s" % (self.variable,region)
+                mod_tmp.toNetCDF4(fcm.mod_dset,group="MeanState")
+                obs_tmp = il.CombineVariables(obs_depth[region]).integrateInTime(mean=True)
+                obs_tmp.name = "timelonint_of_%s_over_%s" % (self.variable,region)
+                if self.master:
+                    obs_tmp.toNetCDF4(fcm.obs_dset,group="MeanState")
+                
     def modelPlots(self,m):
         
         def _fheight(region):
@@ -303,6 +331,46 @@ class ConfIOMB(Confrontation):
                         fig.savefig("%s/%s_%s_%s.png" % (self.output_path,m.name,region,vname))
                         plt.close()
 
+
+        for region in self.regions:
+
+            vname = "timelonint_of_%s_over_%s" % (self.variable,region)
+            if vname in variables:
+                var0 = Variable(filename=bname,variable_name=vname,groupname="MeanState")
+                var  = Variable(filename=fname,variable_name=vname,groupname="MeanState")
+                if region == "global":
+                    page.addFigure("Mean regional depth profiles",
+                                   "timelonint",
+                                   "MNAME_RNAME_timelonint.png",
+                                   side     = "MODEL DEPTH PROFILE",
+                                   legend   = True,
+                                   longname = "Time/longitude averaged profile")
+                    page.addFigure("Overlapping mean regional depth profiles",
+                                   "timelonints",
+                                   "MNAME_RNAME_timelonints.png",
+                                   side     = "MODEL DEPTH PROFILE",
+                                   legend   = True,
+                                   longname = "Overlapping Time/longitude averaged profile")
+                fig,ax = plt.subplots(figsize=(6.8,2.8),tight_layout=True)
+                l   = np.hstack([var .lat_bnds  [:,0],var .lat_bnds  [-1,1]])
+                d0  = np.hstack([var0.depth_bnds[:,0],var0.depth_bnds[-1,1]])
+                d   = np.hstack([var .depth_bnds[:,0],var .depth_bnds[-1,1]])
+                ind = np.all(var.data.mask,axis=0)
+                ind = np.ma.masked_array(range(ind.size),mask=ind,dtype=int)
+                b   = ind.min()
+                e   = ind.max()+1
+                ax.pcolormesh(l[b:(e+1)],d,var.data[:,b:e],
+                              vmin = self.limits["timelonint"]["global"]["min"],
+                              vmax = self.limits["timelonint"]["global"]["max"],
+                              cmap = self.cmap)
+                ax.set_xlabel("latitude")
+                ax.set_ylim((d.max(),d.min()))
+                ax.set_ylabel("depth [m]")
+                fig.savefig("%s/%s_%s_timelonint.png" % (self.output_path,m.name,region))
+                ax.set_ylim((min(d0.max(),d.max()),max(d0.min(),d.min())))
+                fig.savefig("%s/%s_%s_timelonints.png" % (self.output_path,m.name,region))                
+                plt.close()
+                    
         # benchmark plots
         if not self.master: return
         with Dataset(bname) as dataset:
@@ -328,9 +396,48 @@ class ConfIOMB(Confrontation):
                                  cmap   = cmap[ptype],
                                  land   = 0.750,
                                  water  = 0.875)
-                        fig.savefig("%s/Benchmark_%s_%s.png" % (self.output_path,region,vname))
+                        fig.savefig("%s/Benchmark_%s_%s.png" % (self.output_path,region,vname))                        
                         plt.close()
-        
+
+        for region in self.regions:
+
+            vname = "timelonint_of_%s_over_%s" % (self.variable,region)
+            if vname in variables:
+                var0 = Variable(filename=fname,variable_name=vname,groupname="MeanState")
+                var  = Variable(filename=bname,variable_name=vname,groupname="MeanState")
+                if region == "global":
+                    page.addFigure("Mean regional depth profiles",
+                                   "benchmark_timelonint",
+                                   "Benchmark_RNAME_timelonint.png",
+                                   side   = "BENCHMARK DEPTH PROFILE",
+                                   legend = True,
+                                   longname = "Time/longitude averaged profile")
+                    page.addFigure("Overlapping mean regional depth profiles",
+                                   "benchmark_timelonints",
+                                   "Benchmark_RNAME_timelonints.png",
+                                   side   = "BENCHMARK DEPTH PROFILE",
+                                   legend = True,
+                                   longname = "Overlapping Time/longitude averaged profile")
+                fig,ax = plt.subplots(figsize=(6.8,2.8),tight_layout=True)
+                l   = np.hstack([var .lat_bnds  [:,0],var .lat_bnds  [-1,1]])
+                d0  = np.hstack([var0.depth_bnds[:,0],var0.depth_bnds[-1,1]])
+                d   = np.hstack([var .depth_bnds[:,0],var .depth_bnds[-1,1]])
+                ind = np.all(var.data.mask,axis=0)
+                ind = np.ma.masked_array(range(ind.size),mask=ind,dtype=int)
+                b   = ind.min()
+                e   = ind.max()+1
+                ax.pcolormesh(l[b:(e+1)],d,var.data[:,b:e],
+                              vmin = self.limits["timelonint"]["global"]["min"],
+                              vmax = self.limits["timelonint"]["global"]["max"],
+                              cmap = self.cmap)
+                ax.set_xlabel("latitude")
+                ax.set_ylim((d.max(),d.min()))
+                ax.set_ylabel("depth [m]")
+                fig.savefig("%s/Benchmark_%s_timelonint.png" % (self.output_path,region))
+                ax.set_ylim((min(d0.max(),d.max()),max(d0.min(),d.min())))
+                fig.savefig("%s/Benchmark_%s_timelonints.png" % (self.output_path,region))                                
+                plt.close()
+                        
     def determinePlotLimits(self):
         
         # Pick limit type
@@ -413,6 +520,8 @@ class ConfIOMB(Confrontation):
                                   label = limits[pname]["unit"],
                                   cmap  = cmap)
                     fig.savefig("%s/legend_%s.png" % (self.output_path,pname))
+                    if base_pname == "timelonint":
+                        fig.savefig("%s/legend_%ss.png" % (self.output_path,pname))
                     plt.close()
                 else:
                     fig,ax = plt.subplots(figsize=(6.8,1.0),tight_layout=True)
@@ -422,4 +531,6 @@ class ConfIOMB(Confrontation):
                                   label = limits[pname]["global"]["unit"],
                                   cmap  = cmap)
                     fig.savefig("%s/legend_%s.png" % (self.output_path,pname))
+                    if base_pname == "timelonint":
+                        fig.savefig("%s/legend_%ss.png" % (self.output_path,pname))
                     plt.close()
