@@ -11,8 +11,6 @@ import pylab as plt
 import numpy as np
 import os,glob,re
 
-    
-
 def VariableReduce(var,region="global",time=None,depth=None,lat=None,lon=None):
     ILAMBregions = Regions()
     out = deepcopy(var)
@@ -41,8 +39,35 @@ def VariableReduce(var,region="global",time=None,depth=None,lat=None,lon=None):
         out.lon     = None
         out.lon_bnd = None
         out.spatial = False
-
     return out
+
+def TimeLatBias(ref,com):
+    # composite depth axis
+    d0 = max(ref.depth_bnds.min(),com.depth_bnds.min())
+    df = min(ref.depth_bnds.max(),com.depth_bnds.max())
+    d  = np.unique(np.hstack([ref.depth_bnds.flatten(),com.depth_bnds.flatten()]))
+    d  = d[(d>=d0)*(d<=df)]
+    db = np.asarray([d[:-1],d[1:]]).T
+    d  = db.mean(axis=1)
+    # composite lat axis
+    l0 = max(ref.lat_bnds.min(),com.lat_bnds.min())
+    lf = min(ref.lat_bnds.max(),com.lat_bnds.max())
+    l  = np.unique(np.hstack([ref.lat_bnds.flatten(),com.lat_bnds.flatten()]))
+    l  = l[(l>=l0)*(l<=lf)]
+    lb = np.asarray([l[:-1],l[1:]]).T
+    l  = lb.mean(axis=1)
+    # interpolation / difference
+    data  = il.NearestNeighborInterpolation(com.depth,com.lat,com.data,d,l)
+    data -= il.NearestNeighborInterpolation(ref.depth,ref.lat,ref.data,d,l)
+    area  = np.diff(db)[:,np.newaxis] * (earth_rad*(np.sin(lb[:,1])-np.sin(lb[:,0])))
+    return Variable(name  = ref.name.replace("timelonint","timelonbias"),
+                    unit  = ref.unit, 
+                    data  = data,
+                    area  = area,
+                    lat   = l,
+                    depth = d, 
+                    lat_bnds   = lb, 
+                    depth_bnds = db)
 
 class ConfIOMB(Confrontation):
 
@@ -110,6 +135,7 @@ class ConfIOMB(Confrontation):
                     t = tb
                 else:
                     t    = il.ConvertCalendar(t)
+                t  += m.shift
                 i   = (t >= t0)*(t <= tf)
                 mt0 = max(mt0,t[i].min())
                 mtf = min(mtf,t[i].max())
@@ -123,8 +149,8 @@ class ConfIOMB(Confrontation):
         if climatology:            
             mt0  = int(mt0/365)*365 + bnd_months[mid_months.searchsorted(mt0 % 365)]
             mtf  = int(mtf/365)*365 + bnd_months[mid_months.searchsorted(mtf % 365)+1]
-            data = np.ma.zeros((12,)+shp[1:])
-            dnum = np.ma.zeros(data.shape,dtype=int)
+            data = None
+            dnum = None 
             ns   = int(mm/mem_slab)+1
             dt   = (mtf-mt0)/ns
             nm   = 0
@@ -140,6 +166,9 @@ class ConfIOMB(Confrontation):
 
                 # accumulate the sum for the mean cycle
                 mind = mid_months.searchsorted(v.time % 365.)
+                if data is None:
+                    data = np.ma.zeros((12,)+v.data.shape[1:])
+                    dnum = np.ma.zeros(data.shape,dtype=int)
                 data[mind,...] += v.data
                 dnum[mind,...] += 1
 
@@ -280,6 +309,8 @@ class ConfIOMB(Confrontation):
                 mod_tmp.toNetCDF4(fcm.mod_dset,group="MeanState")
                 obs_tmp = il.CombineVariables(obs_depth[region]).integrateInTime(mean=True)
                 obs_tmp.name = "timelonint_of_%s_over_%s" % (self.variable,region)
+                mod_bias = TimeLatBias(obs_tmp,mod_tmp)
+                mod_bias.toNetCDF4(fcm.mod_dset,group="MeanState")
                 if self.master:
                     obs_tmp.toNetCDF4(fcm.obs_dset,group="MeanState")
                 
@@ -312,7 +343,10 @@ class ConfIOMB(Confrontation):
             for ptype in ["timeint","bias"]:
                 for vname in [v for v in variables if ptype in v]:
                     var = Variable(filename=fname,variable_name=vname,groupname="MeanState")
-                    z   = int(vname.replace(ptype,"")) 
+                    try:
+                        z = int(vname.replace(ptype,"")) 
+                    except:
+                        continue
                     page.addFigure("Period Mean at %d [m]" % z,
                                    vname,
                                    "MNAME_RNAME_%s.png" % vname,
@@ -338,6 +372,7 @@ class ConfIOMB(Confrontation):
             if vname in variables:
                 var0 = Variable(filename=bname,variable_name=vname,groupname="MeanState")
                 var  = Variable(filename=fname,variable_name=vname,groupname="MeanState")
+                bias = Variable(filename=fname,variable_name=vname.replace("timelonint","timelonbias"),groupname="MeanState")
                 if region == "global":
                     page.addFigure("Mean regional depth profiles",
                                    "timelonint",
@@ -351,6 +386,12 @@ class ConfIOMB(Confrontation):
                                    side     = "MODEL DEPTH PROFILE",
                                    legend   = True,
                                    longname = "Overlapping Time/longitude averaged profile")
+                    page.addFigure("Overlapping mean regional depth profiles",
+                                   "timelonbias",
+                                   "MNAME_RNAME_timelonbias.png",
+                                   side     = "MODEL DEPTH PROFILE BIAS",
+                                   legend   = True,
+                                   longname = "Overlapping Time/longitude averaged profile bias")
                 fig,ax = plt.subplots(figsize=(6.8,2.8),tight_layout=True)
                 l   = np.hstack([var .lat_bnds  [:,0],var .lat_bnds  [-1,1]])
                 d0  = np.hstack([var0.depth_bnds[:,0],var0.depth_bnds[-1,1]])
@@ -370,7 +411,25 @@ class ConfIOMB(Confrontation):
                 ax.set_ylim((min(d0.max(),d.max()),max(d0.min(),d.min())))
                 fig.savefig("%s/%s_%s_timelonints.png" % (self.output_path,m.name,region))                
                 plt.close()
-                    
+                fig,ax = plt.subplots(figsize=(6.8,2.8),tight_layout=True)
+                l   = np.hstack([bias.lat_bnds  [:,0],bias.lat_bnds  [-1,1]])
+                d0  = np.hstack([var0.depth_bnds[:,0],var0.depth_bnds[-1,1]])
+                d   = np.hstack([bias.depth_bnds[:,0],bias.depth_bnds[-1,1]])
+                ind = np.all(bias.data.mask,axis=0)
+                ind = np.ma.masked_array(range(ind.size),mask=ind,dtype=int)
+                b   = ind.min()
+                e   = ind.max()+1
+                ax.pcolormesh(l[b:(e+1)],d,bias.data[:,b:e],
+                              vmin = self.limits["timelonbias"]["global"]["min"],
+                              vmax = self.limits["timelonbias"]["global"]["max"],
+                              cmap = "seismic")
+                ax.set_xlabel("latitude")
+                ax.set_ylim((d.max(),d.min()))
+                ax.set_ylabel("depth [m]")
+                ax.set_ylim((min(d0.max(),d.max()),max(d0.min(),d.min())))
+                fig.savefig("%s/%s_%s_timelonbias.png" % (self.output_path,m.name,region))                
+                plt.close()                    
+
         # benchmark plots
         if not self.master: return
         with Dataset(bname) as dataset:
@@ -489,8 +548,9 @@ class ConfIOMB(Confrontation):
         self.limits = limits
         
         # Second pass to plot legends
-        cmaps = {"bias":"seismic",
-                 "rmse":"YlOrRd"}
+        cmaps = {"bias"       :"seismic",
+                 "timelonbias":"seismic",
+                 "rmse"       :"YlOrRd"}
         for pname in limits.keys():
 
             base_pname = pname
@@ -505,13 +565,18 @@ class ConfIOMB(Confrontation):
                 cmap = "RdYlGn"
 
             # Need to symetrize?
-            if base_pname in ["bias"]:
-                vabs =  max(abs(limits[pname]["min"]),abs(limits[pname]["min"]))
-                limits[pname]["min"] = -vabs
-                limits[pname]["max"] =  vabs
+            if base_pname in ["bias","timelonbias"]:
+                if limits[pname].has_key("min"):
+                    vabs =  max(abs(limits[pname]["max"]),abs(limits[pname]["min"]))
+                    limits[pname]["min"] = -vabs
+                    limits[pname]["max"] =  vabs
+                else:
+                    vabs =  max(abs(limits[pname]["global"]["max"]),abs(limits[pname]["global"]["min"]))
+                    limits[pname]["global"]["min"] = -vabs
+                    limits[pname]["global"]["max"] =  vabs
 
             # Some plots need legends
-            if base_pname in ["timeint","bias","biasscore","rmse","rmsescore","timelonint"]:
+            if base_pname in ["timeint","bias","biasscore","rmse","rmsescore","timelonint","timelonbias"]:
                 if limits[pname].has_key("min"):
                     fig,ax = plt.subplots(figsize=(6.8,1.0),tight_layout=True)
                     post.ColorBar(ax,

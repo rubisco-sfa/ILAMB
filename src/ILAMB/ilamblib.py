@@ -1752,7 +1752,9 @@ def CombineVariables(V):
                     depth      = v.depth,
                     depth_bnds = v.depth_bnds,
                     lat        = v.lat,
+                    lat_bnds   = v.lat_bnds,
                     lon        = v.lon,
+                    lon_bnds   = v.lon_bnds,
                     area       = v.area,
                     ndata      = v.ndata)
 
