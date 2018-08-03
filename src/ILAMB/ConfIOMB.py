@@ -10,6 +10,11 @@ from copy import deepcopy
 import pylab as plt
 import numpy as np
 import os,glob,re
+from sympy import sympify
+
+from mpi4py import MPI
+import logging
+logger = logging.getLogger("%i" % MPI.COMM_WORLD.rank)	
 
 def VariableReduce(var,region="global",time=None,depth=None,lat=None,lon=None):
     ILAMBregions = Regions()
@@ -146,10 +151,19 @@ class ConfIOMB(Confrontation):
                     t = dset.variables["time"][...]
                     t0 = t[0]; tf = t[-1]
             info += "(%f,%f) %.0f" % (t0/365.+1850,tf/365.+1850,om)
-            #print info
+        #print info
 
-        # peak at the model dataset without reading much into memory
-        vname = ([v for v in [self.variable,] + self.alternate_vars if v in m.variables.keys()])[0]
+        # peak at the model dataset without reading much into memory,
+        # it could be in the variable or alternate variables, or it
+        # could be in the derived expression
+        possible = [self.variable,] + self.alternate_vars
+        if self.derived is not None: possible += [str(s) for s in sympify(self.derived).free_symbols]
+        vname = ([v for v in possible if v in m.variables.keys()])
+        if len(vname) == 0:
+            logger.debug("[%s] Could not find [%s] in the model results" % (self.name,",".join(possible)))
+            raise il.VarNotInModel()
+        vname = vname[0]
+
         info = "mod: %s " % vname 
         mt = 0; mm = 0.; mt0 = 1e20; mtf = -1e20; shp = None
         for fname in m.variables[vname]:
@@ -165,6 +179,7 @@ class ConfIOMB(Confrontation):
                 t  += m.shift
                 info += " (%.2f %.2f) " % (t.min()/365.+1850,t.max()/365.+1850)
                 i   = (t >= t0)*(t <= tf)
+                if i.any() == False: continue
                 mt0 = min(mt0,t[i].min())
                 mtf = max(mtf,t[i].max())
                 info += " (%.2f %.2f) " % (mt0/365.+1850,mtf/365.+1850)
@@ -176,9 +191,13 @@ class ConfIOMB(Confrontation):
                 info += "%.0f " % mm
         #print info
 
+        if mt0 > mtf:
+            logger.debug("[%s] Could not find [%s] in the model results in the given time frame, tinput = [%.1f,%.1f]" % (self.name,",".join(possible),t0,tf))
+            raise il.VarNotInModel()
+
         # if obs is a climatology, then build a climatology in slabs
         if climatology:            
-            mt0  = int(mt0/365)*365 + bnd_months[mid_months.searchsorted(mt0 % 365)]
+            mt0  = int(mt0/365)*365 + bnd_months[mid_months.searchsorted(mt0 % 365)  ]
             mtf  = int(mtf/365)*365 + bnd_months[mid_months.searchsorted(mtf % 365)+1]
             data = None
             dnum = None 
