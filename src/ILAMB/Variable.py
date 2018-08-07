@@ -789,8 +789,13 @@ class Variable:
 
         """
         if unit is None: return self
-        src_unit  = Unit(self.unit)
-        tar_unit  = Unit(     unit)
+
+        # replace some units that cfunits handled but cf_units does not
+        u0 = self.unit.replace("psu","1e-3")
+        u  =      unit.replace("psu","1e-3")
+
+        src_unit  = Unit(u0)
+        tar_unit  = Unit( u)
         mask      = self.data.mask
 
         # Define some generic quantities
