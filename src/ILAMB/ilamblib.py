@@ -73,8 +73,12 @@ def FixDumbUnits(unit):
     # Remove the C which so often is used to mean carbon but actually means coulomb
     tokens = re.findall(r"[\w']+", unit)
     for token in tokens:
-        if token.endswith("C") and Unit(token[:-1]).is_convertible(Unit("g")):
-            unit = unit.replace(token,token[:-1])
+        if token.endswith("C"):
+            try:
+                u = Unit(token[:-1])
+            except:
+                continue
+            if u.is_convertible(Unit("g")): unit = unit.replace(token,token[:-1])
     return unit
 
 def GenerateDistinctColors(N,saturation=0.67,value=0.67):
