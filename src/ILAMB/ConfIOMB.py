@@ -221,8 +221,9 @@ class ConfIOMB(Confrontation):
                     dnum = np.ma.zeros(data.shape,dtype=int)
                 data[mind,...] += v.data
                 dnum[mind,...] += 1
-
-            data /= dnum
+            np.seterr(over='ignore',under='ignore')
+            data = data / dnum
+            np.seterr(over='raise',under='raise')
             obs = Variable(filename       = self.source,
                            variable_name  = self.variable,
                            alternate_vars = self.alternate_vars)
