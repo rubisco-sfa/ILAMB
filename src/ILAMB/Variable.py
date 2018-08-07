@@ -101,12 +101,15 @@ class Variable:
             out = il.FromNetCDF4(filename,variable_name,alternate_vars,t0,tf,group=groupname)            
             data,unit,name,time,time_bnds,lat,lat_bnds,lon,lon_bnds,depth,depth_bnds,cbounds,ndata = out
             
+        # Add handling for some units which cf_units does not support
+        unit = unit.replace("psu","1e-3")
+
         if not np.ma.isMaskedArray(data): data = np.ma.masked_array(data)
         self.data  = data 
         self.ndata = ndata
         self.unit  = unit
         self.name  = name
-        self.cbounds = cbounds
+        self.cbounds = cbounds        
         
         def _createBnds(x):
             x      = np.asarray(x)
