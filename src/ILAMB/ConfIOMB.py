@@ -100,17 +100,30 @@ class ConfIOMB(Confrontation):
         # Calls the regular constructor
         super(ConfIOMB,self).__init__(**keywords)
 
+        # Get/modify depths 
         self.depths = np.asarray(self.keywords.get("depths",[0,100,250]),dtype=float)
+        with Dataset(self.source) as dset:
+            v = dset.variables[self.variable]
+            depth_name = [d for d in v.dimensions if d in ["layer","depth"]]
+
+            if len(depth_name) == 0: 
+                # if there is no depth dimension, we assume the data is surface
+                self.depths = np.asarray([0],dtype=float)
+            else:
+                # if there are depths, then make sure that the depths
+                # at which we will compute are in the range of depths
+                # of the data
+                depth_name = depth_name[0]
+                data = dset.variables[dset.variables[depth_name].bounds][...] if "bounds" in dset.variables[depth_name].ncattrs() else dset.variables[depth_name][...]
+                self.depths = self.depths[(self.depths>=data.min())*(self.depths<=data.max())]
+
+        # Setup a html layout for generating web views of the results
+        pages       = []        
         sections    = ["Period Mean at %d [m]" % d for d in self.depths]
         sections   += ["Mean regional depth profiles"]
         sections   += ["Overlapping mean regional depth profiles"]
         sections   += ["Mean regional annual cycle"]
         sections   += ["Overlapping mean regional annual cycle"]
-
-        # Setup a html layout for generating web views of the results
-        pages = []
-        
-        # Mean State page
         pages.append(post.HtmlPage("MeanState","Mean State"))
         pages[-1].setHeader("CNAME / RNAME / MNAME")
         pages[-1].setSections(sections)
@@ -295,6 +308,8 @@ class ConfIOMB(Confrontation):
             unit = None
             for obs,mod in self.stageData(m):
 
+                
+
                 # time bounds for this slab
                 tb = obs.time_bnds[[0,-1],[0,1]].reshape((1,2))
                 t  = np.asarray([tb.mean()])
@@ -311,7 +326,9 @@ class ConfIOMB(Confrontation):
                                                       time = t,     time_bnds = tb,
                                                       lat  = z.lat, lat_bnds  = z.lat_bnds,
                                                       lon  = z.lon, lon_bnds  = z.lon_bnds))
-                    z  = mod.integrateInDepth(z0=depth-1.,zf=depth+1,mean=True).integrateInTime(mean=True)
+                    z = mod
+                    if mod.layered: z = z.integrateInDepth(z0=depth-1.,zf=depth+1,mean=True)
+                    z = z.integrateInTime(mean=True)
                     mod_timeint[dlbl].append(Variable(name = "timeint%s" % dlbl,
                                                       unit = z.unit,
                                                       data = z.data.reshape((1,)+z.data.shape),
@@ -458,7 +475,6 @@ class ConfIOMB(Confrontation):
                                  water  = 0.875)
                         fig.savefig("%s/%s_%s_%s.png" % (self.output_path,m.name,region,vname))
                         plt.close()
-
 
         for region in self.regions:
 
