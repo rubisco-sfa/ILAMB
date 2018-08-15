@@ -1200,6 +1200,8 @@ def AnalysisMeanStateSpace(ref,com,**keywords):
     skip_rmse         = keywords.get("skip_rmse"        ,False)
     skip_iav          = keywords.get("skip_iav"         ,False)
     skip_cycle        = keywords.get("skip_cycle"       ,False)
+    ref_timeint       = keywords.get("ref_timeint"      ,None)
+    com_timeint       = keywords.get("com_timeint"      ,None)
     ILAMBregions      = Regions()
     spatial           = ref.spatial
 
@@ -1230,10 +1232,18 @@ def AnalysisMeanStateSpace(ref,com,**keywords):
     ndata = REF.ndata
 
     # Find the mean values over the time period
-    ref_timeint = ref.integrateInTime(mean=True).convert(plot_unit)
-    com_timeint = com.integrateInTime(mean=True).convert(plot_unit)
-    REF_timeint = REF.integrateInTime(mean=True).convert(plot_unit)
-    COM_timeint = COM.integrateInTime(mean=True).convert(plot_unit)
+    if ref_timeint is None:
+        ref_timeint = ref.integrateInTime(mean=True).convert(plot_unit)
+        REF_timeint = REF.integrateInTime(mean=True).convert(plot_unit)
+    else:
+        ref_timeint.convert(plot_unit)
+        REF_timeint = ref_timeint.interpolate(lat=lat,lon=lon,lat_bnds=lat_bnds,lon_bnds=lon_bnds)
+    if com_timeint is None:
+        com_timeint = com.integrateInTime(mean=True).convert(plot_unit)
+        COM_timeint = COM.integrateInTime(mean=True).convert(plot_unit)
+    else:
+        com_timeint.convert(plot_unit)
+        COM_timeint = com_timeint.interpolate(lat=lat,lon=lon,lat_bnds=lat_bnds,lon_bnds=lon_bnds)        
     normalizer  = REF_timeint.data if mass_weighting else None
 
     # Report period mean values over all possible representations of
@@ -1394,7 +1404,7 @@ def AnalysisMeanStateSpace(ref,com,**keywords):
                     time = REF.time, time_bnds = REF.time_bnds, ndata = REF.ndata,
                     lat  = lat, lat_bnds = lat_bnds, lon = lon, lon_bnds = lon_bnds, area = REF.area).convert(plot_unit)
     REF_std = cREF.rms()
-    if skip_rmse: del cREF,cCOM
+    if skip_rmse: del cREF
     bias_score_map = Score(bias,REF_std if REF.time.size > 1 else REF_timeint)
     bias_score_map.data.mask = (ref_and_com==False) # for some reason I need to explicitly force the mask
     if dataset is not None:
