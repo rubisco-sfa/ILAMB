@@ -479,6 +479,8 @@ parser.add_argument('--skip_plots', dest="skip_plots", action="store_true",
                     help='enable to skip the plotting phase')
 parser.add_argument('--rel_only', dest="rel_only", action="store_true",
                     help='enable only display relative differences in overall scores')
+parser.add_argument('--mem_per_pair', dest="mem_per_pair", metavar='MEM', type=float, default=100000.,
+                    help='maximum memory for IOMB model-confrontation pairs')
 args = parser.parse_args()
 if args.config is None:
     if rank == 0:
@@ -508,7 +510,8 @@ S = Scoreboard(args.config[0],
                verbose   = not args.quiet,
                build_dir = args.build_dir[0],
                extents   = RestrictiveModelExtents(M),
-               rel_only  = args.rel_only)
+               rel_only  = args.rel_only,
+               mem_per_pair = args.mem_per_pair)
 C  = MatchRelationshipConfrontation(S.list())
 Cf = FilterConfrontationList(C,args.confront)
 

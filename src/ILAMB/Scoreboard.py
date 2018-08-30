@@ -187,7 +187,7 @@ class Scoreboard():
     """
     A class for managing confrontations
     """
-    def __init__(self,filename,regions=["global"],verbose=False,master=True,build_dir="./_build",extents=None,rel_only=False):
+    def __init__(self,filename,regions=["global"],verbose=False,master=True,build_dir="./_build",extents=None,rel_only=False,mem_per_pair=100000.):
         
         if not os.environ.has_key('ILAMB_ROOT'):
             raise ValueError("You must set the environment variable 'ILAMB_ROOT'")
@@ -216,6 +216,7 @@ class Scoreboard():
             try:
                 if node.cmap is None: node.cmap = "jet"
                 node.source = os.path.join(os.environ["ILAMB_ROOT"],node.source)
+                node.mem_slab = mem_per_pair*0.5
                 node.confrontation = Constructor(**(node.__dict__))
                 node.confrontation.extents = extents
                 

@@ -141,19 +141,19 @@ class ConfIOMB(Confrontation):
 
     def stageData(self,m):
 
-        mem_slab = self.keywords.get("mem_slab",500.) # Mb
+        mem_slab = self.keywords.get("mem_slab",100000.) # Mb
         
         # peak at the obs dataset without reading much into memory,
         # this assumes that the reference dataset was encoded using
         # our datum
-        info = "obs: %s " % self.variable
+        info = ""
         with Dataset(self.source) as dset:
             climatology = True if "climatology" in dset.variables["time"].ncattrs() else False
             ot          = dset.variables["time"       ].size
             om          = dset.variables[self.variable].size *8e-6
             unit        = dset.variables[self.variable].units
             if climatology:
-                info += "climatology "
+                info += "(climatology) "
                 t  = np.round(dset.variables[dset.variables["time"].climatology][...]/365.)*365.
                 t0 = t[0,0]; tf = t[-1,1]
             else:
@@ -163,8 +163,8 @@ class ConfIOMB(Confrontation):
                 else:
                     t = dset.variables["time"][...]
                     t0 = t[0]; tf = t[-1]
-            info += "(%f,%f) %.0f" % (t0/365.+1850,tf/365.+1850,om)
-        #print info
+            info += "y0,yf = (%.1f,%.1f) total memory = %d [Mb]" % (t0/365.+1850,tf/365.+1850,om)
+        logger.info("[%s][%s] %s" % (self.name,self.variable,info))
 
         # peak at the model dataset without reading much into memory,
         # it could be in the variable or alternate variables, or it
@@ -177,10 +177,9 @@ class ConfIOMB(Confrontation):
             raise il.VarNotInModel()
         vname = vname[0]
 
-        info = "mod: %s " % vname 
-        mt = 0; mm = 0.; mt0 = 1e20; mtf = -1e20; shp = None
+        info = ""
+        mt = 0; mm = 0.; mt0 = 1e20; mtf = -1e20; shp = None;
         for fname in m.variables[vname]:
-            info += "\n  %s " % fname
             with Dataset(fname) as dset:
                 t   = dset.variables["time"]
                 tb  = dset.variables[dset.variables["time"].bounds] if "bounds" in dset.variables["time"].ncattrs() else None
@@ -190,20 +189,23 @@ class ConfIOMB(Confrontation):
                 else:
                     t = il.ConvertCalendar(t)
                 t  += m.shift
-                info += " (%.2f %.2f) " % (t.min()/365.+1850,t.max()/365.+1850)
+                info += "\n      %s y0,yf = (%.1f,%.1f)" % (fname,t.min()/365.+1850,t.max()/365.+1850)
                 i   = (t >= t0)*(t <= tf)
-                if i.any() == False: continue
+                if i.any() == False:
+                    info += " file memory in time bounds 0 [Mb]"
+                    continue
                 mt0 = min(mt0,t[i].min())
                 mtf = max(mtf,t[i].max())
-                info += " (%.2f %.2f) " % (mt0/365.+1850,mtf/365.+1850)
                 nt  = i.sum()
                 v   = dset.variables[vname]
                 shp = v.shape
                 mt += nt
-                mm += (v.size / v.shape[0] * nt) * 8e-6
-                info += "%.0f " % mm
-        #print info
-
+                mem = (v.size / v.shape[0] * nt) * 8e-6
+                info += " file memory in time bounds %d [Mb]" % mem
+                mm += mem
+        info += "\n      total memory = %d [Mb]" % mm
+        logger.info("[%s][%s][%s] %s" % (self.name,m.name,vname,info))
+        
         if mt0 > mtf:
             logger.debug("[%s] Could not find [%s] in the model results in the given time frame, tinput = [%.1f,%.1f]" % (self.name,",".join(possible),t0,tf))
             raise il.VarNotInModel()
@@ -217,6 +219,7 @@ class ConfIOMB(Confrontation):
             ns   = int(mm/mem_slab)+1
             dt   = (mtf-mt0)/ns
             nm   = 0
+            logger.info("[%s][%s] model climatology built in %d time slabs" % (self.name,m.name,ns))
             for i in range(ns):
                 
                 # find slab begin/end to the nearest month
@@ -253,19 +256,14 @@ class ConfIOMB(Confrontation):
                            depth_bnds = v.depth_bnds)
             yield obs,mod
 
-            
         # if obs is historical, then we yield slabs of both
         else:
-            info = "slabbing historical:\n"
             mt0  = int(mt0/365)*365 + bnd_months[mid_months.searchsorted(mt0 % 365)]
             mtf  = int(mtf/365)*365 + bnd_months[mid_months.searchsorted(mtf % 365)+1]
-            info += "  (%f %f) (%f %f)\n" % (t0/365.+1850,tf/365.+1850,mt0/365.+1850,mtf/365.+1850)
-            info += "  obs mem %f (%f) mod mem %f\n" % (om,om*(mtf-mt0)/(tf-t0),mm)
             om  *= (mtf-mt0)/(tf-t0)
             ns   = int(max(om,mm)/mem_slab)+1
             dt   = (mtf-mt0)/ns
-            info += "  nslabs %d dt %f\n" % (ns,dt)
-            #print info
+            logger.info("[%s][%s] observation adjusted memory %d [Mb], memory per slab %d [Mb], analysis run in %d time slabs" % (self.name,m.name,om,mem_slab,ns))
             for i in range(ns):
                 
                 # find slab begin/end to the nearest month
