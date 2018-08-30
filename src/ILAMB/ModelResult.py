@@ -80,7 +80,12 @@ class ModelResult():
                     m = re.search(self.regex,fileName)
                     if not m: continue                    
                 pathName  = os.path.join(subdir,fileName)
-                dataset   = Dataset(pathName)
+
+                try:
+                    dataset = Dataset(pathName)
+                except:
+                    logger.debug("[%s] Error opening file %s" % (self.name,pathName))
+                    continue
                 
                 # populate dictionary for which variables are in which files
                 for key in dataset.variables.keys():

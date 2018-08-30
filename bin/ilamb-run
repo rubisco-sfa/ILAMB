@@ -497,6 +497,16 @@ for region in args.regions:
 if len(missing) > 0:
     raise ValueError("Unable to find the following regions %s from the following list of possible regions %s" % (missing,r.regions))
 
+# Setup logging
+logger    = logging.getLogger("%i" % comm.rank)
+formatter = logging.Formatter('[%(levelname)s][%(name)s][%(funcName)s]%(message)s')
+logger.setLevel(logging.DEBUG)
+if args.logging:
+    if (rank == 0 and not os.path.isdir(args.build_dir[0])): os.mkdir(args.build_dir[0]) 
+    mh = MPIFileHandler('%s/ILAMB%02d.log' % (args.build_dir[0],len(glob.glob("%s/*.log" % args.build_dir[0]))+1))
+    mh.setFormatter(formatter)
+    logger.addHandler(mh)
+
 # Setup study
 T0 = time.time()
 if args.model_setup is None:
@@ -518,15 +528,6 @@ S = Scoreboard(args.config[0],
                rel_only  = args.rel_only)
 C  = MatchRelationshipConfrontation(S.list())
 Cf = FilterConfrontationList(C,args.confront)
-
-# Setup logging
-logger    = logging.getLogger("%i" % comm.rank)
-formatter = logging.Formatter('[%(levelname)s][%(name)s][%(funcName)s]%(message)s')
-logger.setLevel(logging.DEBUG)
-if args.logging:
-    mh = MPIFileHandler('%s/ILAMB%02d.log' % (S.build_dir,len(glob.glob("%s/*.log" % S.build_dir))+1))
-    mh.setFormatter(formatter)
-    logger.addHandler(mh)
 
 if rank == 0:
     logger.info(" " + " ".join(os.uname()))
