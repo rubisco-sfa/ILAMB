@@ -54,23 +54,66 @@ class ModelResult():
         self.lat_bnds       = None
         self.lon_bnds       = None
         self.variables      = None
+        self.extents        = np.asarray([[-90.,+90.],[-180.,+180.]])
         self._findVariables()
         self._getGridInformation()
         
     def _findVariables(self):
         """Loops through the netCDF4 files in a model's path and builds a dictionary of which variables are in which files.
         """
+        def _get(key,dset):
+            dim_name = key
+            try:
+                v = dset.variables[key]
+                dim_bnd_name = v.getncattr("bounds")
+            except:
+                dim_bnd_name = None
+            return dim_name,dim_bnd_name 
+
         variables = {}
         for subdir, dirs, files in os.walk(self.path):
             for fileName in files:
                 if ".nc"       not in fileName: continue
                 if self.filter not in fileName: continue
-                pathName  = "%s/%s" % (subdir,fileName)
+                pathName  = os.path.join(subdir,fileName)
                 dataset   = Dataset(pathName)
+                
+                # populate dictionary for which variables are in which files
                 for key in dataset.variables.keys():
                     if not variables.has_key(key):
                         variables[key] = []
                     variables[key].append(pathName)
+
+        # determine spatial extents
+        lats = [key for key in variables.keys() if (key.lower().startswith("lat" ) or
+                                                    key.lower().  endswith("lat" ))]
+        lons = [key for key in variables.keys() if (key.lower().startswith("lon" ) or
+                                                    key.lower().  endswith("lon" ) or
+                                                    key.lower().startswith("long") or
+                                                    key.lower().  endswith("long"))]
+        for key in lats:
+            for pathName in variables[key]:
+                with Dataset(pathName) as dset:
+                    lat = dset.variables[key][...]
+                    if lat.size == 1: continue
+                    self.extents[0,0] = max(self.extents[0,0],lat.min())
+                    self.extents[0,1] = min(self.extents[0,1],lat.max())
+        for key in lons:
+            for pathName in variables[key]:
+                with Dataset(pathName) as dset:
+                    lon = dset.variables[key][...]
+                    if lon.size == 1: continue
+                    if lon.ndim < 1 or lon.ndim > 2: continue
+                    lon = (lon<=180)*lon + (lon>180)*(lon-360) + (lon<-180)*360
+                    self.extents[1,0] = max(self.extents[1,0],lon.min())
+                    self.extents[1,1] = min(self.extents[1,1],lon.max())
+                    
+        # fix extents
+        eps = 5.
+        if self.extents[0,0] < (- 90.+eps): self.extents[0,0] = - 90.
+        if self.extents[0,1] > (+ 90.-eps): self.extents[0,1] = + 90.
+        if self.extents[1,0] < (-180.+eps): self.extents[1,0] = -180.
+        if self.extents[1,1] > (+180.-eps): self.extents[1,1] = +180.
         self.variables = variables
     
     def _getGridInformation(self):
@@ -95,8 +138,10 @@ class ModelResult():
         else:
             self.land_fraction = (Dataset(self.variables["sftlf"][0]).variables["sftlf"])[...]
             # some models represent the fraction as a percent 
-            if np.ma.max(self.land_fraction) > 1: self.land_fraction *= 0.01 
+            if np.ma.max(self.land_fraction) > 1: self.land_fraction *= 0.01
+            np.seterr(over='ignore')
             self.land_areas = self.cell_areas*self.land_fraction
+            np.seterr(over='warn')
         self.land_area = np.ma.sum(self.land_areas)
         return
                 
@@ -132,10 +177,17 @@ class ModelResult():
         # prepend the target variable to the list of possible variables
         altvars = list(alt_vars)
         altvars.insert(0,variable)
-        
+
+        # checks on input consistency
+        if lats is not None: assert lons is not None
+        if lons is not None: assert lats is not None
+        if lats is not None: assert lats.shape == lons.shape
+
         # create a list of datafiles which have a non-null intersection
         # over the desired time range
         V = []
+        tmin =  1e20
+        tmax = -1e20
         for v in altvars:
             if not self.variables.has_key(v): continue
             for pathName in self.variables[v]:
@@ -145,9 +197,24 @@ class ModelResult():
                                area           = self.land_areas,
                                t0             = initial_time - self.shift,
                                tf             = final_time   - self.shift)
+                tmin = min(tmin,var.time_bnds.min())
+                tmax = max(tmax,var.time_bnds.max())
                 if ((var.time_bnds.max() < initial_time - self.shift) or
                     (var.time_bnds.min() >   final_time - self.shift)): continue
-                if lats is not None: var = var.extractDatasites(lats,lons)
+                if lats is not None and var.ndata:
+                    r = np.sqrt((lats[:,np.newaxis]-var.lat)**2 +
+                                (lons[:,np.newaxis]-var.lon)**2)
+                    imin = r.argmin(axis=1)
+                    rmin = r.   min(axis=1)
+                    imin = imin[np.where(rmin<1.0)]
+                    if imin.size == 0:
+                        logger.debug("[%s] Could not find [%s] at the input sites in the model results" % (self.name,",".join(altvars)))
+                        raise il.VarNotInModel()
+                    var.lat   = var.lat [  imin]
+                    var.lon   = var.lon [  imin]
+                    var.data  = var.data[:,imin]
+                    var.ndata = var.data.shape[1]
+                if lats is not None and var.spatial: var = var.extractDatasites(lats,lons)                    
                 var.time      += self.shift 
                 var.time_bnds += self.shift
                 V.append(var)
@@ -164,7 +231,9 @@ class ModelResult():
                                          initial_time = initial_time,
                                          final_time   = final_time)
             else:
-                logger.debug("[%s] Could not find [%s] in the model results in the given time frame" % (self.name,",".join(altvars)))
+                tstr = ""
+                if tmin < tmax: tstr = " in the given time frame, tinput = [%.1f,%.1f], tmodel = [%.1f,%.1f]" % (initial_time,final_time,tmin+self.shift,tmax+self.shift)
+                logger.debug("[%s] Could not find [%s] in the model results%s" % (self.name,",".join(altvars),tstr))
                 raise il.VarNotInModel()
         else:
             v = il.CombineVariables(V)
@@ -197,7 +266,6 @@ class ModelResult():
 
         """      
         from sympy import sympify
-        from cfunits import Units
         if expression is None: raise il.VarNotInModel()
         args  = {}
         units = {}

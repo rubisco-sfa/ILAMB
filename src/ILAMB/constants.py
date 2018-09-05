@@ -75,6 +75,17 @@ space_opts["timeint"] = { "name"      :"Temporally integrated period mean",
                           "sidelbl"   :"MODEL MEAN",
                           "haslegend" :True }
 
+space_opts["timeintremap"] = { "name"      :"Temporally integrated remapped period mean",
+                               "cmap"      :"choose",
+                               "sym"       :False,
+                               "ticks"     :None,
+                               "ticklabels":None,
+                               "label"     :"unit",
+                               "section"   :"Temporally integrated period mean",
+                               "pattern"   :"MNAME_RNAME_timeintremap.png",
+                               "sidelbl"   :"MAPPED MODEL MEAN",
+                               "haslegend" :True }
+
 space_opts["bias"]    = { "name"      :"Temporally integrated period mean bias",
                           "cmap"      :"seismic",
                           "sym"       :True,
@@ -86,23 +97,89 @@ space_opts["bias"]    = { "name"      :"Temporally integrated period mean bias",
                           "sidelbl"   :"BIAS",
                           "haslegend" :True }
 
+space_opts["biasscore"] = { "name"      :"Temporally integrated period mean bias score",
+                            "cmap"      :"RdYlGn",
+                            "sym"       :False,
+                            "ticks"     :None,
+                            "ticklabels":None,
+                            "label"     :"unit" ,
+                            "section"   :"Temporally integrated period mean",
+                            "pattern"   :"MNAME_RNAME_biasscore.png",
+                            "sidelbl"   :"BIAS SCORE",
+                            "haslegend" :True }
+
+space_opts["rmse"]    = { "name"      :"Temporally integrated period mean rmse",
+                          "cmap"      :"YlOrRd",
+                          "sym"       :False,
+                          "ticks"     :None,
+                          "ticklabels":None,
+                          "label"     :"unit" ,
+                          "section"   :"Temporally integrated period mean",
+                          "pattern"   :"MNAME_RNAME_rmse.png",
+                          "sidelbl"   :"RMSE",
+                          "haslegend" :True }
+
+space_opts["rmsescore"] = { "name"      :"Temporally integrated period mean rmse score",
+                            "cmap"      :"RdYlGn",
+                            "sym"       :False,
+                            "ticks"     :None,
+                            "ticklabels":None,
+                            "label"     :"unit" ,
+                            "section"   :"Temporally integrated period mean",
+                            "pattern"   :"MNAME_RNAME_rmsescore.png",
+                            "sidelbl"   :"RMSE SCORE",
+                            "haslegend" :True }
+
+space_opts["iav"]    = { "name"      :"Interannual variability",
+                          "cmap"      :"Reds",
+                          "sym"       :False,
+                          "ticks"     :None,
+                          "ticklabels":None,
+                          "label"     :"unit" ,
+                          "section"   :"Temporally integrated period mean",
+                          "pattern"   :"MNAME_RNAME_iav.png",
+                          "sidelbl"   :"MODEL INTERANNUAL VARIABILITY",
+                          "haslegend" :True }
+
+space_opts["iavscore"] = { "name"      :"Interannual variability score",
+                           "cmap"      :"RdYlGn",
+                           "sym"       :False,
+                           "ticks"     :None,
+                           "ticklabels":None,
+                           "label"     :"unit" ,
+                           "section"   :"Temporally integrated period mean",
+                           "pattern"   :"MNAME_RNAME_iavscore.png",
+                           "sidelbl"   :"INTERANNUAL VARIABILITY SCORE",
+                           "haslegend" :True }
+
 space_opts["shift"]   = { "name"      :"Temporally integrated mean phase shift",
                           "cmap"      :"PRGn",
                           "sym"       :True,
                           "ticks"     :None,
                           "ticklabels":None,
-                          "label"     :"d" ,
+                          "label"     :"unit" ,
                           "section"   :"Temporally integrated period mean",
                           "pattern"   :"MNAME_RNAME_shift.png",
-                          "sidelbl"   :"SHIFT",
+                          "sidelbl"   :"DIFFERENCE IN MAX MONTH",
                           "haslegend" :True }
+
+space_opts["shiftscore"] = { "name"      :"Temporally integrated mean phase shift score",
+                             "cmap"      :"RdYlGn",
+                             "sym"       :False,
+                             "ticks"     :None,
+                             "ticklabels":None,
+                             "label"     :"unit" ,
+                             "section"   :"Temporally integrated period mean",
+                             "pattern"   :"MNAME_RNAME_shiftscore.png",
+                             "sidelbl"   :"SEASONAL CYCLE SCORE",
+                             "haslegend" :True }
 
 space_opts["phase"]   = { "name"      :"Temporally integrated period mean max month",
                           "cmap"      :"jet",
                           "sym"       :False,
                           "ticks"     :mid_months,
                           "ticklabels":lbl_months,
-                          "label"     :" ",
+                          "label"     :"month",
                           "section"   :"Temporally integrated period mean",
                           "pattern"   :"MNAME_RNAME_phase.png",
                           "sidelbl"   :"MODEL MAX MONTH",
@@ -110,27 +187,38 @@ space_opts["phase"]   = { "name"      :"Temporally integrated period mean max mo
 
 
 time_opts = {}
-time_opts["spaceint"] = { "section"    : "Spatially integrated regional mean",
+time_opts["spaceint"] = { "name"       : "Spatially integrated regional mean",
+                          "section"    : "Spatially integrated regional mean",
                           "haslegend"  : False,
                           "pattern"    : "MNAME_RNAME_spaceint.png",
-                          "sidelbl"    : "MEAN",
+                          "sidelbl"    : "REGIONAL MEAN",
                           "ticks"      : None,
                           "ticklabels" : None,
                           "ylabel"     : "unit"}
 
-time_opts["accumulate"] = { "section"    : "Spatially integrated regional mean",
-                          "haslegend"  : False,
-                          "pattern"    : "MNAME_RNAME_accumulate.png",
-                          "sidelbl"    : "ACCUMULATION",
-                          "ticks"      : None,
-                          "ticklabels" : None,
-                          "ylabel"     : "unit"}
+time_opts["accumulate"] = { "name"       : "Accumulated mean",
+                            "section"    : "Spatially integrated regional mean",
+                            "haslegend"  : False,
+                            "pattern"    : "MNAME_RNAME_accumulate.png",
+                            "sidelbl"    : "ACCUMULATION",
+                            "ticks"      : None,
+                            "ticklabels" : None,
+                            "ylabel"     : "unit"}
 
-time_opts["cycle"]    = { "section"    : "Spatially integrated regional mean",
+time_opts["cycle"]    = { "name"       : "Spatially integrated regional mean cycle",
+                          "section"    : "Spatially integrated regional mean",
                           "haslegend"  : False,
                           "pattern"    : "MNAME_RNAME_cycle.png",
-                          "sidelbl"    : "CYCLE",
+                          "sidelbl"    : "ANNUAL CYCLE",
                           "ticks"      : mid_months/365.+1850.,
                           "ticklabels" : lbl_months,
                           "ylabel"     : "unit"}
 
+time_opts["dtcycle"]  = { "name"       : "Spatially integrated regional mean detrended cycle",
+                          "section"    : "Spatially integrated regional mean",
+                          "haslegend"  : False,
+                          "pattern"    : "MNAME_RNAME_dtcycle.png",
+                          "sidelbl"    : "MONTHLY ANOMALY",
+                          "ticks"      : mid_months/365.+1850.,
+                          "ticklabels" : lbl_months,
+                          "ylabel"     : "unit"}

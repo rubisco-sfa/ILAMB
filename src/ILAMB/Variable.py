@@ -1,13 +1,16 @@
-from constants import spd,dpy,mid_months
+from constants import spd,dpy,mid_months,bnd_months
 from Regions import Regions
 from mpl_toolkits.basemap import Basemap
 import matplotlib.colors as colors
 from pylab import get_cmap
-from cfunits import Units
+from cf_units import Unit
 import ilamblib as il
 import Post as post
 import numpy as np
 
+def _shiftLon(lon):
+    return (lon<=180)*lon + (lon>180)*(lon-360) + (lon<-180)*360
+    
 class Variable:
     r"""A class for managing variables and their analysis.
 
@@ -90,25 +93,29 @@ class Variable:
             ndata      = keywords.get("ndata"      ,None)
             assert data is not None
             assert unit is not None
+            cbounds    = None
         else:
             assert variable_name is not None
             t0 = keywords.get("t0",None)
             tf = keywords.get("tf",None)
             out = il.FromNetCDF4(filename,variable_name,alternate_vars,t0,tf,group=groupname)            
-            data,unit,name,time,time_bnds,lat,lat_bnds,lon,lon_bnds,depth,depth_bnds,ndata = out
+            data,unit,name,time,time_bnds,lat,lat_bnds,lon,lon_bnds,depth,depth_bnds,cbounds,ndata = out
             
         if not np.ma.isMaskedArray(data): data = np.ma.masked_array(data)
         self.data  = data 
         self.ndata = ndata
         self.unit  = unit
         self.name  = name
-
+        self.cbounds = cbounds
+        
         def _createBnds(x):
             x      = np.asarray(x)
             x_bnds = np.zeros((x.size,2))
             x_bnds[+1:,0] = 0.5*(x[:-1]+x[+1:])
             x_bnds[:-1,1] = 0.5*(x[:-1]+x[+1:])
-            if x.size > 1:
+            if x.size == 1:
+                x_bnds[ ...] = x
+            else:
                 x_bnds[ 0,0] = x[ 0] - 0.5*(x[ 1]-x[ 0])
                 x_bnds[-1,1] = x[-1] + 0.5*(x[-1]-x[-2])
             return x_bnds
@@ -133,24 +140,24 @@ class Variable:
         self.lat_bnds = lat_bnds
         self.lon_bnds = lon_bnds
         self.area     = keywords.get("area",None)
-        if ((lat is     None) and (lon is not None) or
-            (lat is not None) and (lon is     None)):
-            raise ValueError("If one of lat or lon is specified, they both must specified")
         
         # Shift possible values on [0,360] to [-180,180]
-        if self.lon       is not None:
-            self.lon      = (self.lon     <=180)*self.lon     +(self.lon     >180)*(self.lon     -360)
-        if  self.lon_bnds is not None:   
-            self.lon_bnds = (self.lon_bnds<=180)*self.lon_bnds+(self.lon_bnds>180)*(self.lon_bnds-360)
-            
+        if self.lon      is not None: self.lon      = _shiftLon(self.lon     )
+        if self.lon_bnds is not None: self.lon_bnds = _shiftLon(self.lon_bnds)
+
         # If the last dimensions are lat and lon, this is spatial data
         if lat is not None and lon is not None and data.ndim >= 2:
             if (data.shape[-2] == lat.size and data.shape[-1] == lon.size): self.spatial = True
 
         if self.spatial is True:
+            if np.all(np.diff(self.lat)<0): # Flip if monotonically decreasing
+                self.lat      = self.lat     [::-1     ]
+                self.data     = self.data[...,::-1,:   ]
+                if self.lat_bnds is not None: self.lat_bnds = self.lat_bnds[::-1,::-1]
+                if self.area     is not None: self.area     = self.area    [::-1,:]
             if self.lat_bnds is None: self.lat_bnds = _createBnds(self.lat)
             if self.lon_bnds is None: self.lon_bnds = _createBnds(self.lon)
-            if self.area     is None: self.area     = il.CellAreas(self.lat,self.lon)
+            if self.area     is None: self.area     = il.CellAreas(self.lat,self.lon)                
             # Some data arrays are arranged such that the first column
             # of data is arranged at the prime meridian. This does not
             # work well with some of the plotting and/or analysis
@@ -165,6 +172,9 @@ class Variable:
             # Fix potential problems with rolling the axes of the lon_bnds
             if self.lon_bnds[ 0,0] > self.lon_bnds[ 0,1]: self.lon_bnds[ 0,0] = -180.
             if self.lon_bnds[-1,0] > self.lon_bnds[-1,1]: self.lon_bnds[-1,1] = +180.
+            # Make sure that the value lies within the bounds
+            assert np.all((self.lat>=self.lat_bnds[:,0])*(self.lat<=self.lat_bnds[:,1]))
+            assert np.all((self.lon>=self.lon_bnds[:,0])*(self.lon<=self.lon_bnds[:,1]))
             
         # Is the data layered
         self.layered    = False
@@ -205,7 +215,21 @@ class Variable:
         s += "{0:>20}: ".format("dataMin")    + "%e\n" % self.data.min()
         s += "{0:>20}: ".format("dataMean")   + "%e\n" % self.data.mean()
         np.seterr(over='warn',under='warn')
+        if self.cbounds is not None:
+            s += "{0:>20}: ".format("climatology")   + "%d thru %d\n" % (self.cbounds[0],self.cbounds[1])
+            
         return s
+
+    def nbytes(self):
+        r"""Estimate the memory usage of a variable in bytes.
+        """
+        nbytes = 0.
+        for key in self.__dict__.keys():
+            try:
+                nbytes += self.__dict__[key].nbytes
+            except:
+                pass
+        return nbytes
 
     def integrateInTime(self,**keywords):
         r"""Integrates the variable over a given time period.
@@ -273,7 +297,7 @@ class Variable:
         integral = np.ma.masked_array(integral,mask=mask,copy=False)
         
         # handle units
-        unit = Units(self.unit)
+        unit = Unit(self.unit)
         name = self.name + "_integrated_over_time"
         
         if mean:
@@ -287,18 +311,18 @@ class Variable:
             else:
                 dt = dt.sum(axis=0)   
             np.seterr(over='ignore',under='ignore')
-            integral /= dt
+            integral = integral / dt
             np.seterr(over='raise' ,under='raise' )
             
         else:
 
             # if not a mean, we need to potentially handle unit conversions
-            unit0    = Units("d")*unit
-            unit     = Units(unit0.formatted().split()[-1])
-            integral = Units.conform(integral,unit0,unit)
+            unit0    = Unit("d")*unit
+            unit     = Unit(unit0.format().split()[-1])
+            integral = unit0.convert(integral,unit)
         
         return Variable(data       = integral,
-                        unit       = unit.units,
+                        unit       = "%s" % unit,
                         name       = name,
                         lat        = self.lat,
                         lat_bnds   = self.lat_bnds,
@@ -360,26 +384,23 @@ class Variable:
         depth_bnds = depth_bnds[ind,:]
         dz         = (depth_bnds[:,1]-depth_bnds[:,0])
         
-        # now expand this dz to the other dimensions of the data array (i.e. space or datasites)
-        for i in range(self.data.ndim-1): dz = np.expand_dims(dz,axis=-1)
-
-        # 
         args = []
-        if self.temporal: args.append(range(self.time.size))
-        if self.layered:  args.append(ind)
-        if self.ndata:    args.append(range(self.ndata))
+        axis = 0
+        if self.temporal:
+            axis += 1
+            dz = np.expand_dims(dz,axis=0)
+            args.append(range(self.time.size))
+        if self.layered: args.append(ind)
+        if self.ndata:
+            dz = np.expand_dims(dz,axis=-1)
+            args.append(range(self.ndata))
         if self.spatial:
+            dz = np.expand_dims(dz,axis=-1)
+            dz = np.expand_dims(dz,axis=-1)
             args.append(range(self.lat.size))
             args.append(range(self.lon.size))
         ind = np.ix_(*args)
         
-        # which axis is the depth axis?
-        start =  0
-        axis  = -1
-        if self.temporal: start = 1
-        for i in range(start,self.data.ndim):
-            if self.data.shape[i] == self.depth.size: axis = i
-
         # approximate the integral by nodal integration (rectangle rule)
         shp = self.data[ind].shape
         np.seterr(over='ignore',under='ignore')
@@ -393,7 +414,7 @@ class Variable:
         integral = np.ma.masked_array(integral,mask=mask,copy=False)
         
         # handle units
-        unit = Units(self.unit)
+        unit = Unit(self.unit)
         name = self.name + "_integrated_over_depth"
         
         if mean:
@@ -407,18 +428,18 @@ class Variable:
             else:
                 dz = dz.sum(axis=axis)   
             np.seterr(over='ignore',under='ignore')
-            integral /= dz
+            integral = integral / dz
             np.seterr(over='raise' ,under='raise' )
             
         else:
 
             # if not a mean, we need to potentially handle unit conversions
-            unit0    = Units("m")*unit
-            unit     = Units(unit0.formatted().split()[-1])
-            integral = Units.conform(integral,unit0,unit)
+            unit0    = Unit("m")*unit
+            unit     = Unit(unit0.format().split()[-1])
+            integral = unit0.convert(integral,unit)
         
         return Variable(data       = integral,
-                        unit       = unit.units,
+                        unit       = "%s" % unit,
                         name       = name,
                         time       = self.time,
                         time_bnds  = self.time_bnds,
@@ -429,7 +450,7 @@ class Variable:
                         area       = self.area,
                         ndata      = self.ndata)
     
-    def integrateInSpace(self,region=None,mean=False,weight=None):
+    def integrateInSpace(self,region=None,mean=False,weight=None,intabs=False):
         r"""Integrates the variable over a given region.
 
         Uses nodal integration to integrate to approximate 
@@ -472,9 +493,11 @@ class Variable:
             name of the region overwhich you wish to integrate
         mean : bool, optional
             enable to divide the integrand to get the mean function value
-        weight : numpy.ndarray
+        weight : numpy.ndarray, optional
             a data array of the same shape as this variable's areas
             representing an additional weight in the integrand
+        intabs : bool, optional
+            enable to integrate the absolute value 
 
         Returns
         -------
@@ -484,9 +507,11 @@ class Variable:
 
         """
         def _integrate(var,areas):
+            op = lambda x : x
+            if intabs: op = np.abs
             assert var.shape[-2:] == areas.shape
             np.seterr(over='ignore',under='ignore')
-            vbar = (var*areas).sum(axis=-1).sum(axis=-1)
+            vbar = (op(var)*areas).sum(axis=-1).sum(axis=-1)
             np.seterr(over='raise',under='raise')
             return vbar
 
@@ -494,7 +519,7 @@ class Variable:
 
         # determine the measure
         mask = self.data.mask
-        if mask.ndim > 2: mask = np.all(mask,axis=0)
+        while mask.ndim > 2: mask = np.all(mask,axis=0)
         measure = np.ma.masked_array(self.area,mask=mask,copy=True)
         if weight is not None: measure *= weight
 
@@ -507,13 +532,13 @@ class Variable:
         integral = _integrate(self.data,measure)
         if mean:
             np.seterr(under='ignore')
-            integral /= measure.sum()
+            integral = integral / measure.sum()
             np.seterr(under='raise')
 
         # handle the name and unit
         name = self.name + "_integrated_over_space"
         if region is not None: name = name.replace("space",region)            
-        unit = Units(self.unit)
+        unit = Unit(self.unit)
         if mean:
             
             # we have already divided thru by the non-masked area in
@@ -522,19 +547,19 @@ class Variable:
         else:
             
             # if not a mean, we need to potentially handle unit conversions
-            unit0    = Units("m2")*unit
-            unit     = Units(unit0.formatted().split()[-1])
-            integral = Units.conform(integral,unit0,unit)
+            unit0    = Unit("m2")*unit
+            unit     = Unit(unit0.format().split()[-1])
+            integral = unit0.convert(integral,unit)
             
         return Variable(data       = np.ma.masked_array(integral),
-                        unit       = unit.units,
+                        unit       = "%s" % unit,
                         time       = self.time,
                         time_bnds  = self.time_bnds,
                         depth      = self.depth,
                         depth_bnds = self.depth_bnds,
                         name       = name)
 
-    def siteStats(self,region=None,weight=None):
+    def siteStats(self,region=None,weight=None,intabs=False):
         """Computes the mean and standard deviation of the variable over all data sites.
 
         Parameters
@@ -549,6 +574,8 @@ class Variable:
 
         """
         if self.ndata is None: raise il.NotDatasiteVariable()
+        op = lambda x : x
+        if intabs: op = np.abs
         rem_mask = np.copy(self.data.mask)
         rname = ""
         r = Regions()
@@ -556,7 +583,7 @@ class Variable:
             self.data.mask += r.getMask(region,self)
             rname = "_over_%s" % region
         np.seterr(over='ignore',under='ignore')
-        mean = np.ma.average(self.data,axis=-1,weights=weight)
+        mean = np.ma.average(op(self.data),axis=-1,weights=weight)
         np.seterr(over='raise',under='raise')
         self.data.mask = rem_mask
         return Variable(data       = mean,
@@ -591,6 +618,7 @@ class Variable:
                         unit       = self.unit,
                         name       = "annual_cycle_mean_of_%s" % self.name,
                         time       = mid_months,
+                        time_bnds  = np.asarray([bnd_months[:-1],bnd_months[1:]]).T,
                         lat        = self.lat,
                         lat_bnds   = self.lat_bnds,
                         lon        = self.lon,
@@ -618,7 +646,7 @@ class Variable:
         assert etype in fcn.keys()
         tid  = np.apply_along_axis(fcn[etype],0,self.data)
         mask = False
-        if self.data.ndim > 1: mask = np.apply_along_axis(np.all,0,self.data.mask) # mask cells where all data is masked
+        if self.data.ndim > 1 and self.data.mask.ndim > 0: mask = np.apply_along_axis(np.all,0,self.data.mask) # mask cells where all data is masked
         data = np.ma.masked_array(self.time[tid],mask=mask)
         return Variable(data       = data,
                         unit       = "d",
@@ -693,7 +721,7 @@ class Variable:
             bnds[0]    = max(x[0] -0.5*(x[ 1]-x[ 0]),-180)
             bnds[-1]   = min(x[-1]+0.5*(x[-1]-x[-2]),+180)
             return bnds
-        assert Units(var.unit) == Units(self.unit)
+        assert Unit(var.unit) == Unit(self.unit)
         assert self.temporal == False
         assert self.ndata    == var.ndata
         assert self.layered  == False
@@ -735,7 +763,7 @@ class Variable:
     def convert(self,unit,density=998.2):
         """Convert the variable to a given unit.
 
-        We use the UDUNITS library via the cfunits python interface to
+        We use the UDUNITS library via the cf_units python interface to
         convert the variable's unit. Additional support is provided
         for unit conversions in which substance information is
         required. For example, in quantities such as precipitation it
@@ -760,53 +788,53 @@ class Variable:
             this object with its unit converted
 
         """
-        src_unit  = Units(self.unit)
-        tar_unit  = Units(     unit)
+        if unit is None: return self
+        src_unit  = Unit(self.unit)
+        tar_unit  = Unit(     unit)
         mask      = self.data.mask
 
         # Define some generic quantities
-        linear            = Units("m")
-        linear_rate       = Units("m s-1")
-        area_density      = Units("kg m-2")
-        area_density_rate = Units("kg m-2 s-1")
-        mass_density      = Units("kg m-3")
-        volume_conc       = Units("mol m-3")
-        mass_conc         = Units("mol kg-1")
+        linear            = Unit("m")
+        linear_rate       = Unit("m s-1")
+        area_density      = Unit("kg m-2")
+        area_density_rate = Unit("kg m-2 s-1")
+        mass_density      = Unit("kg m-3")
+        volume_conc       = Unit("mol m-3")
+        mass_conc         = Unit("mol kg-1")
 
-        # cfunits doesn't handle frequently found temperature expressions
+        # UDUNITS doesn't handle frequently found temperature expressions
         synonyms = {"K":"degK",
                     "R":"degR",
                     "C":"degC",
                     "F":"degF"}
         for syn in synonyms.keys():
-            if src_unit.units == syn: src_unit = Units(synonyms[syn])
-            if tar_unit.units == syn: tar_unit = Units(synonyms[syn])
+            if src_unit.format() == syn: src_unit = Unit(synonyms[syn])
+            if tar_unit.format() == syn: tar_unit = Unit(synonyms[syn])
         
         # Do we need to multiply by density?
-        if ( (src_unit.equivalent(linear_rate) and tar_unit.equivalent(area_density_rate)) or
-             (src_unit.equivalent(linear     ) and tar_unit.equivalent(area_density     )) or
-             (src_unit.equivalent(mass_conc  ) and tar_unit.equivalent(volume_conc      )) ):
+        if ( (src_unit.is_convertible(linear_rate) and tar_unit.is_convertible(area_density_rate)) or
+             (src_unit.is_convertible(linear     ) and tar_unit.is_convertible(area_density     )) or
+             (src_unit.is_convertible(mass_conc  ) and tar_unit.is_convertible(volume_conc      )) ):
             np.seterr(over='ignore',under='ignore')
             self.data *= density
             np.seterr(over='raise',under='raise')
             src_unit *= mass_density
             
         # Do we need to divide by density?
-        if ( (tar_unit.equivalent(linear_rate) and src_unit.equivalent(area_density_rate)) or
-             (tar_unit.equivalent(linear     ) and src_unit.equivalent(area_density     )) or
-             (tar_unit.equivalent(mass_conc  ) and src_unit.equivalent(volume_conc      )) ):
+        if ( (tar_unit.is_convertible(linear_rate) and src_unit.is_convertible(area_density_rate)) or
+             (tar_unit.is_convertible(linear     ) and src_unit.is_convertible(area_density     )) or
+             (tar_unit.is_convertible(mass_conc  ) and src_unit.is_convertible(volume_conc      )) ):
             np.seterr(over='ignore',under='ignore')
-            self.data /= density
+            self.data = self.data / density
             np.seterr(over='raise',under='raise')
-            src_unit /= mass_density
+            src_unit = src_unit / mass_density
             
         # Convert units
         try:
-            self.data = Units.conform(self.data,src_unit,tar_unit)
+            self.data = src_unit.convert(self.data,tar_unit)
             self.data = np.ma.masked_array(self.data,mask=mask)
             self.unit = unit
         except:
-            print "var_name = %s, src_unit = %s, target_unit = %s " % (self.name,src_unit,tar_unit)
             raise il.UnitConversionError()
         return self
     
@@ -963,17 +991,15 @@ class Variable:
                 dset = dataset.groups[group]
                 
         dim = []
-        if self.temporal:
-            dim.append(_checkTime(self.time,dset))
-        if self.layered:
-            dim.append(_checkLayer(self.depth,dset))
+        if self.temporal: dim.append(_checkTime (self.time ,dset))
+        if self.layered:  dim.append(_checkLayer(self.depth,dset))
         if self.ndata is not None:
-            dim.append(_checkData(self.ndata,dset))
-            dlat = _checkLat(self.lat,dset)
-            dlon = _checkLon(self.lon,dset)
-        if self.spatial:
-            dim.append(_checkLat(self.lat,dset))
-            dim.append(_checkLon(self.lon,dset))
+            dim.append(_checkData (self.ndata,dset))
+            _checkLat(self.lat,dset)
+            _checkLon(self.lon,dset)
+        else:
+            if self.lat is not None: dim.append(_checkLat  (self.lat  ,dset))
+            if self.lon is not None: dim.append(_checkLon  (self.lon  ,dset))
 
         grp = dset
         if self.data.size == 1:
@@ -981,7 +1007,7 @@ class Variable:
                 grp = dset.createGroup("scalars")
             else:
                 grp = dset.groups["scalars"]
-            
+
         V = grp.createVariable(self.name,"double",dim,zlib=True)
         V.setncattr("units",self.unit)
         try:
@@ -1058,6 +1084,10 @@ class Variable:
         vmax   = keywords.get("vmax"  ,self.data.max())
         region = keywords.get("region","global")
         cmap   = keywords.get("cmap"  ,"jet")
+        land   = keywords.get("land"  ,0.875)
+        water  = keywords.get("water" ,0.750)
+        pad    = keywords.get("pad"   ,5.0)
+        cbar   = keywords.get("cbar"  ,False)
         
         rem_mask = None
         r = Regions()
@@ -1073,6 +1103,7 @@ class Variable:
                     label = label)
             if ticks      is not None: ax.set_xticks(ticks)
             if ticklabels is not None: ax.set_xticklabels(ticklabels)
+            ax.grid('on')
             ax.set_ylim(vmin,vmax)
             
         elif not self.temporal:
@@ -1081,88 +1112,60 @@ class Variable:
             rem_mask  = np.copy(self.data.mask)
             self.data.mask += r.getMask(region,self)
             
-            # Setup the plot projection depending on data types
-            bmap = None
-            if region == "global":
-                bmap = Basemap(projection = 'robin',
-                               lon_0      = 0,
-                               ax         = ax,
-                               resolution = 'c')
-
-            elif region == "arctic":
-                bmap = Basemap(projection = 'ortho',
-                               lat_0      =  90.,
-                               lon_0      = 180.,
-                               ax         = ax,
-                               resolution = 'c')
+            # Find the figure geometry
+            if self.ndata:
+                LAT = np.ma.masked_array(self.lat,mask=self.data.mask,copy=True)
+                LON = np.ma.masked_array(self.lon,mask=self.data.mask,copy=True)
+                dateline = False
             else:
-
-                # Compute the plot limits based on the figure size and
-                # some aspect ratio math
-                mask = r.getMask(region,self)
-                if self.spatial:
-                    lats = np.ma.masked_array(self.lat,(mask==False).any(axis=1)==False)
-                    lons = np.ma.masked_array(self.lon,(mask==False).any(axis=0)==False)
-                else:
-                    lats = np.ma.masked_array(self.lat,mask)
-                    lons = np.ma.masked_array(self.lon,mask)
-                lats = np.asarray([lats.min(),lats.max()])
-                lons = np.asarray([lons.min(),lons.max()])
+                LAT,LON = np.meshgrid(self.lat,self.lon,indexing='ij')
+                LAT = np.ma.masked_array(LAT,mask=self.data.mask,copy=False)
+                LON = np.ma.masked_array(LON,mask=self.data.mask,copy=False)
+                    
+            lat0 = LAT.min() ; latf = LAT.max()
+            lon0 = LON.min() ; lonf = LON.max()
+            latm = LAT.mean(); lonm = LON.mean()
+            area = (latf-lat0)*(lonf-lon0)
                 
-                dlat,dlon = lats[1]-lats[0],lons[1]-lons[0]
-                if dlat < 1e-12:
-                    dlat     = 30.
-                    lats[0] -= 0.5*dlat
-                    lats[1] += 0.5*dlat
-                if dlon < 1e-12:
-                    dlon     = 30.
-                    lons[0] -= 0.5*dlon
-                    lons[1] += 0.5*dlon
-                fsize     = ax.get_figure().get_size_inches()
-                figure_ar = fsize[1]/fsize[0]
-                scale     = figure_ar*dlon/dlat
-                if scale >= 1.:
-                    lats[1] += 0.5*dlat*(scale-1.)
-                    lats[0] -= 0.5*dlat*(scale-1.)
-                else:
-                    scale = 1./scale
-                lons[1]  += 0.5*dlon*(scale-1.)
-                lons[0]  -= 0.5*dlon*(scale-1.)
-                lats      = lats.clip(- 90, 90)
-                lons      = lons.clip(-180,180)
-                
-                bmap = Basemap(projection = 'cyl',
-                               llcrnrlon  = lons[ 0],
-                               llcrnrlat  = lats[ 0],
-                               urcrnrlon  = lons[-1],
-                               urcrnrlat  = lats[-1],
-                               ax         = ax,
-                               resolution = 'c')
+            # Setup the plot projection depending on data limits
+            bmap = Basemap(projection = 'robin',
+                           lon_0      = 0,
+                           ax         = ax,
+                           resolution = 'c')
+            if (lon0 < -170.) and (lonf > 170.):
+                if lat0 > 23.5:
+                    bmap = Basemap(projection  = 'npstere',
+                                   boundinglat = lat0-5.,
+                                   lon_0       = 0.,
+                                   ax          = ax,
+                                   resolution  = 'c')
+                elif latf < -23.5:
+                    bmap = Basemap(projection  = 'spstere',
+                                   boundinglat = latf+5.,
+                                   lon_0       = 180.,
+                                   ax          = ax,
+                                   resolution  = 'c')
+            else:
+                if area < 10000.:
+                    bmap = Basemap(projection = 'cyl',
+                                   llcrnrlon  = lon0-2*pad,
+                                   llcrnrlat  = lat0-  pad,
+                                   urcrnrlon  = lonf+2*pad,
+                                   urcrnrlat  = latf+  pad,
+                                   ax         = ax,
+                                   resolution = 'c')
             try:
-                bmap.drawlsmask(land_color  = '0.875',
-                                ocean_color = '0.750',
+                bmap.drawlsmask(land_color  = str(land),
+                                ocean_color = str(water),
                                 lakes       = True)
             except:
                 bmap.drawcoastlines(linewidth = 0.2,
                                     color     = "darkslategrey")
-            if self.spatial:
 
-                lat_bnds = self.lat_bnds
-                lon_bnds = self.lon_bnds
-                data     = self.data
-                if region == 'arctic':
-                    ind      = np.where(self.lat>=60)[0]
-                    lat_bnds = lat_bnds[ind,:]
-                    data     = data    [ind,:]
-                lat_bnds = lat_bnds.clip(- 90, 90)
-                lon_bnds = lon_bnds.clip(-180,180)
-                if region in ['global','arctic']:
-                    x,y  = np.meshgrid(il.ConvertBoundsTypes(lat_bnds),
-                                       il.ConvertBoundsTypes(lon_bnds),indexing='ij')
-                else:
-                    x,y  = np.meshgrid(self.lat,self.lon,indexing='ij')
-                ax   = bmap.pcolormesh(y,x,data,latlon=True,vmin=vmin,vmax=vmax,cmap=cmap)
-            
+            if self.spatial:
+                LAT,LON = np.meshgrid(self.lat,self.lon,indexing='ij')
+                ax = bmap.pcolormesh(LON,LAT,self.data,
+                                     latlon=True,vmin=vmin,vmax=vmax,cmap=cmap)
             elif self.ndata is not None:
                 x,y  = bmap(self.lon[self.data.mask==False],
                             self.lat[self.data.mask==False])
@@ -1173,12 +1176,14 @@ class Variable:
                 clrs = clmp(norm)
                 size = 35
                 ax   = bmap.scatter(x,y,s=size,color=clrs,ax=ax,linewidths=0,cmap=cmap)
-
+            if cbar:
+                cb = bmap.colorbar(ax,location='bottom',pad="5%")
+                if label is not None: cb.set_label(label)
             if rem_mask is not None: self.data.mask = rem_mask
         return ax
     
 
-    def interpolate(self,time=None,lat=None,lon=None):
+    def interpolate(self,time=None,lat=None,lon=None,lat_bnds=None,lon_bnds=None,itype='nearestneighbor'):
         """Use nearest-neighbor interpolation to interpolate time and/or space at given values.
 
         Parameters
@@ -1196,37 +1201,61 @@ class Variable:
             The interpolated variable
         """
         if time is None and lat is None and lon is None: return self
-        output_time = self.time if (time is None) else time
-        output_lat  = self.lat  if (lat  is None) else lat
-        output_lon  = self.lon  if (lon  is None) else lon
-        output_area = self.area if (lat is None and lon is None) else None
+        output_time = self.time      if (time is None) else time
+        output_tbnd = self.time_bnds if (time is None) else None
+        output_lat  = self.lat       if (lat  is None) else lat
+        output_lon  = self.lon       if (lon  is None) else lon
+        output_area = self.area      if (lat  is None and lon is None) else None
         
         data = self.data
         if self.spatial and (lat is not None or lon is not None):
             if lat is None: lat = self.lat
             if lon is None: lon = self.lon
-            rows  = np.apply_along_axis(np.argmin,1,np.abs(lat[:,np.newaxis]-self.lat))
-            cols  = np.apply_along_axis(np.argmin,1,np.abs(lon[:,np.newaxis]-self.lon))
-            args  = []
-            if self.temporal: args.append(range(self.time.size))
-            if self.layered:  args.append(range(self.depth.size))
-            args.append(rows)
-            args.append(cols)
-            ind   = np.ix_(*args)
-            mask  = data.mask[ind]
-            data  = data.data[ind]
-            data  = np.ma.masked_array(data,mask=mask)
+            if itype == 'nearestneighbor':
+                rows  = (np.abs(lat[:,np.newaxis]-self.lat)).argmin(axis=1)
+                cols  = (np.abs(lon[:,np.newaxis]-self.lon)).argmin(axis=1)
+                args  = []
+                if self.temporal: args.append(range(self.time.size))
+                if self.layered:  args.append(range(self.depth.size))
+                args.append(rows)
+                args.append(cols)
+                ind   = np.ix_(*args)
+                mask  = data.mask[ind]
+                data  = data.data[ind]
+                data  = np.ma.masked_array(data,mask=mask)
+                frac  = self.area / il.CellAreas(self.lat,self.lon,self.lat_bnds,self.lon_bnds).clip(1e-12)
+                frac  = frac.clip(0,1)
+                frac  = frac[np.ix_(rows,cols)]
+                output_area = frac * il.CellAreas(lat,lon,lat_bnds,lon_bnds)
+            elif itype == 'bilinear':
+                from scipy.interpolate import RectBivariateSpline
+                if self.data.ndim == 3:
+                    halo = il.LandLinInterMissingValues(self.data)
+                    data = np.ma.zeros((self.data.shape[:-2]+(lat.size,lon.size)))
+                    for i in range(self.data.shape[0]):
+                        dint = RectBivariateSpline(self.lat,self.lon,     halo[i,...],     kx=1,ky=1)
+                        mint = RectBivariateSpline(self.lat,self.lon,self.data[i,...].mask,kx=1,ky=1)
+                        data[i,...] = np.ma.masked_array(dint(lat,lon,grid=True),
+                                                         mint(lat,lon,grid=True)>0.5)
+                frac  = self.area / il.CellAreas(self.lat,self.lon).clip(1e-12)
+                frac  = frac.clip(0,1)
+                frac  = RectBivariateSpline(self.lat,self.lon,frac,kx=1,ky=1)
+                output_area = frac(lat,lon,grid=True) * il.CellAreas(lat,lon)
+            else:
+                raise ValueError("Uknown interpolation type: %s" % itype)
         if self.temporal and time is not None:
             times = np.apply_along_axis(np.argmin,1,np.abs(time[:,np.newaxis]-self.time))
             mask  = data.mask
             if mask.size > 1: mask = data.mask[times,...]
             data  = data.data[times,...]
             data  = np.ma.masked_array(data,mask=mask)
+            output_tbnd = self.time_bnds[times]
         return Variable(data = data, unit = self.unit, name = self.name, ndata = self.ndata,
                         lat  = output_lat,
                         lon  = output_lon,
                         area = output_area,
-                        time = output_time)
+                        time = output_time,
+                        time_bnds = output_tbnd)
 
     def phaseShift(self,var,method="max_of_annual_cycle"):
         """Computes the phase shift between a variable and this variable.
@@ -1339,7 +1368,7 @@ class Variable:
         out_time_bnds = None
         if out_time is not None: out_time_bnds = self.time_bnds
         r = _correlation(self.data,var.data,axes=axes)
-        return Variable(data=r,unit="-",
+        return Variable(data=r,unit="1",
                         name="%s_correlation_of_%s" % (ctype,self.name),
                         time=out_time,time_bnds=out_time_bnds,ndata=out_ndata,
                         lat=out_lat,lon=out_lon,area=out_area)
@@ -1581,13 +1610,13 @@ class Variable:
             R0    = 1.0
             std0  = std0.clip(1e-12)
             std   = std .clip(1e-12)
-            std  /= std0
+            std   = std/std0
             score = 4.0*(1.0+R.data)/((std+1.0/std)**2 *(1.0+R0))
         except:
             std   = np.asarray([0.0])
             score = np.asarray([0.0])
-        std   = Variable(data=std  ,name="normalized_spatial_std_of_%s_over_%s" % (self.name,region),unit="-")
-        score = Variable(data=score,name="spatial_distribution_score_of_%s_over_%s" % (self.name,region),unit="-")
+        std   = Variable(data=std  ,name="normalized_spatial_std_of_%s_over_%s" % (self.name,region),unit="1")
+        score = Variable(data=score,name="spatial_distribution_score_of_%s_over_%s" % (self.name,region),unit="1")
         return std,R,score
 
     def coarsenInTime(self,intervals,window=0.):
@@ -1623,6 +1652,7 @@ class Variable:
                         time       = time,
                         time_bnds  = intervals,
                         data       = data,
+                        ndata      = self.ndata,
                         lat        = self.lat,
                         lon        = self.lon,
                         area       = self.area,
@@ -1678,7 +1708,7 @@ class Variable:
         """
         def _whichInterval(val,bnds):
             ind = np.where((val>=bnds[:,0])*(val<=bnds[:,1]))[0]
-            assert ind.size == 1
+            assert ind.size <= 2
             ind = ind[0]
             return ind
             
@@ -1710,6 +1740,7 @@ class Variable:
             keep = (self.depth_bnds[:,1] >= d[0])*(self.depth_bnds[:,0] <= d[1])
             ind  = np.where(keep)[0]
             self.depth_bnds = self.depth_bnds[ind,:]
+            self.depth      = self.depth     [ind  ]
             self.data       = self.data[...,ind,:,:]
             
         return self
