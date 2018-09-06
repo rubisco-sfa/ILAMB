@@ -152,7 +152,7 @@ def TaylorDiagram(stddev,corrcoef,refstd,fig,colors,normalize=True):
 
 class HtmlFigure():
 
-    def __init__(self,name,pattern,side=None,legend=False,benchmark=False,longname=None):
+    def __init__(self,name,pattern,side=None,legend=False,benchmark=False,longname=None,width=None,br=False):
 
         self.name      = name
         self.pattern   = pattern
@@ -160,6 +160,8 @@ class HtmlFigure():
         self.legend    = legend
         self.benchmark = benchmark
         self.longname  = longname
+        self.width     = width
+        self.br        = br
         
     def generateClickRow(self,allModels=False):
         name = self.pattern
@@ -184,17 +186,19 @@ class HtmlFigure():
 
     def __str__(self):
 
+        opts = "width = %d" % self.width if self.width else ""
+        cls  = "break" if self.br else "container"
         code = """
-        <div class="container" id="%s_div">
-          <div class="child">""" % (self.name)
+        <div class="%s" id="%s_div">
+          <div class="child">""" % (cls,self.name)
         if self.side is not None:
             code += """
           <center>%s</center>""" % (self.side.replace(" ","&nbsp;"))
         code += """
-          <img src="" id="%s" alt="Data not available"></img>""" % (self.name)
+          <img src="" id="%s" alt="Data not available" %s></img>""" % (self.name,opts)
         if self.legend:
             code += """
-          <center><img src="legend_%s.png" id="leg"  alt="Data not available"></img></center>""" % (self.name.replace("benchmark_",""))
+          <center><img src="legend_%s.png" id="leg"  alt="Data not available" %s></img></center>""" % (self.name.replace("benchmark_",""),opts)
         code += """
           </div>
         </div>"""
@@ -314,12 +318,12 @@ class HtmlPage(object):
         self.sections = sections
         for section in sections: self.figures[section] = []
 
-    def addFigure(self,section,name,pattern,side=None,legend=False,benchmark=False,longname=None):
+    def addFigure(self,section,name,pattern,side=None,legend=False,benchmark=False,longname=None,width=None,br=False):
 
         assert section in self.sections
         for fig in self.figures[section]:
             if fig.name == name: return
-        self.figures[section].append(HtmlFigure(name,pattern,side=side,legend=legend,benchmark=benchmark,longname=longname))
+        self.figures[section].append(HtmlFigure(name,pattern,side=side,legend=legend,benchmark=benchmark,longname=longname,width=width,br=br))
     
     def setMetricPriority(self,priority):
         self.priority = priority
@@ -909,6 +913,9 @@ class HtmlLayout():
     <style type="text/css">
       .container{
         display:inline;
+      }
+      .break{
+        clear:left;
       }
       .child{
         margin-bottom:10px;
