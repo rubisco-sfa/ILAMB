@@ -1028,6 +1028,27 @@ def RegisterCustomColormaps():
                       (1.0, Gn[2], 0.0  ))}
     plt.register_cmap(name='RdGn', data=RdGn)
 
+    # bias colormap
+    val = 0.8
+    per = 0.2 /2
+    Rd  = cs.rgb_to_hsv(1,0,0)
+    Rd  = cs.hsv_to_rgb(Rd[0],Rd[1],val)
+    Bl  = cs.rgb_to_hsv(0,0,1)
+    Bl  = cs.hsv_to_rgb(Bl[0],Bl[1],val)
+    RdBl = {'red':   ((0.0    , 0.0,   Bl[0]),
+                      (0.5-per, 1.0  , 1.0  ),
+                      (0.5+per, 1.0  , 1.0  ),
+                      (1.0    , Rd[0], 0.0  )),
+            'green': ((0.0    , 0.0,   Bl[1]),
+                      (0.5-per, 1.0  , 1.0  ),
+                      (0.5+per, 1.0  , 1.0  ),
+                      (1.0    , Rd[1], 0.0  )),
+            'blue':  ((0.0    , 0.0,   Bl[2]),
+                      (0.5-per, 1.0  , 1.0  ),
+                      (0.5+per, 1.0  , 1.0  ),
+                      (1.0    , Rd[2], 0.0  ))}
+    plt.register_cmap(name='bias', data=RdBl)
+    
 
 def BenchmarkSummaryFigure(models,variables,data,figname,vcolor=None,rel_only=False):
     """Creates a summary figure for the benchmark results contained in the
