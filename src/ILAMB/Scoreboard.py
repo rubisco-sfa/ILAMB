@@ -7,6 +7,7 @@ from ConfIOMB import ConfIOMB
 from ConfDiurnal import ConfDiurnal
 from ConfPermafrost import ConfPermafrost
 from ConfAlbedo import ConfAlbedo
+from ConfSWE import ConfSWE
 import os,re
 from netCDF4 import Dataset
 import numpy as np
@@ -183,7 +184,8 @@ ConfrontationTypes = { None              : Confrontation,
                        "ConfIOMB"        : ConfIOMB,
                        "ConfDiurnal"     : ConfDiurnal,
                        "ConfPermafrost"  : ConfPermafrost,
-                       "ConfAlbedo"      : ConfAlbedo}
+                       "ConfAlbedo"      : ConfAlbedo,
+                       "ConfSWE"         : ConfSWE}
 
 class Scoreboard():
     """
