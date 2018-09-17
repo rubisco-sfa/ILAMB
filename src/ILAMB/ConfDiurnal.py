@@ -146,7 +146,7 @@ class ConfDiurnal(Confrontation):
         obs,mod = self.stageData(m)
         Nobs = 365./np.diff(obs.time).mean()
         Nmod = 365./np.diff(mod.time).mean()
-        
+
         # Analysis on a per year basis
         Yobs = (obs.time/365.+1850).astype(int)
         Ymod = (mod.time/365.+1850).astype(int)
@@ -163,10 +163,10 @@ class ConfDiurnal(Confrontation):
 
             # Compute the diurnal magnitude
             vobs,tobs = DiurnalReshape(obs.time     [iobs] % 365,
-                                       obs.time_bnds[iobs] % 365,
+                                       obs.time_bnds[iobs],
                                        obs.data     [iobs,0])
             vmod,tmod = DiurnalReshape(mod.time     [imod] % 365,
-                                       mod.time_bnds[imod] % 365,
+                                       mod.time_bnds[imod],
                                        mod.data     [imod,0])
             vobs  = vobs.max(axis=1)-vobs.min(axis=1)
             vmod  = vmod.max(axis=1)-vmod.min(axis=1)
