@@ -53,6 +53,9 @@ class NotLayeredVariable(Exception):
 class NotDatasiteVariable(Exception):
     def __str__(self): return "NotDatasiteVariable"
 
+class MonotonicityError(Exception):
+    def __str__(self): return "MonotonicityError"
+    
 def FixDumbUnits(unit):
     r"""Try to fix the dumb units people insist on using.
     
@@ -1818,12 +1821,24 @@ def CombineVariables(V):
         tf[i] = v.time[-1]
         nt[i] = v.time.size
         ind.append(nt[:(i+1)].sum())
-        
-    # Checks on monotonicity
-    assert (t0[1:]-t0[:-1]).min() >= 0
-    assert (tf[1:]-tf[:-1]).min() >= 0
-    assert (t0[1:]-tf[:-1]).min() >= 0
 
+    # Checks on monotonicity
+    if (((t0[1:]-t0[:-1]).min() < 0) or
+        ((tf[1:]-tf[:-1]).min() < 0) or
+        ((t0[1:]-tf[:-1]).min() < 0)):
+        msg = "[MonotonicityError]"
+        for i in range(nV):
+            err = ""
+            if i > 0     :
+                err += "" if t0[i]   > tf[i-1] else "*"
+                err += "" if t0[i]   > t0[i-1] else "*"
+            if i < (nV-1):
+                err += "" if tf[i+1] > t0[i  ] else "*"                
+                err += "" if tf[i+1] > tf[i  ] else "*"                
+            msg  += "\n  %2d: t = [%.3f, %.3f] %s" % (i,t0[i],tf[i],err)
+        logger.debug(msg)
+        raise MonotonicityError()
+    
     # Assemble the data
     shp       = (nt.sum(),)+V[0].data.shape[1:]
     time      = np.zeros(shp[0])
