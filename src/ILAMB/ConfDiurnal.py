@@ -97,7 +97,7 @@ class ConfDiurnal(Confrontation):
         # Mean State page
         pages.append(post.HtmlPage("MeanState","Mean State"))
         pages[-1].setHeader("CNAME / RNAME / MNAME")
-        pages[-1].setSections(["Diurnal cycle"])
+        pages[-1].setSections(["Diurnal Magnitude"])
         pages.append(post.HtmlAllModelsPage("AllModels","All Models"))
         pages[-1].setHeader("CNAME / RNAME")
         pages[-1].setSections([])
@@ -146,7 +146,7 @@ class ConfDiurnal(Confrontation):
         obs,mod = self.stageData(m)
         Nobs = 365./np.diff(obs.time).mean()
         Nmod = 365./np.diff(mod.time).mean()
-
+        
         # Analysis on a per year basis
         Yobs = (obs.time/365.+1850).astype(int)
         Ymod = (mod.time/365.+1850).astype(int)
@@ -262,7 +262,7 @@ class ConfDiurnal(Confrontation):
             obs = Variable(filename = bname, variable_name = plot, groupname = "MeanState")
             mod = Variable(filename = fname, variable_name = plot, groupname = "MeanState")
             
-            page.addFigure("Diurnal cycle",
+            page.addFigure("Diurnal Magnitude",
                            plot,
                            "MNAME_%s.png" % plot,
                            side   = plot.split("_")[-1],
