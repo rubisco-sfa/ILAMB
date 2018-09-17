@@ -237,7 +237,6 @@ class ConfDiurnal(Confrontation):
                 for vname in variables:
                     if "season" in vname:
                         self.limits["season"] = max(self.limits["season"],group.variables[vname].up99)
-                        
                     
     def modelPlots(self,m):
         
@@ -250,15 +249,19 @@ class ConfDiurnal(Confrontation):
         page = [page for page in self.layout.pages if "MeanState" in page.name][0]
         page.priority = ["Beginning","Ending","Strength","Score","Overall"]
 
-        plots = []
+        # list pf plots must be in both the benchmark and the model
         with Dataset(bname) as dset:
-            plots = [key for key in dset.groups["MeanState"].variables.keys() if "season" in key]
+            bplts = [key for key in dset.groups["MeanState"].variables.keys() if "season" in key]
+        with Dataset(fname) as dset:
+            fplts = [key for key in dset.groups["MeanState"].variables.keys() if "season" in key]
+        plots = [v for v in bplts if v in fplts]
         plots.sort()
 
         for plot in plots:
+
             obs = Variable(filename = bname, variable_name = plot, groupname = "MeanState")
             mod = Variable(filename = fname, variable_name = plot, groupname = "MeanState")
-        
+            
             page.addFigure("Diurnal cycle",
                            plot,
                            "MNAME_%s.png" % plot,
