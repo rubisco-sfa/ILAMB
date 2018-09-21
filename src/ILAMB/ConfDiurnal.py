@@ -11,6 +11,17 @@ import numpy as np
 import os,glob
 from constants import lbl_months,bnd_months
 
+def _meanDiurnalCycle(var,n):
+    vmean = var.data.reshape((-1,n))
+    vmean = vmean[np.where(vmean.mask.any(axis=1)==False)]
+    per   = np.percentile(vmean,[10,90],axis=0)
+    per10 = per[0,:]
+    per90 = per[1,:]
+    vmean = vmean.mean(axis=0)
+    t     = np.linspace(0,24,n+1)[:-1]
+    tmax  = t[vmean.argmax()]
+    return t,vmean,per10,per90,tmax
+
 def DiurnalReshape(time,time_bnds,data):
     dt    = (time_bnds[:,1]-time_bnds[:,0])[:-1]
     dt    = dt.mean()
@@ -97,7 +108,7 @@ class ConfDiurnal(Confrontation):
         # Mean State page
         pages.append(post.HtmlPage("MeanState","Mean State"))
         pages[-1].setHeader("CNAME / RNAME / MNAME")
-        pages[-1].setSections(["Diurnal Magnitude"])
+        pages[-1].setSections(["Seasonal Diurnal Cycle","Diurnal magnitude"])
         pages.append(post.HtmlAllModelsPage("AllModels","All Models"))
         pages[-1].setHeader("CNAME / RNAME")
         pages[-1].setSections([])
@@ -144,32 +155,41 @@ class ConfDiurnal(Confrontation):
         
         # Grab the data
         obs,mod = self.stageData(m)
+
+        # Number of data points per year
         Nobs = 365./np.diff(obs.time).mean()
         Nmod = 365./np.diff(mod.time).mean()
-        
+
+        # Number of data points per day
+        nobs = int(np.round(1./np.diff(obs.time).mean()))
+        nmod = int(np.round(1./np.diff(mod.time).mean()))
+
         # Analysis on a per year basis
         Yobs = (obs.time/365.+1850).astype(int)
         Ymod = (mod.time/365.+1850).astype(int)
         Y    = np.unique(Yobs)
         S1 = []; S2 = []; S3 = []; Lobs = []; Lmod = []
-        Sobs = {}; Smod = {}
+        Sobs  = {}; Smod  = {}
+        omask = []; mmask = []
         for y in Y:
 
-            # Subset the data
+            # Subset the data, we need to have 90% of a year
             iobs = np.where(y==Yobs)[0]
             imod = np.where(y==Ymod)[0]
             if iobs.size/Nobs < 0.9: continue
             if imod.size/Nmod < 0.9: continue
 
-            # Compute the diurnal magnitude
+            # Reshape the year's worth of data
             vobs,tobs = DiurnalReshape(obs.time     [iobs] % 365,
                                        obs.time_bnds[iobs],
                                        obs.data     [iobs,0])
             vmod,tmod = DiurnalReshape(mod.time     [imod] % 365,
                                        mod.time_bnds[imod],
                                        mod.data     [imod,0])
-            vobs  = vobs.max(axis=1)-vobs.min(axis=1)
-            vmod  = vmod.max(axis=1)-vmod.min(axis=1)
+
+            # Compute the diurnal magnitude
+            vobs = vobs.max(axis=1)-vobs.min(axis=1)
+            vmod = vmod.max(axis=1)-vmod.min(axis=1)
             Sobs[y] = Variable(name = "season_%d" % y,
                                unit = obs.unit,
                                time = tobs,
@@ -194,11 +214,33 @@ class ConfDiurnal(Confrontation):
             S1.append(s1); S2.append(s2); S3.append(s3)
             Lobs.append(To[1]-To[0])
             Lmod.append(Tm[1]-Tm[0])
+            omask += [(y-1850)*365.+To[0],(y-1850)*365.+To[1]]
+            mmask += [(y-1850)*365.+Tm[0],(y-1850)*365.+Tm[1]]
+
+
+        # Mask away the data which is out of the season
+        obs.data = np.ma.masked_array(obs.data,mask=(obs.time<omask[0])+(obs.time>omask[-1]),copy=False)
+        for i in range(len(omask)/2-1):
+            obs.data = np.ma.masked_array(obs.data,mask=(obs.time>omask[2*i+1])*(obs.time<omask[2*i+2]),copy=False)
+        mod.data = np.ma.masked_array(mod.data,mask=(mod.time<mmask[0])+(mod.time>mmask[-1]),copy=False)
+        for i in range(len(mmask)/2-1):
+            mod.data = np.ma.masked_array(mod.data,mask=(mod.time>mmask[2*i+1])*(mod.time<mmask[2*i+2]),copy=False)
+        
+        # Seasonal Mean Diurnal Cycle
+        ot,omean,o10,o90,opeak = _meanDiurnalCycle(obs,nobs)
+        mt,mmean,m10,m90,mpeak = _meanDiurnalCycle(mod,nmod)
+
+        # Seasonal Mean Daily Uptake
+        ouptake = obs.integrateInTime(mean=True)
+        muptake = mod.integrateInTime(mean=True)
 
         # Score by mean values across years
         S1   = np.asarray(S1  ).mean()
         S2   = np.asarray(S2  ).mean()
         S3   = np.asarray(S3  ).mean()
+        S4   = abs(opeak-mpeak)/12.
+        S4   = 1 - ((S4>1)*(1-S4) + (S4<=1)*S4)
+        S5   = np.exp(-np.abs(ouptake.data-muptake.data)/ouptake.data)
         Lobs = np.asarray(Lobs).mean()
         Lmod = np.asarray(Lmod).mean()
 
@@ -216,6 +258,30 @@ class ConfDiurnal(Confrontation):
             Variable(name = "Season Strength Score global",
                      unit = "1",
                      data = S3).toNetCDF4(results,group="MeanState")
+            Variable(name = "Diurnal Max Timing Score global",
+                     unit = "1",
+                     data = S4).toNetCDF4(results,group="MeanState")
+            Variable(name = "Daily Uptake Score global",
+                     unit = "1",
+                     data = S5).toNetCDF4(results,group="MeanState")
+            Variable(name = "cycle_mean",
+                     unit = mod.unit,
+                     time = mt,
+                     data = mmean).toNetCDF4(results,group="MeanState")
+            Variable(name = "cycle_lower",
+                     unit = mod.unit,
+                     time = mt,
+                     data = m10).toNetCDF4(results,group="MeanState")
+            Variable(name = "cycle_upper",
+                     unit = mod.unit,
+                     time = mt,
+                     data = m90).toNetCDF4(results,group="MeanState")
+            Variable(name = "Season Mean Daily Uptake",
+                     unit = muptake.unit,
+                     data = muptake.data).toNetCDF4(results,group="MeanState")
+            Variable(name = "Season Time of Maximum",
+                     unit = "h",
+                     data = mpeak).toNetCDF4(results,group="MeanState")
             for key in Smod.keys(): Smod[key].toNetCDF4(results,group="MeanState")
         if not self.master: return
         with Dataset(os.path.join(self.output_path,"%s_Benchmark.nc" % self.name),mode="w") as results:
@@ -223,6 +289,24 @@ class ConfDiurnal(Confrontation):
             Variable(name = "Season Length global",
                      unit = "d",
                      data = Lobs).toNetCDF4(results,group="MeanState")
+            Variable(name = "cycle_mean",
+                     unit = obs.unit,
+                     time = ot,
+                     data = omean).toNetCDF4(results,group="MeanState")
+            Variable(name = "cycle_lower",
+                     unit = obs.unit,
+                     time = ot,
+                     data = o10).toNetCDF4(results,group="MeanState")
+            Variable(name = "cycle_upper",
+                     unit = obs.unit,
+                     time = ot,
+                     data = o90).toNetCDF4(results,group="MeanState")
+            Variable(name = "Season Mean Daily Uptake",
+                     unit = ouptake.unit,
+                     data = ouptake.data).toNetCDF4(results,group="MeanState")
+            Variable(name = "Season Time of Maximum",
+                     unit = "h",
+                     data = opeak).toNetCDF4(results,group="MeanState")
             for key in Sobs.keys(): Sobs[key].toNetCDF4(results,group="MeanState")
 
     def determinePlotLimits(self):
@@ -262,15 +346,45 @@ class ConfDiurnal(Confrontation):
             obs = Variable(filename = bname, variable_name = plot, groupname = "MeanState")
             mod = Variable(filename = fname, variable_name = plot, groupname = "MeanState")
             
-            page.addFigure("Diurnal Magnitude",
+            page.addFigure("Diurnal magnitude",
                            plot,
                            "MNAME_%s.png" % plot,
                            side   = plot.split("_")[-1],
                            legend = False)
             plt.figure(figsize=(5,5),tight_layout=True)
-            plt.polar(obs.time/365.*2*np.pi,obs.data,'-k',alpha=0.75)
+            plt.polar(obs.time/365.*2*np.pi,obs.data,'-k',alpha=0.6,lw=2)
             plt.polar(mod.time/365.*2*np.pi,mod.data,'-',color=m.color)
             plt.xticks(bnd_months[:-1]/365.*2*np.pi,lbl_months)
             plt.ylim(0,self.limits["season"])
             plt.savefig("%s/%s_%s.png" % (self.output_path,m.name,plot))
             plt.close()
+
+        # mean Diurnal Cycle
+        obs = Variable(filename = bname, variable_name = "cycle_mean" , groupname = "MeanState")
+        olo = Variable(filename = bname, variable_name = "cycle_lower", groupname = "MeanState")
+        ohi = Variable(filename = bname, variable_name = "cycle_upper", groupname = "MeanState")
+        mod = Variable(filename = fname, variable_name = "cycle_mean" , groupname = "MeanState")
+        mlo = Variable(filename = fname, variable_name = "cycle_lower", groupname = "MeanState")
+        mhi = Variable(filename = fname, variable_name = "cycle_upper", groupname = "MeanState")
+        fig,ax = plt.subplots(figsize=(8,4.5),tight_layout=True)
+        dt = np.diff(obs.time).mean()
+        ax.plot        (obs.time+0.5*dt,obs.data,color='k',alpha=0.5,lw=2)
+        ax.fill_between(obs.time+0.5*dt,olo.data,ohi.data,color='k',alpha=0.09,lw=0)
+        dt = np.diff(mod.time).mean()
+        ax.plot        (mod.time+0.5*dt,mod.data,color=m.color,lw=2)
+        ax.fill_between(mod.time+0.5*dt,mlo.data,mhi.data,color=m.color,alpha=0.15,lw=0)
+        xticks      = np.linspace(0,24,9)
+        xticklabels = ["%2d:00" % t for t in xticks]
+        ax.set_xticks(xticks)
+        ax.set_xticklabels(xticklabels)
+        ax.grid(True)
+        ax.set_ylabel(post.UnitStringToMatplotlib(obs.unit))
+        ax.set_xlabel("local time")
+        plt.savefig("%s/%s_cycle.png" % (self.output_path,m.name))
+        plt.close()
+        page.addFigure("Seasonal Diurnal Cycle",
+                       "cycle",
+                       "MNAME_cycle.png",
+                       side   = "CYCLE",
+                       legend = False)
+        
