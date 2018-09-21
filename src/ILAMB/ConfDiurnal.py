@@ -12,12 +12,16 @@ import os,glob
 from constants import lbl_months,bnd_months
 
 def _meanDiurnalCycle(var,n):
-    vmean = var.data.reshape((-1,n))
+    begin = np.argmin(var.time[:(n-1)]%n)
+    end   = begin+int(var.time[begin:].size/float(n))*n
+    vmean = var.data[begin:end].reshape((-1,n))
     vmean = vmean[np.where(vmean.mask.any(axis=1)==False)]
     per   = np.percentile(vmean,[10,90],axis=0)
     per10 = per[0,:]
     per90 = per[1,:]
+    np.seterr(under='ignore',over='ignore')
     vmean = vmean.mean(axis=0)
+    np.seterr(under='raise',over='raise')
     t     = np.linspace(0,24,n+1)[:-1]
     tmax  = t[vmean.argmax()]
     return t,vmean,per10,per90,tmax
@@ -209,8 +213,12 @@ class ConfDiurnal(Confrontation):
             s1  = np.exp(a* np.abs(To[0]-Tm[0])/dTo)
             s2  = np.exp(a* np.abs(To[1]-Tm[1])/dTo)
             s3  = np.linalg.norm(np.asarray([Ro[2]-Rm[2],Ro[3]-Rm[3]])) #  |Ro - Rm|
-            s3 /= np.linalg.norm(np.asarray([      Ro[2],      Ro[3]])) # /|Ro|
-            s3  = np.exp(-s3)
+            den = np.linalg.norm(np.asarray([      Ro[2],      Ro[3]])) # /|Ro|
+            if den < 1e-12 or np.isnan(den):
+                s3  = 0.
+            else:
+                s3 /= den 
+                s3  = np.exp(-s3)
             S1.append(s1); S2.append(s2); S3.append(s3)
             Lobs.append(To[1]-To[0])
             Lmod.append(Tm[1]-Tm[0])
