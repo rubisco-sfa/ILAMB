@@ -148,20 +148,23 @@ class ConfIOMB(Confrontation):
         # our datum
         info = ""
         with Dataset(self.source) as dset:
-            climatology = True if "climatology" in dset.variables["time"].ncattrs() else False
-            ot          = dset.variables["time"       ].size
+            time_name   = [name for name in dset.dimensions if "time" in name.lower()]
+            assert len(time_name) > 0
+            time_name   = time_name[0]
+            climatology = True if "climatology" in dset.variables[time_name].ncattrs() else False
+            ot          = dset.variables[time_name    ].size
             om          = dset.variables[self.variable].size *8e-6
             unit        = dset.variables[self.variable].units
             if climatology:
                 info += "(climatology) "
-                t  = np.round(dset.variables[dset.variables["time"].climatology][...]/365.)*365.
+                t  = np.round(dset.variables[dset.variables[time_name].climatology][...]/365.)*365.
                 t0 = t[0,0]; tf = t[-1,1]
             else:
-                if "bounds" in dset.variables["time"].ncattrs():
-                    t = dset.variables[dset.variables["time"].bounds][...]
+                if "bounds" in dset.variables[time_name].ncattrs():
+                    t = dset.variables[dset.variables[time_name].bounds][...]
                     t0 = t[0,0]; tf = t[-1,1]
                 else:
-                    t = dset.variables["time"][...]
+                    t = dset.variables[time_name][...]
                     t0 = t[0]; tf = t[-1]
             info += "y0,yf = (%.1f,%.1f) total memory = %d [Mb]" % (t0/365.+1850,tf/365.+1850,om)
         logger.info("[%s][%s] %s" % (self.name,self.variable,info))
@@ -181,8 +184,11 @@ class ConfIOMB(Confrontation):
         mt = 0; mm = 0.; mt0 = 1e20; mtf = -1e20; shp = None;
         for fname in m.variables[vname]:
             with Dataset(fname) as dset:
-                t   = dset.variables["time"]
-                tb  = dset.variables[dset.variables["time"].bounds] if "bounds" in dset.variables["time"].ncattrs() else None
+                time_name = [name for name in dset.dimensions if "time" in name.lower()]
+                assert len(time_name) > 0
+                time_name = time_name[0]
+                t   = dset.variables[time_name]
+                tb  = dset.variables[dset.variables[time_name].bounds] if "bounds" in dset.variables[time_name].ncattrs() else None
                 if tb:
                     t,tb = il.ConvertCalendar(t,tb)
                     t = tb
