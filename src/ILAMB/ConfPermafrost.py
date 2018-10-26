@@ -78,7 +78,7 @@ class ConfPermafrost(Confrontation):
                                   initial_time = t0,
                                   final_time   = tf)
         mod.trim(t   = [t0           ,tf  ],
-                 lat = [obs.lat.min(),90  ],
+                 lat = [max(obs.lat.min(),mod.lat.min()), 90  ],
                  d   = [0            ,dmax]) #.annualCycle()
 
         alt = _ALTFromTSL(mod)
