@@ -531,9 +531,9 @@ class Variable:
         # approximate the integral
         integral = _integrate(self.data,measure)
         if mean:
-            np.seterr(under='ignore')
+            np.seterr(under='ignore',invalid='ignore')
             integral = integral / measure.sum()
-            np.seterr(under='raise')
+            np.seterr(under='raise',invalid='warn')
 
         # handle the name and unit
         name = self.name + "_integrated_over_space"
@@ -1337,7 +1337,9 @@ class Variable:
             x2   = (x*x).sum(axis=axes)
             y2   = (y*y).sum(axis=axes)
             try:
+                np.seterr(under='ignore',invalid='ignore')
                 r = (xy-n*xbar*ybar)/(np.sqrt(x2-n*xbar*xbar)*np.sqrt(y2-n*ybar*ybar))
+                np.seterr(under='raise',invalid='warn')
             except:
                 r = np.nan
             return r
