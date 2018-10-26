@@ -9,6 +9,8 @@ from mpi4py import MPI
 import numpy as np
 import logging,re
 
+from pkg_resources import parse_version, get_distribution
+
 logger = logging.getLogger("%i" % MPI.COMM_WORLD.rank)
 
 class VarNotInFile(Exception):
@@ -478,6 +480,8 @@ def FromNetCDF4(filename,variable_name,alternate_vars=[],t0=None,tf=None,group=N
     """
     try:
         dset = Dataset(filename,mode="r")
+	if parse_version(get_distribution("netCDF4").version) >= parse_version("1.4.1"):
+	    dset.set_always_mask(False)
         if group is None:
             grp = dset
         else:
