@@ -1224,7 +1224,9 @@ class Variable:
                 if data.mask.size > 1: mask = data.mask[ind]
                 data  = data.data[ind]
                 data  = np.ma.masked_array(data,mask=mask)
+                np.seterr(under='ignore',over='ignore')
                 frac  = self.area / il.CellAreas(self.lat,self.lon,self.lat_bnds,self.lon_bnds).clip(1e-12)
+                np.seterr(under='raise',over='raise')
                 frac  = frac.clip(0,1)
                 frac  = frac[np.ix_(rows,cols)]
                 output_area = frac * il.CellAreas(lat,lon,lat_bnds,lon_bnds)
