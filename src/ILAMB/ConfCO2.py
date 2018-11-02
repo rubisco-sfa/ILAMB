@@ -5,6 +5,7 @@ from ILAMB.Variable import Variable
 from ILAMB.Regions import Regions
 from ILAMB.constants import mid_months,lbl_months,bnd_months
 import ILAMB.Post as post
+import ILAMB.ilamblib as il
 from netCDF4 import Dataset
 import pylab as plt
 import numpy as np
@@ -145,20 +146,7 @@ class ConfCO2(Confrontation):
             self.map  = [self.lbls.index(site) for site in self.sites if site in self.lbls]
             self.lbls = [self.lbls[i] for i in self.map]
 
-
-    def stageData(self,m):
-
-        # Get the observational data
-        obs = Variable(filename       = self.source,
-                       variable_name  = self.variable,
-                       alternate_vars = self.alternate_vars)
-
-        # Reduce the sites
-        if self.map:
-            obs.lat   = obs.lat [  self.map]
-            obs.lon   = obs.lon [  self.map]
-            obs.data  = obs.data[:,self.map]
-            obs.ndata = len(self.map)
+    def emulatedModelResult(self,m,obs):
 
         # Emulation parameters
         emulated_flux = self.keywords.get("emulated_flux","nbp")
@@ -223,6 +211,45 @@ class ConfCO2(Confrontation):
                        time      = obs.time,
                        time_bnds = obs.time_bnds,
                        data      = eflux)
+        return mod
+
+    def stageData(self,m):
+
+        # Get the observational data
+        obs = Variable(filename       = self.source,
+                       variable_name  = self.variable,
+                       alternate_vars = self.alternate_vars)
+
+        # Reduce the sites
+        if self.map:
+            obs.lat   = obs.lat [  self.map]
+            obs.lon   = obs.lon [  self.map]
+            obs.data  = obs.data[:,self.map]
+            obs.ndata = len(self.map)
+
+        # Get the model result
+        force_emulation = self.keywords.get("force_emulation",False)
+        never_emulation = self.keywords.get("never_emulation",False)
+        no_co2          = False
+        mod             = None
+        if not force_emulation:
+            try:
+                print "Trying to get co2 from %s" % m.name
+                mod = m.extractTimeSeries(self.variable,
+                                          alt_vars     = self.alternate_vars,
+                                          initial_time = obs.time_bnds[ 0,0],
+                                          final_time   = obs.time_bnds[-1,1],
+                                          lats         = None if obs.spatial else obs.lat,
+                                          lons         = None if obs.spatial else obs.lon)
+            except il.VarNotInModel:
+                print "co2 not in %s" % m.name
+                no_co2 = True
+                
+        if (((mod is None) or no_co2) and (not never_emulation)):
+            print "Emulating co2 in %s" % m.name
+            mod = self.emulatedModelResult(m,obs)
+
+        if mod is None: raise il.VarNotInModel()
 
         # Remove the trend via quadradic polynomial
         obs = _detrend(obs)
