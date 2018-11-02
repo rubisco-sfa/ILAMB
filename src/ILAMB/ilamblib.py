@@ -661,15 +661,19 @@ def FromNetCDF4(filename,variable_name,alternate_vars=[],t0=None,tf=None,group=N
                 
     if data_name      is not None:
         data = len(grp.dimensions[data_name])
-        # if we have data sites, there may be lat/lon data to come
-        # along with them although not a dimension of the variable
+        # if we have data sites, there may be lat/lon/depth data to
+        # come along with them although not a dimension of the
+        # variable
         for key in grp.variables.keys():
             if "lat" in key: lat_name = key
             if "lon" in key: lon_name = key
-        if lat_name is not None: lat = grp.variables[lat_name][...]
-        if lon_name is not None: lon = grp.variables[lon_name][...]
-        if lat.size != data: lat = None
-        if lon.size != data: lon = None
+            if "altitude" in key: depth_name = key
+        if lat_name   is not None: lat   = grp.variables[lat_name  ][...]
+        if lon_name   is not None: lon   = grp.variables[lon_name  ][...]
+        if depth_name is not None: depth = grp.variables[depth_name][...]
+        if lat  .size != data: lat   = None
+        if lon  .size != data: lon   = None
+        if depth.size != data: depth = None
 
     # read in data array, roughly subset in time if bounds are
     # provided for added effciency
