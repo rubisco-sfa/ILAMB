@@ -642,11 +642,22 @@ def FromNetCDF4(filename,variable_name,alternate_vars=[],t0=None,tf=None,group=N
         if depth_bnd_name is not None:
             depth_bnd = grp.variables[depth_bnd_name][...]
         if dunit is not None:
-            if not Unit(dunit).is_convertible(Unit("m")):
-                raise ValueError("Non-linear units [%s] of the layered dimension [%s] in %s" % (dunit,depth_name,filename))
-            depth = Unit(dunit).convert(depth,Unit("m"),inplace=True)
-            if depth_bnd is not None:
-                depth_bnd = Unit(dunit).convert(depth_bnd,Unit("m"),inplace=True)
+            if not (Unit(dunit).is_convertible(Unit("m")) or Unit(dunit).is_convertible(Unit("Pa"))):
+                raise ValueError("Units [%s] not compatible with [m,Pa] of the layered dimension [%s] in %s" % (dunit,depth_name,filename))
+            if Unit(dunit).is_convertible(Unit("m")):
+                depth = Unit(dunit).convert(depth,Unit("m"),inplace=True)
+                if depth_bnd is not None:
+                    depth_bnd = Unit(dunit).convert(depth_bnd,Unit("m"),inplace=True)
+            if Unit(dunit).is_convertible(Unit("Pa")):
+                # FIX: converts the pressure to meters, but assumes it
+                # is coming from the atmosphere. This will be
+                # problematic for ocean quantities.
+                depth = Unit(dunit).convert(depth,Unit("Pa"),inplace=True)
+                Pb = 101325.; Tb = 273.15; R  = 8.3144598; g  = 9.80665; M  = 0.0289644
+                depth = -np.log(depth/Pb)*R*Tb/M/g
+                if depth_bnd is not None:
+                    depth_bnd = Unit(dunit).convert(depth_bnd,Unit("Pa"),inplace=True)
+                    depth_bnd = -np.log(depth_bnd/Pb)*R*Tb/M/g
                 
     if data_name      is not None:
         data = len(grp.dimensions[data_name])
