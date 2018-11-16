@@ -222,19 +222,20 @@ class ConfCO2(Confrontation):
 
         # Reduce the sites
         if self.map:
-            obs.lat   = obs.lat [  self.map]
-            obs.lon   = obs.lon [  self.map]
-            obs.data  = obs.data[:,self.map]
+            obs.lat   = obs.lat  [  self.map]
+            obs.lon   = obs.lon  [  self.map]
+            obs.depth = obs.depth[  self.map]
+            obs.data  = obs.data [:,self.map]
             obs.ndata = len(self.map)
 
         # Get the model result
-        force_emulation = self.keywords.get("force_emulation",False)
-        never_emulation = self.keywords.get("never_emulation",False)
+        force_emulation = self.keywords.get("force_emulation","False").lower() == "true"
+        never_emulation = self.keywords.get("never_emulation","False").lower() == "true"
         no_co2          = False
         mod             = None
         if not force_emulation:
             try:
-                print "Trying to get co2 from %s" % m.name
+                #print "Trying to get co2 from %s" % m.name
                 mod = m.extractTimeSeries(self.variable,
                                           alt_vars     = self.alternate_vars,
                                           initial_time = obs.time_bnds[ 0,0],
@@ -242,14 +243,32 @@ class ConfCO2(Confrontation):
                                           lats         = None if obs.spatial else obs.lat,
                                           lons         = None if obs.spatial else obs.lon)
             except il.VarNotInModel:
-                print "co2 not in %s" % m.name
+                #print "co2 not in %s" % m.name
                 no_co2 = True
                 
         if (((mod is None) or no_co2) and (not never_emulation)):
-            print "Emulating co2 in %s" % m.name
+            #print "Emulating co2 in %s" % m.name
             mod = self.emulatedModelResult(m,obs)
 
         if mod is None: raise il.VarNotInModel()
+
+        # get the right layering, closest to the layer elevation where all aren't masked.
+        if mod.layered:
+            ind = (np.abs(obs.depth[:,np.newaxis]-mod.depth)).argmin(axis=1)
+            for i in range(ind.size):
+                while (mod.data[:,ind[i],i].mask.sum() > 0.5*mod.data.shape[0]):
+                    ind[i] += 1
+            data = []
+            for i in range(ind.size):
+                data.append(mod.data[:,ind[i],i])
+            mod.data = np.ma.masked_array(data).T
+            mod.depth = None
+            mod.depth_bnds = None
+            mod.layered = False
+            obs,mod = il.MakeComparable(obs,mod,
+                                        mask_ref  = True,
+                                        clip_ref  = True)
+            mod.data.mask += obs.data.mask
 
         # Remove the trend via quadradic polynomial
         obs = _detrend(obs)

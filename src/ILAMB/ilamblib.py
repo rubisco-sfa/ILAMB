@@ -673,7 +673,8 @@ def FromNetCDF4(filename,variable_name,alternate_vars=[],t0=None,tf=None,group=N
         if depth_name is not None: depth = grp.variables[depth_name][...]
         if lat  .size != data: lat   = None
         if lon  .size != data: lon   = None
-        if depth.size != data: depth = None
+        if depth is not None:
+            if depth.size != data: depth = None
 
     # read in data array, roughly subset in time if bounds are
     # provided for added effciency
