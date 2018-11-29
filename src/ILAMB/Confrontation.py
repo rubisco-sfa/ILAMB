@@ -279,7 +279,7 @@ class Confrontation(object):
         
         mod_file = os.path.join(self.output_path,"%s_%s.nc"        % (self.name,m.name))
         obs_file = os.path.join(self.output_path,"%s_Benchmark.nc" % (self.name,      ))
-        with FileContextManager(self.master,mod_file,obs_file) as fcm:
+        with il.FileContextManager(self.master,mod_file,obs_file) as fcm:
 
             # Encode some names and colors
             fcm.mod_dset.setncatts({"name" :m.name,
@@ -1070,36 +1070,3 @@ class Confrontation(object):
                         Variable(name = sname,
                                  unit = "1",
                                  data = score).toNetCDF4(results,group="Relationships")
-                    
-
-                    
-            
-
-class FileContextManager():
-
-    def __init__(self,master,mod_results,obs_results):
-        
-        self.master       = master
-        self.mod_results  = mod_results
-        self.obs_results  = obs_results
-        self.mod_dset     = None
-        self.obs_dset     = None
-        
-    def __enter__(self):
-
-        # Open the file on entering, both if you are the master
-        self.mod_dset                 = Dataset(self.mod_results,mode="w")
-        if self.master: self.obs_dset = Dataset(self.obs_results,mode="w")
-        return self
-    
-    def __exit__(self, exc_type, exc_value, traceback):
-
-        # Always close the file(s) on exit
-        self.mod_dset.close()
-        if self.master: self.obs_dset.close()
-
-        # If an exception occurred, also remove the files
-        if exc_type is not None:
-            os.system("rm -f %s" % self.mod_results)
-
-    

@@ -1,4 +1,4 @@
-from ILAMB.Confrontation import Confrontation,FileContextManager
+from ILAMB.Confrontation import Confrontation
 from mpl_toolkits.basemap import Basemap
 from ILAMB.Variable import Variable
 from netCDF4 import Dataset
@@ -120,7 +120,7 @@ class ConfAlbedo(Confrontation):
         
         mod_file = os.path.join(self.output_path,"%s_%s.nc"        % (self.name,m.name))
         obs_file = os.path.join(self.output_path,"%s_Benchmark.nc" % (self.name,      ))
-        with FileContextManager(self.master,mod_file,obs_file) as fcm:
+        with il.FileContextManager(self.master,mod_file,obs_file) as fcm:
 
             # Encode some names and colors
             fcm.mod_dset.setncatts({"name" :m.name,
