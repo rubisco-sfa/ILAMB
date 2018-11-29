@@ -13,11 +13,16 @@ from mpi4py import MPI
 import numpy as np
 import datetime,glob
 
+import pylab as plt
+from ILAMB.Post import RegisterCustomColormaps
+if "stoplight" not in plt.colormaps(): RegisterCustomColormaps()
+
 # MPI stuff
 comm = MPI.COMM_WORLD
 size = comm.Get_size()
 rank = comm.Get_rank()
 proc = np.zeros(size)
+ierr = np.zeros(size)
 
 # Some color constants for printing to the terminal
 OK   = '\033[92m'
@@ -329,6 +334,7 @@ def WorkConfront(W,verbose=False,clean=False):
 
         # if things do not work out, print the exception so the user has some idea
         except Exception as ex:
+            ierr[rank] = 1
             logger.debug("[%s][%s]\n%s" % (c.longname,m.name,format_exc()))
             if verbose:
                 print ("    {0:>%d} {1:<%d} %s%s%s" % (maxCL,maxML,FAIL,ex.__class__.__name__,ENDC)).format(c.longname,m.name)
@@ -373,6 +379,7 @@ def WorkPost(M,C,W,S,verbose=False,skip_plots=False):
                 print ("    {0:>%d} {1:<%d} %sCompleted%s {2:>5.1f} s" % (maxCL,maxML,OK,ENDC)).format(c.longname,m.name,dt)
                 sys.stdout.flush()
         except Exception as ex:
+            ierr[rank] = 1
             logger.debug("[%s][%s]\n%s" % (c.longname,m.name,format_exc()))
             if verbose:
                 print ("    {0:>%d} {1:<%d} %s%s%s" % (maxCL,maxML,FAIL,ex.__class__.__name__,ENDC)).format(c.longname,m.name)
@@ -384,6 +391,7 @@ def WorkPost(M,C,W,S,verbose=False,skip_plots=False):
             try:
                 c.compositePlots()
             except Exception as ex:
+                ierr[rank] = 1
                 logger.debug("[compositePlots][%s]\n%s" % (c.longname,format_exc()))
         c.generateHtml()
 
@@ -517,10 +525,12 @@ Cf = FilterConfrontationList(C,args.confront)
 
 # Setup logging
 logger    = logging.getLogger("%i" % comm.rank)
+logname   = ""
 formatter = logging.Formatter('[%(levelname)s][%(name)s][%(funcName)s]%(message)s')
 logger.setLevel(logging.DEBUG)
 if args.logging:
-    mh = MPIFileHandler('%s/ILAMB%02d.log' % (S.build_dir,len(glob.glob("%s/*.log" % S.build_dir))+1))
+    logname = '%s/ILAMB%02d.log' % (S.build_dir,len(glob.glob("%s/*.log" % S.build_dir))+1)
+    mh = MPIFileHandler(logname)
     mh.setFormatter(formatter)
     logger.addHandler(mh)
 
@@ -561,7 +571,9 @@ sys.stdout.flush(); comm.Barrier()
 
 # Runtime information
 proc_reduced = np.zeros(proc.shape)
+ierr_reduced = np.zeros(ierr.shape)
 comm.Reduce(proc,proc_reduced,root=0)
+comm.Reduce(ierr,ierr_reduced,root=0)
 if size > 1: logger.info("[process time] %.1f s" % proc[rank])
 if rank==0:
     logger.info("[total time] %.1f s" % (time.time()-T0))
@@ -573,5 +585,11 @@ if rank==0:
         logger.info("[parallel efficiency] %.0f%%" % (100.*proc_reduced.sum()/float(size)/(time.time()-T0)))
 
 if rank==0: S.dumpScores(M,"scores.csv")
+
+if (rank == 0              and
+    ierr_reduced.max() > 0 and
+    args.logging           and
+    not args.quiet):
+    print "\nErrors occurred in the run, please consult %s for more detailed information" % logname
 
 if rank==0 and not args.quiet: print "\nCompleted in {0:>5.1f} s\n".format(time.time()-T0)

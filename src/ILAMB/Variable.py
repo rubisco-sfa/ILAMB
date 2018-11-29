@@ -534,9 +534,9 @@ class Variable:
         # approximate the integral
         integral = _integrate(self.data,measure)
         if mean:
-            np.seterr(under='ignore')
+            np.seterr(under='ignore',invalid='ignore')
             integral = integral / measure.sum()
-            np.seterr(under='raise')
+            np.seterr(under='raise',invalid='warn')
 
         # handle the name and unit
         name = self.name + "_integrated_over_space"
@@ -1228,10 +1228,13 @@ class Variable:
                 args.append(rows)
                 args.append(cols)
                 ind   = np.ix_(*args)
-                mask  = data.mask[ind]
+                mask  = data.mask
+                if data.mask.size > 1: mask = data.mask[ind]
                 data  = data.data[ind]
                 data  = np.ma.masked_array(data,mask=mask)
+                np.seterr(under='ignore',over='ignore')
                 frac  = self.area / il.CellAreas(self.lat,self.lon,self.lat_bnds,self.lon_bnds).clip(1e-12)
+                np.seterr(under='raise',over='raise')
                 frac  = frac.clip(0,1)
                 frac  = frac[np.ix_(rows,cols)]
                 output_area = frac * il.CellAreas(lat,lon,lat_bnds,lon_bnds)
@@ -1344,7 +1347,9 @@ class Variable:
             x2   = (x*x).sum(axis=axes)
             y2   = (y*y).sum(axis=axes)
             try:
+                np.seterr(under='ignore',invalid='ignore')
                 r = (xy-n*xbar*ybar)/(np.sqrt(x2-n*xbar*xbar)*np.sqrt(y2-n*ybar*ybar))
+                np.seterr(under='raise',invalid='warn')
             except:
                 r = np.nan
             return r
