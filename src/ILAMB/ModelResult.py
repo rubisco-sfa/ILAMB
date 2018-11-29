@@ -145,7 +145,7 @@ class ModelResult():
         self.land_area = np.ma.sum(self.land_areas)
         return
                 
-    def extractTimeSeries(self,variable,lats=None,lons=None,alt_vars=[],initial_time=-1e20,final_time=1e20,output_unit="",expression=None):
+    def extractTimeSeries(self,variable,lats=None,lons=None,alt_vars=[],initial_time=-2147483648,final_time=2147483647,output_unit="",expression=None):
         """Extracts a time series of the given variable from the model.
 
         Parameters

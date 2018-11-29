@@ -1,13 +1,14 @@
 from scipy.interpolate import NearestNDInterpolator
 from constants import dpy,mid_months,bnd_months
 from Regions import Regions
-from netCDF4 import Dataset,num2date,date2num
+from netCDF4 import Dataset
 from datetime import datetime
 from cf_units import Unit
 from copy import deepcopy
 from mpi4py import MPI
 import numpy as np
 import logging,re
+import cftime as cf
 
 from pkg_resources import parse_version, get_distribution
 
@@ -105,98 +106,170 @@ def GenerateDistinctColors(N,saturation=0.67,value=0.67):
     RGB_tuples = map(lambda x: hsv_to_rgb(*x), HSV_tuples)
     return RGB_tuples
 
-def ConvertCalendar(t,tbnd=None):
-    r"""Converts calendar representations to a single standard.
+def GuessAlpha(t):
+    """Guess at what point in the time interval is the given time.
 
-    This routine converts the representation of time to the ILAMB
-    default: days since 1850-1-1 00:00:00 on a 365-day calendar. This
-    is so we can make comparisons with data from other models and
-    benchmarks. 
+    Although part of the CF standard, many datasets do not have the
+    bounds specifed on the time variable. This is complicated by the
+    many conventions that groups have regarding at what point in the
+    time interval the time is reported. In the absence of given
+    bounds, we guess here at what convention was used.
 
     Parameters
     ----------
-    t : netCDF4 variable
-        the netCDF4 variable which represents time
-    tbnd : netCDF4 variable, optional
-        the netCDF4 variable which represents the bounds of time
+    t: netCDF4.Variable
+        the dataset or array representing the times of the intervals
 
     Returns
     -------
-    ta : numpy.ndarray
-        a numpy array of the converted times
-    tabnd : numpy.ndarray, optional
-        a numpy array of the converted boundary times
+    alpha: float
+        estimated location in the time interval where the given time
+        is defined
 
     """
-    # If not calendar is given, we will assume it is 365_day
-    unit     = t.units
-    if "calendar" in t.ncattrs():
-        calendar = t.calendar.lower()
+    if t.size == 1: return 0.5
+    t0 = cf.num2date(t[0],t.units,calendar=t.calendar)
+    t1 = cf.num2date(t[1],t.units,calendar=t.calendar)
+    dt = (t1-t0).total_seconds()/3600/24
+    if np.allclose(dt,365.,atol=10):
+        # annual: assumes that the first time entry represents the beginning of a decade
+        y0 = cf.date2num(cf.datetime(10*(t0.year/10),1,1),t.units,calendar=t.calendar)
+        alpha = np.round((t[0]-y0)/dt,1).clip(0,1)
+    elif np.allclose(dt,30,atol=4):
+        # monthly: assumes that the first time entry represents the beginning of a year
+        m0 = cf.date2num(cf.datetime(t0.year,1,1),t.units,calendar=t.calendar)
+        alpha = np.round((t[0]-m0)/dt,1).clip(0,1)        
+    elif dt < 0.9:
+        # sub-daily: assumes that the first time entry represents the beginning of a day
+        h0 = cf.date2num(cf.datetime(t0.year,t0.month,t0.day),t.units,calendar=t.calendar)
+        alpha = np.round((t[0]-h0)/dt,1)
     else:
-        calendar = "365_day"
-        
-    # If bounds are given, we will use those instead and later compute
-    # the time as the midpoint of the bounds.
-    if tbnd is None:
-        ta = t
+        msg = "GuessAlpha for dt = %f [d] not implemented yet" % (dt)
+        raise ValueError(msg)
+    return alpha
+
+def CreateTimeBounds(t,alpha=0.5):
+    """Create time bounds from a time array.
+    
+    Parameters
+    ----------
+    t: netCDF4.Variable or numpy.ndarray
+        the dataset or array representing the times of the intervals
+    alpha: float
+        the fraction of the interval to use to set the bounds
+
+    Returns
+    -------
+    tb: numpy.ndarray (t.size,2)
+        the bounds of the given time array
+
+    Notes
+    -----
+    Using alpha = 0.5 will create bounds in the middle of each time
+    point. An alpha = 0 will use the given time as the beginning of
+    the interval and alpha = 1 will use the given time as the end of
+    the interval.
+    """
+    if ((alpha<0)+(alpha>1)):
+        msg = "Alpha out of bounds, should be (0 <= %g <= 1)" % alpha
+        raise ValueError(msg)
+    if t.size == 1: return np.asarray([[t[0],t[0]]])
+    dt = np.diff(t)
+    dt = np.hstack([dt[0],dt,dt[-1]])
+    tb = np.asarray([t -     alpha *dt[:-1],
+                     t + (1.-alpha)*dt[+1:]]).T
+    return tb
+
+def ConvertCalendar(t,units,calendar):
+    """
+    """
+    return cf.date2num(cf.datetime(t.year,t.month,t.day,t.hour,t.minute,t.second),units,calendar=calendar)
+
+def GetTime(var,t0,tf,convert_calendar=True,ignore_time_array=True):
+    """
+    """
+    # Get parent dataset/group
+    dset  = var.group()
+    vname = "%s:%s" % (dset.filepath(),var.name)
+    CB    = None
+    
+    # What is the time dimension called in the dataset/variable?
+    time_name = [name for name in var.dimensions if "time" in name.lower()]
+    if len(time_name) == 0:
+        return None,None,None,None,None
+    elif len(time_name) > 1:
+        msg = "Ambiguous 'time' dimension in the variable %s, one of these [%s]" % (vname,",".join(time_name))
+        raise IOError(msg)
+    time_name = time_name[0]
+    t = dset.variables[time_name]
+
+    # Check for units on time
+    if "units" not in t.ncattrs():
+        msg = "No units given in the time variable in %s:%s" % (dset.filepath(),time_name)
+        raise ValueError(msg)
+    if "calendar" not in t.ncattrs():
+        msg = "No calendar given in the time variable in %s:%s" % (dset.filepath(),time_name)
+        raise ValueError(msg)
+            
+    # If no time bounds we create them
+    time_bnds_name = t.bounds if "bounds" in t.ncattrs() else None
+    if time_bnds_name is not None:
+        if time_bnds_name not in dset.variables.keys():
+            msg = "Time bounds specified in %s as %s, but not a variable in the dataset, found these [%s]" % (time_name,time_bnds_name,dset.variables.keys())
+            raise IOError(msg)
+        tb = dset.variables[time_bnds_name][...]
     else:
-        ta = tbnd
+        tb = CreateTimeBounds(t,alpha=GuessAlpha(t))
+
+    if "climatology" in t.ncattrs():
+        clim_name = t.climatology
+        if clim_name not in dset.variables.keys():
+            msg = "Climatology bounds specified in %s as %s, but not a variable in the dataset, found these [%s]" % (time_name,clim_name,dset.variables.keys())
+            raise IOError(msg)
+        CB = dset.variables[clim_name][...]
+        if not np.allclose(CB.shape,[12,2]):
+            msg = "ILAMB only supports annual cycle style climatologies"
+            raise IOError(msg)
+        CB = np.round(CB[0,:]/365.+1850.)
         
-    # The datum might be different, use netCDF functions to shift it
-    ta = num2date(ta[...],unit                 ,calendar=calendar)
-    ta = date2num(ta     ,"days since 1850-1-1",calendar=calendar)
+    # Convert the input beginning/ending time to the current calendar/datum
+    t0 = cf.num2date(t0,units="days since 1850-1-1 00:00:00",calendar="noleap")
+    t0 = ConvertCalendar(t0,t.units,t.calendar)
+    tf = cf.num2date(tf,units="days since 1850-1-1 00:00:00",calendar="noleap")
+    tf = ConvertCalendar(tf,t.units,t.calendar)
+    if ((t0 > tb[-1,1]) or (tf < tb[0,0])): return None,None,None,None,None
+    
+    # Subset by the desired initial and final times
+    dt    = np.diff(tb,axis=1)[:,0] 
+    begin = np.where(t0>(tb[:,0]-0.01*dt))[0]
+    begin = begin[-1] if begin.size > 0 else 0
+    end   = np.where(tf<(tb[:,1]+0.01*dt))[0]
+    end   = end[0] if end.size > 0 else t.size-1
+    T     = np.asarray(t [begin:(end+1)])
+    TB    = np.asarray(tb[begin:(end+1)])
+    if ignore_time_array: T = TB.mean(axis=1)
+    
+    # Are the time intervals consecutively 
+    if not np.allclose(TB[1:,0],TB[:-1,1]):
+        msg = "Time intervals defined in %s:%s are not continuous" % (dset.filepath(),time_bnds_name)
+        raise ValueError(msg)
+    
+    # Do the times lie in the bounds
+    TF = (T >= TB[:,0])*(T <= TB[:,1])
+    if not TF.all():
+        index = ["%d" % i for i in np.where(TF==False)[0]]
+        msg = "Times at indices [%s] do not fall inside of the corresponding bounds in %s:%s and %s" % (",".join(index),dset.filepath(),time_name,time_bnds_name)
+        raise ValueError(msg)
 
-    # Differences in calendars need to be handled differently
-    # depending on the intended temporal resolution. Here we introduce
-    # special code for different cases.
-    if tbnd is None:
-        if t[...].size == 1:
-            dt = 0
-        else:
-            dt = (ta[1:]-ta[:-1]).mean()
-    else:
-        dt = (ta[:,1]-ta[:,0]).mean()
-    if np.allclose(dt,30,atol=3): # monthly
-
-        tmid = np.copy(ta)
-        if tmid.ndim > 1: tmid = ta.mean(axis=1)
+    # Convert time array to ILAMB default calendar / datum
+    T  = cf.num2date(T ,units=t.units,calendar=t.calendar)
+    TB = cf.num2date(TB,units=t.units,calendar=t.calendar)
+    for index,x in np.ndenumerate(T):
+        T [index] = ConvertCalendar(x,"days since 1850-1-1 00:00:00","noleap" if convert_calendar else t.calendar)
+    for index,x in np.ndenumerate(TB):
+        TB[index] = ConvertCalendar(x,"days since 1850-1-1 00:00:00","noleap" if convert_calendar else t.calendar)
         
-        # Determine the month index by finding to which mid_month day
-        # the middle time point is closest.
-        def _dpyShift(tmid,ta,dpy):
-            yrs = np.floor((tmid / float(dpy)))*365.
-            ind = np.abs((tmid % float(dpy))[:,np.newaxis]-mid_months).argmin(axis=1)
-            if ta.ndim == 1:
-                ta      = yrs + mid_months[ind]
-            if ta.ndim == 2:
-                ta[:,0] = yrs + bnd_months[ind]
-                ta[:,1] = yrs + bnd_months[ind+1]
-            return ta
-        if calendar == "360_day":
-            ta = _dpyShift(tmid,ta,360)
-        elif calendar == "366_day":
-            ta = _dpyShift(tmid,ta,366)
-        elif calendar in ["365_day","noleap"]:
-            ta = _dpyShift(tmid,ta,365)           
-        elif calendar in ["proleptic_gregorian","gregorian","standard","julian"]:
-            # we can use datetime to get the Julian day and then find
-            # how these line up with mid_months
-            tmid = num2date(tmid,"days since 1850-1-1",calendar=calendar)
-            yrs  = [float(t.year-1850)*365.      for t in tmid]
-            tmid = [float(t.timetuple().tm_yday) for t in tmid]
-            tmid = np.asarray(tmid)
-            ind  = np.abs(tmid[:,np.newaxis]-mid_months).argmin(axis=1)
-            if ta.ndim == 1:
-                ta      = yrs + mid_months[ind]
-            if ta.ndim == 2:
-                ta[:,0] = yrs + bnd_months[ind]
-                ta[:,1] = yrs + bnd_months[ind+1]
-        else:
-            raise ValueError("Unsupported calendar: %s" % calendar)
-
-    if tbnd is None: return ta
-    t = ta.mean(axis=1)
-    return t,ta
+    return T.astype(float),TB.astype(float),CB,begin,end
 
 def CellAreas(lat,lon,lat_bnds=None,lon_bnds=None):
     """Given arrays of latitude and longitude, return cell areas in square meters.
@@ -412,7 +485,6 @@ def SympifyWithArgsUnits(expression,args,units):
             units[ekey] = " ".join(["(%s)" % units[key] for key in keys if units.has_key(key)])
     return sympify(str(expression),locals=args),units[ekey]            
 
-            
 def ComputeIndexingArrays(lat2d,lon2d,lat,lon):
     """Blah.
 
@@ -557,18 +629,6 @@ def FromNetCDF4(filename,variable_name,alternate_vars=[],t0=None,tf=None,group=N
             tmp_name = [name for name in lon_name if np.any([name in attr for attr in attrs])]
             if len(tmp_name) > 0: lon_name = tmp_name
 
-    # Time dimension
-    if len(time_name) == 1:
-        time_name     = time_name[0]
-        time_bnd_name = grp.variables[time_name].bounds if (time_name in grp.variables and
-                                                            "bounds" in grp.variables[time_name].ncattrs()) else None
-        if time_bnd_name not in grp.variables: time_bnd_name = None
-    elif len(time_name) >= 1:
-        raise ValueError("Ambiguous choice of values for the time dimension [%s] in %s" % (",".join(time_name),filename))
-    else:
-        time_name     = None
-        time_bnd_name = None
-
     # Lat dimension
     if len(lat_name) == 1:
         lat_name     = lat_name[0]
@@ -621,16 +681,11 @@ def FromNetCDF4(filename,variable_name,alternate_vars=[],t0=None,tf=None,group=N
     depth   = None; depth_bnd = None
     data    = None;
     cbounds = None
-    if time_name is not None:
-        if time_bnd_name is None:
-            t       = ConvertCalendar(grp.variables[time_name])
-        else:
-            t,t_bnd = ConvertCalendar(grp.variables[time_name],grp.variables[time_bnd_name])
-        if "climatology" in grp.variables[time_name].ncattrs():
-            cbounds = grp.variables[grp.variables[time_name].climatology]
-            if not np.allclose(cbounds.shape,[12,2]):
-                raise RuntimeError("ILAMB only supports annual cycle style climatologies")
-            cbounds = np.round(cbounds[0,:]/365.+1850.)
+    t,t_bnd,cbounds,begin,end = GetTime(var,(t0 if t0 else -2147483648),(tf if tf else 2147483647))
+    if begin is None:
+        v = var[...]
+    else:
+        v = var[begin:(end+1),...]
     if lat_name       is not None: lat       = grp.variables[lat_name]      [...]
     if lat_bnd_name   is not None: lat_bnd   = grp.variables[lat_bnd_name]  [...]
     if lon_name       is not None: lon       = grp.variables[lon_name]      [...]
@@ -658,7 +713,6 @@ def FromNetCDF4(filename,variable_name,alternate_vars=[],t0=None,tf=None,group=N
                 if depth_bnd is not None:
                     depth_bnd = Unit(dunit).convert(depth_bnd,Unit("Pa"),inplace=True)
                     depth_bnd = -np.log(depth_bnd/Pb)*R*Tb/M/g
-                
     if data_name      is not None:
         data = len(grp.dimensions[data_name])
         # if we have data sites, there may be lat/lon/depth data to
@@ -675,19 +729,6 @@ def FromNetCDF4(filename,variable_name,alternate_vars=[],t0=None,tf=None,group=N
         if lon  .size != data: lon   = None
         if depth is not None:
             if depth.size != data: depth = None
-
-    # read in data array, roughly subset in time if bounds are
-    # provided for added effciency
-    if (t is not None) and (t0 is not None or tf is not None):
-        begin = 0; end = t.size
-        if t0 is not None: begin = max(t.searchsorted(t0)-1,begin)
-        if tf is not None: end   = min(t.searchsorted(tf)+1,end)
-        v = var[begin:end,...]
-        t = t  [begin:end]
-        if t_bnd is not None:
-            t_bnd = t_bnd[begin:end,:]
-    else:
-        v = var[...]
 
     # If lat and lon are 2D, then we will need to interpolate things
     if lat is not None and lon is not None:
@@ -1681,7 +1722,7 @@ def MakeComparable(ref,com,**keywords):
             msg  = "%s Datasets have differing numbers of time intervals: " % logstring
             msg += "reference = %d, comparison = %d" % (ref.time.size,com.time.size)
             logger.debug(msg)
-            raise VarsNotComparable()        
+            raise VarsNotComparable()
         if not np.allclose(ref.time_bnds,com.time_bnds,atol=0.75*ref.dt):
             msg  = "%s Datasets are defined at different times" % logstring
             logger.debug(msg)
