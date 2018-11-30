@@ -143,109 +143,110 @@ class ConfIOMB(Confrontation):
 
         mem_slab = self.keywords.get("mem_slab",100000.) # Mb
         
-        # peak at the obs dataset without reading much into memory,
-        # this assumes that the reference dataset was encoded using
-        # our datum
+        # peak at the reference dataset without reading much into memory
         info = ""
+        unit = ""
         with Dataset(self.source) as dset:
-            time_name   = [name for name in dset.dimensions if "time" in name.lower()]
-            assert len(time_name) > 0
-            time_name   = time_name[0]
-            climatology = True if "climatology" in dset.variables[time_name].ncattrs() else False
-            ot          = dset.variables[time_name    ].size
-            om          = dset.variables[self.variable].size *8e-6
-            unit        = dset.variables[self.variable].units
+            var = dset.variables[self.variable]
+            obs_t,obs_tb,obs_cb,obs_b,obs_e = il.GetTime(var,-2147483648,2147483647)
+            obs_nt = obs_t.size
+            obs_mem = var.size*8e-6
+            unit = var.units
+            climatology = False if obs_cb is None else True
             if climatology:
-                info += "(climatology) "
-                t  = np.round(dset.variables[dset.variables[time_name].climatology][...]/365.)*365.
-                t0 = t[0,0]; tf = t[-1,1]
+                info += "[climatology]"
+                obs_cb = (obs_cb-1850)*365.
+                t0 = obs_cb[0]; tf = obs_cb[1]
             else:
-                if "bounds" in dset.variables[time_name].ncattrs():
-                    t = dset.variables[dset.variables[time_name].bounds][...]
-                    t0 = t[0,0]; tf = t[-1,1]
-                else:
-                    t = dset.variables[time_name][...]
-                    t0 = t[0]; tf = t[-1]
-            info += "y0,yf = (%.1f,%.1f) total memory = %d [Mb]" % (t0/365.+1850,tf/365.+1850,om)
-        logger.info("[%s][%s] %s" % (self.name,self.variable,info))
+                t0 = obs_tb[0,0]; tf = obs_tb[-1,1]
+            info += " contents span years %.1f to %.1f, est memory %d [Mb]" % (t0/365.+1850,tf/365.+1850,obs_mem)
+        logger.info("[%s][%s]%s" % (self.name,self.variable,info))
 
-        # peak at the model dataset without reading much into memory,
-        # it could be in the variable or alternate variables, or it
-        # could be in the derived expression
+        # to peak at the model, we need any variable that could be
+        # part of the expression to look at the time
+        info = ""
         possible = [self.variable,] + self.alternate_vars
         if self.derived is not None: possible += [str(s) for s in sympify(self.derived).free_symbols]
-        vname = ([v for v in possible if v in m.variables.keys()])
+        vname = [v for v in possible if v in m.variables.keys()]
         if len(vname) == 0:
             logger.debug("[%s] Could not find [%s] in the model results" % (self.name,",".join(possible)))
             raise il.VarNotInModel()
         vname = vname[0]
 
-        info = ""
-        mt = 0; mm = 0.; mt0 = 1e20; mtf = -1e20; shp = None;
+        # peak at the model dataset without reading much into memory
+        mod_nt  =  0
+        mod_mem =  0.
+        mod_t0  =  2147483647
+        mod_tf  = -2147483648
         for fname in m.variables[vname]:
             with Dataset(fname) as dset:
-                time_name = [name for name in dset.dimensions if "time" in name.lower()]
-                assert len(time_name) > 0
-                time_name = time_name[0]
-                t   = dset.variables[time_name]
-                tb  = dset.variables[dset.variables[time_name].bounds] if "bounds" in dset.variables[time_name].ncattrs() else None
-                if tb:
-                    t,tb = il.ConvertCalendar(t,tb)
-                    t = tb
-                else:
-                    t = il.ConvertCalendar(t)
-                t  += m.shift
-                info += "\n      %s y0,yf = (%.1f,%.1f)" % (fname,t.min()/365.+1850,t.max()/365.+1850)
-                i   = (t >= t0)*(t <= tf)
-                if i.any() == False:
-                    info += " file memory in time bounds 0 [Mb]"
+                var = dset.variables[vname]
+                mod_t,mod_tb,mod_cb,mod_b,mod_e = il.GetTime(var,t0-m.shift,tf-m.shift)
+                if mod_t is None:
+                    info += "\n      %s does not overlap the reference" % (fname)
                     continue
-                mt0 = min(mt0,t[i].min())
-                mtf = max(mtf,t[i].max())
-                nt  = i.sum()
-                v   = dset.variables[vname]
-                shp = v.shape
-                mt += nt
-                mem = (v.size / v.shape[0] * nt) * 8e-6
-                info += " file memory in time bounds %d [Mb]" % mem
-                mm += mem
-        info += "\n      total memory = %d [Mb]" % mm
-        logger.info("[%s][%s][%s] %s" % (self.name,m.name,vname,info))
-        
-        if mt0 > mtf:
+                mod_t += m.shift
+                mod_tb += m.shift
+                ind = np.where((mod_tb[:,0] >= t0)*(mod_tb[:,1] <= tf))[0]
+                if ind.size == 0:
+                    info += "\n      %s does not overlap the reference" % (fname)
+                    continue
+                mod_t  = mod_t [ind]
+                mod_tb = mod_tb[ind]
+                mod_t0 = min(mod_t0,mod_tb[ 0,0])
+                mod_tf = max(mod_tf,mod_tb[-1,1])
+                nt = mod_t.size
+                mod_nt += nt
+                mem = (var.size/var.shape[0]*nt)*8e-6
+                mod_mem += mem
+                info += "\n      %s spans years %.1f to %.1f, est memory in time bounds %d [Mb]" % (fname,mod_t.min()/365.+1850,mod_t.max()/365.+1850,mem)
+        info += "\n      total est memory = %d [Mb]" % mod_mem
+        logger.info("[%s][%s][%s] reading model data from possibly many files%s" % (self.name,m.name,vname,info))
+        if mod_t0 > mod_tf:
             logger.debug("[%s] Could not find [%s] in the model results in the given time frame, tinput = [%.1f,%.1f]" % (self.name,",".join(possible),t0,tf))
             raise il.VarNotInModel()
 
-        # if obs is a climatology, then build a climatology in slabs
-        if climatology:            
-            mt0  = int(mt0/365)*365 + bnd_months[mid_months.searchsorted(mt0 % 365)  ]
-            mtf  = int(mtf/365)*365 + bnd_months[mid_months.searchsorted(mtf % 365)+1]
-            data = None
-            dnum = None 
-            ns   = int(mm/mem_slab)+1
-            dt   = (mtf-mt0)/ns
-            nm   = 0
-            logger.info("[%s][%s] model climatology built in %d time slabs" % (self.name,m.name,ns))
+        # if the reference is a climatology, then build a model climatology in slabs
+        info = ""
+        if climatology:
+
+            # how many slabs
+            ns   = int(np.floor(mod_mem/mem_slab))+1
+            ns   = min(max(1,ns),mod_nt)
+            logger.info("[%s][%s] building climatology in %d slabs" % (self.name,m.name,ns))
+
+            # across what times?
+            slab_t = (mod_tf-mod_t0)*np.linspace(0,1,ns+1)+mod_t0
+            slab_t = np.floor(slab_t / 365)*365 + bnd_months[(np.abs(bnd_months[:,np.newaxis] - (slab_t % 365))).argmin(axis=0)]
+
+            # ready to slab
+            tb_prev = None
+            data    = None
+            dnum    = None
             for i in range(ns):
                 
-                # find slab begin/end to the nearest month
-                st0 = mt0 +  i   *dt
-                st0 = int(st0/365)*365 + bnd_months[mid_months.searchsorted(st0 % 365)]
-                stf = mt0 + (i+1)*dt
-                stf = int(stf/365)*365 + bnd_months[mid_months.searchsorted(stf % 365)]
-                v   = m.extractTimeSeries(vname,initial_time=st0,final_time=stf).trim(t=[st0,stf]).convert(unit)               
-                nm += v.time.size
+                v = m.extractTimeSeries(vname,initial_time=slab_t[i],final_time=slab_t[i+1]).convert(unit)
 
-                # accumulate the sum for the mean cycle
-                mind = mid_months.searchsorted(v.time % 365.)
+                # trim does not work properly so we will add a manual check ourselves
+                if tb_prev is None:
+                    tb_prev = v.time_bnds[...]
+                else:
+                    if np.allclose(tb_prev[-1],v.time_bnds[0]):
+                        v.data = v.data[1:]
+                        v.time = v.time[1:]
+                        v.time_bnds = v.time_bnds[1:]
+                if v.time.size == 0: continue
+                
+                mind = (np.abs(mid_months[:,np.newaxis] - (v.time % 365))).argmin(axis=0)
                 if data is None:
                     data = np.ma.zeros((12,)+v.data.shape[1:])
                     dnum = np.ma.zeros(data.shape,dtype=int)
                 data[mind,...] += v.data
                 dnum[mind,...] += 1
-            np.seterr(over='ignore',under='ignore')
-            data = data / dnum
-            np.seterr(over='raise',under='raise')
+            with np.errstate(over='ignore',under='ignore'):
+                data = data / dnum.clip(1)
+
+            # return variables
             obs = Variable(filename       = self.source,
                            variable_name  = self.variable,
                            alternate_vars = self.alternate_vars)
@@ -260,6 +261,7 @@ class ConfIOMB(Confrontation):
                            lat_bnds   = v.lat_bnds,
                            lon_bnds   = v.lon_bnds,
                            depth_bnds = v.depth_bnds)
+
             yield obs,mod
 
         # if obs is historical, then we yield slabs of both
