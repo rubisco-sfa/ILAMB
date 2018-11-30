@@ -225,7 +225,11 @@ class ConfIOMB(Confrontation):
             dnum    = None
             for i in range(ns):
                 
-                v = m.extractTimeSeries(vname,initial_time=slab_t[i],final_time=slab_t[i+1]).convert(unit)
+                v = m.extractTimeSeries(self.variable,
+                                        alt_vars     = self.alternate_vars,
+                                        expression   = self.derived,
+                                        initial_time = slab_t[i],
+                                        final_time   = slab_t[i+1]).convert(unit)
 
                 # trim does not work properly so we will add a manual check ourselves
                 if tb_prev is None:
@@ -299,7 +303,9 @@ class ConfIOMB(Confrontation):
                     obs_tb = obs.time_bnds[...]
                     
                 # get model variable
-                mod = m.extractTimeSeries(vname,
+                mod = m.extractTimeSeries(self.variable,
+                                          alt_vars     = self.alternate_vars,
+                                          expression   = self.derived,
                                           initial_time = slab_t[i],
                                           final_time   = slab_t[i+1]).trim(t=[slab_t[i],slab_t[i+1]]).convert(obs.unit)
                 if mod_tb is None:
