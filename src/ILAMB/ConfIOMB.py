@@ -235,9 +235,10 @@ class ConfIOMB(Confrontation):
                         v.data = v.data[1:]
                         v.time = v.time[1:]
                         v.time_bnds = v.time_bnds[1:]
+                    tb_prev = v.time_bnds[...]
                 if v.time.size == 0: continue
                 
-                mind = (np.abs(mid_months[:,np.newaxis] - (v.time % 365))).argmin(axis=0)
+                mind = (np.abs(mid_months[:,np.newaxis]-(v.time % 365))).argmin(axis=0)
                 if data is None:
                     data = np.ma.zeros((12,)+v.data.shape[1:])
                     dnum = np.ma.zeros(data.shape,dtype=int)
@@ -266,25 +267,51 @@ class ConfIOMB(Confrontation):
 
         # if obs is historical, then we yield slabs of both
         else:
-            mt0  = int(mt0/365)*365 + bnd_months[mid_months.searchsorted(mt0 % 365)]
-            mtf  = int(mtf/365)*365 + bnd_months[mid_months.searchsorted(mtf % 365)+1]
-            om  *= (mtf-mt0)/(tf-t0)
-            ns   = int(max(om,mm)/mem_slab)+1
-            dt   = (mtf-mt0)/ns
-            logger.info("[%s][%s] observation adjusted memory %d [Mb], memory per slab %d [Mb], analysis run in %d time slabs" % (self.name,m.name,om,mem_slab,ns))
+
+            obs_mem *= (mod_tf-mod_t0)/(tf-t0)
+            mod_t0 = max(mod_t0,t0)
+            mod_tf = min(mod_tf,tf)
+            ns   = int(np.floor(max(obs_mem,mod_mem)/mem_slab))+1
+            ns   = min(min(max(1,ns),mod_nt),obs_nt)
+            logger.info("[%s][%s] staging data in %d slabs" % (self.name,m.name,ns))
+
+            # across what times?
+            slab_t = (mod_tf-mod_t0)*np.linspace(0,1,ns+1)+mod_t0
+            slab_t = np.floor(slab_t / 365)*365 + bnd_months[(np.abs(bnd_months[:,np.newaxis] - (slab_t % 365))).argmin(axis=0)]
+
+            obs_tb = None; mod_tb = None
             for i in range(ns):
-                
-                # find slab begin/end to the nearest month
-                st0 = mt0 +  i   *dt
-                st0 = int(st0/365)*365 + bnd_months[mid_months.searchsorted(st0 % 365)]
-                stf = mt0 + (i+1)*dt
-                stf = int(stf/365)*365 + bnd_months[mid_months.searchsorted(stf % 365)]
+
+                # get reference variable
                 obs = Variable(filename       = self.source,
                                variable_name  = self.variable,
                                alternate_vars = self.alternate_vars,
-                               t0             = st0,
-                               tf             = stf).trim(t=[st0,stf])
-                mod = m.extractTimeSeries(vname,initial_time=st0,final_time=stf).trim(t=[st0,stf]).convert(obs.unit)                     
+                               t0             = slab_t[i],
+                               tf             = slab_t[i+1]).trim(t=[slab_t[i],slab_t[i+1]])
+                if obs_tb is None:
+                    obs_tb = obs.time_bnds[...]
+                else:
+                    if np.allclose(obs_tb[-1],obs.time_bnds[0]):
+                        obs.data = obs.data[1:]
+                        obs.time = obs.time[1:]
+                        obs.time_bnds = obs.time_bnds[1:]
+                    assert np.allclose(obs.time_bnds[0,0],obs_tb[-1,1])
+                    obs_tb = obs.time_bnds[...]
+                    
+                # get model variable
+                mod = m.extractTimeSeries(vname,
+                                          initial_time = slab_t[i],
+                                          final_time   = slab_t[i+1]).trim(t=[slab_t[i],slab_t[i+1]]).convert(obs.unit)
+                if mod_tb is None:
+                    mod_tb = mod.time_bnds[...]
+                else:
+                    if np.allclose(mod_tb[-1],mod.time_bnds[0]):
+                        mod.data = mod.data[1:]
+                        mod.time = mod.time[1:]
+                        mod.time_bnds = mod.time_bnds[1:]
+                    assert np.allclose(mod.time_bnds[0,0],mod_tb[-1,1])
+                    mod_tb = mod.time_bnds[...]
+                assert obs.time.size == mod.time.size
                 yield obs,mod
               
     def confront(self,m):
