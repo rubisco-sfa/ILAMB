@@ -319,8 +319,17 @@ class ConfIOMB(Confrontation):
                     mod_tb = mod.time_bnds[...]
                 assert obs.time.size == mod.time.size
                 yield obs,mod
-              
+    
     def confront(self,m):
+
+        def _addDepth(v):
+            v.depth = np.asarray([5.])
+            v.depth_bnds = np.asarray([[0.,10.]])
+            shp = list(v.data.shape)
+            shp.insert(1,1)
+            v.data.shape = shp
+            v.layered = True
+            return v
 
         mod_file = os.path.join(self.output_path,"%s_%s.nc"        % (self.name,m.name))
         obs_file = os.path.join(self.output_path,"%s_Benchmark.nc" % (self.name,      ))
@@ -347,8 +356,10 @@ class ConfIOMB(Confrontation):
             unit = None
             for obs,mod in self.stageData(m):
 
+                # if the data has no depth, we assume it is surface
+                if not obs.layered: obs = _addDepth(obs)
+                if not mod.layered: mod = _addDepth(mod)
                 
-
                 # time bounds for this slab
                 tb = obs.time_bnds[[0,-1],[0,1]].reshape((1,2))
                 t  = np.asarray([tb.mean()])
