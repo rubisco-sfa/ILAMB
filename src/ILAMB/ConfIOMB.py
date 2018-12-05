@@ -148,7 +148,7 @@ class ConfIOMB(Confrontation):
         unit = ""
         with Dataset(self.source) as dset:
             var = dset.variables[self.variable]
-            obs_t,obs_tb,obs_cb,obs_b,obs_e = il.GetTime(var,-2147483648,2147483647)
+            obs_t,obs_tb,obs_cb,obs_b,obs_e = il.GetTime(var)
             obs_nt = obs_t.size
             obs_mem = var.size*8e-6
             unit = var.units
@@ -181,7 +181,7 @@ class ConfIOMB(Confrontation):
         for fname in m.variables[vname]:
             with Dataset(fname) as dset:
                 var = dset.variables[vname]
-                mod_t,mod_tb,mod_cb,mod_b,mod_e = il.GetTime(var,t0-m.shift,tf-m.shift)
+                mod_t,mod_tb,mod_cb,mod_b,mod_e = il.GetTime(var,t0=t0-m.shift,tf=tf-m.shift)
                 if mod_t is None:
                     info += "\n      %s does not overlap the reference" % (fname)
                     continue

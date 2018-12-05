@@ -188,9 +188,15 @@ def ConvertCalendar(t,units,calendar):
     """
     return cf.date2num(cf.datetime(t.year,t.month,t.day,t.hour,t.minute,t.second),units,calendar=calendar)
 
-def GetTime(var,t0,tf,convert_calendar=True,ignore_time_array=True):
+def GetTime(var,t0=None,tf=None,convert_calendar=True,ignore_time_array=True):
     """
     """
+    # New method of handling time does not like my biggest/smallest time convention
+    if t0 is not None:
+        if np.allclose(t0,-1e20): t0 = None
+    if tf is not None:
+        if np.allclose(tf,+1e20): tf = None
+    
     # Get parent dataset/group
     dset  = var.group()
     vname = "%s:%s" % (dset.filepath(),var.name)
@@ -236,18 +242,25 @@ def GetTime(var,t0,tf,convert_calendar=True,ignore_time_array=True):
         CB = np.round(CB[0,:]/365.+1850.)
         
     # Convert the input beginning/ending time to the current calendar/datum
-    t0 = cf.num2date(t0,units="days since 1850-1-1 00:00:00",calendar="noleap")
-    t0 = ConvertCalendar(t0,t.units,t.calendar)
-    tf = cf.num2date(tf,units="days since 1850-1-1 00:00:00",calendar="noleap")
-    tf = ConvertCalendar(tf,t.units,t.calendar)
-    if ((t0 > tb[-1,1]) or (tf < tb[0,0])): return None,None,None,None,None
-    
+    if t0 is not None:
+        t0 = cf.num2date(t0,units="days since 1850-1-1 00:00:00",calendar="noleap")
+        t0 = ConvertCalendar(t0,t.units,t.calendar)
+        if (t0 > tb[-1,1]): return None,None,None,None,None
+    if tf is not None:
+        tf = cf.num2date(tf,units="days since 1850-1-1 00:00:00",calendar="noleap")
+        tf = ConvertCalendar(tf,t.units,t.calendar)
+        if (tf < tb[0,0]): return None,None,None,None,None
+
     # Subset by the desired initial and final times
-    dt    = np.diff(tb,axis=1)[:,0] 
-    begin = np.where(t0>(tb[:,0]-0.01*dt))[0]
-    begin = begin[-1] if begin.size > 0 else 0
-    end   = np.where(tf<(tb[:,1]+0.01*dt))[0]
-    end   = end[0] if end.size > 0 else t.size-1
+    dt    = np.diff(tb,axis=1)[:,0]
+    begin = 0
+    end   = t.size-1
+    if t0 is not None:
+        begin = np.where(t0>(tb[:,0]-0.01*dt))[0]
+        begin = begin[-1] if begin.size > 0 else 0
+    if tf is not None:
+        end   = np.where(tf<(tb[:,1]+0.01*dt))[0]
+        end   = end[0] if end.size > 0 else t.size-1
     T     = np.asarray(t [begin:(end+1)])
     TB    = np.asarray(tb[begin:(end+1)])
     if ignore_time_array: T = TB.mean(axis=1)
@@ -686,7 +699,7 @@ def FromNetCDF4(filename,variable_name,alternate_vars=[],t0=None,tf=None,group=N
     depth   = None; depth_bnd = None
     data    = None;
     cbounds = None
-    t,t_bnd,cbounds,begin,end = GetTime(var,(t0 if t0 else -2147483648),(tf if tf else 2147483647))
+    t,t_bnd,cbounds,begin,end = GetTime(var,t0=t0,tf=tf)
     if begin is None:
         v = var[...]
     else:
