@@ -391,7 +391,7 @@ class ConfIOMB(Confrontation):
                     if not ocyc.has_key(region): 
                         ocyc[region] = np.ma.zeros((12,)+z.data.shape[1:])
                         oN  [region] = np.ma.zeros((12,)+z.data.shape[1:],dtype=int)
-                    i = mid_months.searchsorted(z.time % 365.)
+                    i = (np.abs(mid_months[:,np.newaxis]-(z.time % 365))).argmin(axis=0)
                     (ocyc[region])[i,...] += z.data
                     (oN  [region])[i,...] += 1
 
@@ -399,7 +399,7 @@ class ConfIOMB(Confrontation):
                     if not mcyc.has_key(region): 
                         mcyc[region] = np.ma.zeros((12,)+z.data.shape[1:])
                         mN  [region] = np.ma.zeros((12,)+z.data.shape[1:],dtype=int)
-                    i = mid_months.searchsorted(z.time % 365.)
+                    i = (np.abs(mid_months[:,np.newaxis]-(z.time % 365))).argmin(axis=0)
                     (mcyc[region])[i,...] += z.data
                     (mN  [region])[i,...] += 1
                 
