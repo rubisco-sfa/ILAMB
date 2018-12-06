@@ -793,6 +793,9 @@ class Confrontation(object):
                                                                         data = var[...])
                         if not found:
                             var = grp.variables[vname]
+                            if not metrics[mname].has_key("global"):
+                                logger.debug("[%s][%s] 'global' not in region list = [%s]" % (self.longname,m.name,",".join(self.regions)))
+                                raise ValueError()
                             metrics[mname]["global"][vname] = Variable(name = vname,
                                                                        unit = var.units,
                                                                        data = var[...])
