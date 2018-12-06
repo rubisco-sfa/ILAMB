@@ -129,7 +129,8 @@ class ConfDiurnal(Confrontation):
 
         obs = Variable(filename       = self.source,
                        variable_name  = self.variable,
-                       alternate_vars = self.alternate_vars)
+                       alternate_vars = self.alternate_vars,
+                       convert_calendar = False)
         if obs.time is None: raise il.NotTemporalVariable()
         self.pruneRegions(obs)
         
@@ -139,6 +140,7 @@ class ConfDiurnal(Confrontation):
                                   expression   = self.derived,
                                   initial_time = obs.time_bnds[ 0,0],
                                   final_time   = obs.time_bnds[-1,1],
+                                  convert_calendar = False,
                                   lats         = None if obs.spatial else obs.lat,
                                   lons         = None if obs.spatial else obs.lon).convert(obs.unit)
         
@@ -396,3 +398,5 @@ class ConfDiurnal(Confrontation):
                        side   = "CYCLE",
                        legend = False)
         
+    def compositePlots(self):
+        pass

@@ -154,7 +154,7 @@ class ModelResult():
         self.land_area = np.ma.sum(self.land_areas)
         return
                 
-    def extractTimeSeries(self,variable,lats=None,lons=None,alt_vars=[],initial_time=-1e20,final_time=1e20,output_unit="",expression=None):
+    def extractTimeSeries(self,variable,lats=None,lons=None,alt_vars=[],initial_time=-1e20,final_time=1e20,output_unit="",expression=None,convert_calendar=True):
         """Extracts a time series of the given variable from the model.
 
         Parameters
@@ -204,6 +204,7 @@ class ModelResult():
                                variable_name  = variable,
                                alternate_vars = altvars[1:],
                                area           = self.land_areas,
+                               convert_calendar = convert_calendar,
                                t0             = initial_time - self.shift,
                                tf             = final_time   - self.shift)
                 if var.time is None: continue
@@ -251,7 +252,7 @@ class ModelResult():
             
         return v
 
-    def derivedVariable(self,variable_name,expression,lats=None,lons=None,initial_time=-1e20,final_time=1e20):
+    def derivedVariable(self,variable_name,expression,lats=None,lons=None,initial_time=-1e20,final_time=1e20,convert_calendar=True):
         """Creates a variable from an algebraic expression of variables in the model results.
 
         Parameters
@@ -295,6 +296,7 @@ class ModelResult():
             var  = self.extractTimeSeries(arg.name,
                                           lats = lats,
                                           lons = lons,
+                                          convert_calendar = convert_calendar,
                                           initial_time = initial_time,
                                           final_time   = final_time)          
             units[arg.name] = var.unit

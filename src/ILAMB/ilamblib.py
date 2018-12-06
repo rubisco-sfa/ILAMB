@@ -210,7 +210,7 @@ def GetTime(var,t0=None,tf=None,convert_calendar=True,ignore_time_array=True):
     # What is the time dimension called in the dataset/variable?
     time_name = [name for name in var.dimensions if "time" in name.lower()]
     if len(time_name) == 0:
-        return None,None,None,None,None
+        return None,None,None,None,None,None
     elif len(time_name) > 1:
         msg = "Ambiguous 'time' dimension in the variable %s, one of these [%s]" % (vname,",".join(time_name))
         raise IOError(msg)
@@ -250,11 +250,11 @@ def GetTime(var,t0=None,tf=None,convert_calendar=True,ignore_time_array=True):
     if t0 is not None:
         t0 = cf.num2date(t0,units="days since 1850-1-1 00:00:00",calendar="noleap")
         t0 = ConvertCalendar(t0,t.units,t.calendar)
-        if (t0 > tb[-1,1]): return None,None,None,None,None
+        if (t0 > tb[-1,1]): return None,None,None,None,None,None
     if tf is not None:
         tf = cf.num2date(tf,units="days since 1850-1-1 00:00:00",calendar="noleap")
         tf = ConvertCalendar(tf,t.units,t.calendar)
-        if (tf < tb[0,0]): return None,None,None,None,None
+        if (tf < tb[0,0]): return None,None,None,None,None,None
 
     # Subset by the desired initial and final times
     dt    = np.diff(tb,axis=1)[:,0]
@@ -289,8 +289,9 @@ def GetTime(var,t0=None,tf=None,convert_calendar=True,ignore_time_array=True):
         T [index] = ConvertCalendar(x,"days since 1850-1-1 00:00:00","noleap" if convert_calendar else t.calendar)
     for index,x in np.ndenumerate(TB):
         TB[index] = ConvertCalendar(x,"days since 1850-1-1 00:00:00","noleap" if convert_calendar else t.calendar)
-        
-    return T.astype(float),TB.astype(float),CB,begin,end
+    cal = "noleap" if convert_calendar else t.calendar
+    
+    return T.astype(float),TB.astype(float),CB,begin,end,cal
 
 
 
@@ -584,7 +585,7 @@ def _removeLeapDay(t,v,datum=None,calendar=None,t0=None,tf=None):
     
     return tdata,vdata
 
-def FromNetCDF4(filename,variable_name,alternate_vars=[],t0=None,tf=None,group=None):
+def FromNetCDF4(filename,variable_name,alternate_vars=[],t0=None,tf=None,group=None,convert_calendar=True):
     """Extracts data from a netCDF4 datafile for use in a Variable object.
     
     Intended to be used inside of the Variable constructor. Some of
@@ -760,7 +761,7 @@ def FromNetCDF4(filename,variable_name,alternate_vars=[],t0=None,tf=None,group=N
     depth   = None; depth_bnd = None
     data    = None;
     cbounds = None
-    t,t_bnd,cbounds,begin,end = GetTime(var,t0=t0,tf=tf)
+    t,t_bnd,cbounds,begin,end,calendar = GetTime(var,t0=t0,tf=tf,convert_calendar=convert_calendar)
     if begin is None:
         v = var[...]
     else:
@@ -850,7 +851,7 @@ def FromNetCDF4(filename,variable_name,alternate_vars=[],t0=None,tf=None,group=N
         units = "1"
     dset.close()
     
-    return v,units,variable_name,t,t_bnd,lat,lat_bnd,lon,lon_bnd,depth,depth_bnd,cbounds,data
+    return v,units,variable_name,t,t_bnd,lat,lat_bnd,lon,lon_bnd,depth,depth_bnd,cbounds,data,calendar
         
 def Score(var,normalizer):
     """Remaps a normalized variable to the interval [0,1].

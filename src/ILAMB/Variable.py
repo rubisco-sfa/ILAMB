@@ -78,6 +78,7 @@ class Variable:
         groupname      = keywords.get("groupname"    ,None)
         variable_name  = keywords.get("variable_name",None)
         alternate_vars = keywords.get("alternate_vars",[])
+        calendar       = "noleap"
         if filename is None: # if not pull data from other arguments
             data       = keywords.get("data"       ,None)
             unit       = keywords.get("unit"       ,None)
@@ -98,8 +99,9 @@ class Variable:
             assert variable_name is not None
             t0 = keywords.get("t0",None)
             tf = keywords.get("tf",None)
-            out = il.FromNetCDF4(filename,variable_name,alternate_vars,t0,tf,group=groupname)            
-            data,unit,name,time,time_bnds,lat,lat_bnds,lon,lon_bnds,depth,depth_bnds,cbounds,ndata = out
+            convert_calendar = keywords.get("convert_calendar",True)
+            out = il.FromNetCDF4(filename,variable_name,alternate_vars,t0,tf,group=groupname,convert_calendar=convert_calendar)
+            data,unit,name,time,time_bnds,lat,lat_bnds,lon,lon_bnds,depth,depth_bnds,cbounds,ndata,calendar = out
             
         # Add handling for some units which cf_units does not support
         unit = unit.replace("psu","1e-3")
@@ -110,6 +112,7 @@ class Variable:
         self.unit  = unit
         self.name  = name
         self.cbounds = cbounds        
+        self.calendar = calendar
         
         def _createBnds(x):
             x      = np.asarray(x)
