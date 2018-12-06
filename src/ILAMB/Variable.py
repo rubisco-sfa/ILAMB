@@ -152,7 +152,14 @@ class Variable:
         if lat is not None and lon is not None and data.ndim >= 2:
             if (data.shape[-2] == lat.size and data.shape[-1] == lon.size): self.spatial = True
 
+        # Exception for PEcAn 
         if self.spatial is True:
+            if data.shape[-2:] == (1,1):
+                self.spatial = False
+                self.ndata   = 1
+                self.data    = self.data.reshape(self.data.shape[:-2]+(1,))
+                
+        if self.spatial is True:                
             if np.all(np.diff(self.lat)<0): # Flip if monotonically decreasing
                 self.lat      = self.lat     [::-1     ]
                 self.data     = self.data[...,::-1,:   ]

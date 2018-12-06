@@ -2,7 +2,7 @@ from Variable import Variable
 from netCDF4 import Dataset
 import ilamblib as il
 import numpy as np
-import glob,os
+import glob,os,re
 from mpi4py import MPI
 import logging
 
@@ -37,10 +37,11 @@ class ModelResult():
         used to shift model times, all model years at model_year[0]
         are shifted to model_year[1]
     """
-    def __init__(self,path,modelname="unamed",color=(0,0,0),filter="",model_year=None):
+    def __init__(self,path,modelname="unamed",color=(0,0,0),filter="",regex="",model_year=None):
         self.path           = path
         self.color          = color
         self.filter         = filter
+        self.regex          = regex
         self.shift          = 0.
         if model_year is not None: self.shift = (model_year[1]-model_year[0])*365.
         self.name           = modelname
@@ -73,10 +74,18 @@ class ModelResult():
         variables = {}
         for subdir, dirs, files in os.walk(self.path):
             for fileName in files:
-                if ".nc"       not in fileName: continue
+                if not fileName.endswith(".nc"): continue
                 if self.filter not in fileName: continue
+                if self.regex is not "":
+                    m = re.search(self.regex,fileName)
+                    if not m: continue                    
                 pathName  = os.path.join(subdir,fileName)
-                dataset   = Dataset(pathName)
+
+                try:
+                    dataset = Dataset(pathName)
+                except:
+                    logger.debug("[%s] Error opening file %s" % (self.name,pathName))
+                    continue
                 
                 # populate dictionary for which variables are in which files
                 for key in dataset.variables.keys():

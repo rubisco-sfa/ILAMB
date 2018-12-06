@@ -55,6 +55,9 @@ class NotLayeredVariable(Exception):
 class NotDatasiteVariable(Exception):
     def __str__(self): return "NotDatasiteVariable"
 
+class MonotonicityError(Exception):
+    def __str__(self): return "MonotonicityError"
+    
 def FixDumbUnits(unit):
     r"""Try to fix the dumb units people insist on using.
     
@@ -74,13 +77,12 @@ def FixDumbUnits(unit):
                                 "none"]: unit = "1"
     # Remove the C which so often is used to mean carbon but actually means coulomb
     tokens = re.findall(r"[\w']+", unit)
-    for token in tokens:
+    for i,token in enumerate(tokens):
         if token.endswith("C"):
-            try:
-                u = Unit(token[:-1])
-            except:
-                continue
-            if u.is_convertible(Unit("g")): unit = unit.replace(token,token[:-1])
+            if Units(token[:-1]).equivalent(Units("g")):
+                unit = unit.replace(token,token[:-1])
+            elif (i > 0) and Units(tokens[i-1]).equivalent(Units("g")):
+                unit = unit.replace(" C","")
     return unit
 
 def GenerateDistinctColors(N,saturation=0.67,value=0.67):
@@ -522,6 +524,62 @@ def ComputeIndexingArrays(lat2d,lon2d,lat,lon):
     LAT,LON  = np.meshgrid(lat,lon,indexing='ij')
     gmap     = fcn(LAT.flatten(),LON.flatten()).astype(int)
     return gmap[:,0].reshape(LAT.shape),gmap[:,1].reshape(LAT.shape)
+
+def _shiftDatum(t,datum,calendar):
+    return date2num(num2date(t[...],datum,calendar=calendar),
+                    "days since 1850-1-1",
+                    calendar=calendar)
+
+def _removeLeapDay(t,v,datum=None,calendar=None,t0=None,tf=None):
+    """
+    Shifts the datum and removes leap day if present.
+
+    Parameters
+    ----------
+    t : netCDF4._netCDF4.Variable
+        the variable representing time in any calendar with any datum
+    v : netCDF4._netCDF4.Variable
+        the variable representing the data
+    datum : str, optional
+        the datum to which we will shift the variable
+    t0 : float, optional
+        the initial time in 'days since 1850-1-1'
+    tf : float, optional
+        the final time in 'days since 1850-1-1'
+    """
+    datum0 = "days since 1850-1-1"
+    if calendar is None:
+        if "calendar" in t.ncattrs(): calendar = t.calendar
+    if datum is None:
+        if "units" in t.ncattrs(): datum = t.units
+        
+    # shift their datum to our datum
+    tdata = _shiftDatum(t,datum,calendar)
+    if tdata.ndim > 1: tdata = tdata[:,0]
+    
+    # convert the time array to datetime objects in the native calendar
+    T  = num2date(tdata,"days since 1850-1-1",calendar=calendar)
+    
+    # find a boolean array which is true where time values are on leap day
+    leap_day = np.asarray([1 if (x.month == 2 and x.day == 29) else 0 for x in T],dtype=bool)
+    
+    # then we need to shift the times by the times we will remove
+    dt       = np.hstack([0,np.diff(tdata)]) # assumes that the time is at the beginning of the interval
+    tdata   -= (leap_day*dt).cumsum()        # shift by removed time
+    t_index  = np.where(leap_day==False)[0]  # indices that we keep
+    tdata    = tdata[t_index]                # remove leap day
+    
+    # finally we need to shift by the number of leap days since our new datum
+    tdata   -= date2num(T[0],"days since 1850-1-1",calendar) - date2num(T[0],"days since 1850-1-1","noleap")
+
+    # where do we slice the array
+    begin = 0; end = t.size
+    if t0 is not None: begin = max(tdata.searchsorted(t0)-1,begin)
+    if tf is not None: end   = min(tdata.searchsorted(tf)+1,end)    
+    tdata = tdata[             begin:end    ]
+    vdata =     v[t_index,...][begin:end,...] # not as memory efficient as it could be
+    
+    return tdata,vdata
 
 def FromNetCDF4(filename,variable_name,alternate_vars=[],t0=None,tf=None,group=None):
     """Extracts data from a netCDF4 datafile for use in a Variable object.
@@ -1559,16 +1617,18 @@ def ClipTime(v,t0,tf):
     """
     begin = np.argmin(np.abs(v.time_bnds[:,0]-t0))
     end   = np.argmin(np.abs(v.time_bnds[:,1]-tf))
-    while v.time_bnds[begin,0] > t0:
-        begin    -= 1
-        if begin <= 0:
-            begin = 0
-            break
-    while v.time_bnds[end,  1] < tf:
-        end      += 1
-        if end   >= v.time.size-1:
-            end   = v.time.size-1
-            break
+    if np.abs(v.time_bnds[begin,0]-t0) > 1e-6:
+        while v.time_bnds[begin,0] > t0:
+            begin    -= 1
+            if begin <= 0:
+                begin = 0
+                break
+    if np.abs(v.time_bnds[end,1]-tf) > 1e-6:
+        while v.time_bnds[end,  1] < tf:
+            end      += 1
+            if end   >= v.time.size-1:
+                end   = v.time.size-1
+                break
     v.time      = v.time     [begin:(end+1)    ]
     v.time_bnds = v.time_bnds[begin:(end+1),...]
     v.data      = v.data     [begin:(end+1),...]
@@ -1610,12 +1670,14 @@ def MakeComparable(ref,com,**keywords):
 
     """    
     # Process keywords
-    clip_ref  = keywords.get("clip_ref" ,False)
-    mask_ref  = keywords.get("mask_ref" ,False)
-    eps       = keywords.get("eps"      ,30./60./24.)
-    window    = keywords.get("window"   ,0.)
-    extents   = keywords.get("extents"  ,np.asarray([[-90.,+90.],[-180.,+180.]]))
-    logstring = keywords.get("logstring","")
+    clip_ref    = keywords.get("clip_ref" ,False)
+    mask_ref    = keywords.get("mask_ref" ,False)
+    eps         = keywords.get("eps"      ,30./60./24.)
+    window      = keywords.get("window"   ,0.)
+    extents     = keywords.get("extents"  ,np.asarray([[-90.,+90.],[-180.,+180.]]))
+    logstring   = keywords.get("logstring","")
+    prune_sites = keywords.get("prune_sites",False)
+    allow_diff_times = keywords.get("allow_diff_times",False)
     
     # If one variable is temporal, then they both must be
     if ref.temporal != com.temporal:
@@ -1656,11 +1718,31 @@ def MakeComparable(ref,com,**keywords):
     # have the same number of sites and that they represent the same
     # location. Note this is after the above extraction so at this
     # point the ndata field of both variables should be equal.
-    if ref.ndata != com.ndata:
-        msg  = "%s One or both datasets are understood as site data but differ in number of sites: " % logstring
-        msg += "reference = %d, comparison = %d" % (ref.ndata,com.ndata)
-        logger.debug(msg)
-        raise VarsNotComparable()
+    if (prune_sites) and (ref.ndata is not None) and (com.ndata is not None):
+        deps = 1.0
+        
+        # prune the reference
+        r    = np.sqrt((ref.lat[:,np.newaxis]-com.lat)**2+(ref.lon[:,np.newaxis]-com.lon)**2)
+        rind = r.argmin(axis=0)
+        rind = rind[np.where(r[rind,range(com.ndata)]<deps)]
+        ref.lat = ref.lat[rind]; ref.lon = ref.lon[rind]; ref.data = ref.data[...,rind]
+        msg  = "%s Pruned %d sites from the reference and " % (logstring,ref.ndata-ref.lat.size)
+        ref.ndata = ref.lat.size
+        
+        # prune the comparison
+        r    = np.sqrt((com.lat[:,np.newaxis]-ref.lat)**2+(com.lon[:,np.newaxis]-ref.lon)**2)
+        rind = r.argmin(axis=0)
+        rind = rind[np.where(r[rind,range(ref.ndata)]<deps)]
+        com.lat = com.lat[rind]; com.lon = com.lon[rind]; com.data = com.data[...,rind]
+        msg += "%d sites from the comparison." % (com.ndata-com.lat.size)
+        com.ndata = com.lat.size
+        logger.info(msg)
+    else:
+        if ref.ndata != com.ndata:
+            msg  = "%s One or both datasets are understood as site data but differ in number of sites: " % logstring
+            msg += "reference = %d, comparison = %d" % (ref.ndata,com.ndata)
+            logger.debug(msg)
+            raise VarsNotComparable()
     if ref.ndata is not None:
         if not (np.allclose(ref.lat,com.lat) or np.allclose(ref.lon,com.lon)):
             msg  = "%s Datasets represent sites, but the locations are different: " % logstring
@@ -1722,7 +1804,7 @@ def MakeComparable(ref,com,**keywords):
             # We will clip the reference dataset too
             t0  = max(t0,com.time_bnds[ 0,0])
             tf  = min(tf,com.time_bnds[-1,1])
-            ref = ClipTime(ref,t0,tf)
+            ref = ref.trim(t=[t0,tf])
 
         else:
             
@@ -1736,15 +1818,16 @@ def MakeComparable(ref,com,**keywords):
                 raise VarsNotComparable()
 
         # Check that we now are on the same time intervals
-        if ref.time.size != com.time.size:
-            msg  = "%s Datasets have differing numbers of time intervals: " % logstring
-            msg += "reference = %d, comparison = %d" % (ref.time.size,com.time.size)
-            logger.debug(msg)
-            raise VarsNotComparable()
-        if not np.allclose(ref.time_bnds,com.time_bnds,atol=0.75*ref.dt):
-            msg  = "%s Datasets are defined at different times" % logstring
-            logger.debug(msg)
-            raise VarsNotComparable()
+        if not allow_diff_times:
+            if ref.time.size != com.time.size:
+                msg  = "%s Datasets have differing numbers of time intervals: " % logstring
+                msg += "reference = %d, comparison = %d" % (ref.time.size,com.time.size)
+                logger.debug(msg)
+                raise VarsNotComparable()        
+            if not np.allclose(ref.time_bnds,com.time_bnds,atol=0.75*ref.dt):
+                msg  = "%s Datasets are defined at different times" % logstring
+                logger.debug(msg)
+                raise VarsNotComparable()
 
     if ref.layered:
 
@@ -1810,12 +1893,24 @@ def CombineVariables(V):
         tf[i] = v.time[-1]
         nt[i] = v.time.size
         ind.append(nt[:(i+1)].sum())
-        
-    # Checks on monotonicity
-    assert (t0[1:]-t0[:-1]).min() >= 0
-    assert (tf[1:]-tf[:-1]).min() >= 0
-    assert (t0[1:]-tf[:-1]).min() >= 0
 
+    # Checks on monotonicity
+    if (((t0[1:]-t0[:-1]).min() < 0) or
+        ((tf[1:]-tf[:-1]).min() < 0) or
+        ((t0[1:]-tf[:-1]).min() < 0)):
+        msg = "[MonotonicityError]"
+        for i in range(nV):
+            err = ""
+            if i > 0     :
+                err += "" if t0[i]   > tf[i-1] else "*"
+                err += "" if t0[i]   > t0[i-1] else "*"
+            if i < (nV-1):
+                err += "" if tf[i+1] > t0[i  ] else "*"                
+                err += "" if tf[i+1] > tf[i  ] else "*"                
+            msg  += "\n  %2d: t = [%.3f, %.3f] %s" % (i,t0[i],tf[i],err)
+        logger.debug(msg)
+        raise MonotonicityError()
+    
     # Assemble the data
     shp       = (nt.sum(),)+V[0].data.shape[1:]
     time      = np.zeros(shp[0])
