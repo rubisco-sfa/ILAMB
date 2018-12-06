@@ -79,10 +79,13 @@ def FixDumbUnits(unit):
     tokens = re.findall(r"[\w']+", unit)
     for i,token in enumerate(tokens):
         if token.endswith("C"):
-            if Units(token[:-1]).equivalent(Units("g")):
-                unit = unit.replace(token,token[:-1])
-            elif (i > 0) and Units(tokens[i-1]).equivalent(Units("g")):
-                unit = unit.replace(" C","")
+            try:
+                if Unit(token[:-1]).is_convertible(Unit("g")):
+                    unit = unit.replace(token,token[:-1])                
+                elif (i > 0) and Unit(tokens[i-1]).is_convertible(Unit("g")):
+                    unit = unit.replace(" C","")
+            except:
+                pass
     return unit
 
 def GenerateDistinctColors(N,saturation=0.67,value=0.67):
