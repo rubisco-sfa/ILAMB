@@ -55,10 +55,19 @@ class ModelResult():
         self.lat_bnds       = None
         self.lon_bnds       = None
         self.variables      = None
+        self.names          = None
         self.extents        = np.asarray([[-90.,+90.],[-180.,+180.]])
         self._findVariables()
         self._getGridInformation()
-        
+
+    def __str__(self):
+        s  = ""
+        s += "ModelResult: %s\n" % self.name
+        s += "-"*(len(self.name)+13) + "\n"
+        for key in self.names:
+            s += "{0:>20}: {1:<50}".format(key,self.names[key]) + "\n"
+        return s
+    
     def _findVariables(self):
         """Loops through the netCDF4 files in a model's path and builds a dictionary of which variables are in which files.
         """
@@ -72,6 +81,7 @@ class ModelResult():
             return dim_name,dim_bnd_name 
 
         variables = {}
+        names     = {}
         for subdir, dirs, files in os.walk(self.path):
             for fileName in files:
                 if not fileName.endswith(".nc"): continue
@@ -93,6 +103,15 @@ class ModelResult():
                         variables[key] = []
                     variables[key].append(pathName)
 
+                    v = dataset.variables[key]
+                    if not names.has_key(key):
+                        if "long_name" in v.ncattrs():
+                            names[key] = v.long_name
+                            continue
+                        if "standard_name" in v.ncattrs():
+                            names[key] = v.standard_name
+                            continue
+                    
         # determine spatial extents
         lats = [key for key in variables.keys() if (key.lower().startswith("lat" ) or
                                                     key.lower().  endswith("lat" ))]
@@ -124,7 +143,8 @@ class ModelResult():
         if self.extents[1,0] < (-180.+eps): self.extents[1,0] = -180.
         if self.extents[1,1] > (+180.-eps): self.extents[1,1] = +180.
         self.variables = variables
-    
+        self.names = names
+        
     def _getGridInformation(self):
         """Looks in the model output for cell areas as well as land fractions. 
         """
