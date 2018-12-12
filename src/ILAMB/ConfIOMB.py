@@ -354,11 +354,13 @@ class ConfIOMB(Confrontation):
                 obs_depth[region] = []
                 mod_depth[region] = []
             unit = None
+            max_obs = -1e20
             for obs,mod in self.stageData(m):
 
                 # if the data has no depth, we assume it is surface
                 if not obs.layered: obs = _addDepth(obs)
                 if not mod.layered: mod = _addDepth(mod)
+                max_obs = max(max_obs,obs.data.max())
                 
                 # time bounds for this slab
                 tb = obs.time_bnds[[0,-1],[0,1]].reshape((1,2))
@@ -399,7 +401,7 @@ class ConfIOMB(Confrontation):
                 # annual cycle in slabs
                 for region in self.regions:
                     z = obs.integrateInSpace(region=region,mean=True)
-                    if not ocyc.has_key(region): 
+                    if not ocyc.has_key(region):
                         ocyc[region] = np.ma.zeros((12,)+z.data.shape[1:])
                         oN  [region] = np.ma.zeros((12,)+z.data.shape[1:],dtype=int)
                     i = (np.abs(mid_months[:,np.newaxis]-(z.time % 365))).argmin(axis=0)
@@ -415,6 +417,8 @@ class ConfIOMB(Confrontation):
                     (mN  [region])[i,...] += 1
                 
             # combine time slabs from the different depths
+            large_bias = float(self.keywords.get("large_bias",0.1*max_obs))
+            
             for dlbl in obs_timeint.keys():
 
                 # period means and bias
@@ -426,6 +430,18 @@ class ConfIOMB(Confrontation):
                 bias.name = mod_tmp.name.replace("timeint","bias")
                 mod_tmp.toNetCDF4(fcm.mod_dset,group="MeanState")
                 bias.toNetCDF4(fcm.mod_dset,group="MeanState")
+                bias_score = None
+                if dlbl == "0":
+                    with np.errstate(all="ignore"):
+                        bias_score = Variable(name  = bias.name.replace("bias","biasscore"),
+                                              data  = np.exp(-np.abs(bias.data)/large_bias),
+                                              unit  = "1",
+                                              ndata = bias.ndata,
+                                              lat   = bias.lat, lat_bnds = bias.lat_bnds,
+                                              lon   = bias.lon, lon_bnds = bias.lon_bnds,
+                                              area  = bias.area)
+                        bias_score.toNetCDF4(fcm.mod_dset,group="MeanState")
+                    
                 for region in self.regions:
                     
                     sval = mod_tmp.integrateInSpace(region=region,mean=True)
@@ -435,6 +451,11 @@ class ConfIOMB(Confrontation):
                     sval = bias.integrateInSpace(region=region,mean=True)
                     sval.name = "Bias at %s %s" % (dlbl,region)
                     sval.toNetCDF4(fcm.mod_dset,group="MeanState")
+
+                    if bias_score is not None:
+                        sval = bias_score.integrateInSpace(region=region,mean=True)
+                        sval.name = "Bias Score at %s %s" % (dlbl,region)
+                        sval.toNetCDF4(fcm.mod_dset,group="MeanState")
                     
                 if self.master:
                     obs_tmp.toNetCDF4(fcm.obs_dset,group="MeanState")
@@ -455,6 +476,7 @@ class ConfIOMB(Confrontation):
                 np.seterr(over='ignore',under='ignore')
                 ocyc[region] = ocyc[region]/(oN[region].clip(1))
                 mcyc[region] = mcyc[region]/(mN[region].clip(1))
+                
                 np.seterr(over='raise',under='raise')
                 mcyc[region] = Variable(name = "cycle_of_%s_over_%s" % (self.variable,region),
                                         unit = mod.unit,
@@ -475,6 +497,7 @@ class ConfIOMB(Confrontation):
                     obs_tmp     .toNetCDF4(fcm.obs_dset,group="MeanState")
                     ocyc[region].toNetCDF4(fcm.obs_dset,group="MeanState")
 
+                    
     def modelPlots(self,m):
         
         def _fheight(region):
@@ -493,19 +516,21 @@ class ConfIOMB(Confrontation):
         page.priority += ["Score","Overall"]
         
         # model plots
-        cmap = { "timeint" : self.cmap,
-                 "bias"    : "seismic" }
-        plbl = { "timeint" : "MEAN",
-                 "bias"    : "BIAS" }
+        cmap = { "timeint"    : self.cmap,
+                 "bias"       : "seismic",
+                 "biasscore"  : "RdYlGn" }
+        plbl = { "timeint"    : "MEAN",
+                 "bias"       : "BIAS",
+                 "biasscore"  : "BIAS SCORE" }
         with Dataset(fname) as dataset:
             group     = dataset.groups["MeanState"]
             variables = getVariableList(group)
             color     = dataset.getncattr("color")
-            for ptype in ["timeint","bias"]:
+            for ptype in ["timeint","bias","biasscore"]:
                 for vname in [v for v in variables if ptype in v]:
                     var = Variable(filename=fname,variable_name=vname,groupname="MeanState")
                     try:
-                        z = int(vname.replace(ptype,"")) 
+                        z = int(vname.replace(ptype,""))
                     except:
                         continue
                     page.addFigure("Period Mean at %d [m]" % z,
@@ -765,6 +790,8 @@ class ConfIOMB(Confrontation):
                 for vname in variables:
                     var    = group.variables[vname]
                     pname  = vname.split("_")[ 0]
+                    if "_score" in vname:
+                        pname = "_".join(vname.split("_")[:2])
                     if "_over_" in vname:
                         region = vname.split("_over_")[-1]
                         if not limits.has_key(pname): limits[pname] = {}
@@ -783,7 +810,7 @@ class ConfIOMB(Confrontation):
                             limits[pname]["unit"] = post.UnitStringToMatplotlib(var.getncattr("units"))
                         limits[pname]["min"] = min(limits[pname]["min"],var.getncattr(min_str))
                         limits[pname]["max"] = max(limits[pname]["max"],var.getncattr(max_str))
-
+        
         # Another pass to fix score limits
         for pname in limits.keys():
             if "score" in pname:
