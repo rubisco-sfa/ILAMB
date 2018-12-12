@@ -14,12 +14,22 @@ def UseLatexPltOptions(fsize=18):
     plt.rcParams.update(params)
 
 def UnitStringToMatplotlib(unit,add_carbon=False):
+    # replace 1e-9 with nano
+    match = re.findall("(1e-9\s)",unit)
+    for m in match: unit = unit.replace(m,"n")
     # replace 1e-6 with micro
     match = re.findall("(1e-6\s)",unit)
     for m in match: unit = unit.replace(m,"$\mu$")
+    # replace rest of 1e with 10^
+    match = re.findall("1e(\-*\+*\d+)",unit)
+    for m in match: unit = unit.replace("1e%s" % m,"$10^{%s}$" % m)
     # raise exponents using Latex
-    match = re.findall("(-\d)",unit)
-    for m in match: unit = unit.replace(m,"$^{%s}$" % m)
+    tokens = unit.split()
+    for token in tokens:
+        old_token = token
+        for m in re.findall("[a-zA-Z](\-*\+*\d)",token):
+            token = token.replace(m,"$^{%s}$" % m)
+        unit = unit.replace(old_token,token)
     # add carbon symbol to all mass units
     if add_carbon:
         match = re.findall("(\D*g)",unit)
