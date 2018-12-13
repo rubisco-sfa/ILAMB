@@ -1772,9 +1772,12 @@ def MakeComparable(ref,com,**keywords):
         # Clip reference
         diff     = np.abs([ref.lat_bnds[[0,-1],[0,1]]-lat_bnds,
                            ref.lon_bnds[[0,-1],[0,1]]-lon_bnds])
-        if diff.sum() >= 5.:
+        if diff.max() >= 5.:
             shp0 = np.asarray(np.copy(ref.data.shape),dtype=int)
-            ref.trim(lat=lat_bnds,lon=lon_bnds)
+            ref.trim(lat=[lat_bnds[0] if diff[0,0] >= 5. else -90.,
+                          lat_bnds[1] if diff[0,1] >= 5. else +90],
+                     lon=[lon_bnds[0] if diff[1,0] >= 5. else -180.,
+                          lon_bnds[1] if diff[1,1] >= 5. else +180])
             shp  = np.asarray(np.copy(ref.data.shape),dtype=int)
             msg  = "%s Spatial data was clipped from the reference: " % logstring
             msg += " before: %s" % (shp0)
@@ -1784,16 +1787,18 @@ def MakeComparable(ref,com,**keywords):
         # Clip comparison
         diff     = np.abs([com.lat_bnds[[0,-1],[0,1]]-lat_bnds,
                            com.lon_bnds[[0,-1],[0,1]]-lon_bnds])
-        if diff.sum() >= 5.:
+        if diff.max() >= 5.:
             shp0 = np.asarray(np.copy(com.data.shape),dtype=int)
-            com.trim(lat=lat_bnds,lon=lon_bnds)
+            com.trim(lat=[lat_bnds[0] if diff[0,0] >= 5. else -90.,
+                          lat_bnds[1] if diff[0,1] >= 5. else +90],
+                     lon=[lon_bnds[0] if diff[1,0] >= 5. else -180.,
+                          lon_bnds[1] if diff[1,1] >= 5. else +180])
             shp  = np.asarray(np.copy(com.data.shape),dtype=int)
             msg  = "%s Spatial data was clipped from the comparison: " % logstring
             msg += " before: %s" % (shp0)
             msg +=  " after: %s" % (shp )
             logger.info(msg)
-            
-        
+                    
     if ref.temporal:
 
         # If the reference time scale is significantly larger than the
