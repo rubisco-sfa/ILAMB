@@ -529,6 +529,11 @@ def ComputeIndexingArrays(lat2d,lon2d,lat,lon):
     gmap     = fcn(LAT.flatten(),LON.flatten()).astype(int)
     return gmap[:,0].reshape(LAT.shape),gmap[:,1].reshape(LAT.shape)
 
+def ExtendAnnualCycle(time,cycle_data,cycle_time):
+    ind = np.abs((time[:,np.newaxis] % 365)-(cycle_time % 365)).argmin(axis=1)
+    assert (ind.max() < 12)*(ind.min() >= 0)
+    return cycle_data[ind]
+
 def _shiftDatum(t,datum,calendar):
     return date2num(num2date(t[...],datum,calendar=calendar),
                     "days since 1850-1-1",
@@ -1509,12 +1514,12 @@ def AnalysisMeanStateSpace(ref,com,**keywords):
 
         # IAV: maps, scalars, scores
         if not skip_iav:
-            REF_iav = Variable(data = np.ma.masked_array(REF.data-ref_cycle.data[ref_cycle.time.searchsorted(REF.time % 365),...],mask=REF.data.mask),
+            REF_iav = Variable(data = np.ma.masked_array(REF.data-ExtendAnnualCycle(REF.time,ref_cycle.data,ref_cycle.time),mask=REF.data.mask),
                                unit = unit,
                                time = REF.time, time_bnds = REF.time_bnds,
                                lat  = lat, lat_bnds = lat_bnds, lon = lon, lon_bnds = lon_bnds,
                                area = REF.area, ndata = REF.ndata).rms()
-            COM_iav = Variable(data = np.ma.masked_array(COM.data-com_cycle.data[com_cycle.time.searchsorted(COM.time % 365),...],mask=COM.data.mask),
+            COM_iav = Variable(data = np.ma.masked_array(COM.data-ExtendAnnualCycle(COM.time,com_cycle.data,com_cycle.time),mask=COM.data.mask),
                                unit = unit,
                                time = COM.time, time_bnds = COM.time_bnds,
                                lat  = lat, lat_bnds = lat_bnds, lon = lon, lon_bnds = lon_bnds,
@@ -1988,8 +1993,7 @@ def LandLinInterMissingValues(mdata):
     smooth /= suml.clip(1)
     smooth  = (mdata.mask==True)*smooth + (mdata.mask==False)*mdata.data
     return smooth
-
-              
+    
 class FileContextManager():
 
     def __init__(self,master,mod_results,obs_results):

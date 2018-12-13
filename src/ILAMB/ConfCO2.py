@@ -307,7 +307,7 @@ class ConfCO2(Confrontation):
                                 time_bnds = otb)
             oiav     = Variable(name  = "iav", # deseasonalized interannual variability
                                 unit  = obs.unit,
-                                data  = obs.data-ocyc.data[ocyc.time.searchsorted(obs.time % 365),...],
+                                data  = obs.data-il.ExtendAnnualCycle(obs.time,ocyc.data,ocyc.time),
                                 time  = obs.time,
                                 ndata = obs.ndata,
                                 lat   = obs.lat,
@@ -350,7 +350,7 @@ class ConfCO2(Confrontation):
                                 time_bnds = mtb)
             miav     = Variable(name  = "iav", # deseasonalized interannual variability
                                 unit  = mod.unit,
-                                data  = mod.data-mcyc.data[mcyc.time.searchsorted(mod.time % 365),...],
+                                data  = mod.data-il.ExtendAnnualCycle(mod.time,mcyc.data,mcyc.time),
                                 time  = mod.time,
                                 ndata = mod.ndata,
                                 lat   = mod.lat,

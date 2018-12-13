@@ -329,7 +329,7 @@ def WorkConfront(W,verbose=False,clean=False):
             dt = time.time()-t0
             proc[rank] += dt
             if verbose:
-                dt = datetime.timedelta(seconds=int(np.round(dt)))
+                dt = datetime.timedelta(seconds=max(1,int(np.round(dt))))
                 print ("    {0:>%d} {1:<%d} %sCompleted%s {2:>8}" % (maxCL,maxML,OK,ENDC)).format(c.longname,m.name,dt)
                 sys.stdout.flush()
 
@@ -377,7 +377,7 @@ def WorkPost(M,C,W,S,verbose=False,skip_plots=False):
             dt = time.time()-t0
             proc[rank] += dt
             if verbose:
-                dt = datetime.timedelta(seconds=int(np.round(dt)))
+                dt = datetime.timedelta(seconds=max(1,int(np.round(dt))))
                 print ("    {0:>%d} {1:<%d} %sCompleted%s {2:>8}" % (maxCL,maxML,OK,ENDC)).format(c.longname,m.name,dt)
                 sys.stdout.flush()
         except Exception as ex:
