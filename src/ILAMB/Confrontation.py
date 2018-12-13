@@ -1005,6 +1005,12 @@ class Confrontation(object):
                 except:
                     continue
 
+                # Check on data shape
+                if not np.allclose(ref_dep.data.shape,ref_ind.data.shape):
+                    msg = "[%s][%s] Data size mismatch in relationship: %s %s vs. %s %s" % (self.longname,m.name,dep_name,str(ref_dep.data.shape),ind_name,str(ref_ind.data.shape))
+                    logger.debug(msg)
+                    raise ValueError
+                    
                 # Add figures to the html page
                 page.addFigure(c.longname,
                                "benchmark_rel_%s"            % ind_name,
