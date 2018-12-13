@@ -736,3 +736,6 @@ class ConfCO2(Confrontation):
                        side   = "TIMING OF MINIMUM",
                        width  = fig.get_size_inches()[0]*fig.dpi*0.75,
                        legend = False)
+
+    def compositePlots(self):
+        pass
