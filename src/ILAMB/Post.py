@@ -1,7 +1,7 @@
 import pylab as plt
 import numpy as np
-from constants import space_opts,time_opts
-from Regions import Regions
+from .constants import space_opts,time_opts
+from .Regions import Regions
 import re
 
 def UseLatexPltOptions(fsize=18):
@@ -35,7 +35,7 @@ def UnitStringToMatplotlib(unit,add_carbon=False):
         match = re.findall("(\D*g)",unit)
         for m in match: unit = unit.replace(m,"%s C " % m)
     return unit
-        
+
 def ColorBar(ax,**keywords):
     """Plot a colorbar.
 
@@ -76,7 +76,7 @@ def TaylorDiagram(stddev,corrcoef,refstd,fig,colors,normalize=True):
     This is adapted from the code by Yannick Copin found here:
 
     https://gist.github.com/ycopin/3342888
-    
+
     Parameters
     ----------
     stddev : numpy.ndarray
@@ -137,13 +137,13 @@ def TaylorDiagram(stddev,corrcoef,refstd,fig,colors,normalize=True):
     ax.axis["right"].major_ticklabels.set_axis_direction("left")
     ax.axis["bottom"].set_visible(False)
     ax.grid(True)
-    
+
     ax = ax.get_aux_axes(tr)
     # Plot data
     corrcoef = corrcoef.clip(-1,1)
     for i in range(len(corrcoef)):
         ax.plot(np.arccos(corrcoef[i]),stddev[i],'o',color=colors[i],mew=0,ms=8)
-            
+
     # Add reference point and stddev contour
     l, = ax.plot([0],refstd,'k*',ms=12,mew=0)
     t = np.linspace(0, np.pi/2)
@@ -172,7 +172,7 @@ class HtmlFigure():
         self.longname  = longname
         self.width     = width
         self.br        = br
-        
+
     def generateClickRow(self,allModels=False):
         name = self.pattern
         if allModels: name = name.replace(self.name,"PNAME")
@@ -233,7 +233,7 @@ class HtmlPage(object):
         self.figures     = {}
         self.text        = None
         self.inserts     = []
-        
+
     def __str__(self):
 
         r = Regions()
@@ -249,25 +249,25 @@ class HtmlPage(object):
                     val += 1.
                 else:
                     val  = 0.
-            return val        
-        
+            return val
+
         code = """
     <div data-role="page" id="%s">
       <div data-role="header" data-position="fixed" data-tap-toggle="false">
         <h1 id="%sHead">%s</h1>""" % (self.name,self.name,self.title)
         if self.pages:
-	    code += """
+            code += """
         <div data-role="navbar">
-	  <ul>""" 
+          <ul>"""
             for page in self.pages:
                 opts = ""
                 if page == self: opts = " class=ui-btn-active ui-state-persist"
                 code += """
             <li><a href='#%s'%s>%s</a></li>""" % (page.name,opts,page.title)
             code += """
-	  </ul>"""
+          </ul>"""
         code += """
-	</div>
+        </div>
       </div>"""
 
         if self.regions:
@@ -285,25 +285,25 @@ class HtmlPage(object):
         <option value='%s'%s>%s</option>""" % (region,opts,rname)
             code += """
       </select>"""
-            
+
         if self.models:
             code += """
       <div style="display:none">
       <select id="%sModel">""" % (self.name)
             for i,model in enumerate(self.models):
-                opts  = ' selected="selected"' if i == 1 else '' 
+                opts  = ' selected="selected"' if i == 1 else ''
                 code += """
         <option value='%s'%s>%s</option>""" % (model,opts,model)
             code += """
       </select>
       </div>"""
-                
+
         if self.metric_dict: code += self.metricsToHtmlTables()
-        
+
         if self.text is not None:
             code += """
       %s""" % self.text
-            
+
         for section in self.sections:
             if len(self.figures[section]) == 0: continue
             self.figures[section].sort(key=_sortFigures)
@@ -314,11 +314,11 @@ class HtmlPage(object):
                 code += "%s" % (figure)
             code += """
         </div>"""
-            
+
         code += """
     </div>"""
         return code
-    
+
     def setHeader(self,header):
         self.header = header
 
@@ -334,7 +334,7 @@ class HtmlPage(object):
         for fig in self.figures[section]:
             if fig.name == name: return
         self.figures[section].append(HtmlFigure(name,pattern,side=side,legend=legend,benchmark=benchmark,longname=longname,width=width,br=br))
-    
+
     def setMetricPriority(self,priority):
         self.priority = priority
 
@@ -395,9 +395,9 @@ class HtmlPage(object):
           </tbody>
         </table>
         </center>"""
-        
+
         return html
-    
+
     def googleScript(self):
         if not self.metric_dict: return ""
         models   = self.models
@@ -416,7 +416,7 @@ class HtmlPage(object):
         for section in self.sections:
             for figure in self.figures[section]:
                 rows += figure.generateClickRow()
-        
+
         head = """
 
         function updateImagesAndHeaders%s(){
@@ -439,108 +439,108 @@ class HtmlPage(object):
 
         head += """
 
-	function highlightRow%s(cell) {
-	    var select = document.getElementById("%sRegion");
-	    for (var i = 0; i < select.length; i++){
-		var table = document.getElementById("%s_table_" + select.options[i].value);
-		var rows  = table.getElementsByTagName("tr");
-		for (var r = %d; r < rows.length; r++) {
-        	    for (var c = 0; c < rows[r].cells.length-%d; c++) {
-        		rows[r].cells[c].style.backgroundColor = "#ffffff";
-        	    }
-		}
-		var r = cell.closest("tr").rowIndex;
+        function highlightRow%s(cell) {
+            var select = document.getElementById("%sRegion");
+            for (var i = 0; i < select.length; i++){
+                var table = document.getElementById("%s_table_" + select.options[i].value);
+                var rows  = table.getElementsByTagName("tr");
+                for (var r = %d; r < rows.length; r++) {
+                    for (var c = 0; c < rows[r].cells.length-%d; c++) {
+                        rows[r].cells[c].style.backgroundColor = "#ffffff";
+                    }
+                }
+                var r = cell.closest("tr").rowIndex;
                 document.getElementById("%sModel").selectedIndex = r-1;
-		for (var c = 0; c < rows[r].cells.length-%d; c++) {
-        	    rows[r].cells[c].style.backgroundColor = "#c1c1c1";
-		}
-	    }
+                for (var c = 0; c < rows[r].cells.length-%d; c++) {
+                    rows[r].cells[c].style.backgroundColor = "#c1c1c1";
+                }
+            }
             updateImagesAndHeaders%s();
-	}""" % (self.name,self.name,self.name,r0,nscores+1,self.name,nscores+1,self.name)
-        
+        }""" % (self.name,self.name,self.name,r0,nscores+1,self.name,nscores+1,self.name)
+
         head += """
 
         function paintScoreCells%s(RNAME) {
-	    var colors = ['#fb6a4a','#fc9272','#fcbba1','#fee0d2','#fff5f0','#f7fcf5','#e5f5e0','#c7e9c0','#a1d99b','#74c476'];
+            var colors = ['#fb6a4a','#fc9272','#fcbba1','#fee0d2','#fff5f0','#f7fcf5','#e5f5e0','#c7e9c0','#a1d99b','#74c476'];
             var table  = document.getElementById("%s_table_" + RNAME);
             var rows   = table.getElementsByTagName("tr");
-            for (var c = rows[0].cells.length-%d; c < rows[0].cells.length; c++) {		
-		var scores = [];
-		for (var r = %d; r < rows.length; r++) {
+            for (var c = rows[0].cells.length-%d; c < rows[0].cells.length; c++) {
+                var scores = [];
+                for (var r = %d; r < rows.length; r++) {
                     val = rows[r].cells[c].innerHTML;
                     if (val=="") {
-      		      scores[r-%d] = 0;
+                      scores[r-%d] = 0;
                     }else{
-		      scores[r-%d] = parseFloat(val);
+                      scores[r-%d] = parseFloat(val);
                     }
-		}
-		var mean = math.mean(scores);
-		var std  = math.max(0.02,math.std(scores));
-		for (var r = %d; r < rows.length; r++) {
-		    scores[r-%d] = (scores[r-%d]-mean)/std;
-		}
-		var smax = math.max(scores);
-		var smin = math.min(scores);
+                }
+                var mean = math.mean(scores);
+                var std  = math.max(0.02,math.std(scores));
+                for (var r = %d; r < rows.length; r++) {
+                    scores[r-%d] = (scores[r-%d]-mean)/std;
+                }
+                var smax = math.max(scores);
+                var smin = math.min(scores);
                 if (math.abs(smax-smin) < 1e-12) {
-		    smin = -1.0;
-		    smax =  1.0;
-		}
-		for (var r = %d; r < rows.length; r++) {
-		    var clr = math.round((scores[r-%d]-smin)/(smax-smin)*10);
-		    clr     = math.min(9,math.max(0,clr));
-		    rows[r].cells[c].style.backgroundColor = colors[clr];
-		}
-	    }
-	}""" % (self.name,self.name,nscores,r0,r0,r0,r0,r0,r0,r0,r0)
+                    smin = -1.0;
+                    smax =  1.0;
+                }
+                for (var r = %d; r < rows.length; r++) {
+                    var clr = math.round((scores[r-%d]-smin)/(smax-smin)*10);
+                    clr     = math.min(9,math.max(0,clr));
+                    rows[r].cells[c].style.backgroundColor = colors[clr];
+                }
+            }
+        }""" % (self.name,self.name,nscores,r0,r0,r0,r0,r0,r0,r0,r0)
 
         head += """
 
-	function pageLoad%s() {
-	    var select = document.getElementById("%sRegion");
-	    var region = getQueryVariable("region");
-	    var model  = getQueryVariable("model");
-	    if (region) {
-		for (var i = 0; i < select.length; i++){
-		    if (select.options[i].value == region) select.selectedIndex = i;
-		}
-	    }
-	    var table = document.getElementById("%s_table_" + select.options[select.selectedIndex].value);
-	    var rows  = table.getElementsByTagName("tr");
-	    if (model) {
-		for (var r = 0; r < rows.length; r++) {
-		    if(rows[r].cells[0].innerHTML==model) highlightRow%s(rows[r].cells[0]);
-		}
-	    }else{
-		highlightRow%s(rows[%d]);
-	    }
-	    for (var i = 0; i < select.length; i++){
-		paintScoreCells%s(select.options[i].value);
-	    }
-	    changeRegion%s();
-	}
+        function pageLoad%s() {
+            var select = document.getElementById("%sRegion");
+            var region = getQueryVariable("region");
+            var model  = getQueryVariable("model");
+            if (region) {
+                for (var i = 0; i < select.length; i++){
+                    if (select.options[i].value == region) select.selectedIndex = i;
+                }
+            }
+            var table = document.getElementById("%s_table_" + select.options[select.selectedIndex].value);
+            var rows  = table.getElementsByTagName("tr");
+            if (model) {
+                for (var r = 0; r < rows.length; r++) {
+                    if(rows[r].cells[0].innerHTML==model) highlightRow%s(rows[r].cells[0]);
+                }
+            }else{
+                highlightRow%s(rows[%d]);
+            }
+            for (var i = 0; i < select.length; i++){
+                paintScoreCells%s(select.options[i].value);
+            }
+            changeRegion%s();
+        }
 
         function changeRegion%s() {
-	    var select = document.getElementById("%sRegion");
-	    for (var i = 0; i < select.length; i++){
-		RNAME = select.options[i].value;
-		if (i == select.selectedIndex) {
-		    document.getElementById("%s_table_" + RNAME).style.display = "table";
-		}else{
-		    document.getElementById("%s_table_" + RNAME).style.display = "none";
-		}		
-	    }
+            var select = document.getElementById("%sRegion");
+            for (var i = 0; i < select.length; i++){
+                RNAME = select.options[i].value;
+                if (i == select.selectedIndex) {
+                    document.getElementById("%s_table_" + RNAME).style.display = "table";
+                }else{
+                    document.getElementById("%s_table_" + RNAME).style.display = "none";
+                }
+            }
             updateImagesAndHeaders%s();
-	}""" % (self.name,self.name,self.name,self.name,self.name,r0,self.name,self.name,self.name,self.name,self.name,self.name,self.name)
-            
+        }""" % (self.name,self.name,self.name,self.name,self.name,r0,self.name,self.name,self.name,self.name,self.name,self.name,self.name)
+
         return head,"pageLoad%s" % self.name,""
 
     def setRegions(self,regions):
         assert type(regions) == type([])
         self.regions = regions
-    
+
     def setMetrics(self,metric_dict):
 
-        # Sorting function        
+        # Sorting function
         def _sortMetrics(name,priority=self.priority):
             val = 1.
             for i,pname in enumerate(priority):
@@ -549,7 +549,7 @@ class HtmlPage(object):
 
         assert type(metric_dict) == type({})
         self.metric_dict = metric_dict
-        
+
         # Build and sort models, regions, and metrics
         models  = self.metric_dict.keys()
         regions = []
@@ -574,19 +574,19 @@ class HtmlPage(object):
         if tmp.count(True) > 0: self.inserts.append(tmp.index(True))
         tmp = [("score" in m.lower()) for m in metrics]
         if tmp.count(True) > 0: self.inserts.append(tmp.index(True))
-        
+
     def head(self):
         return ""
-    
+
 class HtmlAllModelsPage(HtmlPage):
 
     def __init__(self,name,title):
-        
+
         super(HtmlAllModelsPage,self).__init__(name,title)
         self.plots    = None
         self.nobench  = None
         self.nolegend = []
-        
+
     def _populatePlots(self):
 
         self.plots   = []
@@ -604,29 +604,29 @@ class HtmlAllModelsPage(HtmlPage):
                         if figure not in self.plots: self.plots.append(figure)
                         if not figure.legend: self.nolegend.append(figure.name)
         self.nobench = [plot.name for plot in self.plots if "benchmark_%s" % (plot.name) not in bench]
-        
+
     def __str__(self):
 
         if self.plots is None: self._populatePlots()
         r = Regions()
-        
+
         code = """
     <div data-role="page" id="%s">
       <div data-role="header" data-position="fixed" data-tap-toggle="false">
         <h1 id="%sHead">%s</h1>""" % (self.name,self.name,self.title)
         if self.pages:
-	    code += """
+            code += """
         <div data-role="navbar">
-	  <ul>""" 
+          <ul>"""
             for page in self.pages:
                 opts = ""
                 if page == self: opts = " class=ui-btn-active ui-state-persist"
                 code += """
             <li><a href='#%s'%s>%s</a></li>""" % (page.name,opts,page.title)
             code += """
-	  </ul>"""
+          </ul>"""
         code += """
-	</div>
+        </div>
       </div>"""
 
         if self.regions:
@@ -644,11 +644,11 @@ class HtmlAllModelsPage(HtmlPage):
         <option value='%s'%s>%s</option>""" % (region,opts,rname)
             code += """
       </select>"""
-                
+
         if self.plots:
             code += """
       <select id="%sPlot" onchange="AllSelect()">""" % (self.name)
-            for plot in self.plots:                
+            for plot in self.plots:
                 name  = ''
                 if space_opts.has_key(plot.name):
                     name = space_opts[plot.name]["name"]
@@ -665,7 +665,7 @@ class HtmlAllModelsPage(HtmlPage):
         <option value='%s'%s>%s</option>""" % (plot.name,opts,name)
             code += """
       </select>"""
-            
+
             fig        = self.plots[0]
             rem_side   = fig.side
             fig.side   = "MNAME"
@@ -677,11 +677,11 @@ class HtmlAllModelsPage(HtmlPage):
             fig.legend = rem_leg
             for model in self.pages[0].models:
                 code += img.replace("MNAME",model)
-                        
+
         if self.text is not None:
             code += """
       %s""" % self.text
-            
+
         code += """
     </div>"""
         return code
@@ -689,11 +689,11 @@ class HtmlAllModelsPage(HtmlPage):
     def googleScript(self):
         head = self.head()
         return head,"",""
-    
+
     def head(self):
-        
+
         if self.plots is None: self._populatePlots()
-        
+
         models  = self.pages[0].models
         regions = self.regions
         try:
@@ -741,7 +741,7 @@ class HtmlAllModelsPage(HtmlPage):
         head += """
       }
 
-      $(document).on('pageshow', '[data-role="page"]', function(){ 
+      $(document).on('pageshow', '[data-role="page"]', function(){
         AllSelect()
       });"""
         return head
@@ -749,7 +749,7 @@ class HtmlAllModelsPage(HtmlPage):
 class HtmlSitePlotsPage(HtmlPage):
 
     def __init__(self,name,title):
-        
+
         super(HtmlSitePlotsPage,self).__init__(name,title)
 
     def __str__(self):
@@ -760,18 +760,18 @@ class HtmlSitePlotsPage(HtmlPage):
       <div data-role="header" data-position="fixed" data-tap-toggle="false">
         <h1 id="%sHead">%s</h1>""" % (self.name,self.name,self.title)
         if self.pages:
-	    code += """
+            code += """
         <div data-role="navbar">
-	  <ul>""" 
+          <ul>"""
             for page in self.pages:
                 opts = ""
                 if page == self: opts = " class=ui-btn-active ui-state-persist"
                 code += """
             <li><a href='#%s'%s>%s</a></li>""" % (page.name,opts,page.title)
             code += """
-	  </ul>"""
+          </ul>"""
         code += """
-	</div>
+        </div>
       </div>"""
 
         code += """
@@ -789,7 +789,7 @@ class HtmlSitePlotsPage(HtmlPage):
         <option value='%s'>%s</option>""" % (site,site)
         code += """
       </select>"""
-        
+
         code += """
       <center>
         <div id='map_canvas'></div>
@@ -798,12 +798,12 @@ class HtmlSitePlotsPage(HtmlPage):
 
         code += """
     </div>"""
-        
+
         return code
-    
+
     def setMetrics(self,metric_dict):
         self.models.sort()
-        
+
     def googleScript(self):
 
         callback = "%sMap()" % (self.name)
@@ -839,7 +839,7 @@ class HtmlSitePlotsPage(HtmlPage):
           if (Object.keys(select).length == 1) {
             var site = $("select#SitePlotsSite");
             site[0].selectedIndex = select[0].row;
-            site.selectmenu('refresh');         
+            site.selectmenu('refresh');
           }
           updateMap();
         }
@@ -847,16 +847,16 @@ class HtmlSitePlotsPage(HtmlPage):
         geomap.draw(sitedata, options);
         updateMap();
       };""" % (self.name,self.name,self.name,self.name)
-        
+
         return head,callback,"geomap"
 
     def head(self):
         return ""
-    
+
 class HtmlLayout():
 
     def __init__(self,pages,cname,years=None):
-        
+
         self.pages = pages
         self.cname = cname.replace("/"," / ")
         if years is not None:
@@ -867,7 +867,7 @@ class HtmlLayout():
         for page in self.pages:
             page.pages = self.pages
             page.cname = self.cname
-                
+
     def __str__(self):
         code = """<html>
   <head>"""
@@ -880,14 +880,14 @@ class HtmlLayout():
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/3.16.5/math.min.js"></script>
     <script>
         function getQueryVariable(variable) {
-	    var query = window.location.search.substring(1);
-	    var vars = query.split("&");
-	    for (var i=0;i<vars.length;i++) {
-		var pair = vars[i].split("=");
-		if(pair[0] == variable){return pair[1];}
-	    }
-	    return(false);
-	}
+            var query = window.location.search.substring(1);
+            var vars = query.split("&");
+            for (var i=0;i<vars.length;i++) {
+                var pair = vars[i].split("=");
+                if(pair[0] == variable){return pair[1];}
+            }
+            return(false);
+        }
     </script>"""
 
         functions = []
@@ -910,7 +910,7 @@ class HtmlLayout():
         code += """
         }
     </script>"""
-        
+
         code += """
     <script type='text/javascript'>"""
         for f in functions:
@@ -933,7 +933,7 @@ class HtmlLayout():
         padding:5px;
         font-size: 20px;
         font-weight: bold;
-      }   
+      }
       table.table-header-rotated {
           border-collapse: collapse;
       }
@@ -948,7 +948,7 @@ class HtmlLayout():
       }
       th.rotate {
           height: %dpx;
-          white-space: nowrap;    
+          white-space: nowrap;
       }
       th.rotate > div {
           transform: translate(10px, %dpx) rotate(-45deg);
@@ -984,7 +984,7 @@ def RegisterCustomColormaps():
 
     """
     import colorsys as cs
-    
+
     # stoplight colormap
     Rd1    = [1.,0.,0.]; Rd2 = Rd1
     Yl1    = [1.,1.,0.]; Yl2 = Yl1
@@ -1005,14 +1005,14 @@ def RegisterCustomColormaps():
                         (level2-p, Yl2[0],Yl2[0]),
                         (level2+p, Gn1[0],Gn1[0]),
                         (1.00    , Gn2[0],  0.0)),
-              
+
               'green': ((0.0     , 0.0   ,Rd1[1]),
                         (level1-p, Rd2[1],Rd2[1]),
                         (level1+p, Yl1[1],Yl1[1]),
                         (level2-p, Yl2[1],Yl2[1]),
                         (level2+p, Gn1[1],Gn1[1]),
                         (1.00    , Gn2[1],  0.0)),
-              
+
               'blue':  ((0.0     , 0.0   ,Rd1[2]),
                         (level1-p, Rd2[2],Rd2[2]),
                         (level1+p, Yl1[2],Yl1[2]),
@@ -1020,7 +1020,7 @@ def RegisterCustomColormaps():
                         (level2+p, Gn1[2],Gn1[2]),
                         (1.00    , Gn2[2],  0.0))}
     plt.register_cmap(name='stoplight', data=RdYlGn)
-    
+
     # RdGn colormap
     val = 0.8
     Rd  = cs.rgb_to_hsv(1,0,0)
@@ -1058,7 +1058,7 @@ def RegisterCustomColormaps():
                       (0.5+per, 1.0  , 1.0  ),
                       (1.0    , Rd[2], 0.0  ))}
     plt.register_cmap(name='bias', data=RdBl)
-    
+
 
 def BenchmarkSummaryFigure(models,variables,data,figname,vcolor=None,rel_only=False):
     """Creates a summary figure for the benchmark results contained in the
@@ -1067,7 +1067,7 @@ def BenchmarkSummaryFigure(models,variables,data,figname,vcolor=None,rel_only=Fa
     Parameters
     ----------
     models : list
-        a list of the model names 
+        a list of the model names
     variables : list
         a list of the variable names
     data : numpy.ndarray or numpy.ma.ndarray
@@ -1075,11 +1075,11 @@ def BenchmarkSummaryFigure(models,variables,data,figname,vcolor=None,rel_only=Fa
     figname : str
         the full path of the output file to write
     vcolor : list, optional
-        an array parallel to the variables array containing background 
+        an array parallel to the variables array containing background
         colors for the labels to be displayed on the y-axis.
     """
     from mpl_toolkits.axes_grid1 import make_axes_locatable
-    
+
     # data checks
     assert  type(models)    is type(list())
     assert  type(variables) is type(list())
@@ -1091,7 +1091,7 @@ def BenchmarkSummaryFigure(models,variables,data,figname,vcolor=None,rel_only=Fa
     if vcolor is not None:
         assert type(vcolor) is type(list())
         assert len(vcolor) == len(variables)
-        
+
     # define some parameters
     nmodels    = len(models)
     nvariables = len(variables)
@@ -1106,7 +1106,7 @@ def BenchmarkSummaryFigure(models,variables,data,figname,vcolor=None,rel_only=Fa
 
     bad        = 0.5
     if "stoplight" not in plt.colormaps(): RegisterCustomColormaps()
-    
+
     # plot the variable scores
     if rel_only:
         fig,ax = plt.subplots(figsize=(w,h),ncols=1,tight_layout=True)
@@ -1182,7 +1182,7 @@ def BenchmarkSummaryFigure(models,variables,data,figname,vcolor=None,rel_only=Fa
 
 def WhittakerDiagram(X,Y,Z,**keywords):
     """Creates a Whittaker diagram.
-    
+
     Parameters
     ----------
     X : ILAMB.Variable.Variable
@@ -1205,12 +1205,12 @@ def WhittakerDiagram(X,Y,Z,**keywords):
        the output filename
     """
     from mpl_toolkits.axes_grid1 import make_axes_locatable
-    
+
     # possibly integrate in time
     if X.temporal: X = X.integrateInTime(mean=True)
     if Y.temporal: Y = Y.integrateInTime(mean=True)
     if Z.temporal: Z = Z.integrateInTime(mean=True)
-    
+
     # convert to plot units
     X_plot_unit = keywords.get("X_plot_unit",X.unit)
     Y_plot_unit = keywords.get("Y_plot_unit",Y.unit)
@@ -1218,7 +1218,7 @@ def WhittakerDiagram(X,Y,Z,**keywords):
     if X_plot_unit is not None: X.convert(X_plot_unit)
     if Y_plot_unit is not None: Y.convert(Y_plot_unit)
     if Z_plot_unit is not None: Z.convert(Z_plot_unit)
-    
+
     # flatten data, if any data is masked all the data is masked
     mask   = (X.data.mask + Y.data.mask + Z.data.mask)==0
 
@@ -1252,5 +1252,3 @@ def WhittakerDiagram(X,Y,Z,**keywords):
     #ax.grid()
     fig.savefig(keywords.get("filename","whittaker.png"))
     plt.close()
-
-    

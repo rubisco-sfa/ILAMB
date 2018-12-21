@@ -1,10 +1,10 @@
-from ILAMB.Confrontation import Confrontation
-from ILAMB.Regions import Regions
+from .Confrontation import Confrontation
+from .Regions import Regions
 from mpl_toolkits.basemap import Basemap
-from ILAMB.Variable import Variable
+from .Variable import Variable
 from netCDF4 import Dataset
-import ILAMB.ilamblib as il
-import ILAMB.Post as post
+from . import ilamblib as il
+from . import Post as post
 import pylab as plt
 import numpy as np
 import os
@@ -14,10 +14,10 @@ class ConfRunoff(Confrontation):
 
     """
     def __init__(self,**keywords):
-        
+
         # Ugly, but this is how we call the Confrontation constructor
         super(ConfRunoff,self).__init__(**keywords)
-        
+
         # Now we overwrite some things which are different here
         self.regions        = ['global']
         self.layout.regions = self.regions
@@ -25,7 +25,7 @@ class ConfRunoff(Confrontation):
         # Adding a member variable called basins, add them as regions
         r = Regions()
         self.basins = r.addRegionNetCDF4(self.source.replace("runoff.nc","basins_0.5x0.5.nc"))
-        
+
     def stageData(self,m):
         """Extracts model data and transforms it to make it comparable to the runoff dataset.
 
@@ -58,7 +58,7 @@ class ConfRunoff(Confrontation):
         mod   = mod.coarsenInTime(years)
         obs.name = "runoff"
         mod.name = "runoff"
-        
+
         # Operate on model data to compute mean runoff values in each basin.
         data   = np.ma.zeros(obs.data.shape)
         for i,basin in enumerate(self.basins):
@@ -82,7 +82,7 @@ class ConfRunoff(Confrontation):
 
     def _extendSitesToMap(self,var):
         """A local function to extend site data to the basins.
-        
+
         Parameters
         ----------
         var : ILAMB.Variable.Variable
@@ -94,7 +94,7 @@ class ConfRunoff(Confrontation):
             the spatial variable which is the extended version of the
             input variable
         """
-        
+
         # determine the global mask
         global_mask = None
         global_data = None
@@ -123,7 +123,7 @@ class ConfRunoff(Confrontation):
         """
         # Grab the data
         obs,mod = self.stageData(m)
-        
+
         # Basic analysis from ilamblib.AnalysisMeanState() for
         # datasites and only the global region
         obs_timeint     = obs.integrateInTime(mean=True)
@@ -188,13 +188,13 @@ class ConfRunoff(Confrontation):
         # routine, with some modifications
         super(ConfRunoff,self).modelPlots(m)
 
-        # 
+        #
         bname = os.path.join(self.output_path,"%s_Benchmark.nc" % (self.name       ))
         fname = os.path.join(self.output_path,"%s_%s.nc"        % (self.name,m.name))
-        
+
         # get the HTML page
-        page = [page for page in self.layout.pages if "MeanState" in page.name][0]  
-    
+        page = [page for page in self.layout.pages if "MeanState" in page.name][0]
+
         if not os.path.isfile(bname): return
         if not os.path.isfile(fname): return
         obs = Variable(filename = bname, variable_name = "runoff", groupname = "MeanState")
@@ -205,7 +205,7 @@ class ConfRunoff(Confrontation):
                            basin,
                            "MNAME_global_%s.png" % basin,
                            basin,False,longname=basin)
-            
+
             fig,ax = plt.subplots(figsize=(6.8,2.8),tight_layout=True)
             ax.plot(obs.time/365+1850,obs.data[:,i],lw=2,color='k',alpha=0.5)
             ax.plot(mod.time/365+1850,mod.data[:,i],lw=2,color=m.color      )

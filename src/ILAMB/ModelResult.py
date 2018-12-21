@@ -1,6 +1,6 @@
-from Variable import Variable
+from .Variable import Variable
 from netCDF4 import Dataset
-import ilamblib as il
+from . import ilamblib as il
 import numpy as np
 import glob,os,re
 from mpi4py import MPI
@@ -51,7 +51,7 @@ class ModelResult():
         self.land_areas     = None
         self.land_area      = None
         self.lat            = None
-        self.lon            = None        
+        self.lon            = None
         self.lat_bnds       = None
         self.lon_bnds       = None
         self.variables      = None
@@ -67,7 +67,7 @@ class ModelResult():
         for key in self.names:
             s += "{0:>20}: {1:<50}".format(key,self.names[key]) + "\n"
         return s
-    
+
     def _findVariables(self):
         """Loops through the netCDF4 files in a model's path and builds a dictionary of which variables are in which files.
         """
@@ -78,7 +78,7 @@ class ModelResult():
                 dim_bnd_name = v.getncattr("bounds")
             except:
                 dim_bnd_name = None
-            return dim_name,dim_bnd_name 
+            return dim_name,dim_bnd_name
 
         variables = {}
         names     = {}
@@ -88,7 +88,7 @@ class ModelResult():
                 if self.filter not in fileName: continue
                 if self.regex is not "":
                     m = re.search(self.regex,fileName)
-                    if not m: continue                    
+                    if not m: continue
                 pathName  = os.path.join(subdir,fileName)
 
                 try:
@@ -96,7 +96,7 @@ class ModelResult():
                 except:
                     logger.debug("[%s] Error opening file %s" % (self.name,pathName))
                     continue
-                
+
                 # populate dictionary for which variables are in which files
                 for key in dataset.variables.keys():
                     if not variables.has_key(key):
@@ -111,7 +111,7 @@ class ModelResult():
                         if "standard_name" in v.ncattrs():
                             names[key] = v.standard_name
                             continue
-                    
+
         # determine spatial extents
         lats = [key for key in variables.keys() if (key.lower().startswith("lat" ) or
                                                     key.lower().  endswith("lat" ))]
@@ -135,7 +135,7 @@ class ModelResult():
                     lon = (lon<=180)*lon + (lon>180)*(lon-360) + (lon<-180)*360
                     self.extents[1,0] = max(self.extents[1,0],lon.min())
                     self.extents[1,1] = min(self.extents[1,1],lon.max())
-                    
+
         # fix extents
         eps = 5.
         if self.extents[0,0] < (- 90.+eps): self.extents[0,0] = - 90.
@@ -144,9 +144,9 @@ class ModelResult():
         if self.extents[1,1] > (+180.-eps): self.extents[1,1] = +180.
         self.variables = variables
         self.names = names
-        
+
     def _getGridInformation(self):
-        """Looks in the model output for cell areas as well as land fractions. 
+        """Looks in the model output for cell areas as well as land fractions.
         """
         # Are there cell areas associated with this model?
         if "areacella" not in self.variables.keys(): return
@@ -163,17 +163,17 @@ class ModelResult():
 
         # Now we do the same for land fractions
         if "sftlf" not in self.variables.keys():
-            self.land_areas = self.cell_areas 
+            self.land_areas = self.cell_areas
         else:
             self.land_fraction = (Dataset(self.variables["sftlf"][0]).variables["sftlf"])[...]
-            # some models represent the fraction as a percent 
+            # some models represent the fraction as a percent
             if np.ma.max(self.land_fraction) > 1: self.land_fraction *= 0.01
             np.seterr(over='ignore')
             self.land_areas = self.cell_areas*self.land_fraction
             np.seterr(over='warn')
         self.land_area = np.ma.sum(self.land_areas)
         return
-                
+
     def extractTimeSeries(self,variable,lats=None,lons=None,alt_vars=[],initial_time=-1e20,final_time=1e20,output_unit="",expression=None,convert_calendar=True):
         """Extracts a time series of the given variable from the model.
 
@@ -188,8 +188,8 @@ class ModelResult():
         final_time : float, optional
             include model results occurring before this time
         output_unit : str, optional
-            if specified, will try to convert the units of the variable 
-            extract to these units given. 
+            if specified, will try to convert the units of the variable
+            extract to these units given.
         lats : numpy.ndarray, optional
             a 1D array of latitude locations at which to extract information
         lons : numpy.ndarray, optional
@@ -245,8 +245,8 @@ class ModelResult():
                     var.lon   = var.lon [  imin]
                     var.data  = var.data[:,imin]
                     var.ndata = var.data.shape[1]
-                if lats is not None and var.spatial: var = var.extractDatasites(lats,lons)                    
-                var.time      += self.shift 
+                if lats is not None and var.spatial: var = var.extractDatasites(lats,lons)
+                var.time      += self.shift
                 var.time_bnds += self.shift
                 V.append(var)
             if len(V) > 0: break
@@ -268,8 +268,8 @@ class ModelResult():
                 raise il.VarNotInModel()
         else:
             v = il.CombineVariables(V)
-        
-            
+
+
         return v
 
     def derivedVariable(self,variable_name,expression,lats=None,lons=None,initial_time=-1e20,final_time=1e20,convert_calendar=True):
@@ -289,13 +289,13 @@ class ModelResult():
             a 1D array of latitude locations at which to extract information
         lons : numpy.ndarray, optional
             a 1D array of longitude locations at which to extract information
-        
+
         Returns
         -------
         var : ILAMB.Variable.Variable
             the new variable
 
-        """      
+        """
         from sympy import sympify
         if expression is None: raise il.VarNotInModel()
         args  = {}
@@ -310,15 +310,15 @@ class ModelResult():
         area  = None
         depth = None
         dbnds = None
-        
+
         for arg in sympify(expression).free_symbols:
-            
+
             var  = self.extractTimeSeries(arg.name,
                                           lats = lats,
                                           lons = lons,
                                           convert_calendar = convert_calendar,
                                           initial_time = initial_time,
-                                          final_time   = final_time)          
+                                          final_time   = final_time)
             units[arg.name] = var.unit
             args [arg.name] = var.data.data
 
@@ -364,7 +364,7 @@ class ModelResult():
         np.seterr(divide='raise',invalid='raise')
         mask  += np.isnan(result)
         result = np.ma.masked_array(np.nan_to_num(result),mask=mask)
-        
+
         return Variable(data       = np.ma.masked_array(result,mask=mask),
                         unit       = unit,
                         name       = variable_name,

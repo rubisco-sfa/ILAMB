@@ -1,11 +1,11 @@
-from ILAMB.Confrontation import Confrontation
+from .Confrontation import Confrontation
 from scipy.interpolate import CubicSpline
 from mpl_toolkits.basemap import Basemap
-from ILAMB.Variable import Variable
-from ILAMB.Regions import Regions
-from ILAMB.constants import mid_months,lbl_months,bnd_months
-import ILAMB.Post as post
-import ILAMB.ilamblib as il
+from .Variable import Variable
+from .Regions import Regions
+from .constants import mid_months,lbl_months,bnd_months
+from . import Post as post
+from . import ilamblib as il
 from netCDF4 import Dataset
 import pylab as plt
 import numpy as np
@@ -245,7 +245,7 @@ class ConfCO2(Confrontation):
             except il.VarNotInModel:
                 #print "co2 not in %s" % m.name
                 no_co2 = True
-                
+
         if (((mod is None) or no_co2) and (not never_emulation)):
             #print "Emulating co2 in %s" % m.name
             mod = self.emulatedModelResult(m,obs)
@@ -381,7 +381,7 @@ class ConfCO2(Confrontation):
                                 ndata = mod.ndata,
                                 lat   = mod.lat,
                                 lon   = mod.lon)
-            
+
             # Amplitude score: for each site we compute the relative error
             # in amplitude and then score each site using the
             # exponential. The score for the model is then the arithmetic
@@ -389,7 +389,7 @@ class ConfCO2(Confrontation):
             Samp = Variable(name  = "Amplitude Score global",
                             unit  = "1",
                             data  = np.exp(-np.abs(mod_amp.data-obs_amp.data)/obs_amp.data).mean())
-            
+
             # Interannual variability score: similar to the amplitude
             # score, we also score the relative error in the stdev(iav)
             # and report a mean across sites.
@@ -398,7 +398,7 @@ class ConfCO2(Confrontation):
             Siav = Variable(name  = "Interannual Variability Score global",
                             unit  = "1",
                             data  = np.exp(-np.abs(mstd-ostd)/ostd).mean())
-            
+
             # Min/Max Phase score: for each site we compute the phase
             # shift and normalize it linearly where a 0 day shift gets a
             # score of 1 and a 365/2 day shift is zero. We then compute a
@@ -410,7 +410,7 @@ class ConfCO2(Confrontation):
             Smin = Variable(name = "Min Phase Score global",
                             unit = "1",
                             data = np.average(_computeShift(obs_minp,mod_minp),weights=well_define))
-            
+
         # Write out the intermediate variables
         with Dataset(os.path.join(self.output_path,"%s_%s.nc" % (self.name,m.name)),mode="w") as results:
             results.setncatts({"name" :m.name, "color":m.color})
@@ -582,7 +582,7 @@ class ConfCO2(Confrontation):
                 m_band_max[i] = _meanDay(mmaxp.data[ind])
                 m_band_amp[i] =           mamp.data[ind].mean()
                 m_band_iav[i] =           miav.data.std(axis=0)[ind].mean()
-            
+
         # To plot the mean values over latitude bands superimposed on
         # the globe, we have to transform the phase and amplitude
         # values to [-180,180], as if they were longitudes.
@@ -590,7 +590,7 @@ class ConfCO2(Confrontation):
         o_band_max = o_band_max/365.*360-180
         m_band_min = m_band_min/365.*360-180
         m_band_max = m_band_max/365.*360-180
-        
+
         max_amp    = o_band_amp.max()
         min_amp    = o_band_amp.min()
         amp_ticks = np.linspace(min_amp,max_amp,6)
@@ -601,7 +601,7 @@ class ConfCO2(Confrontation):
         o_band_amp = (o_band_amp-min_amp)/(max_amp-min_amp)*360-180
         m_band_amp = (m_band_amp-min_amp)/(max_amp-min_amp)*360-180
         amp_ticks  = (amp_ticks -min_amp)/(max_amp-min_amp)*360-180
-        
+
         max_iav    = max(o_band_iav.max(),m_band_iav.max())
         min_iav    = 0.
         iav_ticks = np.linspace(min_iav,max_iav,6)
@@ -612,7 +612,7 @@ class ConfCO2(Confrontation):
         o_band_iav = (o_band_iav-min_iav)/(max_iav-min_iav)*360.-180.
         m_band_iav = (m_band_iav-min_iav)/(max_iav-min_iav)*360.-180.
         iav_ticks  = (iav_ticks -min_iav)/(max_iav-min_iav)*360.-180.
-        
+
         # Plot mean latitude band amplitude where amplitude is on the longitude axis
         fig,ax = plt.subplots(figsize=(8,4.5),tight_layout=True)
         bmap = Basemap(projection = 'cyl',
@@ -676,7 +676,7 @@ class ConfCO2(Confrontation):
                        side   = "INTERANNUAL VARIABILITY",
                        width  = fig.get_size_inches()[0]*fig.dpi*0.75,
                        legend = False)
-        
+
         # Plot mean latitude band max phase where the phase is on the longitude axis
         fig,ax = plt.subplots(figsize=(8,4.5),tight_layout=True)
         bmap = Basemap(projection = 'cyl',
