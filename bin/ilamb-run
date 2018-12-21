@@ -57,7 +57,7 @@ def InitializeModels(model_root,models=[],verbose=False,filter="",regex="",model
     M = []
     if len(model_year) != 2: model_year = None
     max_model_name_len = 0
-    if rank == 0 and verbose: print "\nSearching for model results in %s\n" % model_root
+    if rank == 0 and verbose: print("\nSearching for model results in %s\n" % model_root)
     for subdir, dirs, files in os.walk(model_root):
         for mname in dirs:
             if len(models) > 0 and mname not in models: continue
@@ -75,10 +75,10 @@ def InitializeModels(model_root,models=[],verbose=False,filter="",regex="",model
     # optionally output models which were found
     if rank == 0 and verbose:
         for m in M:
-            print ("    {0:>45}").format(m.name)
+            print(("    {0:>45}").format(m.name))
 
     if len(M) == 0:
-        if verbose and rank == 0: print "No model results found"
+        if verbose and rank == 0: print("No model results found")
         comm.Barrier()
         comm.Abort(0)
 
@@ -109,7 +109,7 @@ def ParseModelSetup(model_setup,models=[],verbose=False,filter=""):
     # initialize the models
     M = []
     max_model_name_len = 0
-    if rank == 0 and verbose: print "\nSetting up model results from %s\n" % model_setup
+    if rank == 0 and verbose: print("\nSetting up model results from %s\n" % model_setup)
     with file(model_setup) as f:
         for line in f.readlines():
             if line.strip().startswith("#"): continue
@@ -140,10 +140,10 @@ def ParseModelSetup(model_setup,models=[],verbose=False,filter=""):
     # optionally output models which were found
     if rank == 0 and verbose:
         for m in M:
-            print ("    {0:>45}").format(m.name)
+            print(("    {0:>45}").format(m.name))
 
     if len(M) == 0:
-        if verbose and rank == 0: print "No model results found"
+        if verbose and rank == 0: print("No model results found")
         comm.Barrier()
         comm.Abort(0)
 
@@ -318,7 +318,7 @@ def WorkConfront(W,verbose=False,clean=False):
         # if the results file exists, skip this confrontation unless we want to clean
         if os.path.isfile(os.path.join(c.output_path,"%s_%s.nc" % (c.name,m.name))) and clean is False:
             if verbose:
-                print ("    {0:>%d} {1:<%d} %sUsingCachedData%s " % (maxCL,maxML,OK,ENDC)).format(c.longname,m.name)
+                print(("    {0:>%d} {1:<%d} %sUsingCachedData%s " % (maxCL,maxML,OK,ENDC)).format(c.longname,m.name))
                 sys.stdout.flush()
             continue
 
@@ -330,7 +330,7 @@ def WorkConfront(W,verbose=False,clean=False):
             proc[rank] += dt
             if verbose:
                 dt = datetime.timedelta(seconds=max(1,int(np.round(dt))))
-                print ("    {0:>%d} {1:<%d} %sCompleted%s {2:>8}" % (maxCL,maxML,OK,ENDC)).format(c.longname,m.name,dt)
+                print(("    {0:>%d} {1:<%d} %sCompleted%s {2:>8}" % (maxCL,maxML,OK,ENDC)).format(c.longname,m.name,dt))
                 sys.stdout.flush()
 
         # if things do not work out, print the exception so the user has some idea
@@ -338,7 +338,7 @@ def WorkConfront(W,verbose=False,clean=False):
             ierr[rank] = 1
             logger.debug("[%s][%s]\n%s" % (c.longname,m.name,format_exc()))
             if verbose:
-                print ("    {0:>%d} {1:<%d} %s%s%s" % (maxCL,maxML,FAIL,ex.__class__.__name__,ENDC)).format(c.longname,m.name)
+                print(("    {0:>%d} {1:<%d} %s%s%s" % (maxCL,maxML,FAIL,ex.__class__.__name__,ENDC)).format(c.longname,m.name))
 
 def WorkPost(M,C,W,S,verbose=False,skip_plots=False):
     """Performs the post-processing
@@ -378,13 +378,13 @@ def WorkPost(M,C,W,S,verbose=False,skip_plots=False):
             proc[rank] += dt
             if verbose:
                 dt = datetime.timedelta(seconds=max(1,int(np.round(dt))))
-                print ("    {0:>%d} {1:<%d} %sCompleted%s {2:>8}" % (maxCL,maxML,OK,ENDC)).format(c.longname,m.name,dt)
+                print(("    {0:>%d} {1:<%d} %sCompleted%s {2:>8}" % (maxCL,maxML,OK,ENDC)).format(c.longname,m.name,dt))
                 sys.stdout.flush()
         except Exception as ex:
             ierr[rank] = 1
             logger.debug("[%s][%s]\n%s" % (c.longname,m.name,format_exc()))
             if verbose:
-                print ("    {0:>%d} {1:<%d} %s%s%s" % (maxCL,maxML,FAIL,ex.__class__.__name__,ENDC)).format(c.longname,m.name)
+                print(("    {0:>%d} {1:<%d} %s%s%s" % (maxCL,maxML,FAIL,ex.__class__.__name__,ENDC)).format(c.longname,m.name))
                 sys.stdout.flush()
 
     comm.Barrier()
@@ -496,7 +496,7 @@ parser.add_argument('--mem_per_pair', dest="mem_per_pair", metavar='MEM', type=f
 args = parser.parse_args()
 if args.config is None:
     if rank == 0:
-        print "\nError: You must specify a configuration file using the option --config\n"
+        print("\nError: You must specify a configuration file using the option --config\n")
     comm.Barrier()
     comm.Abort(1)
 
@@ -520,7 +520,7 @@ if args.model_setup is None:
                          model_year=args.model_year)
 else:
     M = ParseModelSetup(args.model_setup[0],args.models,not args.quiet,filter=args.filter[0])
-if rank == 0 and not args.quiet: print "\nParsing config file %s...\n" % args.config[0]
+if rank == 0 and not args.quiet: print("\nParsing config file %s...\n" % args.config[0])
 S = Scoreboard(args.config[0],
                regions   = args.regions,
                master    = rank==0,
@@ -555,13 +555,13 @@ if rank == 0:
     logger.info(" %s" % datetime.datetime.now())
 
 if rank == 0 and not args.quiet and len(Cf) != len(C):
-    print "\nWe filtered some confrontations, actually running...\n"
-    for c in Cf: print ("    {0:>45}").format(c.longname)
+    print("\nWe filtered some confrontations, actually running...\n")
+    for c in Cf: print(("    {0:>45}").format(c.longname))
 C = Cf
 
 sys.stdout.flush(); comm.Barrier()
 
-if rank==0 and not args.quiet: print "\nRunning model-confrontation pairs...\n"
+if rank==0 and not args.quiet: print("\nRunning model-confrontation pairs...\n")
 
 sys.stdout.flush(); comm.Barrier()
 
@@ -570,7 +570,7 @@ WorkConfront(W,not args.quiet,args.clean)
 
 sys.stdout.flush(); comm.Barrier()
 
-if rank==0 and not args.quiet: print "\nFinishing post-processing which requires collectives...\n"
+if rank==0 and not args.quiet: print("\nFinishing post-processing which requires collectives...\n")
 
 sys.stdout.flush(); comm.Barrier()
 
@@ -599,6 +599,6 @@ if (rank == 0              and
     ierr_reduced.max() > 0 and
     args.logging           and
     not args.quiet):
-    print "\nErrors occurred in the run, please consult %s for more detailed information" % logname
+    print("\nErrors occurred in the run, please consult %s for more detailed information" % logname)
 
-if rank==0 and not args.quiet: print "\nCompleted in {0:>8}\n".format(datetime.timedelta(seconds=int(np.round((time.time()-T0)))))
+if rank==0 and not args.quiet: print("\nCompleted in {0:>8}\n".format(datetime.timedelta(seconds=int(np.round((time.time()-T0))))))
