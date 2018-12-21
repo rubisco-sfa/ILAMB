@@ -802,9 +802,8 @@ class Confrontation(object):
             page.setMetrics(metrics)
 
         # write the HTML page
-        f = file(os.path.join(self.output_path,"%s.html" % (self.name)),"w")
-        f.write(str(self.layout))
-        f.close()
+        with open(os.path.join(self.output_path,"%s.html" % (self.name)),"w") as f:
+            f.write(str(self.layout))
 
     def _relationship(self,m,nbin=25):
         """

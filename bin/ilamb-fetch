@@ -32,7 +32,7 @@ def GenerateSha1sumFile(root,suffix=".nc"):
 def CheckSha1sumFile(sha1sumfile,root):
 
     needs_updating = []
-    with file(sha1sumfile) as f:
+    with open(sha1sumfile) as f:
         lines = f.readlines()
         for line in lines:
             line = line.split()
@@ -60,9 +60,8 @@ args = parser.parse_args()
 
 # use create mode if you want to make a checksum file of a directory
 if args.create:
-    f = file(args.local_root + "/SHA1SUM",mode="w")
-    f.write(GenerateSha1sumFile(args.local_root))
-    f.close()
+    with open(args.local_root + "/SHA1SUM",mode="w") as f:
+        f.write(GenerateSha1sumFile(args.local_root))
     sys.exit()
 
 print "\nComparing remote location:\n\n\t%s\n\nTo local location:\n\n\t%s" % (args.remote_root,args.local_root)
@@ -70,7 +69,7 @@ print "\nComparing remote location:\n\n\t%s\n\nTo local location:\n\n\t%s" % (ar
 # download and build the sha1sum check files
 urllib.urlretrieve(args.remote_root + "/SHA1SUM",
                    args.local_root  + "/SHA1SUM")
-if "404 Not Found" in file(args.local_root  + "/SHA1SUM").read():
+if "404 Not Found" in open(args.local_root  + "/SHA1SUM").read():
     raise ValueError("Could not find the sha1 sum file: %s" % (args.remote_root + "/SHA1SUM"))
 needs_updating = CheckSha1sumFile(args.local_root  + "/SHA1SUM",args.local_root)
 

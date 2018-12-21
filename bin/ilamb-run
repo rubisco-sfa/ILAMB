@@ -110,7 +110,7 @@ def ParseModelSetup(model_setup,models=[],verbose=False,filter=""):
     M = []
     max_model_name_len = 0
     if rank == 0 and verbose: print("\nSetting up model results from %s\n" % model_setup)
-    with file(model_setup) as f:
+    with open(model_setup) as f:
         for line in f.readlines():
             if line.strip().startswith("#"): continue
             line       = line.split(",")
@@ -173,7 +173,7 @@ def InitializeRegions(filenames):
         try:
             r.addRegionNetCDF4(filename)
         except IOError:
-            for line in file(filename):
+            for line in open(filename):
                 line = line.strip()
                 if line.startswith("#"): continue
                 line = line.split(",")

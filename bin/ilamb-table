@@ -60,6 +60,6 @@ for c in S.list():
             line += ","
     lines += "\n%s" % line
 
-with file(args.csv[0],mode="w") as f:
+with open(args.csv[0],mode="w") as f:
     f.write(lines)
 
