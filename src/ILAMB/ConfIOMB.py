@@ -401,7 +401,7 @@ class ConfIOMB(Confrontation):
                 # annual cycle in slabs
                 for region in self.regions:
                     z = obs.integrateInSpace(region=region,mean=True)
-                    if not ocyc.has_key(region):
+                    if region not in ocyc:
                         ocyc[region] = np.ma.zeros((12,)+z.data.shape[1:])
                         oN  [region] = np.ma.zeros((12,)+z.data.shape[1:],dtype=int)
                     i = (np.abs(mid_months[:,np.newaxis]-(z.time % 365))).argmin(axis=0)
@@ -409,7 +409,7 @@ class ConfIOMB(Confrontation):
                     (oN  [region])[i,...] += 1
 
                     z = mod.integrateInSpace(region=region,mean=True)
-                    if not mcyc.has_key(region):
+                    if region not in mcyc:
                         mcyc[region] = np.ma.zeros((12,)+z.data.shape[1:])
                         mN  [region] = np.ma.zeros((12,)+z.data.shape[1:],dtype=int)
                     i = (np.abs(mid_months[:,np.newaxis]-(z.time % 365))).argmin(axis=0)
@@ -794,8 +794,8 @@ class ConfIOMB(Confrontation):
                         pname = "_".join(vname.split("_")[:2])
                     if "_over_" in vname:
                         region = vname.split("_over_")[-1]
-                        if not limits.has_key(pname): limits[pname] = {}
-                        if not limits[pname].has_key(region):
+                        if pname not in limits: limits[pname] = {}
+                        if region not in limits[pname]:
                             limits[pname][region] = {}
                             limits[pname][region]["min"]  = +1e20
                             limits[pname][region]["max"]  = -1e20
@@ -803,7 +803,7 @@ class ConfIOMB(Confrontation):
                         limits[pname][region]["min"] = min(limits[pname][region]["min"],var.getncattr("min"))
                         limits[pname][region]["max"] = max(limits[pname][region]["max"],var.getncattr("max"))
                     else:
-                        if not limits.has_key(pname):
+                        if pname not in limits:
                             limits[pname] = {}
                             limits[pname]["min"]  = +1e20
                             limits[pname]["max"]  = -1e20
@@ -836,14 +836,14 @@ class ConfIOMB(Confrontation):
 
             # Pick colormap
             cmap = self.cmap
-            if cmaps.has_key(base_pname):
+            if base_name in cmaps:
                 cmap = cmaps[base_pname]
             elif "score" in pname:
                 cmap = "RdYlGn"
 
             # Need to symetrize?
             if base_pname in ["bias","timelonbias","cyclebias"]:
-                if limits[pname].has_key("min"):
+                if "min" in limits[pname]:
                     vabs =  max(abs(limits[pname]["max"]),abs(limits[pname]["min"]))
                     limits[pname]["min"] = -vabs
                     limits[pname]["max"] =  vabs
@@ -854,7 +854,7 @@ class ConfIOMB(Confrontation):
 
             # Some plots need legends
             if base_pname in ["timeint","bias","biasscore","rmse","rmsescore","timelonint","timelonbias","cycle","cyclebias"]:
-                if limits[pname].has_key("min"):
+                if "min" in limits[pname]:
                     fig,ax = plt.subplots(figsize=(6.8,1.0),tight_layout=True)
                     post.ColorBar(ax,
                                   vmin  = limits[pname]["min" ],

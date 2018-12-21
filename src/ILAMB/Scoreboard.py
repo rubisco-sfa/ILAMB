@@ -133,7 +133,7 @@ def ParseScoreboardConfigureFile(filename):
     root = Node(None)
     previous_node = root
     current_level = 0
-    for line in file(filename).readlines():
+    for line in open(filename).readlines():
         line = line.strip()
         if line.startswith("#"): continue
         m1 = re.search(r"\[h(\d):\s+(.*)\]",line)
@@ -163,7 +163,6 @@ def ParseScoreboardConfigureFile(filename):
         if m3:
             keyword = m3.group(1).strip()
             value   = m3.group(2).strip().replace('"','')
-            #if keyword not in node.__dict__.keys(): continue
             try:
                 node.__dict__[keyword] = value
             except:
@@ -195,7 +194,7 @@ class Scoreboard():
     """
     def __init__(self,filename,regions=["global"],verbose=False,master=True,build_dir="./_build",extents=None,rel_only=False,mem_per_pair=100000.):
 
-        if not os.environ.has_key('ILAMB_ROOT'):
+        if 'ILAMB_ROOT' not in os.environ:
             raise ValueError("You must set the environment variable 'ILAMB_ROOT'")
         self.build_dir = build_dir
         self.rel_only  = rel_only
@@ -212,7 +211,7 @@ class Scoreboard():
             if node.regions is None: node.regions = regions
 
             # pick the confrontation to use, is it a built-in confrontation?
-            if ConfrontationTypes.has_key(node.ctype):
+            if node.ctype in ConfrontationTypes:
                 Constructor = ConfrontationTypes[node.ctype]
             else:
                 # try importing the confrontation
@@ -226,7 +225,7 @@ class Scoreboard():
                 node.confrontation = Constructor(**(node.__dict__))
                 node.confrontation.extents = extents
 
-                if verbose and master: print ("    {0:>%d}\033[92m Initialized\033[0m" % max_name_len).format(node.confrontation.longname)
+                if verbose and master: print(("    {0:>%d}\033[92m Initialized\033[0m" % max_name_len).format(node.confrontation.longname))
 
             except MisplacedData:
 
@@ -235,7 +234,7 @@ class Scoreboard():
                     longname = longname.replace("//","/").replace(self.build_dir,"")
                     if longname[-1] == "/": longname = longname[:-1]
                     longname = "/".join(longname.split("/")[1:])
-                    print ("    {0:>%d}\033[91m MisplacedData\033[0m" % max_name_len).format(longname)
+                    print(("    {0:>%d}\033[91m MisplacedData\033[0m" % max_name_len).format(longname))
 
         def _buildDirectories(node):
             if node.name is None: return
@@ -457,7 +456,8 @@ class Scoreboard():
 
 </body>
 </html>"""
-        file("%s/%s" % (self.build_dir,filename),"w").write(html)
+        with open("%s/%s" % (self.build_dir,filename),"w") as f:
+            f.write(html)
 
     def createBarCharts(self,M):
         html = GenerateBarCharts(self.tree,M)
@@ -492,7 +492,7 @@ def CompositeScores(tree,M):
                         grp     = dataset.groups["MeanState"].groups["scalars"]
                     except:
                         continue
-                    if grp.variables.has_key("Overall Score global"):
+                    if "Overall Score global" in grp.variables:
                         data[ind] = grp.variables["Overall Score global"][0]
                         mask[ind] = 0
                     else:
@@ -627,7 +627,7 @@ def GenerateRelSummaryFigure(S,M,figname,rel_only=False):
             for ind in dep.children:
                 iname = ind.name.split("/")[0]
                 key   = "%s/%s" % (dname,iname)
-                if scores.has_key(key):
+                if key in scores:
                     scores[key] += ind.score
                     counts[key] += 1.
                 else:
@@ -693,9 +693,9 @@ def GenerateRelationshipTree(S,M):
                                 longname = rel.longname
                             except:
                                 longname = rel
-                            rs  = [key for key in grp.variables.keys() if (longname.split("/")[0] in key and
-                                                                           "global"               in key and
-                                                                           "RMSE"                 in key)]
+                            rs  = [key for key in grp.variables if (longname.split("/")[0] in key and
+                                                                    "global"               in key and
+                                                                    "RMSE"                 in key)]
                             if len(rs) != 1: continue
                             v.score[i] = grp.variables[rs[0]][...]
                         if "Overall Score global" not in grp.variables.keys(): continue

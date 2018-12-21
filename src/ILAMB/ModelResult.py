@@ -99,12 +99,12 @@ class ModelResult():
 
                 # populate dictionary for which variables are in which files
                 for key in dataset.variables.keys():
-                    if not variables.has_key(key):
+                    if key not in variables:
                         variables[key] = []
                     variables[key].append(pathName)
 
                     v = dataset.variables[key]
-                    if not names.has_key(key):
+                    if key not in names:
                         if "long_name" in v.ncattrs():
                             names[key] = v.long_name
                             continue
@@ -218,7 +218,7 @@ class ModelResult():
         tmin =  1e20
         tmax = -1e20
         for v in altvars:
-            if not self.variables.has_key(v): continue
+            if v not in self.variables: continue
             for pathName in self.variables[v]:
                 var = Variable(filename       = pathName,
                                variable_name  = variable,

@@ -116,13 +116,13 @@ class Confrontation(object):
         self.lbls     = None
         y0 = None; yf = None
         with Dataset(self.source) as dataset:
-            if dataset.dimensions.has_key("data"):
+            if "data" in dataset.dimensions:
                 #self.hasSites = True
                 if "site_name" in dataset.ncattrs():
                     self.lbls = dataset.site_name.split(",")
                 else:
                     self.lbls = ["site%d" % s for s in range(len(dataset.dimensions["data"]))]
-            if dataset.dimensions.has_key("time"):
+            if "time" in dataset.dimensions:
                 t = dataset.variables["time"]
                 if "bounds" in t.ncattrs():
                     t  = dataset.variables[t.bounds][...]
@@ -347,17 +347,17 @@ class Confrontation(object):
                     pname  = vname.split("_")[0]
                     region = vname.split("_")[-1]
                     if var[...].size <= 1: continue
-                    if space_opts.has_key(pname):
-                        if not limits.has_key(pname):
+                    if pname in space_opts:
+                        if pname not in limits:
                             limits[pname] = {}
                             limits[pname]["min"]  = +1e20
                             limits[pname]["max"]  = -1e20
                             limits[pname]["unit"] = post.UnitStringToMatplotlib(var.getncattr("units"))
                         limits[pname]["min"] = min(limits[pname]["min"],var.getncattr(min_str))
                         limits[pname]["max"] = max(limits[pname]["max"],var.getncattr(max_str))
-                    elif time_opts.has_key(pname):
-                        if not limits.has_key(pname): limits[pname] = {}
-                        if not limits[pname].has_key(region):
+                    elif pname in time_opts:
+                        if pname not in limits: limits[pname] = {}
+                        if region not in limits[pname]:
                             limits[pname][region] = {}
                             limits[pname][region]["min"]  = +1e20
                             limits[pname][region]["max"]  = -1e20
@@ -413,7 +413,7 @@ class Confrontation(object):
                 for g in dataset.groups.keys():
                     if "relationship" not in g: continue
                     grp = dataset.groups[g]
-                    if not limits.has_key(g):
+                    if g not in limits:
                         limits[g] = {}
                         limits[g]["xmin"] = +1e20
                         limits[g]["xmax"] = -1e20
@@ -455,7 +455,7 @@ class Confrontation(object):
                     if region not in v: continue
                     score = v.replace(region,"").strip()
                     weight = 1.
-                    if self.weight.has_key(score): weight = self.weight[score]
+                    if score in self.weight: weight = self.weight[score]
                     overall_score  += weight*scalars.variables[v][...]
                     sum_of_weights += weight
                 overall_score /= max(sum_of_weights,1e-12)
@@ -508,14 +508,14 @@ class Confrontation(object):
             colors.append(dataset.getncattr("color"))
             for region in self.regions:
 
-                if not cycle.has_key(region): cycle[region] = []
+                if region not in cycle: cycle[region] = []
                 key = [v for v in dset.variables.keys() if ("cycle_"  in v and region in v)]
                 if len(key)>0:
                     has_cycle = True
                     cycle[region].append(Variable(filename=fname,groupname="MeanState",variable_name=key[0]))
 
-                if not std.  has_key(region): std  [region] = []
-                if not corr. has_key(region): corr [region] = []
+                if region not in std: std[region] = []
+                if region not in corr: corr[region] = []
 
                 key = []
                 if "scalars" in dset.groups:
@@ -535,7 +535,7 @@ class Confrontation(object):
                            legend = False)
 
         for region in self.regions:
-            if not cycle.has_key(region): continue
+            if region not in cycle: continue
             fig,ax = plt.subplots(figsize=(6.8,2.8),tight_layout=True)
             for name,color,var in zip(models,colors,cycle[region]):
                 dy = 0.05*(self.limits["cycle"][region]["max"]-self.limits["cycle"][region]["min"])
@@ -591,7 +591,7 @@ class Confrontation(object):
                            legend = False)
         if "Benchmark" in models: colors.pop(models.index("Benchmark"))
         for region in self.regions:
-            if not (std.has_key(region) and corr.has_key(region)): continue
+            if not (region in std and region in corr): continue
             if len(std[region]) != len(corr[region]): continue
             if len(std[region]) == 0: continue
             fig = plt.figure(figsize=(6.0,6.0))
@@ -765,7 +765,7 @@ class Confrontation(object):
                 with Dataset(fname) as dataset:
                     mname = dataset.getncattr("name")
                     if mname != "Benchmark": page.models.append(mname)
-                    if not dataset.groups.has_key(page.name): continue
+                    if page.name not in dataset.groups: continue
                     group = dataset.groups[page.name]
 
                     # if the dataset opens, we need to add the model (table row)
@@ -775,7 +775,7 @@ class Confrontation(object):
                     for region in self.regions: metrics[mname][region] = {}
 
                     # columns in the table will be in the scalars group
-                    if not group.groups.has_key("scalars"): continue
+                    if "scalars" not in group.groups: continue
 
                     # we add scalars to the model/region based on the region
                     # name being in the variable name. If no region is found,
@@ -793,7 +793,7 @@ class Confrontation(object):
                                                                         data = var[...])
                         if not found:
                             var = grp.variables[vname]
-                            if not metrics[mname].has_key("global"):
+                            if "global" not in metrics[mname]:
                                 logger.debug("[%s][%s] 'global' not in region list = [%s]" % (self.longname,m.name,",".join(self.regions)))
                                 raise ValueError()
                             metrics[mname]["global"][vname] = Variable(name = vname,
@@ -893,7 +893,7 @@ class Confrontation(object):
             fig,ax = plt.subplots(figsize=(6,5.25),tight_layout=True)
             pc = ax.pcolormesh(xedges, yedges, dist,
                                norm = LogNorm(),
-                               cmap = 'plasma' if plt.cm.cmap_d.has_key('plasma') else 'summer',
+                               cmap = 'plasma' if 'plasma' in plt.cm.cmap_d else 'summer',
                                vmin = 1e-4, vmax = 1e-1)
             div = make_axes_locatable(ax)
             fig.colorbar(pc,cax=div.append_axes("right",size="5%",pad=0.05),

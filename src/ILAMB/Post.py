@@ -650,9 +650,9 @@ class HtmlAllModelsPage(HtmlPage):
       <select id="%sPlot" onchange="AllSelect()">""" % (self.name)
             for plot in self.plots:
                 name  = ''
-                if space_opts.has_key(plot.name):
+                if plot.name in space_opts:
                     name = space_opts[plot.name]["name"]
-                elif time_opts.has_key(plot.name):
+                elif plot.name in time_opts:
                     name = time_opts[plot.name]["name"]
                 elif plot.longname is not None:
                     name = plot.longname

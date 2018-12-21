@@ -1003,7 +1003,7 @@ class Variable:
             dset = dataset
         else:
             # if a group is desired, check to see it exists and write into group
-            if not dataset.groups.has_key(group):
+            if group not in dataset.groups:
                 dset = dataset.createGroup(group)
             else:
                 dset = dataset.groups[group]
@@ -1021,7 +1021,7 @@ class Variable:
 
         grp = dset
         if self.data.size == 1:
-            if not dset.groups.has_key("scalars"):
+            if "scalars" not in dset.groups:
                 grp = dset.createGroup("scalars")
             else:
                 grp = dset.groups["scalars"]

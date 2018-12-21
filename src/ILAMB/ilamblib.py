@@ -487,7 +487,7 @@ def SympifyWithArgsUnits(expression,args,units):
             # implicit unit of 1
             keys = [str(arg) for arg in expr.args]
             for key in keys:
-                if not units.has_key(key): units[key] = "1"
+                if key not in units: units[key] = "1"
 
             # if we are adding, all arguments must have the same unit.
             key0 = keys[0]
@@ -506,7 +506,7 @@ def SympifyWithArgsUnits(expression,args,units):
 
             # just create the new unit
             keys = [str(arg) for arg in expr.args]
-            units[ekey] = " ".join(["(%s)" % units[key] for key in keys if units.has_key(key)])
+            units[ekey] = " ".join(["(%s)" % units[key] for key in keys if key in units])
     return sympify(str(expression),locals=args),units[ekey]
 
 def ComputeIndexingArrays(lat2d,lon2d,lat,lon):
