@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 import hashlib,argparse,os,sys,urllib
+from urllib.request import urlretrieve
 
 def BuildDirectories(filepath):
     d = os.path.dirname(filepath)
@@ -46,7 +47,7 @@ def CheckSha1sumFile(sha1sumfile,root):
     
 # default value is ILAMB_ROOT if set
 local_root = "./"
-if os.environ.has_key("ILAMB_ROOT"): local_root = os.environ["ILAMB_ROOT"]
+if "ILAMB_ROOT" in os.environ: local_root = os.environ["ILAMB_ROOT"]
 
 # parse options
 parser = argparse.ArgumentParser(description=__doc__)
@@ -64,33 +65,31 @@ if args.create:
         f.write(GenerateSha1sumFile(args.local_root))
     sys.exit()
 
-print "\nComparing remote location:\n\n\t%s\n\nTo local location:\n\n\t%s" % (args.remote_root,args.local_root)
+print("\nComparing remote location:\n\n\t%s\n\nTo local location:\n\n\t%s" % (args.remote_root,args.local_root))
 
 # download and build the sha1sum check files
-urllib.urlretrieve(args.remote_root + "/SHA1SUM",
-                   args.local_root  + "/SHA1SUM")
+urlretrieve(args.remote_root + "/SHA1SUM",args.local_root  + "/SHA1SUM")
 if "404 Not Found" in open(args.local_root  + "/SHA1SUM").read():
     raise ValueError("Could not find the sha1 sum file: %s" % (args.remote_root + "/SHA1SUM"))
 needs_updating = CheckSha1sumFile(args.local_root  + "/SHA1SUM",args.local_root)
 
 if len(needs_updating) == 0:
-    print "\nAll your data is up-to-date and clean.\n"
+    print("\nAll your data is up-to-date and clean.\n")
     os.system("rm -f " + args.local_root  + "/SHA1SUM")
     sys.exit()
 
-print "\nI found the following files which are missing, out of date, or corrupt:\n"
+print("\nI found the following files which are missing, out of date, or corrupt:\n")
 for key in needs_updating:
-    print "\t%s/%s" % (args.local_root,key)
+    print("\t%s/%s" % (args.local_root,key))
     
-reply = str(raw_input('\nDownload replacements? [y/n] ')).lower().strip()
+reply = str(input('\nDownload replacements? [y/n] ')).lower().strip()
 if reply[0] == 'y':
-    print " "
+    print(" ")
     for key in needs_updating:
-        print "\tDownloading %s/%s..." % (args.remote_root,key)
+        print("\tDownloading %s/%s..." % (args.remote_root,key))
         BuildDirectories(args.local_root  + "/" + key)
-        urllib.urlretrieve(args.remote_root + "/" + key,
-                           args.local_root  + "/" + key)
-    print "\nDownload complete. Rerun ilamb-fetch to check file integrity.\n"
+        urlretrieve(args.remote_root + "/" + key,args.local_root  + "/" + key)
+    print("\nDownload complete. Rerun ilamb-fetch to check file integrity.\n")
     
 os.system("rm -f " + args.local_root  + "/SHA1SUM")
 

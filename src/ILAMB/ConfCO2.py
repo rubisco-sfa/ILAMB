@@ -185,7 +185,7 @@ class ConfCO2(Confrontation):
         ilon = np.abs(lon[:,np.newaxis]-obs.lon).argmin(axis=0)
 
         # Apply the operator
-        Nyrs  = mod.time.size/12
+        Nyrs  = int(mod.time.size/12)
         Ntot  = 12*Nyrs + Ninf
         eflux = np.zeros((obs.ndata,22,Ntot))
         for j in range(20):

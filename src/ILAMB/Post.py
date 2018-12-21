@@ -551,7 +551,7 @@ class HtmlPage(object):
         self.metric_dict = metric_dict
 
         # Build and sort models, regions, and metrics
-        models  = self.metric_dict.keys()
+        models  = list(self.metric_dict.keys())
         regions = []
         metrics = []
         units   = {}

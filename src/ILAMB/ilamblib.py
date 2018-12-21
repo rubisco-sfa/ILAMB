@@ -469,7 +469,7 @@ def SympifyWithArgsUnits(expression,args,units):
 
     # try to convert all arguments to same units if possible, it
     # catches most use cases
-    keys = args.keys()
+    keys = list(args.keys())
     for i,key0 in enumerate(keys):
         for key in keys[(i+1):]:
             try:
@@ -1245,7 +1245,7 @@ def AnalysisMeanStateSites(ref,com,**keywords):
                 bias_score,
                 shift,
                 shift_score]
-    if com_spaceint[com_spaceint.keys()[0]].data.size > 1: out_vars.append(com_spaceint)
+    if com_spaceint[list(com_spaceint.keys())[0]].data.size > 1: out_vars.append(com_spaceint)
     if not skip_cycle:
         com_maxt_map   .name = "phase_map_of_%s"      % ref.name
         shift_map      .name = "shift_map_of_%s"      % ref.name
@@ -1279,7 +1279,7 @@ def AnalysisMeanStateSites(ref,com,**keywords):
 
     # Rename and optionally dump out information to netCDF4 files
     out_vars = [ref_period_mean,ref_timeint]
-    if ref_spaceint[ref_spaceint.keys()[0]].data.size > 1: out_vars.append(ref_spaceint)
+    if ref_spaceint[list(ref_spaceint.keys())[0]].data.size > 1: out_vars.append(ref_spaceint)
     ref_timeint .name = "timeint_of_%s"        % ref.name
     if not skip_cycle:
         ref_maxt_map.name = "phase_map_of_%s"      % ref.name

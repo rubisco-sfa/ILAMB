@@ -557,8 +557,8 @@ class Confrontation(object):
                        side   = "MODEL COLORS",
                        legend = False)
         def _alphabeticalBenchmarkFirst(key):
-            key = key[0].upper()
-            if key == "BENCHMARK": return 0
+            key = key[0].lower()
+            if key == "BENCHMARK": return "A"
             return key
         tmp = sorted(zip(models,colors),key=_alphabeticalBenchmarkFirst)
         fig,ax = plt.subplots()
