@@ -1,11 +1,36 @@
 Installation
 ============
 
-The ILAMB benchmarking software is written in python 2.7x and depends
-on a few packages which extend the language's usefulness in scientific
-applications. The easiest way to install the ILAMB package and its
-dependencies is to get them from the Python Package Index (pypi_) using
-pip_. To do so, type::
+The ILAMB benchmarking software is written in python 3 and depends on
+a few packages which extend the language's usefulness in scientific
+applications. This tutorial is meant to guide you in installing these
+dependencies. We acknowledge that installing software is a huge
+barrier for many scientists, and so we aim to not only give basic
+instructions that should work, but also teach the user what they are
+doing and how to interpret things when they go wrong.
+
+To make matters more complicated, there are many ways to install
+ILAMB. Here are a few of your options explained in more detailed in
+separate sections below.
+
+1. Install from the Python Package Index (pypi_). This is good if you
+   only need to run a released version of ILAMB.
+2. Install by cloning the git repository and then performing a local
+   install with pip_. This is good if you need features that are
+   currently being developed and not yet in a major release.
+3. Install by creating a virtual environment using conda_. This is a
+   good option for installing dependencies if you are intending to run
+   on an institutional machine where you lack permissions to install
+   dependencies.
+
+Method 1: The Python Package Index
+----------------------------------
+
+The canonical method of installing python packages is via the Python
+Package Index (pypi_). Developers can choose to list their projects
+here for the world to discover using the pip_ utility which also
+automatically installs the dependencies. To install ILAMB using pip_
+you type::
 
   pip install ILAMB --user
 
@@ -16,22 +41,27 @@ will cause the packages to be installed to a *local* directory in
 place of the *system* directory. This allows packages to be installed
 without administrator privileges, and leaves your system installation
 untouched, which may be important if you need to revert to a previous
-state. You should see that a number of packages in addition to ILAMB
+state.
+
+You should see that a number of packages in addition to ILAMB
 had their versions checked or were upgraded/installed as needed. These
 include:
 
 * numpy_, the fundamental package for scientific computing with python
 * matplotlib_, a 2D plotting library which produces publication quality figures
-* netCDF4_, a python/numpy interface to the netCDF C library (you must have the C library installed)
 * sympy_, a python library for symbolic mathematics
+* netCDF4_, a python/numpy interface to the netCDF C library (you must have the C library installed)
 * mpi4py_, a python wrapper around the MPI library (you must have a MPI implementation installed)
-* cf_units_, a python interface to UNIDATA’s Udunits-2 library with CF extensions (you must have the Udunits library installed)
+* cf-units_, a python interface to UNIDATA’s Udunits-2 library with CF extensions (you must have the Udunits library installed)
 
 I have designated that a few of these dependencies are python
 interfaces to C libraries and so the library must also be installed
 separately. See the individual package websites for more
 details. Ideally, pip_ would be able to install all our dependencies
-automatically.
+automatically. If these underlying C-libraries (MPI, netCDF4, UDUNITS)
+are not already installed on your machine and you are unable to get
+them installed, you might consider using conda_ and explained in
+method 3.
 
 Unfortunately, one of our dependencies must be installed
 manually. Despite being listed in the Python Package Index, basemap_
@@ -50,18 +80,105 @@ python packages will contain a file called ``setup.py`` in the top
 level directory. This is where a developer tells python how to install
 the package. Now we type::
 
-  python setup.py install --user
+  pip install ./ --user
 
-and the package should install. Hopefully in the future basemap_ will
-improve their installation process in pypi_, but in the meantime it
-must be installed as we have detailed here.
+and the package should install. (NOTE: for those of you accustomed to
+using ``python setup.py install --user``, this method is no longer
+recommended and instead we let pip_ install the locally downloaded
+package. This is because pip installs additional metadata about which
+files were installed, making uninstalling the package possible. In
+recent versions of pip, removal of a package not installed by pip is
+not allowed.)
 
 You can test your installation by the following command::
   
-  python -c "import ILAMB; print ILAMB.__version__"
+  python -c "import ILAMB; print(ILAMB.__version__)"
 
 If you get a numerical output, then the package has been successfully
 installed.
+
+Method 2: Clone the Source
+--------------------------
+
+The main difference in this method is that we will be installing the
+source code from the cloned repository instead of a tagged version
+listed in the PyPI. If you are involved in developing features or
+needing bleeding edge developments, this is the method of installation
+you will need. First, clone the git repository::
+
+  git clone https://bitbucket.org/ncollier/ilamb.git
+
+and then navigate into the newly created directory. Then type::
+
+  pip install ./ --user
+
+after which, you may follow instructions as listed in Method 1.  
+  
+Method 3: Conda Environments
+----------------------------
+
+The last method we will describe makes use of a different package
+manager, conda_. Conda goes beyond what pip can do and installs
+*everything* that the python packages depend on, including the
+underlying C-libraries.
+
+What makes this more powerful is that conda_ also allows for the
+creation of environments. This means that we can use conda to
+automatically create a special environment for ILAMB which will not
+conflict with any other software you may have.
+
+To proceed with this method, you will need to have installed anaconda
+or miniconda (see documentation for conda_). If you are wanting to run
+on an institutional machine, this might be installed for you
+already. Look among the possible modules which the computing center
+provides. For example, at the time of this writing, on OLCF/Rhea you
+would need to type::
+
+  module load python_anaconda3
+
+Once conda is properly installed/loaded, then clone the ILAMB
+repository and enter the directory::
+
+  git clone https://bitbucket.org/ncollier/ilamb.git  
+  cd ilamb
+
+There are two files in this directory with the ``.yml`` suffix. These
+are the files that conda_ will use to create the environment. To do
+so, type::
+
+  conda env create -f ilamb.yml
+
+You may notice that there are two ``.yml`` files. The ``ilamb.yml``
+file will create an environment by adding a channel called
+``conda-forge`` and then installing packages listed there. This
+includes ``openmpi`` with ``mpi4py``. This is the file you should use
+if you are running on your own personal machine and wish to create an
+environment for running ILAMB. You may, however, wish that ``mpi4py``
+wrap the system installed MPI implementation instead. For this you
+should rather create the environment by::
+
+  conda env create -f ilamb-sysmpi.yml
+  
+You want to do this if you are on an institutional machine where jobs
+are queued. The MPI implementation on these machines is specially
+configured and thus you want to wrap ``mpi4py`` around this. Once the
+environment is built, you will need to activate it::
+
+  conda activate ilamb
+
+Once inside this environment, we can install ILAMB easily using pip::
+
+  pip install ./
+
+In this case, we omit the ``--user`` as pip in this environment is
+automatically configured to install the packages into the environment
+itself. As in the other methods, run::
+
+  python -c "import ILAMB; print(ILAMB.__version__)"
+  
+to ensure correct installation. Note that each time you wish to use
+ILAMB, you will need to activate this environment including inside
+submission scripts on institutional machines.
 
 Now what?
 ---------
@@ -118,7 +235,7 @@ python, but it is installed in some other location.
 Now we provide some interpretation of the possible output you got from
 the test. If you ran::
 
-  python -c "import ILAMB; print ILAMB.__version__"
+  python -c "import ILAMB; print(ILAMB.__version__")
 
 and you see something like::
 
@@ -171,99 +288,6 @@ upgrade it to the most up to date version::
 and then install basemap also using the ``--user`` option. This should
 ensure that matplotlib toolkits find the basemap extension.
 
-Institutional machines
-----------------------
-
-While ILAMB is portable and runs on your laptop or workstation, you
-may be working remotely on an institutional machine where you have
-modeling output results. Many times these machines already have our
-dependencies installed and we only have need to load them using
-environment modules. See your computing center usage tutorials for
-more information on how these work. Typically, you can search for
-available software by::
-
-  module avail search_term
-
-for example. And then is loaded by::
-
-  module load software_name
-
-In an effort to make it simpler for users to get ILAMB running, we are
-listing installation instructions here for a number of machines with
-which we have experience. In each case, we have tried to start with
-only the default software enabled. Your mileage may vary as the
-software stacks at these centers frequently change.
-
-It is relevant to note that ILAMB uses MPI to parallelize the
-benchmarking process. Thus MPI is called even if you are running on
-just one process. Because of this, many if not all institutional
-machines will then require you to launch a job though a submission
-script. See your computing center for details.
-
-Edison @ NERSC
-~~~~~~~~~~~~~~
-
-.. code-block:: bash
-
-  module load python
-  module load numpy
-  module load matplotlib
-  module load basemap
-  module load mpi4py
-  module load netcdf
-  module load netcdf4-python
-  module load udunits 
-  pip install ILAMB --user
-  export PATH=${PATH}:${HOME}/.local/edison/2.7.9/bin/
-
-The matplotlib on Edison is pretty old and control of the backend is
-not possible using the ``MPLBACKEND`` environment variable. If you
-want to run without needing to connect with the ``-X`` option, you
-will need to change the backend through the ``matplotlibrc``
-file. First, copy this file from the system level, into your local
-configure directory::
-  
-  cp /usr/common/software/python/matplotlib/1.4.3/lib/python2.7/site-packages/matplotlib-1.4.3-py2.7-linux-x86_64.egg/matplotlib/mpl-data/matplotlibrc ${HOME}/.config/matplotlib/
-
-Next open the local copy of the file with a editor and search for
-``backend`` changing the value to the right of the colon to ``Agg``.
-  
-Rhea @ OLCF
-~~~~~~~~~~~
-
-.. code-block:: bash
-		
-  module rm PE-intel
-  module load PE-gnu
-  module load netcdf
-  module load udunits
-  module load geos
-  module load python
-  module load python_setuptools
-  module load python_pip
-  module load python_numpy
-  module load python_matplotlib
-  module load python_matplotlib_basemap_toolkit
-  module load python_netcdf4
-  module load python_mpi4py
-  pip install ILAMB --user
-  export PATH=${PATH}:${HOME}/.local/bin/
-  # The udunits module file should do this but doesn't
-  export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/sw/rhea/udunits/2.1.24/rhel6.6_gnu4.4.7/lib/
-   
-The matplotlib on Rhea is pretty old and control of the backend is
-not possible using the ``MPLBACKEND`` environment variable. If you
-want to run without needing to connect with the ``-X`` option, you
-will need to change the backend through the ``matplotlibrc``
-file. First, copy this file from the system level, into your local
-configure directory::
-
-  cp /sw/rhea/python_matplotlib/1.4.3/python2.7.9_numpy1.9.2_gnu4.8.2/lib64/python2.7/site-packages/matplotlib-1.4.3-py2.7-linux-x86_64.egg/matplotlib/mpl-data/matplotlibrc ${HOME}/.config/matplotlib/
-
-Next open the local copy of the file with a editor and search for
-``backend`` changing the value to the right of the colon to ``Agg``.
-
-
 
 .. _pypi:       https://pypi.python.org/pypi
 .. _pip:        https://pip.pypa.io/en/stable/
@@ -271,8 +295,9 @@ Next open the local copy of the file with a editor and search for
 .. _numpy:      https://www.numpy.org/
 .. _matplotlib: https://matplotlib.org/
 .. _netCDF4:    https://github.com/Unidata/netcdf4-python
-.. _cf_units:   https://github.com/SciTools/cf-units
+.. _cf-units:   https://github.com/SciTools/cf-units
 .. _basemap:    https://github.com/matplotlib/basemap
 .. _sympy:      https://www.sympy.org/
 .. _mpi4py:     https://pythonhosted.org/mpi4py/
 .. _github:     https://github.com
+.. _conda:      https://conda.io/docs/
