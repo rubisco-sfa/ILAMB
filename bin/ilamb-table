@@ -12,20 +12,23 @@ parser.add_argument('--build_dir', dest="build_dir", metavar='build_dir', type=s
                     help='path of where to save the output')
 parser.add_argument('--csv_file', dest="csv", metavar='csv', type=str, nargs=1,default=["table.csv"],
                     help='destination filename for the table')
+parser.add_argument('--scalar', dest="scalar", metavar='scalar', type=str, default="RMSE",
+                    help='name of the scalar to abstract')
 
 args = parser.parse_args()
 if args.config is None:
-    print "\nError: You must specify a configuration file using the option --config\n"
+    print("\nError: You must specify a configuration file using the option --config\n")
     sys.exit(1)
     
 S = Scoreboard(args.config[0],verbose=False,build_dir=args.build_dir[0])
 
 region = "global"
-scalar = "RMSE"
+scalar = args.scalar
 sname  = "%s %s" % (scalar,region)
 group  = "MeanState"
 table  = {}
 unit   = {}
+print(scalar)
 for c in S.list():
     for subdir, dirs, files in os.walk(c.output_path):
         for fname in files:
@@ -36,7 +39,7 @@ for c in S.list():
                 grp = dset.groups[group]["scalars"]
                 if sname     not in grp.variables.keys(): continue
                 var = grp.variables[sname]
-                if not table.has_key(c.longname):
+                if c.longname not in table:
                     table[c.longname] = {}
                     unit [c.longname] = var.units
                 table[c.longname][dset.name] = var[...]
@@ -51,11 +54,11 @@ models.sort()
 # render a table of values in csv format
 lines = ",".join(["Name","Units"] + models)
 for c in S.list():
-    if not table.has_key(c.longname): continue
+    if c.longname not in table: continue
     line = "%s,%s" % (c.longname,unit[c.longname])
     for m in models:
-        if table[c.longname].has_key(m):
-            line += ",%g" % (table[c.longname][m])
+        if m in table[c.longname]:
+            line += ",%.15e" % (table[c.longname][m])
         else:
             line += ","
     lines += "\n%s" % line
