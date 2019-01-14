@@ -1,0 +1,17 @@
+name: ilamb
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3
+  - proj4
+  - numpy
+  - matplotlib
+  - basemap
+  - netCDF4
+  - sympy
+  - scipy
+  - udunits
+  - mpi4py
+  - pip:
+    - cf_units
