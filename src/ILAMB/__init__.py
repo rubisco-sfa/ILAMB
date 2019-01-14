@@ -1,6 +1,6 @@
 __author__       = 'Nathan Collier'
-__date__         = 'Jun 2018'
-__version__      = '2.3'
+__date__         = 'Jan 2019'
+__version__      = '2.4'
 
 from distutils.version import LooseVersion
 import platform
@@ -29,7 +29,3 @@ for key in requires.keys():
         raise ImportError(
             "Bad %s version: ILAMB %s requires %s >= %s got %s" %
             (key,__version__,key,requires[key],pkg.__version__))
-
-
-
-
