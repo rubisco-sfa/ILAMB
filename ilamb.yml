@@ -1,3 +1,6 @@
+# This file creates an environment suitable for installing ILAMB. Use
+# this file if you are running ILAMB on your personal machine or small
+# cluster where you do not need to submit jobs into a queue to run.
 name: ilamb
 channels:
   - conda-forge
