@@ -1,10 +1,10 @@
-from Confrontation import Confrontation
-from Variable import Variable
+from .Confrontation import Confrontation
+from .Variable import Variable
 from netCDF4 import Dataset
 from copy import deepcopy
-import ilamblib as il
+from . import ilamblib as il
 import pylab as plt
-import Post as post
+from . import Post as post
 import numpy as np
 import os,glob
 
@@ -13,14 +13,14 @@ class ConfNBP(Confrontation):
 
     """
     def __init__(self,**keywords):
-        
+
         # Ugly, but this is how we call the Confrontation constructor
         super(ConfNBP,self).__init__(**keywords)
 
         # Now we overwrite some things which are different here
         self.regions        = ['global']
         self.layout.regions = self.regions
-        
+
     def stageData(self,m):
         r"""Extracts model data and integrates it over the globe to match the confrontation dataset.
 
@@ -47,22 +47,22 @@ class ConfNBP(Confrontation):
                                    alt_vars = self.alternate_vars)
         mod  = mod.integrateInSpace().convert(obs.unit)
         tmin = mod.time_bnds[ 0,0]
-        tmax = mod.time_bnds[-1,1]        
+        tmax = mod.time_bnds[-1,1]
         obs,mod = il.MakeComparable(obs,mod,clip_ref=True)
 
         # The obs can go beyond the information which models have
         obs.trim(t=[tmin,tmax])
         mod.trim(t=[tmin,tmax])
-        
+
         # sign convention is backwards
         obs.data *= -1.
         mod.data *= -1.
-        
+
         return obs,mod
 
     def confront(self,m):
         r"""Confronts the input model with the observational data.
-        
+
         Parameters
         ----------
         m : ILAMB.ModelResult.ModelResult
@@ -73,7 +73,7 @@ class ConfNBP(Confrontation):
         obs,mod = self.stageData(m)
         obs_sum = obs.accumulateInTime().convert("Pg")
         mod_sum = mod.accumulateInTime().convert("Pg")
-        
+
         # End of period information
         yf = np.round(obs.time_bnds[-1,1]/365.+1850.)
         obs_end = Variable(name = "nbp(%4d)" % yf,
@@ -108,13 +108,13 @@ class ConfNBP(Confrontation):
             score = Variable(name = "Temporal Distribution Score global",
                              unit = "1",
                              data = 4.0*(1.0+R.data)/((std+1.0/std)**2 *(1.0+R0)))
-        
+
         # Change names to make things easier to parse later
         obs     .name = "spaceint_of_nbp_over_global"
         mod     .name = "spaceint_of_nbp_over_global"
         obs_sum .name = "accumulate_of_nbp_over_global"
         mod_sum .name = "accumulate_of_nbp_over_global"
-        
+
         # Dump to files
         results = Dataset(os.path.join(self.output_path,"%s_%s.nc" % (self.name,m.name)),mode="w")
         results.setncatts({"name" :m.name, "color":m.color})
@@ -126,7 +126,7 @@ class ConfNBP(Confrontation):
         if not skip_taylor:
             score .toNetCDF4(results,group="MeanState",attributes={"std":std,"R":R.data})
         results.close()
-        
+
         if self.master:
             results = Dataset(os.path.join(self.output_path,"%s_Benchmark.nc" % (self.name)),mode="w")
             results.setncatts({"name" :"Benchmark", "color":np.asarray([0.5,0.5,0.5])})
@@ -134,8 +134,8 @@ class ConfNBP(Confrontation):
             obs_sum .toNetCDF4(results,group="MeanState")
             obs_end .toNetCDF4(results,group="MeanState")
             results.close()
-            
-        
+
+
     def compositePlots(self):
 
         # we want to run the original and also this additional plot
@@ -163,14 +163,14 @@ class ConfNBP(Confrontation):
                 accum[mname] = Variable(filename      = fname,
                                         variable_name = "accumulate_of_nbp_over_global",
                                         groupname     = "MeanState")
-        
+
         # temporal distribution Taylor plot
         if len(corr) > 0:
             page.addFigure("Spatially integrated regional mean",
                            "temporal_variance",
                            "temporal_variance.png",
                            side   = "TEMPORAL TAYLOR DIAGRAM",
-                           legend = False)       
+                           legend = False)
             fig = plt.figure(figsize=(6.0,6.0))
             keys = corr.keys()
             post.TaylorDiagram(np.asarray([std [key] for key in keys]),
@@ -179,7 +179,7 @@ class ConfNBP(Confrontation):
                                [colors[key] for key in keys])
             fig.savefig(os.path.join(self.output_path,"temporal_variance.png"))
             plt.close()
-            
+
 
         # composite annual cycle plot
         if len(accum) > 1:

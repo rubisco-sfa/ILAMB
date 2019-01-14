@@ -36,4 +36,4 @@ Documentation
    
 .. _ILAMB:     http://www.ilamb.org/
 .. _bitbucket: https://bitbucket.org/ncollier/ilamb
-.. _site:      http://www.climatemodeling.org/~nate/ILAMB/index.html
+.. _site:      https://www.ilamb.org/CMIP5/esmHistorical/

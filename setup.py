@@ -4,7 +4,7 @@ from codecs import open
 import subprocess
 import os
 
-VERSION    = '2.3.1'
+VERSION    = '2.4'
 
 def git_version():
     """
@@ -91,12 +91,12 @@ setup(
         'Operating System :: MacOS',
         'Operating System :: POSIX',
         'Operating System :: POSIX :: Linux',
-        'Programming Language :: Python :: 2',
-        'Programming Language :: Python :: 2.7',
+        'Programming Language :: Python :: 3',
     ],
     keywords=['benchmarking','earth system modeling','climate modeling','model intercomparison'],
     packages=['ILAMB'],
     package_dir={'ILAMB' : 'src/ILAMB'},
+    package_data={'ILAMB' : ['data/*.cfg']},
     scripts=['bin/ilamb-run','bin/ilamb-fetch','bin/ilamb-mean','bin/ilamb-doctor','bin/ilamb-table'],
     install_requires=['numpy>=1.11.0',
                       'matplotlib>=1.4.3',

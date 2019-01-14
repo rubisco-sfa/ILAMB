@@ -1,15 +1,15 @@
-from ILAMB.Confrontation import Confrontation
-from ILAMB.Confrontation import getVariableList
+from .Confrontation import Confrontation
+from .Confrontation import getVariableList
 import matplotlib.pyplot as plt
-import ILAMB.Post as post
+from . import Post as post
 from scipy.interpolate import CubicSpline
 from mpl_toolkits.basemap import Basemap
-from ILAMB.Variable import Variable
+from .Variable import Variable
 from netCDF4 import Dataset
-import ILAMB.ilamblib as il
+from . import ilamblib as il
 import numpy as np
 import os,glob
-from constants import lbl_months,bnd_months
+from .constants import lbl_months,bnd_months
 
 def _meanDiurnalCycle(var,n):
     begin = np.argmin(var.time[:(n-1)]%n)
@@ -91,7 +91,7 @@ def _findSeasonalCentroid(t,x):
     -------
     centroid: numpy.ndarray
         array of size 4, [r,theta,x,y]
-    """    
+    """
     x0 = (x*np.cos(t/365.*2*np.pi)).mean()
     y0 = (x*np.sin(t/365.*2*np.pi)).mean()
     r0 = np.sqrt(x0*x0+y0*y0)
@@ -99,7 +99,7 @@ def _findSeasonalCentroid(t,x):
     return r0,a0,x0,y0
 
 class ConfDiurnal(Confrontation):
-    """A confrontation for examining the diurnal 
+    """A confrontation for examining the diurnal
     """
     def __init__(self,**keywords):
 
@@ -124,7 +124,7 @@ class ConfDiurnal(Confrontation):
             for attr in dset.ncattrs():
                 pages[-1].text += "<p><b>&nbsp;&nbsp;%s:&nbsp;</b>%s</p>\n" % (attr,dset.getncattr(attr).encode('ascii','ignore'))
         self.layout = post.HtmlLayout(pages,self.longname)
-        
+
     def stageData(self,m):
 
         obs = Variable(filename       = self.source,
@@ -133,7 +133,7 @@ class ConfDiurnal(Confrontation):
                        convert_calendar = False)
         if obs.time is None: raise il.NotTemporalVariable()
         self.pruneRegions(obs)
-        
+
         # Try to extract a commensurate quantity from the model
         mod = m.extractTimeSeries(self.variable,
                                   alt_vars     = self.alternate_vars,
@@ -143,7 +143,7 @@ class ConfDiurnal(Confrontation):
                                   convert_calendar = False,
                                   lats         = None if obs.spatial else obs.lat,
                                   lons         = None if obs.spatial else obs.lon).convert(obs.unit)
-        
+
         # When we make things comparable, sites can get pruned, we
         # also need to prune the site labels
         lat = np.copy(obs.lat); lon = np.copy(obs.lon)
@@ -151,14 +151,14 @@ class ConfDiurnal(Confrontation):
         ind = np.sqrt((lat[:,np.newaxis]-obs.lat)**2 +
                       (lon[:,np.newaxis]-obs.lon)**2).argmin(axis=0)
         maxS = max([len(s) for s in self.lbls])
-        self.lbls = np.asarray(self.lbls,dtype='S%d' % maxS)[ind]        
+        self.lbls = np.asarray(self.lbls,dtype='S%d' % maxS)[ind]
         return obs,mod
 
     def confront(self,m):
 
         # get the HTML page
         page = [page for page in self.layout.pages if "MeanState" in page.name][0]
-        
+
         # Grab the data
         obs,mod = self.stageData(m)
 
@@ -204,7 +204,7 @@ class ConfDiurnal(Confrontation):
                                unit = mod.unit,
                                time = tmod,
                                data = vmod)
-            
+
             # Compute metrics
             To  = _findSeasonalTiming  (tobs,vobs)
             Ro  = _findSeasonalCentroid(tobs,vobs)
@@ -219,7 +219,7 @@ class ConfDiurnal(Confrontation):
             if den < 1e-12 or np.isnan(den):
                 s3  = 0.
             else:
-                s3 /= den 
+                s3 /= den
                 s3  = np.exp(-s3)
             S1.append(s1); S2.append(s2); S3.append(s3)
             Lobs.append(To[1]-To[0])
@@ -235,7 +235,7 @@ class ConfDiurnal(Confrontation):
         mod.data = np.ma.masked_array(mod.data,mask=(mod.time<mmask[0])+(mod.time>mmask[-1]),copy=False)
         for i in range(len(mmask)/2-1):
             mod.data = np.ma.masked_array(mod.data,mask=(mod.time>mmask[2*i+1])*(mod.time<mmask[2*i+2]),copy=False)
-        
+
         # Seasonal Mean Diurnal Cycle
         ot,omean,o10,o90,opeak = _meanDiurnalCycle(obs,nobs)
         mt,mmean,m10,m90,mpeak = _meanDiurnalCycle(mod,nmod)
@@ -331,9 +331,9 @@ class ConfDiurnal(Confrontation):
                 for vname in variables:
                     if "season" in vname:
                         self.limits["season"] = max(self.limits["season"],group.variables[vname].up99)
-                    
+
     def modelPlots(self,m):
-        
+
         bname  = "%s/%s_Benchmark.nc" % (self.output_path,self.name)
         fname  = "%s/%s_%s.nc" % (self.output_path,self.name,m.name)
         if not os.path.isfile(bname): return
@@ -355,7 +355,7 @@ class ConfDiurnal(Confrontation):
 
             obs = Variable(filename = bname, variable_name = plot, groupname = "MeanState")
             mod = Variable(filename = fname, variable_name = plot, groupname = "MeanState")
-            
+
             page.addFigure("Diurnal magnitude",
                            plot,
                            "MNAME_%s.png" % plot,
@@ -397,6 +397,6 @@ class ConfDiurnal(Confrontation):
                        "MNAME_cycle.png",
                        side   = "CYCLE",
                        legend = False)
-        
+
     def compositePlots(self):
         pass

@@ -1,26 +1,26 @@
-from Confrontation import Confrontation
-from ConfNBP import ConfNBP
-from ConfTWSA import ConfTWSA
-from ConfRunoff import ConfRunoff
-from ConfEvapFraction import ConfEvapFraction
-from ConfIOMB import ConfIOMB
-from ConfDiurnal import ConfDiurnal
-from ConfPermafrost import ConfPermafrost
-from ConfAlbedo import ConfAlbedo
-from ConfSWE import ConfSWE
-from ConfCO2 import ConfCO2
+from .Confrontation import Confrontation
+from .ConfNBP import ConfNBP
+from .ConfTWSA import ConfTWSA
+from .ConfRunoff import ConfRunoff
+from .ConfEvapFraction import ConfEvapFraction
+from .ConfIOMB import ConfIOMB
+from .ConfDiurnal import ConfDiurnal
+from .ConfPermafrost import ConfPermafrost
+from .ConfAlbedo import ConfAlbedo
+from .ConfSWE import ConfSWE
+from .ConfCO2 import ConfCO2
 import os,re
 from netCDF4 import Dataset
 import numpy as np
-from Post import BenchmarkSummaryFigure
-from ilamblib import MisplacedData
+from .Post import BenchmarkSummaryFigure
+from .ilamblib import MisplacedData
 
 global_print_node_string  = ""
 global_confrontation_list = []
 global_model_list         = []
 
 class Node(object):
-    
+
     def __init__(self, name):
         self.name                = name
         self.children            = []
@@ -48,13 +48,13 @@ class Node(object):
         self.normalize_weight    = 0    # my weight relative to my siblings
         self.overall_weight      = 0    # the multiplication my normalized weight by all my parents' normalized weights
         self.score               = 0    # placeholder
-        
+
     def __str__(self):
         if self.parent is None: return ""
         name   = self.name if self.name is not None else ""
         weight = self.weight
         if self.isLeaf():
-            s = "%s%s %s" % ("   "*(self.getDepth()-1),name,self.score) 
+            s = "%s%s %s" % ("   "*(self.getDepth()-1),name,self.score)
         else:
             s = "%s%s %s" % ("   "*(self.getDepth()-1),name,self.score)
         return s
@@ -62,7 +62,7 @@ class Node(object):
     def isLeaf(self):
         if len(self.children) == 0: return True
         return False
-    
+
     def addChild(self, node):
         node.parent = self
         self.children.append(node)
@@ -78,7 +78,7 @@ class Node(object):
 def TraversePostorder(node,visit):
     for child in node.children: TraversePostorder(child,visit)
     visit(node)
-    
+
 def TraversePreorder(node,visit):
     visit(node)
     for child in node.children: TraversePreorder(child,visit)
@@ -86,7 +86,7 @@ def TraversePreorder(node,visit):
 def PrintNode(node):
     global global_print_node_string
     global_print_node_string += "%s\n" % (node)
-    
+
 def ConvertTypes(node):
     def _to_bool(a):
         if type(a) is type(True): return a
@@ -100,10 +100,10 @@ def ConvertTypes(node):
         node.alternate_vars = node.alternate_vars.split(",")
     else:
         node.alternate_vars = []
-        
+
 def SumWeightChildren(node):
     for child in node.children: node.sum_weight_children += child.weight
-    
+
 def NormalizeWeights(node):
     if node.parent is not None:
         sumw = 1.
@@ -125,15 +125,15 @@ def InheritVariableNames(node):
     if node.cmap               is None:  node.cmap           = node.parent.cmap
     if node.ctype              is None:  node.ctype          = node.parent.ctype
     if node.skip_rmse          is False: node.skip_rmse      = node.parent.skip_rmse
-    if node.skip_iav           is False: node.skip_iav       = node.parent.skip_iav 
+    if node.skip_iav           is False: node.skip_iav       = node.parent.skip_iav
     if node.mass_weighting     is False: node.mass_weighting = node.parent.mass_weighting
     node.alternate_vars = node.parent.alternate_vars
-    
+
 def ParseScoreboardConfigureFile(filename):
     root = Node(None)
     previous_node = root
     current_level = 0
-    for line in file(filename).readlines():
+    for line in open(filename).readlines():
         line = line.strip()
         if line.startswith("#"): continue
         m1 = re.search(r"\[h(\d):\s+(.*)\]",line)
@@ -155,7 +155,7 @@ def ParseScoreboardConfigureFile(filename):
                 addto.addChild(node)
                 current_level = level
             previous_node = node
-    
+
         if not m1 and m2:
             node  = Node(m2.group(1))
             previous_node.addChild(node)
@@ -163,13 +163,12 @@ def ParseScoreboardConfigureFile(filename):
         if m3:
             keyword = m3.group(1).strip()
             value   = m3.group(2).strip().replace('"','')
-            #if keyword not in node.__dict__.keys(): continue
             try:
                 node.__dict__[keyword] = value
             except:
                 pass
 
-    TraversePreorder (root,ConvertTypes)        
+    TraversePreorder (root,ConvertTypes)
     TraversePostorder(root,SumWeightChildren)
     TraversePreorder (root,NormalizeWeights)
     TraversePreorder (root,OverallWeights)
@@ -194,13 +193,13 @@ class Scoreboard():
     A class for managing confrontations
     """
     def __init__(self,filename,regions=["global"],verbose=False,master=True,build_dir="./_build",extents=None,rel_only=False,mem_per_pair=100000.):
-        
-        if not os.environ.has_key('ILAMB_ROOT'):
+
+        if 'ILAMB_ROOT' not in os.environ:
             raise ValueError("You must set the environment variable 'ILAMB_ROOT'")
         self.build_dir = build_dir
         self.rel_only  = rel_only
-        
-        if (master and not os.path.isdir(self.build_dir)): os.mkdir(self.build_dir)        
+
+        if (master and not os.path.isdir(self.build_dir)): os.mkdir(self.build_dir)
 
         self.tree = ParseScoreboardConfigureFile(filename)
         max_name_len = 45
@@ -210,33 +209,33 @@ class Scoreboard():
 
             # if the user hasn't set regions, use the globally defined ones
             if node.regions is None: node.regions = regions
-            
+
             # pick the confrontation to use, is it a built-in confrontation?
-            if ConfrontationTypes.has_key(node.ctype):
+            if node.ctype in ConfrontationTypes:
                 Constructor = ConfrontationTypes[node.ctype]
             else:
                 # try importing the confrontation
                 conf = __import__(node.ctype)
-                Constructor = conf.__dict__[node.ctype]                    
-                
+                Constructor = conf.__dict__[node.ctype]
+
             try:
                 if node.cmap is None: node.cmap = "jet"
                 node.source = os.path.join(os.environ["ILAMB_ROOT"],node.source)
                 node.mem_slab = mem_per_pair*0.5
                 node.confrontation = Constructor(**(node.__dict__))
                 node.confrontation.extents = extents
-                
-                if verbose and master: print ("    {0:>%d}\033[92m Initialized\033[0m" % max_name_len).format(node.confrontation.longname)
-                
+
+                if verbose and master: print(("    {0:>%d}\033[92m Initialized\033[0m" % max_name_len).format(node.confrontation.longname))
+
             except MisplacedData:
 
-                if (master and verbose): 
+                if (master and verbose):
                     longname = node.output_path
                     longname = longname.replace("//","/").replace(self.build_dir,"")
                     if longname[-1] == "/": longname = longname[:-1]
                     longname = "/".join(longname.split("/")[1:])
-                    print ("    {0:>%d}\033[91m MisplacedData\033[0m" % max_name_len).format(longname)
-                
+                    print(("    {0:>%d}\033[91m MisplacedData\033[0m" % max_name_len).format(longname))
+
         def _buildDirectories(node):
             if node.name is None: return
             path   = ""
@@ -266,7 +265,7 @@ class Scoreboard():
         global_confrontation_list = []
         TraversePreorder(self.tree,_hasConfrontation)
         return global_confrontation_list
-        
+
     def createHtml(self,M,filename="index.html"):
 
         # Create html assets
@@ -284,7 +283,7 @@ class Scoreboard():
         if has_rel:
             GenerateRelSummaryFigure(rel_tree,M,"%s/overview_rel.png" % self.build_dir,rel_only=self.rel_only)
             nav = """
-	    <li><a href="#pageRel">Relationship</a></li>"""
+            <li><a href="#pageRel">Relationship</a></li>"""
             #global global_print_node_string
             #global_print_node_string = ""
             #TraversePreorder(rel_tree,PrintNode)
@@ -306,14 +305,14 @@ class Scoreboard():
     </script>
     <script src="https://code.jquery.com/mobile/1.4.5/jquery.mobile-1.4.5.min.js"></script>
     <script type="text/javascript" src="https://www.google.com/jsapi"></script>
-    <script type="text/javascript">  
+    <script type="text/javascript">
       $(document).ready(function(){
       function getChildren($row) {
       var children = [];
       while($row.next().hasClass('child')) {
       children.push($row.next());
       $row = $row.next();
-      }            
+      }
       return children;
       }
       $('.parent').on('click', function() {
@@ -331,7 +330,7 @@ class Scoreboard():
       div.arrow {
         background:transparent url(arrows.png) no-repeat scroll 0px -16px;
         width:16px;
-        height:16px; 
+        height:16px;
         display:block;
       }
       div.up {
@@ -355,23 +354,23 @@ class Scoreboard():
   </head>
 
   <body>"""
-        
+
         html += """
     <div data-role="page" id="pageOverview">
       <div data-role="header" data-position="fixed" data-tap-toggle="false">
-	<h1>ILAMB Benchmark Results</h1>
-	<div data-role="navbar">
-	  <ul>
-	    <li><a href="#pageOverview" class="ui-btn-active ui-state-persist">Mean State</a></li>%s
-	    <li><a href="#pageTable">Results Table</a></li>
-	  </ul>
-	</div>
+        <h1>ILAMB Benchmark Results</h1>
+        <div data-role="navbar">
+          <ul>
+            <li><a href="#pageOverview" class="ui-btn-active ui-state-persist">Mean State</a></li>%s
+            <li><a href="#pageTable">Results Table</a></li>
+          </ul>
+        </div>
       </div>
       <div data-role="main" class="ui-content">
-	<img class="displayed" src="./overview.png"></img>
+        <img class="displayed" src="./overview.png"></img>
       </div>
       <div data-role="footer">
-	<center>ILAMB %s</center>
+        <center>ILAMB %s</center>
       </div>
     </div>""" % (nav,ilamb_version)
 
@@ -379,86 +378,87 @@ class Scoreboard():
             html += """
     <div data-role="page" id="pageRel">
       <div data-role="header" data-position="fixed" data-tap-toggle="false">
-	<h1>ILAMB Benchmark Results</h1>
-	<div data-role="navbar">
-	  <ul>
-	    <li><a href="#pageOverview">Mean State</a></li>
+        <h1>ILAMB Benchmark Results</h1>
+        <div data-role="navbar">
+          <ul>
+            <li><a href="#pageOverview">Mean State</a></li>
             <li><a href="#pageRel" class="ui-btn-active ui-state-persist">Relationship</a></li>
-	    <li><a href="#pageTable">Results Table</a></li>
-	  </ul>
-	</div>
+            <li><a href="#pageTable">Results Table</a></li>
+          </ul>
+        </div>
       </div>
       <div data-role="main" class="ui-content">
-	<img class="displayed" src="./overview_rel.png"></img>
+        <img class="displayed" src="./overview_rel.png"></img>
       </div>
       <div data-role="footer">
       </div>
     </div>"""
-        
+
         html += """
     <div data-role="page" id="pageTable">
       <div data-role="header" data-position="fixed" data-tap-toggle="false">
-	<h1>ILAMB Benchmark Results</h1>
-	<div data-role="navbar">
-	  <ul>
-	    <li><a href="#pageOverview">Mean State</a></li>%s
-	    <li><a href="#pageTable" class="ui-btn-active ui-state-persist">Results Table</a></li>
-	  </ul>
-	</div>
+        <h1>ILAMB Benchmark Results</h1>
+        <div data-role="navbar">
+          <ul>
+            <li><a href="#pageOverview">Mean State</a></li>%s
+            <li><a href="#pageTable" class="ui-btn-active ui-state-persist">Results Table</a></li>
+          </ul>
+        </div>
       </div>
 
       <div data-role="main" class="ui-content">
         <div data-role="collapsible" data-collapsed="false"><h1>Mean State Scores</h1>
-	<table data-role="table" data-mode="columntoggle" class="ui-responsive ui-shadow" id="meanTable">
-	  <thead>
-	    <tr>
+        <table data-role="table" data-mode="columntoggle" class="ui-responsive ui-shadow" id="meanTable">
+          <thead>
+            <tr>
               <th> </th>""" % nav
         for m in M:
             html += """
               <th data-priority="1">%s</th>""" % m.name
         html += """
               <th style="width:20px"></th>
-	    </tr>
-	  </thead>
+            </tr>
+          </thead>
           <tbody>"""
-            
+
         html += GenerateTable(self.tree,M,self)
-        
+
         html += """
           </tbody>
         </table>
         </div>"""
-            
+
         if has_rel:
             html += """
         <div data-role="collapsible" data-collapsed="false"><h1>Relationship Scores</h1>
-	<table data-role="table" data-mode="columntoggle" class="ui-responsive ui-shadow" id="relTable">
-	  <thead>
-	    <tr>
+        <table data-role="table" data-mode="columntoggle" class="ui-responsive ui-shadow" id="relTable">
+          <thead>
+            <tr>
               <th> </th>"""
             for m in M:
                 html += """
               <th data-priority="1">%s</th>""" % m.name
             html += """
               <th style="width:20px"></th>
-	    </tr>
-	  </thead>
+            </tr>
+          </thead>
           <tbody>"""
             html += GenerateTable(rel_tree,M,self,composite=False)
             html += """
           </tbody>
         </table>
         </div>"""
-        
+
         html += """
       </div>
       <div data-role="footer"></div>
     </div>
 
 </body>
-</html>""" 
-        file("%s/%s" % (self.build_dir,filename),"w").write(html)
-        
+</html>"""
+        with open("%s/%s" % (self.build_dir,filename),"w") as f:
+            f.write(html)
+
     def createBarCharts(self,M):
         html = GenerateBarCharts(self.tree,M)
 
@@ -466,15 +466,14 @@ class Scoreboard():
         GenerateSummaryFigure(self.tree,M,"%s/overview.png" % self.build_dir,rel_only=self.rel_only)
 
     def dumpScores(self,M,filename):
-        out = file("%s/%s" % (self.build_dir,filename),"w")
-        out.write("Variables,%s\n" % (",".join([m.name for m in M])))
-        for cat in self.tree.children:
-            for v in cat.children:
-                try:
-                    out.write("%s,%s\n" % (v.name,','.join([str(s) for s in v.score])))
-                except:
-                    out.write("%s,%s\n" % (v.name,','.join(["~"]*len(M))))
-        out.close()
+        with open("%s/%s" % (self.build_dir,filename),"w") as out:
+            out.write("Variables,%s\n" % (",".join([m.name for m in M])))
+            for cat in self.tree.children:
+                for v in cat.children:
+                    try:
+                        out.write("%s,%s\n" % (v.name,','.join([str(s) for s in v.score])))
+                    except:
+                        out.write("%s,%s\n" % (v.name,','.join(["~"]*len(M))))
 
 def CompositeScores(tree,M):
     global global_model_list
@@ -492,7 +491,7 @@ def CompositeScores(tree,M):
                         grp     = dataset.groups["MeanState"].groups["scalars"]
                     except:
                         continue
-                    if grp.variables.has_key("Overall Score global"):
+                    if "Overall Score global" in grp.variables:
                         data[ind] = grp.variables["Overall Score global"][0]
                         mask[ind] = 0
                     else:
@@ -532,7 +531,7 @@ def DarkenRowColor(clr,fraction=0.9):
 def BuildHTMLTable(tree,M,build_dir):
     global global_model_list
     global_model_list = M
-    global global_table_color    
+    global global_table_color
     def _genHTML(node):
         global global_html
         global global_table_color
@@ -582,7 +581,7 @@ def BuildHTMLTable(tree,M,build_dir):
     global_table_color = tree.bgcolor
     tree.name = "Overall Summary"
     _genHTML(tree)
-    
+
 def GenerateTable(tree,M,S,composite=True):
     global global_html
     global global_model_list
@@ -601,7 +600,7 @@ def GenerateSummaryFigure(tree,M,filename,rel_only=False):
         for var in cat.children:
             variables.append(var.name)
             vcolors.append(cat.bgcolor)
-            
+
     data = np.ma.zeros((len(variables),len(models)))
     row  = -1
     for cat in tree.children:
@@ -627,7 +626,7 @@ def GenerateRelSummaryFigure(S,M,figname,rel_only=False):
             for ind in dep.children:
                 iname = ind.name.split("/")[0]
                 key   = "%s/%s" % (dname,iname)
-                if scores.has_key(key):
+                if key in scores:
                     scores[key] += ind.score
                     counts[key] += 1.
                 else:
@@ -640,7 +639,7 @@ def GenerateRelSummaryFigure(S,M,figname,rel_only=False):
     for i,row in enumerate(rows):
         data[i,:] = scores[row] / counts[row]
     BenchmarkSummaryFigure([m.name for m in M],rows,data,figname,rel_only=rel_only,vcolor=vcolors)
-    
+
 def GenerateRelationshipTree(S,M):
 
     # Create a tree which mimics the scoreboard for relationships, but
@@ -651,7 +650,7 @@ def GenerateRelationshipTree(S,M):
     # instead of
     #
     # root -> category -> variable -> datasets
-    #    
+    #
     rel_tree = Node("root")
     for cat in S.tree.children:
         h1 = Node(cat.name)
@@ -681,7 +680,7 @@ def GenerateRelationshipTree(S,M):
                     path = data.confrontation.output_path
                     path = os.path.join(path,data.confrontation.name + ".html#Relationships")
                     v.confrontation = path
-                    
+
                 # load scores
                 for i,m in enumerate(M):
                     fname = os.path.join(data.output_path,"%s_%s.nc" % (data.name,m.name))
@@ -693,14 +692,12 @@ def GenerateRelationshipTree(S,M):
                                 longname = rel.longname
                             except:
                                 longname = rel
-                            rs  = [key for key in grp.variables.keys() if (longname.split("/")[0] in key and
-                                                                           "global"               in key and
-                                                                           "RMSE"                 in key)]
+                            rs  = [key for key in grp.variables if (longname.split("/")[0] in key and
+                                                                    "global"               in key and
+                                                                    "RMSE"                 in key)]
                             if len(rs) != 1: continue
                             v.score[i] = grp.variables[rs[0]][...]
                         if "Overall Score global" not in grp.variables.keys(): continue
                         h2.score[i] = grp.variables["Overall Score global"][...]
 
     return rel_tree
-
-    

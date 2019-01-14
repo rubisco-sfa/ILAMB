@@ -1,8 +1,8 @@
-from ILAMB.Confrontation import Confrontation
+from .Confrontation import Confrontation
 from mpl_toolkits.basemap import Basemap
-from ILAMB.Variable import Variable
+from .Variable import Variable
 from netCDF4 import Dataset
-import ILAMB.ilamblib as il
+from . import ilamblib as il
 import numpy as np
 import os
 from mpi4py import MPI
@@ -29,7 +29,7 @@ def _evapfrac(sh,le,vname,energy_threshold):
                        time      = sh.time,
                        time_bnds = sh.time_bnds)
     return sh,le,ef
-    
+
 class ConfEvapFraction(Confrontation):
 
     def stageData(self,m):
@@ -59,7 +59,7 @@ class ConfEvapFraction(Confrontation):
                                      lats         = None if obs.spatial else obs.lat,
                                      lons         = None if obs.spatial else obs.lon)
         sh_mod,le_mod,mod = _evapfrac(sh_mod,le_mod,self.variable,energy_threshold)
-        
+
         # Make variables comparable
         obs,mod = il.MakeComparable(obs,mod,
                                     mask_ref  = True,
@@ -73,7 +73,7 @@ class ConfEvapFraction(Confrontation):
                                           mask_ref  = True,
                                           clip_ref  = True,
                                           logstring = "[%s][%s]" % (self.longname,m.name))
-        
+
         # Compute the mean ef
         sh_obs = sh_obs.integrateInTime(mean=True)
         le_obs = le_obs.integrateInTime(mean=True)
@@ -99,9 +99,9 @@ class ConfEvapFraction(Confrontation):
                                lat_bnds  = sh_mod.lat_bnds,
                                lon       = sh_mod.lon,
                                lon_bnds  = sh_mod.lon_bnds)
-        
+
         return obs,mod,obs_timeint,mod_timeint
-    
+
     def requires(self):
         return ['hfss','hfls'],[]
 
@@ -119,7 +119,7 @@ class ConfEvapFraction(Confrontation):
         """
         # Grab the data
         obs,mod,obs_timeint,mod_timeint = self.stageData(m)
-        
+
         mod_file = os.path.join(self.output_path,"%s_%s.nc"        % (self.name,m.name))
         obs_file = os.path.join(self.output_path,"%s_Benchmark.nc" % (self.name,      ))
         with il.FileContextManager(self.master,mod_file,obs_file) as fcm:
@@ -130,7 +130,7 @@ class ConfEvapFraction(Confrontation):
             if self.master:
                 fcm.obs_dset.setncatts({"name" :"Benchmark",
                                         "color":np.asarray([0.5,0.5,0.5])})
-                
+
             # Read in some options and run the mean state analysis
             mass_weighting = self.keywords.get("mass_weighting",False)
             skip_rmse      = self.keywords.get("skip_rmse"     ,False)

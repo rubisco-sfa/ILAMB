@@ -1,10 +1,10 @@
-from ILAMB.Confrontation import getVariableList
-from ILAMB.Confrontation import Confrontation
-from ILAMB.constants import earth_rad,mid_months,lbl_months,bnd_months
-from ILAMB.Variable import Variable
-from ILAMB.Regions import Regions
-import ILAMB.ilamblib as il
-import ILAMB.Post as post
+from .Confrontation import getVariableList
+from .Confrontation import Confrontation
+from .constants import earth_rad,mid_months,lbl_months,bnd_months
+from .Variable import Variable
+from .Regions import Regions
+from . import ilamblib as il
+from . import Post as post
 from netCDF4 import Dataset
 from copy import deepcopy
 import pylab as plt
@@ -14,7 +14,7 @@ from sympy import sympify
 
 from mpi4py import MPI
 import logging
-logger = logging.getLogger("%i" % MPI.COMM_WORLD.rank)	
+logger = logging.getLogger("%i" % MPI.COMM_WORLD.rank)
 
 def VariableReduce(var,region="global",time=None,depth=None,lat=None,lon=None):
     ILAMBregions = Regions()
@@ -66,12 +66,12 @@ def TimeLatBias(ref,com):
     data -= il.NearestNeighborInterpolation(ref.depth,ref.lat,ref.data,d,l)
     area  = np.diff(db)[:,np.newaxis] * (earth_rad*(np.sin(lb[:,1])-np.sin(lb[:,0])))
     return Variable(name  = ref.name.replace("timelonint","timelonbias"),
-                    unit  = ref.unit, 
+                    unit  = ref.unit,
                     data  = data,
                     area  = area,
                     lat   = l,
-                    depth = d, 
-                    lat_bnds   = lb, 
+                    depth = d,
+                    lat_bnds   = lb,
                     depth_bnds = db)
 
 def CycleBias(ref,com):
@@ -86,7 +86,7 @@ def CycleBias(ref,com):
     data  = il.NearestNeighborInterpolation(com.time,com.depth,com.data,com.time,d)
     data -= il.NearestNeighborInterpolation(ref.time,ref.depth,ref.data,ref.time,d)
     return Variable(name  = ref.name.replace("cycle","cyclebias"),
-                    unit  = ref.unit, 
+                    unit  = ref.unit,
                     data  = data,
                     time  = mid_months,
                     time_bnds = np.asarray([bnd_months[:-1],bnd_months[1:]]).T,
@@ -100,13 +100,13 @@ class ConfIOMB(Confrontation):
         # Calls the regular constructor
         super(ConfIOMB,self).__init__(**keywords)
 
-        # Get/modify depths 
+        # Get/modify depths
         self.depths = np.asarray(self.keywords.get("depths",[0,100,250]),dtype=float)
         with Dataset(self.source) as dset:
             v = dset.variables[self.variable]
             depth_name = [d for d in v.dimensions if d in ["layer","depth"]]
 
-            if len(depth_name) == 0: 
+            if len(depth_name) == 0:
                 # if there is no depth dimension, we assume the data is surface
                 self.depths = np.asarray([0],dtype=float)
             else:
@@ -118,7 +118,7 @@ class ConfIOMB(Confrontation):
                 self.depths = self.depths[(self.depths>=data.min())*(self.depths<=data.max())]
 
         # Setup a html layout for generating web views of the results
-        pages       = []        
+        pages       = []
         sections    = ["Period Mean at %d [m]" % d for d in self.depths]
         sections   += ["Mean regional depth profiles"]
         sections   += ["Overlapping mean regional depth profiles"]
@@ -142,7 +142,7 @@ class ConfIOMB(Confrontation):
     def stageData(self,m):
 
         mem_slab = self.keywords.get("mem_slab",100000.) # Mb
-        
+
         # peak at the reference dataset without reading much into memory
         info = ""
         unit = ""
@@ -224,7 +224,7 @@ class ConfIOMB(Confrontation):
             data    = None
             dnum    = None
             for i in range(ns):
-                
+
                 v = m.extractTimeSeries(self.variable,
                                         alt_vars     = self.alternate_vars,
                                         expression   = self.derived,
@@ -241,7 +241,7 @@ class ConfIOMB(Confrontation):
                         v.time_bnds = v.time_bnds[1:]
                     tb_prev = v.time_bnds[...]
                 if v.time.size == 0: continue
-                
+
                 mind = (np.abs(mid_months[:,np.newaxis]-(v.time % 365))).argmin(axis=0)
                 if data is None:
                     data = np.ma.zeros((12,)+v.data.shape[1:])
@@ -301,7 +301,7 @@ class ConfIOMB(Confrontation):
                         obs.time_bnds = obs.time_bnds[1:]
                     assert np.allclose(obs.time_bnds[0,0],obs_tb[-1,1])
                     obs_tb = obs.time_bnds[...]
-                    
+
                 # get model variable
                 mod = m.extractTimeSeries(self.variable,
                                           alt_vars     = self.alternate_vars,
@@ -319,7 +319,7 @@ class ConfIOMB(Confrontation):
                     mod_tb = mod.time_bnds[...]
                 assert obs.time.size == mod.time.size
                 yield obs,mod
-    
+
     def confront(self,m):
 
         def _addDepth(v):
@@ -341,7 +341,7 @@ class ConfIOMB(Confrontation):
             if self.master:
                 fcm.obs_dset.setncatts({"name" :"Benchmark",
                                         "color":np.asarray([0.5,0.5,0.5])})
-        
+
             obs_timeint = {}; mod_timeint = {}
             obs_depth   = {}; mod_depth   = {}
             ocyc        = {}; oN          = {}
@@ -361,14 +361,14 @@ class ConfIOMB(Confrontation):
                 if not obs.layered: obs = _addDepth(obs)
                 if not mod.layered: mod = _addDepth(mod)
                 max_obs = max(max_obs,obs.data.max())
-                
+
                 # time bounds for this slab
                 tb = obs.time_bnds[[0,-1],[0,1]].reshape((1,2))
                 t  = np.asarray([tb.mean()])
-                
+
                 # mean lat/lon slices at various depths
                 for depth in self.depths:
-                    
+
                     dlbl = "%d" % depth
                     z  = obs.integrateInDepth(z0=depth-1.,zf=depth+1,mean=True).integrateInTime(mean=True)
                     unit = z.unit
@@ -390,18 +390,18 @@ class ConfIOMB(Confrontation):
 
                 # mean
                 for region in self.regions:
-                    z = VariableReduce(obs,region=region,time=tb[0],lon=[-180.,+180.])                    
+                    z = VariableReduce(obs,region=region,time=tb[0],lon=[-180.,+180.])
                     z.time = t; z.time_bnds  = tb; z.temporal = True; z.data.shape = (1,)+z.data.shape
                     obs_depth[region].append(z)
-                    
-                    z = VariableReduce(mod,region=region,time=tb[0],lon=[-180.,+180.])                    
+
+                    z = VariableReduce(mod,region=region,time=tb[0],lon=[-180.,+180.])
                     z.time = t; z.time_bnds  = tb; z.temporal = True; z.data.shape = (1,)+z.data.shape
                     mod_depth[region].append(z)
 
                 # annual cycle in slabs
                 for region in self.regions:
                     z = obs.integrateInSpace(region=region,mean=True)
-                    if not ocyc.has_key(region):
+                    if region not in ocyc:
                         ocyc[region] = np.ma.zeros((12,)+z.data.shape[1:])
                         oN  [region] = np.ma.zeros((12,)+z.data.shape[1:],dtype=int)
                     i = (np.abs(mid_months[:,np.newaxis]-(z.time % 365))).argmin(axis=0)
@@ -409,16 +409,16 @@ class ConfIOMB(Confrontation):
                     (oN  [region])[i,...] += 1
 
                     z = mod.integrateInSpace(region=region,mean=True)
-                    if not mcyc.has_key(region): 
+                    if region not in mcyc:
                         mcyc[region] = np.ma.zeros((12,)+z.data.shape[1:])
                         mN  [region] = np.ma.zeros((12,)+z.data.shape[1:],dtype=int)
                     i = (np.abs(mid_months[:,np.newaxis]-(z.time % 365))).argmin(axis=0)
                     (mcyc[region])[i,...] += z.data
                     (mN  [region])[i,...] += 1
-                
+
             # combine time slabs from the different depths
             large_bias = float(self.keywords.get("large_bias",0.1*max_obs))
-            
+
             for dlbl in obs_timeint.keys():
 
                 # period means and bias
@@ -441,9 +441,9 @@ class ConfIOMB(Confrontation):
                                               lon   = bias.lon, lon_bnds = bias.lon_bnds,
                                               area  = bias.area)
                         bias_score.toNetCDF4(fcm.mod_dset,group="MeanState")
-                    
+
                 for region in self.regions:
-                    
+
                     sval = mod_tmp.integrateInSpace(region=region,mean=True)
                     sval.name = "Period Mean at %s %s" % (dlbl,region)
                     sval.toNetCDF4(fcm.mod_dset,group="MeanState")
@@ -456,7 +456,7 @@ class ConfIOMB(Confrontation):
                         sval = bias_score.integrateInSpace(region=region,mean=True)
                         sval.name = "Bias Score at %s %s" % (dlbl,region)
                         sval.toNetCDF4(fcm.mod_dset,group="MeanState")
-                    
+
                 if self.master:
                     obs_tmp.toNetCDF4(fcm.obs_dset,group="MeanState")
                     for region in self.regions:
@@ -476,7 +476,7 @@ class ConfIOMB(Confrontation):
                 np.seterr(over='ignore',under='ignore')
                 ocyc[region] = ocyc[region]/(oN[region].clip(1))
                 mcyc[region] = mcyc[region]/(mN[region].clip(1))
-                
+
                 np.seterr(over='raise',under='raise')
                 mcyc[region] = Variable(name = "cycle_of_%s_over_%s" % (self.variable,region),
                                         unit = mod.unit,
@@ -497,24 +497,24 @@ class ConfIOMB(Confrontation):
                     obs_tmp     .toNetCDF4(fcm.obs_dset,group="MeanState")
                     ocyc[region].toNetCDF4(fcm.obs_dset,group="MeanState")
 
-                    
+
     def modelPlots(self,m):
-        
+
         def _fheight(region):
             if region in ["arctic","southern"]: return 6.8
             return 2.8
-        
+
         bname  = "%s/%s_Benchmark.nc" % (self.output_path,self.name)
         fname  = "%s/%s_%s.nc" % (self.output_path,self.name,m.name)
         if not os.path.isfile(bname): return
         if not os.path.isfile(fname): return
-        
+
         # get the HTML page and set table priorities
         page = [page for page in self.layout.pages if "MeanState" in page.name][0]
         page.priority  = [" %d " % d for d in self.depths]
         page.priority += ["Period","Bias"]
         page.priority += ["Score","Overall"]
-        
+
         # model plots
         cmap = { "timeint"    : self.cmap,
                  "bias"       : "seismic",
@@ -594,7 +594,7 @@ class ConfIOMB(Confrontation):
                 ax.set_ylabel("depth [m]")
                 fig.savefig("%s/%s_%s_timelonint.png" % (self.output_path,m.name,region))
                 ax.set_ylim((min(d0.max(),d.max()),max(d0.min(),d.min())))
-                fig.savefig("%s/%s_%s_timelonints.png" % (self.output_path,m.name,region))                
+                fig.savefig("%s/%s_%s_timelonints.png" % (self.output_path,m.name,region))
                 plt.close()
                 fig,ax = plt.subplots(figsize=(6.8,2.8),tight_layout=True)
                 l   = np.hstack([bias.lat_bnds  [:,0],bias.lat_bnds  [-1,1]])
@@ -612,8 +612,8 @@ class ConfIOMB(Confrontation):
                 ax.set_ylim((d.max(),d.min()))
                 ax.set_ylabel("depth [m]")
                 ax.set_ylim((min(d0.max(),d.max()),max(d0.min(),d.min())))
-                fig.savefig("%s/%s_%s_timelonbias.png" % (self.output_path,m.name,region))                
-                plt.close()                    
+                fig.savefig("%s/%s_%s_timelonbias.png" % (self.output_path,m.name,region))
+                plt.close()
 
 
             vname = "cycle_of_%s_over_%s" % (self.variable,region)
@@ -653,7 +653,7 @@ class ConfIOMB(Confrontation):
                 ax.set_ylabel("depth [m]")
                 fig.savefig("%s/%s_%s_cycle.png" % (self.output_path,m.name,region))
                 ax.set_ylim((min(d0.max(),d.max()),max(d0.min(),d.min())))
-                fig.savefig("%s/%s_%s_cycles.png" % (self.output_path,m.name,region))                
+                fig.savefig("%s/%s_%s_cycles.png" % (self.output_path,m.name,region))
                 plt.close()
                 fig,ax = plt.subplots(figsize=(6.8,2.8),tight_layout=True)
                 ax.pcolormesh(bnd_months,
@@ -676,11 +676,11 @@ class ConfIOMB(Confrontation):
         with Dataset(bname) as dataset:
             group     = dataset.groups["MeanState"]
             variables = getVariableList(group)
-            color     = dataset.getncattr("color")            
+            color     = dataset.getncattr("color")
             for ptype in ["timeint"]:
                 for vname in [v for v in variables if ptype in v]:
                     var = Variable(filename=bname,variable_name=vname,groupname="MeanState")
-                    z   = int(vname.replace(ptype,"")) 
+                    z   = int(vname.replace(ptype,""))
                     page.addFigure("Period Mean at %d [m]" % z,
                                    "benchmark_%s" % vname,
                                    "Benchmark_RNAME_%s.png" % vname,
@@ -696,7 +696,7 @@ class ConfIOMB(Confrontation):
                                  cmap   = cmap[ptype],
                                  land   = 0.750,
                                  water  = 0.875)
-                        fig.savefig("%s/Benchmark_%s_%s.png" % (self.output_path,region,vname))                        
+                        fig.savefig("%s/Benchmark_%s_%s.png" % (self.output_path,region,vname))
                         plt.close()
 
         for region in self.regions:
@@ -735,7 +735,7 @@ class ConfIOMB(Confrontation):
                 ax.set_ylabel("depth [m]")
                 fig.savefig("%s/Benchmark_%s_timelonint.png" % (self.output_path,region))
                 ax.set_ylim((min(d0.max(),d.max()),max(d0.min(),d.min())))
-                fig.savefig("%s/Benchmark_%s_timelonints.png" % (self.output_path,region))                                
+                fig.savefig("%s/Benchmark_%s_timelonints.png" % (self.output_path,region))
                 plt.close()
 
             vname = "cycle_of_%s_over_%s" % (self.variable,region)
@@ -768,16 +768,16 @@ class ConfIOMB(Confrontation):
                 ax.set_ylabel("depth [m]")
                 fig.savefig("%s/%s_%s_cycle.png" % (self.output_path,"Benchmark",region))
                 ax.set_ylim((min(d0.max(),d.max()),max(d0.min(),d.min())))
-                fig.savefig("%s/%s_%s_cycles.png" % (self.output_path,"Benchmark",region))                
+                fig.savefig("%s/%s_%s_cycles.png" % (self.output_path,"Benchmark",region))
                 plt.close()
-                        
+
     def determinePlotLimits(self):
-        
+
         # Pick limit type
         max_str = "up99"; min_str = "dn99"
         if self.keywords.get("limit_type","99per") == "minmax":
             max_str = "max"; min_str = "min"
-            
+
         # Determine the min/max of variables over all models
         limits = {}
         for fname in glob.glob("%s/*.nc" % self.output_path):
@@ -794,8 +794,8 @@ class ConfIOMB(Confrontation):
                         pname = "_".join(vname.split("_")[:2])
                     if "_over_" in vname:
                         region = vname.split("_over_")[-1]
-                        if not limits.has_key(pname): limits[pname] = {}
-                        if not limits[pname].has_key(region):
+                        if pname not in limits: limits[pname] = {}
+                        if region not in limits[pname]:
                             limits[pname][region] = {}
                             limits[pname][region]["min"]  = +1e20
                             limits[pname][region]["max"]  = -1e20
@@ -803,14 +803,14 @@ class ConfIOMB(Confrontation):
                         limits[pname][region]["min"] = min(limits[pname][region]["min"],var.getncattr("min"))
                         limits[pname][region]["max"] = max(limits[pname][region]["max"],var.getncattr("max"))
                     else:
-                        if not limits.has_key(pname):
+                        if pname not in limits:
                             limits[pname] = {}
                             limits[pname]["min"]  = +1e20
                             limits[pname]["max"]  = -1e20
                             limits[pname]["unit"] = post.UnitStringToMatplotlib(var.getncattr("units"))
                         limits[pname]["min"] = min(limits[pname]["min"],var.getncattr(min_str))
                         limits[pname]["max"] = max(limits[pname]["max"],var.getncattr(max_str))
-        
+
         # Another pass to fix score limits
         for pname in limits.keys():
             if "score" in pname:
@@ -822,7 +822,7 @@ class ConfIOMB(Confrontation):
                         limits[pname][region]["min"] = 0.
                         limits[pname][region]["max"] = 1.
         self.limits = limits
-        
+
         # Second pass to plot legends
         cmaps = {"bias"       :"seismic",
                  "timelonbias":"seismic",
@@ -833,17 +833,17 @@ class ConfIOMB(Confrontation):
             base_pname = pname
             m = re.search("(\D+)\d+",pname)
             if m: base_pname = m.group(1)
-            
+
             # Pick colormap
             cmap = self.cmap
-            if cmaps.has_key(base_pname):
+            if base_name in cmaps:
                 cmap = cmaps[base_pname]
             elif "score" in pname:
                 cmap = "RdYlGn"
 
             # Need to symetrize?
             if base_pname in ["bias","timelonbias","cyclebias"]:
-                if limits[pname].has_key("min"):
+                if "min" in limits[pname]:
                     vabs =  max(abs(limits[pname]["max"]),abs(limits[pname]["min"]))
                     limits[pname]["min"] = -vabs
                     limits[pname]["max"] =  vabs
@@ -854,7 +854,7 @@ class ConfIOMB(Confrontation):
 
             # Some plots need legends
             if base_pname in ["timeint","bias","biasscore","rmse","rmsescore","timelonint","timelonbias","cycle","cyclebias"]:
-                if limits[pname].has_key("min"):
+                if "min" in limits[pname]:
                     fig,ax = plt.subplots(figsize=(6.8,1.0),tight_layout=True)
                     post.ColorBar(ax,
                                   vmin  = limits[pname]["min" ],

@@ -6,7 +6,7 @@ which facilitates the automatic confrontation of model results with
 benchmark observational datasets. However, the best way to learn how
 to use this software is with actual data. To this end we have a
 relatively small sample which you can `download
-<http://climate.ornl.gov/~ncf/ILAMB/minimal_ILAMB_data.tgz>`_. Extract
+<https://www.ilamb.org/Downloads/minimal_ILAMB_data.tgz>`_. Extract
 this file to a location of your choosing by the following::
 
   tar -xvf minimal_ILAMB_data.tgz

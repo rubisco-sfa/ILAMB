@@ -7,10 +7,10 @@ added to our sample benchmark comparison. We will add a Surface Upward
 Shortwave Radiation dataset from the the central archive of the
 Baseline Surface Radiation Network (BSRN) on the World Radiation
 Monitoring Center (WRMC). We have provided a file in the appropriate
-format `here <http://climate.ornl.gov/~ncf/ILAMB/rsus.nc>`_. We
-suggest that you create a directory inside the ``rsus`` directory
-called ``WRMC.BSRN`` and place the downloaded file inside. We will
-show the appropriate part of the tree here::
+format `here <https://www.ilamb.org/Downloads/rsus.nc>`_. We suggest
+that you create a directory inside the ``rsus`` directory called
+``WRMC.BSRN`` and place the downloaded file inside. We will show the
+appropriate part of the tree here::
 
   DATA/
   ├── albedo

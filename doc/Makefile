@@ -47,13 +47,10 @@ help:
 	@echo "  doctest    to run all doctests embedded in the documentation (if enabled)"
 	@echo "  coverage   to run coverage check of the documentation (if enabled)"
 
-ilamb:
-	pushd ../; python setup.py install --user; popd
-
 clean:
 	rm -rf $(BUILDDIR)/* _generated
 
-html: ilamb
+html:
 	$(SPHINXBUILD) -b html $(ALLSPHINXOPTS) $(BUILDDIR)/html
 	@echo
 	@echo "Build finished. The HTML pages are in $(BUILDDIR)/html."

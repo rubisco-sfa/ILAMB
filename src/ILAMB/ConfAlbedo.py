@@ -1,8 +1,8 @@
-from ILAMB.Confrontation import Confrontation
+from .Confrontation import Confrontation
 from mpl_toolkits.basemap import Basemap
-from ILAMB.Variable import Variable
+from .Variable import Variable
 from netCDF4 import Dataset
-import ILAMB.ilamblib as il
+from . import ilamblib as il
 import numpy as np
 import os
 from mpi4py import MPI
@@ -27,7 +27,7 @@ def _albedo(dn,up,vname,energy_threshold):
                        time      = dn.time,
                        time_bnds = dn.time_bnds)
     return dn,up,al
-    
+
 class ConfAlbedo(Confrontation):
 
     def stageData(self,m):
@@ -57,7 +57,7 @@ class ConfAlbedo(Confrontation):
                                      lats         = None if obs.spatial else obs.lat,
                                      lons         = None if obs.spatial else obs.lon)
         dn_mod,up_mod,mod = _albedo(dn_mod,up_mod,self.variable,energy_threshold)
-        
+
         # Make variables comparable
         obs,mod = il.MakeComparable(obs,mod,
                                     mask_ref  = True,
@@ -71,7 +71,7 @@ class ConfAlbedo(Confrontation):
                                           mask_ref  = True,
                                           clip_ref  = True,
                                           logstring = "[%s][%s]" % (self.longname,m.name))
-        
+
         # Compute the mean albedo
         dn_obs = dn_obs.integrateInTime(mean=True)
         up_obs = up_obs.integrateInTime(mean=True)
@@ -97,9 +97,9 @@ class ConfAlbedo(Confrontation):
                                lat_bnds  = dn_mod.lat_bnds,
                                lon       = dn_mod.lon,
                                lon_bnds  = dn_mod.lon_bnds)
-        
+
         return obs,mod,obs_timeint,mod_timeint
-    
+
     def requires(self):
         return ['rsus','rsds'],[]
 
@@ -117,7 +117,7 @@ class ConfAlbedo(Confrontation):
         """
         # Grab the data
         obs,mod,obs_timeint,mod_timeint = self.stageData(m)
-        
+
         mod_file = os.path.join(self.output_path,"%s_%s.nc"        % (self.name,m.name))
         obs_file = os.path.join(self.output_path,"%s_Benchmark.nc" % (self.name,      ))
         with il.FileContextManager(self.master,mod_file,obs_file) as fcm:
@@ -128,7 +128,7 @@ class ConfAlbedo(Confrontation):
             if self.master:
                 fcm.obs_dset.setncatts({"name" :"Benchmark",
                                         "color":np.asarray([0.5,0.5,0.5])})
-                
+
             # Read in some options and run the mean state analysis
             mass_weighting = self.keywords.get("mass_weighting",False)
             skip_rmse      = self.keywords.get("skip_rmse"     ,False)
