@@ -34,7 +34,7 @@ Useful Information
 
 * `Paper <https://doi.org/10.1029/2018MS001354>`_ published in JAMES
   which details the design and methodology employed in the ILAMB
-  package. If you find the package or the ouput helpful in your
+  package. If you find the package or the output helpful in your
   research or development efforts, we kindly ask you to cite this
   work.
 
@@ -66,6 +66,20 @@ support an ILAMB installation. If these words do not mean anything to
 you, look for a more detailed explanation in the `tutorials
 <https://www.ilamb.org/doc/install.html>`_ which have be rewritten to
 reflect this shift.
+
+We have also changed the location of the supported configure files in
+the repository. They used to be located in the ``demo`` directory, but
+now may be found in ``src/ILAMB/data``. The motivation for this change
+is to have these files be installed along with the
+package. Previously, if a user were to get ILAMB via PyPI, these
+configure files would not install along with the package. This made
+the next step of finding a configure file confusing. Furthermore,
+these configure files change as we continue to work on the package and
+so it is important that they are installed along with the python
+source code. Now, for example, if you install ILAMB via ``pip install
+ILAMB --user``, you can expect to find the configure files in a
+location like
+``${HOME}/.local/lib/python3.7/site-packages/ILAMB/data/``.
 
 We have published a `paper <https://doi.org/10.1029/2018MS001354>`_ in
 JAMES which details the methodology which this package implements. If
