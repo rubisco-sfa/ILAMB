@@ -10,6 +10,7 @@ from . import ilamblib as il
 import numpy as np
 import os,glob
 from .constants import lbl_months,bnd_months
+from cf_units import Unit
 
 def _meanDiurnalCycle(var,n):
     begin = np.argmin(var.time[:(n-1)]%n)
@@ -65,8 +66,8 @@ def _findSeasonalTiming(t,x):
         out = linregress(t,y)
         return np.sqrt((((out.slope*t+out.intercept)-y)**2).sum())
     y = x.cumsum()
-    b = y.size/2-1
-    e = y.size/2+1
+    b = int(y.size/2-1)
+    e = int(y.size/2+1)
     I = np.asarray(range(2,b))
     C = np.zeros(I.shape)
     for a,i in enumerate(I): C[a] = cost(t[:i],y[:i]) + cost(t[i:e],y[i:e])
@@ -122,7 +123,10 @@ class ConfDiurnal(Confrontation):
         pages[-1].text = "\n"
         with Dataset(self.source) as dset:
             for attr in dset.ncattrs():
-                pages[-1].text += "<p><b>&nbsp;&nbsp;%s:&nbsp;</b>%s</p>\n" % (attr,dset.getncattr(attr).encode('ascii','ignore'))
+                a = dset.getncattr(attr)
+                if 'astype' in dir(a): a = a.astype('str')
+                if 'encode' in dir(a): a = a.encode('ascii','ignore')                
+                pages[-1].text += "<p><b>&nbsp;&nbsp;%s:&nbsp;</b>%s</p>\n" % (attr,a)
         self.layout = post.HtmlLayout(pages,self.longname)
 
     def stageData(self,m):
@@ -133,7 +137,7 @@ class ConfDiurnal(Confrontation):
                        convert_calendar = False)
         if obs.time is None: raise il.NotTemporalVariable()
         self.pruneRegions(obs)
-
+        
         # Try to extract a commensurate quantity from the model
         mod = m.extractTimeSeries(self.variable,
                                   alt_vars     = self.alternate_vars,
@@ -142,7 +146,14 @@ class ConfDiurnal(Confrontation):
                                   final_time   = obs.time_bnds[-1,1],
                                   convert_calendar = False,
                                   lats         = None if obs.spatial else obs.lat,
-                                  lons         = None if obs.spatial else obs.lon).convert(obs.unit)
+                                  lons         = None if obs.spatial else obs.lon)
+
+        # Handle molar mass, migrate to ILAMB.Variable.convert()
+        if (np.any([Unit(u).is_convertible("g")   for u in mod.unit.split()]) and
+            np.any([Unit(u).is_convertible("mol") for u in obs.unit.split()])):
+            if self.variable == "gpp":
+                mod.unit = str(Unit(mod.unit) / Unit("12.0107 g mol-1"))
+        mod.convert(obs.unit)
 
         # When we make things comparable, sites can get pruned, we
         # also need to prune the site labels
@@ -150,8 +161,9 @@ class ConfDiurnal(Confrontation):
         obs,mod = il.MakeComparable(obs,mod,clip_ref=True,prune_sites=True,allow_diff_times=True)
         ind = np.sqrt((lat[:,np.newaxis]-obs.lat)**2 +
                       (lon[:,np.newaxis]-obs.lon)**2).argmin(axis=0)
-        maxS = max([len(s) for s in self.lbls])
-        self.lbls = np.asarray(self.lbls,dtype='S%d' % maxS)[ind]
+        #print(ind)
+        #maxS = max([len(s) for s in self.lbls])
+        #self.lbls = np.asarray(self.lbls,dtype='S%d' % maxS)[ind]
         return obs,mod
 
     def confront(self,m):
@@ -230,10 +242,10 @@ class ConfDiurnal(Confrontation):
 
         # Mask away the data which is out of the season
         obs.data = np.ma.masked_array(obs.data,mask=(obs.time<omask[0])+(obs.time>omask[-1]),copy=False)
-        for i in range(len(omask)/2-1):
+        for i in range(int(len(omask)/2)-1):
             obs.data = np.ma.masked_array(obs.data,mask=(obs.time>omask[2*i+1])*(obs.time<omask[2*i+2]),copy=False)
         mod.data = np.ma.masked_array(mod.data,mask=(mod.time<mmask[0])+(mod.time>mmask[-1]),copy=False)
-        for i in range(len(mmask)/2-1):
+        for i in range(int(len(mmask)/2)-1):
             mod.data = np.ma.masked_array(mod.data,mask=(mod.time>mmask[2*i+1])*(mod.time<mmask[2*i+2]),copy=False)
 
         # Seasonal Mean Diurnal Cycle
