@@ -150,9 +150,9 @@ class ConfDiurnal(Confrontation):
         # Handle molar mass, migrate to ILAMB.Variable.convert()
         if (np.any([Unit(u).is_convertible("g")   for u in mod.unit.split()]) and
             np.any([Unit(u).is_convertible("mol") for u in obs.unit.split()])):
-            if self.variable == "gpp":
+            if self.variable in ["gpp","nee","reco"]:
                 mod.unit = str(Unit(mod.unit) / Unit("12.0107 g mol-1"))
-
+            
         # When we make things comparable, sites can get pruned, we
         # also need to prune the site labels
         lat = np.copy(obs.lat); lon = np.copy(obs.lon)
