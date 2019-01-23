@@ -82,7 +82,7 @@ class ModelResult():
 
         variables = {}
         names     = {}
-        for subdir, dirs, files in os.walk(self.path):
+        for subdir, dirs, files in os.walk(self.path,followlinks=True):
             for fileName in files:
                 if not fileName.endswith(".nc"): continue
                 if self.filter not in fileName: continue
