@@ -11,6 +11,7 @@ import numpy as np
 import os,glob
 from .constants import lbl_months,bnd_months
 from cf_units import Unit
+import cftime
 
 def _meanDiurnalCycle(var,n):
     begin = np.argmin(var.time[:(n-1)]%n)
@@ -137,33 +138,26 @@ class ConfDiurnal(Confrontation):
                        convert_calendar = False)
         if obs.time is None: raise il.NotTemporalVariable()
         self.pruneRegions(obs)
-        
+
         # Try to extract a commensurate quantity from the model
         mod = m.extractTimeSeries(self.variable,
                                   alt_vars     = self.alternate_vars,
                                   expression   = self.derived,
-                                  initial_time = obs.time_bnds[ 0,0],
-                                  final_time   = obs.time_bnds[-1,1],
                                   convert_calendar = False,
                                   lats         = None if obs.spatial else obs.lat,
                                   lons         = None if obs.spatial else obs.lon)
-
+        
         # Handle molar mass, migrate to ILAMB.Variable.convert()
         if (np.any([Unit(u).is_convertible("g")   for u in mod.unit.split()]) and
             np.any([Unit(u).is_convertible("mol") for u in obs.unit.split()])):
             if self.variable == "gpp":
                 mod.unit = str(Unit(mod.unit) / Unit("12.0107 g mol-1"))
-        mod.convert(obs.unit)
 
         # When we make things comparable, sites can get pruned, we
         # also need to prune the site labels
         lat = np.copy(obs.lat); lon = np.copy(obs.lon)
         obs,mod = il.MakeComparable(obs,mod,clip_ref=True,prune_sites=True,allow_diff_times=True)
-        ind = np.sqrt((lat[:,np.newaxis]-obs.lat)**2 +
-                      (lon[:,np.newaxis]-obs.lon)**2).argmin(axis=0)
-        #print(ind)
-        #maxS = max([len(s) for s in self.lbls])
-        #self.lbls = np.asarray(self.lbls,dtype='S%d' % maxS)[ind]
+        
         return obs,mod
 
     def confront(self,m):
@@ -173,36 +167,33 @@ class ConfDiurnal(Confrontation):
 
         # Grab the data
         obs,mod = self.stageData(m)
-
-        # Number of data points per year
-        Nobs = 365./np.diff(obs.time).mean()
-        Nmod = 365./np.diff(mod.time).mean()
-
+                 
         # Number of data points per day
         nobs = int(np.round(1./np.diff(obs.time).mean()))
         nmod = int(np.round(1./np.diff(mod.time).mean()))
-
+        
         # Analysis on a per year basis
-        Yobs = (obs.time/365.+1850).astype(int)
-        Ymod = (mod.time/365.+1850).astype(int)
+        Tobs = cftime.num2date(obs.time,"days since 1850-1-1")
+        Tmod = cftime.num2date(mod.time,"days since 1850-1-1")
+        Yobs = np.asarray([t.year for t in Tobs],dtype=int)
+        Ymod = np.asarray([t.year for t in Tmod],dtype=int)
         Y    = np.unique(Yobs)
         S1 = []; S2 = []; S3 = []; Lobs = []; Lmod = []
         Sobs  = {}; Smod  = {}
-        omask = []; mmask = []
+        omask = np.zeros(obs.time.size,dtype=int)
         for y in Y:
 
-            # Subset the data, we need to have 90% of a year
-            iobs = np.where(y==Yobs)[0]
-            imod = np.where(y==Ymod)[0]
-            if iobs.size/Nobs < 0.9: continue
-            if imod.size/Nmod < 0.9: continue
-
+            # datum for this year
+            datum = cftime.date2num(cftime.datetime(y,1,1),"days since 1850-1-1")
+            
             # Reshape the year's worth of data
-            vobs,tobs = DiurnalReshape(obs.time     [iobs] % 365,
-                                       obs.time_bnds[iobs],
+            iobs = np.where(y==Yobs)[0]
+            vobs,tobs = DiurnalReshape(obs.time     [iobs] - datum,
+                                       obs.time_bnds[iobs] - datum,
                                        obs.data     [iobs,0])
-            vmod,tmod = DiurnalReshape(mod.time     [imod] % 365,
-                                       mod.time_bnds[imod],
+            imod = np.where(y==Ymod)[0]
+            vmod,tmod = DiurnalReshape(mod.time     [imod] - datum,
+                                       mod.time_bnds[imod] - datum,
                                        mod.data     [imod,0])
 
             # Compute the diurnal magnitude
@@ -236,17 +227,10 @@ class ConfDiurnal(Confrontation):
             S1.append(s1); S2.append(s2); S3.append(s3)
             Lobs.append(To[1]-To[0])
             Lmod.append(Tm[1]-Tm[0])
-            omask += [(y-1850)*365.+To[0],(y-1850)*365.+To[1]]
-            mmask += [(y-1850)*365.+Tm[0],(y-1850)*365.+Tm[1]]
 
-
-        # Mask away the data which is out of the season
-        obs.data = np.ma.masked_array(obs.data,mask=(obs.time<omask[0])+(obs.time>omask[-1]),copy=False)
-        for i in range(int(len(omask)/2)-1):
-            obs.data = np.ma.masked_array(obs.data,mask=(obs.time>omask[2*i+1])*(obs.time<omask[2*i+2]),copy=False)
-        mod.data = np.ma.masked_array(mod.data,mask=(mod.time<mmask[0])+(mod.time>mmask[-1]),copy=False)
-        for i in range(int(len(mmask)/2)-1):
-            mod.data = np.ma.masked_array(mod.data,mask=(mod.time>mmask[2*i+1])*(mod.time<mmask[2*i+2]),copy=False)
+            # mask away the off season
+            obs.data.mask[:,0] += (y == Yobs)*(((obs.time-datum) < To[0]) + ((obs.time-datum) > To[1]))
+            mod.data.mask[:,0] += (y == Ymod)*(((mod.time-datum) < Tm[0]) + ((mod.time-datum) > Tm[1]))
 
         # Seasonal Mean Diurnal Cycle
         ot,omean,o10,o90,opeak = _meanDiurnalCycle(obs,nobs)
