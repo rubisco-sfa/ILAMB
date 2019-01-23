@@ -239,8 +239,7 @@ class ModelResult():
                     rmin = r.   min(axis=1)
                     imin = imin[np.where(rmin<1.0)]
                     if imin.size == 0:
-                        logger.debug("[%s] Could not find [%s] at the input sites in the model results" % (self.name,",".join(altvars)))
-                        raise il.VarNotInModel()
+                        continue
                     var.lat   = var.lat [  imin]
                     var.lon   = var.lon [  imin]
                     var.data  = var.data[:,imin]
