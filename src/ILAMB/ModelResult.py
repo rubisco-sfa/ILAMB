@@ -217,6 +217,7 @@ class ModelResult():
         V = []
         tmin =  1e20
         tmax = -1e20
+        same_site_epsilon = 0.1
         for v in altvars:
             if v not in self.variables: continue
             for pathName in self.variables[v]:
@@ -237,7 +238,7 @@ class ModelResult():
                                 (lons[:,np.newaxis]-var.lon)**2)
                     imin = r.argmin(axis=1)
                     rmin = r.   min(axis=1)
-                    imin = imin[np.where(rmin<1.0)]
+                    imin = imin[np.where(rmin<same_site_epsilon)]
                     if imin.size == 0:
                         continue
                     var.lat   = var.lat [  imin]
