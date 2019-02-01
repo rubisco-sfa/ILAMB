@@ -303,6 +303,10 @@ class Variable:
         # approximate the integral by nodal integration (rectangle rule)
         np.seterr(over='ignore',under='ignore')
         integral = (self.data[ind]*dt).sum(axis=0)
+        integral_bnd = None
+        if self.data_bnd is not None:
+            integral_bnd = np.asarray([(self.data_bnd[ind,0]*dt).sum(axis=0),
+                                       (self.data_bnd[ind,1]*dt).sum(axis=0)]).T
         np.seterr(over='raise',under='raise')
 
         # the integrated array should be masked where *all* data in time was previously masked
@@ -310,7 +314,7 @@ class Variable:
         if self.data.ndim > 1 and self.data.mask.size > 1:
             mask = np.apply_along_axis(np.all,0,self.data.mask[ind])
         integral = np.ma.masked_array(integral,mask=mask,copy=False)
-
+            
         # handle units
         unit = Unit(self.unit)
         name = self.name + "_integrated_over_time"
@@ -327,6 +331,9 @@ class Variable:
                 dt = dt.sum(axis=0)
             np.seterr(over='ignore',under='ignore')
             integral = integral / dt
+            if integral_bnd is not None:
+                integral_bnd[:,0] = integral_bnd[:,0] / dt
+                integral_bnd[:,1] = integral_bnd[:,1] / dt
             np.seterr(over='raise' ,under='raise' )
 
         else:
@@ -335,8 +342,11 @@ class Variable:
             unit0    = Unit("d")*unit
             unit     = Unit(unit0.format().split()[-1])
             integral = unit0.convert(integral,unit)
-
+            if integral_bnd is not None:
+                integral_bnd = unit0.convert(integral_bnd,unit)
+                
         return Variable(data       = integral,
+                        data_bnd   = integral_bnd,
                         unit       = "%s" % unit,
                         name       = name,
                         lat        = self.lat,
@@ -837,6 +847,7 @@ class Variable:
              (src_unit.is_convertible(mass_conc  ) and tar_unit.is_convertible(volume_conc      )) ):
             np.seterr(over='ignore',under='ignore')
             self.data *= density
+            if self.data_bnd is not None: self.data_bnd *= density
             np.seterr(over='raise',under='raise')
             src_unit *= mass_density
 
@@ -846,6 +857,7 @@ class Variable:
              (tar_unit.is_convertible(mass_conc  ) and src_unit.is_convertible(volume_conc      )) ):
             np.seterr(over='ignore',under='ignore')
             self.data = self.data / density
+            if self.data_bnd is not None: self.data_bnd = self.data_bnd / density
             np.seterr(over='raise',under='raise')
             src_unit = src_unit / mass_density
 
@@ -853,6 +865,8 @@ class Variable:
         try:
             self.data = src_unit.convert(self.data,tar_unit)
             self.data = np.ma.masked_array(self.data,mask=mask)
+            if self.data_bnd is not None:
+                self.data_bnd = src_unit.convert(self.data_bnd,tar_unit)
             self.unit = unit
         except:
             raise il.UnitConversionError()
@@ -1023,43 +1037,53 @@ class Variable:
 
         grp = dset
         if self.data.size == 1:
+            
+            # we are writing out a scalar so we add it into a special
+            # subgroup for scalars
             if "scalars" not in dset.groups:
                 grp = dset.createGroup("scalars")
             else:
                 grp = dset.groups["scalars"]
-
-        V = grp.createVariable(self.name,"double",dim,zlib=True)
-        V.setncattr("units",self.unit)
-        try:
-            V.setncattr("max",self.data.max())
-            V.setncattr("min",self.data.min())
-        except:
-            V.setncattr("max",0)
-            V.setncattr("min",1)
-
-        if self.data.size == 1:
-            # we are dealing with a scalar
-            if np.ma.is_masked(self.data): self.data = 0
-        else:
-            # not a scalar, find the middle 98 percent of the data
-            data = np.ma.copy(self.data).compressed().reshape((-1))
-            if data.size == 0:
-                V.setncattr("up99",1)
-                V.setncattr("dn99",0)
+            V = grp.createVariable(self.name,"double",dim,zlib=True)
+            V.units = self.unit
+            if type(self.data) is np.ma.core.MaskedConstant:
+                V[...] = np.nan
             else:
-                data.sort()
-                V.setncattr("up99",data[min(int(round(0.99*data.size)),data.size-1)])
-                V.setncattr("dn99",data[    int(round(0.01*data.size))])
+                V[...] = self.data
 
+        else:
+            # not a scalar, compute the min/max and middle 98
+            # percentiles
+            try:
+                per = np.percentile(self.data.compressed(),[0,1,99,100])
+            except:
+                per = [0,0,0,0]
+            V = grp.createVariable(self.name,"double",dim,zlib=True)
+            V.units = self.unit
+            V.min = per[0]
+            V.dn99 = per[1]
+            V.up99 = per[2]
+            V.max = per[3]
+            V[...] = self.data
+            if self.data_bnd is not None:
+                bnd_name = "%s_bnds" % (self.name)
+                V.bounds = bnd_name
+                VB = grp.createVariable(bnd_name,"double",dim+['nb'],zlib=True)
+                try:
+                    per = np.percentile(self.data_bnd.compressed(),[0,1,99,100])
+                except:
+                    per = [0,0,0,0]
+                VB.units = self.unit
+                VB.min = per[0]
+                VB.dn99 = per[1]
+                VB.up99 = per[2]
+                VB.max = per[3]
+                VB[...] = self.data_bnd
+                
         # optionally write out more attributes
         if attributes:
             for key in attributes.keys():
                 V.setncattr(key,attributes[key])
-
-        if type(self.data) is np.ma.core.MaskedConstant:
-            V[...] = np.nan
-        else:
-            V[...] = self.data
 
     def plot(self,ax,**keywords):
         """Plots the variable on the given matplotlib axis.
@@ -1713,6 +1737,7 @@ class Variable:
         shp     = (n+1,) + self.data.shape[1:]
         time    = np.zeros(n+1)
         data    = np.ma.zeros(shp)
+        data_bnd = None if self.data_bnd is None else np.ma.zeros(shp+(2,))
         time[0] = self.time_bnds[0,0]
         for i in range(n):
             t0   = self.time_bnds[i,0]
@@ -1720,11 +1745,13 @@ class Variable:
             isum = self.integrateInTime(t0=t0,tf=tf)
             time[i+1]     = tf
             data[i+1,...] = data[i,...] + isum.data
-
+            if data_bnd is not None:
+                data_bnd[i+1,...] = data_bnd[i,...] + isum.data_bnd
         return Variable(name      = "cumulative_sum_%s" % self.name,
                         unit      = isum.unit,
                         time      = time,
                         data      = data,
+                        data_bnd  = data_bnd,
                         lat       = self.lat,
                         lon       = self.lon,
                         area      = self.area)
