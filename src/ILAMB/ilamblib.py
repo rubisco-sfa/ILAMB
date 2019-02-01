@@ -767,10 +767,17 @@ def FromNetCDF4(filename,variable_name,alternate_vars=[],t0=None,tf=None,group=N
     data    = None;
     cbounds = None
     t,t_bnd,cbounds,begin,end,calendar = GetTime(var,t0=t0,tf=tf,convert_calendar=convert_calendar)
+
+    # Are there uncertainties?
+    v_bnd = None
+    if "bounds" in var.ncattrs(): v_bnd = var.bounds
+    v_bnd = grp.variables[v_bnd] if v_bnd in grp.variables.keys() else None
     if begin is None:
         v = var[...]
+        if v_bnd: v_bnd = v_bnd[...]
     else:
         v = var[begin:(end+1),...]
+        if v_bnd: v_bnd = v_bnd[begin:(end+1),...]
     if lat_name       is not None: lat       = grp.variables[lat_name]      [...]
     if lat_bnd_name   is not None: lat_bnd   = grp.variables[lat_bnd_name]  [...]
     if lon_name       is not None: lon       = grp.variables[lon_name]      [...]
@@ -856,7 +863,7 @@ def FromNetCDF4(filename,variable_name,alternate_vars=[],t0=None,tf=None,group=N
         units = "1"
     dset.close()
 
-    return v,units,variable_name,t,t_bnd,lat,lat_bnd,lon,lon_bnd,depth,depth_bnd,cbounds,data,calendar
+    return v,v_bnd,units,variable_name,t,t_bnd,lat,lat_bnd,lon,lon_bnd,depth,depth_bnd,cbounds,data,calendar
 
 def Score(var,normalizer):
     """Remaps a normalized variable to the interval [0,1].

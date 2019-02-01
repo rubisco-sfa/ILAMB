@@ -81,6 +81,7 @@ class Variable:
         calendar       = "noleap"
         if filename is None: # if not pull data from other arguments
             data       = keywords.get("data"       ,None)
+            data_bnd   = keywords.get("data_bnd"   ,None)
             unit       = keywords.get("unit"       ,None)
             name       = keywords.get("name"       ,"unnamed")
             time       = keywords.get("time"       ,None)
@@ -101,13 +102,14 @@ class Variable:
             tf = keywords.get("tf",None)
             convert_calendar = keywords.get("convert_calendar",True)
             out = il.FromNetCDF4(filename,variable_name,alternate_vars,t0,tf,group=groupname,convert_calendar=convert_calendar)
-            data,unit,name,time,time_bnds,lat,lat_bnds,lon,lon_bnds,depth,depth_bnds,cbounds,ndata,calendar = out
+            data,data_bnd,unit,name,time,time_bnds,lat,lat_bnds,lon,lon_bnds,depth,depth_bnds,cbounds,ndata,calendar = out
 
         # Add handling for some units which cf_units does not support
         unit = unit.replace("psu","1e-3")
 
         if not np.ma.isMaskedArray(data): data = np.ma.masked_array(data)
         self.data  = data
+        self.data_bnd = data_bnd
         self.ndata = ndata
         self.unit  = unit
         self.name  = name
@@ -1094,12 +1096,14 @@ class Variable:
         ticklabels : array of strings, optional
             Defines the labels of the xticks
         """
+        data = self.data if self.data_bnd is None else self.data_bnd
+        pad = 0.05*(data.max()-data.min())
         lw     = keywords.get("lw"    ,1.0)
         alpha  = keywords.get("alpha" ,1.0)
         color  = keywords.get("color" ,"k")
         label  = keywords.get("label" ,None)
-        vmin   = keywords.get("vmin"  ,self.data.min())
-        vmax   = keywords.get("vmax"  ,self.data.max())
+        vmin   = keywords.get("vmin"  ,data.min()-pad)
+        vmax   = keywords.get("vmax"  ,data.max()+pad)
         region = keywords.get("region","global")
         cmap   = keywords.get("cmap"  ,"jet")
         land   = keywords.get("land"  ,0.875)
@@ -1119,9 +1123,14 @@ class Variable:
                     lw    = lw,
                     alpha = alpha,
                     label = label)
+            if self.data_bnd is not None:
+                ax.fill_between(t,self.data_bnd[:,0],self.data_bnd[:,1],
+                                lw = 0,
+                                color = color,
+                                alpha = 0.25*alpha)
             if ticks      is not None: ax.set_xticks(ticks)
             if ticklabels is not None: ax.set_xticklabels(ticklabels)
-            ax.grid('on')
+            ax.grid(True)
             ax.set_ylim(vmin,vmax)
 
         elif not self.temporal:
