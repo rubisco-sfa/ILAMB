@@ -50,10 +50,6 @@ class ModelResult():
         self.land_fraction  = None
         self.land_areas     = None
         self.land_area      = None
-        self.lat            = None
-        self.lon            = None
-        self.lat_bnds       = None
-        self.lon_bnds       = None
         self.variables      = None
         self.names          = None
         self.extents        = np.asarray([[-90.,+90.],[-180.,+180.]])
@@ -150,22 +146,15 @@ class ModelResult():
         """
         # Are there cell areas associated with this model?
         if "areacella" not in self.variables.keys(): return
-        f = Dataset(self.variables["areacella"][0])
-        self.cell_areas    = f.variables["areacella"][...]
-        self.lat           = f.variables["lat"][...]
-        self.lon           = f.variables["lon"][...]
-        self.lat_bnds      = np.zeros(self.lat.size+1)
-        self.lat_bnds[:-1] = f.variables["lat_bnds"][:,0]
-        self.lat_bnds[-1]  = f.variables["lat_bnds"][-1,1]
-        self.lon_bnds      = np.zeros(self.lon.size+1)
-        self.lon_bnds[:-1] = f.variables["lon_bnds"][:,0]
-        self.lon_bnds[-1]  = f.variables["lon_bnds"][-1,1]
+        with Dataset(self.variables["areacella"][0]) as f:
+            self.cell_areas = f.variables["areacella"][...]
 
         # Now we do the same for land fractions
         if "sftlf" not in self.variables.keys():
             self.land_areas = self.cell_areas
         else:
-            self.land_fraction = (Dataset(self.variables["sftlf"][0]).variables["sftlf"])[...]
+            with Dataset(self.variables["sftlf"][0]) as f:
+                self.land_fraction = f.variables["sftlf"][...]                
             # some models represent the fraction as a percent
             if np.ma.max(self.land_fraction) > 1: self.land_fraction *= 0.01
             np.seterr(over='ignore')
