@@ -82,7 +82,7 @@ class ModelResult():
 
         variables = {}
         names     = {}
-        for subdir, dirs, files in os.walk(self.path):
+        for subdir, dirs, files in os.walk(self.path,followlinks=True):
             for fileName in files:
                 if not fileName.endswith(".nc"): continue
                 if self.filter not in fileName: continue
@@ -217,6 +217,7 @@ class ModelResult():
         V = []
         tmin =  1e20
         tmax = -1e20
+        same_site_epsilon = 0.1
         for v in altvars:
             if v not in self.variables: continue
             for pathName in self.variables[v]:
@@ -237,10 +238,9 @@ class ModelResult():
                                 (lons[:,np.newaxis]-var.lon)**2)
                     imin = r.argmin(axis=1)
                     rmin = r.   min(axis=1)
-                    imin = imin[np.where(rmin<1.0)]
+                    imin = imin[np.where(rmin<same_site_epsilon)]
                     if imin.size == 0:
-                        logger.debug("[%s] Could not find [%s] at the input sites in the model results" % (self.name,",".join(altvars)))
-                        raise il.VarNotInModel()
+                        continue
                     var.lat   = var.lat [  imin]
                     var.lon   = var.lon [  imin]
                     var.data  = var.data[:,imin]

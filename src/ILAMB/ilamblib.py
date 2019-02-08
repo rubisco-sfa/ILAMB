@@ -283,12 +283,14 @@ def GetTime(var,t0=None,tf=None,convert_calendar=True,ignore_time_array=True):
         raise ValueError(msg)
 
     # Convert time array to ILAMB default calendar / datum
-    T  = cf.num2date(T ,units=t.units,calendar=t.calendar)
-    TB = cf.num2date(TB,units=t.units,calendar=t.calendar)
-    for index,x in np.ndenumerate(T):
-        T [index] = ConvertCalendar(x,"days since 1850-1-1 00:00:00","noleap" if convert_calendar else t.calendar)
-    for index,x in np.ndenumerate(TB):
-        TB[index] = ConvertCalendar(x,"days since 1850-1-1 00:00:00","noleap" if convert_calendar else t.calendar)
+    datum_shift = (cf.num2date(0,t.units)-cf.num2date(0,"days since 1850-1-1 00:00:00")).total_seconds()
+    if ((datum_shift > 60) or (convert_calendar and t.calendar != "noleap")):
+        T  = cf.num2date(T ,units=t.units,calendar=t.calendar)
+        TB = cf.num2date(TB,units=t.units,calendar=t.calendar)
+        for index,x in np.ndenumerate(T):
+            T [index] = ConvertCalendar(x,"days since 1850-1-1 00:00:00","noleap" if convert_calendar else t.calendar)
+        for index,x in np.ndenumerate(TB):
+            TB[index] = ConvertCalendar(x,"days since 1850-1-1 00:00:00","noleap" if convert_calendar else t.calendar)
     cal = "noleap" if convert_calendar else t.calendar
 
     return T.astype(float),TB.astype(float),CB,begin,end,cal
