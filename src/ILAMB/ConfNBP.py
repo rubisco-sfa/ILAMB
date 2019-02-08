@@ -41,7 +41,7 @@ class ConfNBP(Confrontation):
         obs = Variable(filename       = self.source,
                        variable_name  = self.variable,
                        alternate_vars = self.alternate_vars)
-
+        
         # the model data needs integrated over the globe
         mod  = m.extractTimeSeries(self.variable,
                                    alt_vars = self.alternate_vars)
@@ -56,6 +56,7 @@ class ConfNBP(Confrontation):
 
         # sign convention is backwards
         obs.data *= -1.
+        if obs.data_bnds is not None: obs.data_bnds *= -1.
         mod.data *= -1.
 
         return obs,mod
