@@ -189,8 +189,8 @@ class ConfDiurnal(Confrontation):
             # Reshape the year's worth of data
             iobs = np.where(y==Yobs)[0]
             imod = np.where(y==Ymod)[0]
-            if (iobs.size < 0.9*nobs*365) continue
-            if (imod.size < 0.9*nmod*365) continue
+            if (iobs.size < 0.9*nobs*365): continue
+            if (imod.size < 0.9*nmod*365): continue
             vobs,tobs = DiurnalReshape(obs.time     [iobs] - datum,
                                        obs.time_bnds[iobs] - datum,
                                        obs.data     [iobs,0])
