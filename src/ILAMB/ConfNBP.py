@@ -56,7 +56,7 @@ class ConfNBP(Confrontation):
 
         # sign convention is backwards
         obs.data *= -1.
-        if obs.data_bnd is not None: obs.data_bnd *= -1.
+        if obs.data_bnds is not None: obs.data_bnds *= -1.
         mod.data *= -1.
 
         return obs,mod
