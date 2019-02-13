@@ -31,7 +31,7 @@ class Regions(object):
             the minimum and maximum latitudes defining the region on the interval (-90,90)
         lons : array-like of size 2
             the minimum and maximum longitudes defining the region on the interval (-180,180)
-        
+
         """
         lat  = np.hstack([[- 90.],np.asarray(lats),[ 90.]])
         lon  = np.hstack([[-180.],np.asarray(lons),[180.]])
@@ -60,20 +60,20 @@ class Regions(object):
         variable::
 
           dimensions:
-  	        lat = 360 ;
-  	        lon = 720 ;
-	        n = 50 ;
+                lat = 360 ;
+                lon = 720 ;
+                n = 50 ;
           variables:
-	        string label(n) ;
-		        label:long_name = "basin labels" ;
-	        float lat(lat) ;
-		        lat:long_name = "latitude" ;
-		        lat:units = "degrees_north" ;
-	        float lon(lon) ;
-		        lon:long_name = "longitude" ;
-		        lon:units = "degrees_east" ;
-	        int basin_index(lat, lon) ;
-		        basin_index:labels = "label" ;
+                string label(n) ;
+                        label:long_name = "basin labels" ;
+                float lat(lat) ;
+                        lat:long_name = "latitude" ;
+                        lat:units = "degrees_north" ;
+                float lon(lon) ;
+                        lon:long_name = "longitude" ;
+                        lon:units = "degrees_east" ;
+                int basin_index(lat, lon) ;
+                        basin_index:labels = "label" ;
 
         Parameters
         ----------
@@ -105,10 +105,10 @@ class Regions(object):
                     Regions._regions[label] = [name,lat,lon,mask]
                     labels.append(label)
         return labels
-    
+
     def getRegionName(self,label):
         """Given the region label, return the full name.
-        
+
         Parameters
         ----------
         label : str
@@ -147,7 +147,7 @@ class Regions(object):
             cols = (np.abs(lon[:,np.newaxis]-var.lon)).argmin(axis=0)
         if var.ndata: return mask[np.ix_(rows,cols)].diagonal()
         return mask[np.ix_(rows,cols)]
-            
+
     def hasData(self,label,var):
         """Checks if the ILAMB.Variable has data on the given region.
 
@@ -173,14 +173,14 @@ class Regions(object):
             keep *= (var.data.mask == False).any(axis=tuple(axes))
         if keep.sum() > 0: return True
         return False
-        
+
 if "global" not in Regions().regions:
-    
+
     # Populate some regions
-    r = Regions()    
+    r = Regions()
     r.addRegionLatLonBounds("global","Globe",(-89.999, 89.999),(-179.999, 179.999))
     Regions._regions["global"][3][...] = 0. # ensure global mask is null
-    
+
     # GFED regions
     r.addRegionLatLonBounds("bona","Boreal North America",             ( 49.75, 79.75),(-170.25,- 60.25))
     r.addRegionLatLonBounds("tena","Temperate North America",          ( 30.25, 49.75),(-125.25,- 66.25))

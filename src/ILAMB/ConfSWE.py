@@ -1,8 +1,8 @@
-from Confrontation import Confrontation
+from .Confrontation import Confrontation
 import numpy as np
 
 class ConfSWE(Confrontation):
-    
+
     def stageData(self,m):
 
         # same as regular, but we subtract off the minimum

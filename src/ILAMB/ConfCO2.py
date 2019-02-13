@@ -1,10 +1,11 @@
-from ILAMB.Confrontation import Confrontation
+from .Confrontation import Confrontation
 from scipy.interpolate import CubicSpline
 from mpl_toolkits.basemap import Basemap
-from ILAMB.Variable import Variable
-from ILAMB.Regions import Regions
-from ILAMB.constants import mid_months,lbl_months,bnd_months
-import ILAMB.Post as post
+from .Variable import Variable
+from .Regions import Regions
+from .constants import mid_months,lbl_months,bnd_months
+from . import Post as post
+from . import ilamblib as il
 from netCDF4 import Dataset
 import pylab as plt
 import numpy as np
@@ -66,18 +67,17 @@ def _cycleShape(var,period=365.):
 def _siteCharacteristics(t,v):
     """Compute the mean amplitude, cycle, and time of maximum and minimum.
     """
-    np.seterr(under='ignore')
-    amp   = (v.max (axis=1)-v.min(axis=1)).mean()
-    cyc   =  v.mean(axis=0)
-    fun   = CubicSpline(np.hstack([t  ,t  [0]+365.]),
-                        np.hstack([cyc,cyc[0]     ]),
-                        bc_type="periodic")
-    troot = fun.derivative().solve()
-    troot = troot[(troot>=0)*(troot<=365.)]
-    tmax  = troot[fun(troot).argmax()]
-    tmin  = troot[fun(troot).argmin()]
-    vs    = fun(np.linspace(0,365,366))
-    np.seterr(under='raise')
+    with np.errstate(under='ignore'):
+        amp   = (v.max (axis=1)-v.min(axis=1)).mean()
+        cyc   =  v.mean(axis=0)
+        fun   = CubicSpline(np.hstack([t  ,t  [0]+365.]),
+                            np.hstack([cyc,cyc[0]     ]),
+                            bc_type="periodic")
+        troot = fun.derivative().solve()
+        troot = troot[(troot>=0)*(troot<=365.)]
+        tmax  = troot[fun(troot).argmax()]
+        tmin  = troot[fun(troot).argmin()]
+        vs    = fun(np.linspace(0,365,366))
     return amp,tmax,tmin,vs
 
 def _detrend(var):
@@ -146,20 +146,7 @@ class ConfCO2(Confrontation):
             self.map  = [self.lbls.index(site) for site in self.sites if site in self.lbls]
             self.lbls = [self.lbls[i] for i in self.map]
 
-
-    def stageData(self,m):
-
-        # Get the observational data
-        obs = Variable(filename       = self.source,
-                       variable_name  = self.variable,
-                       alternate_vars = self.alternate_vars)
-
-        # Reduce the sites
-        if self.map:
-            obs.lat   = obs.lat [  self.map]
-            obs.lon   = obs.lon [  self.map]
-            obs.data  = obs.data[:,self.map]
-            obs.ndata = len(self.map)
+    def emulatedModelResult(self,m,obs):
 
         # Emulation parameters
         emulated_flux = self.keywords.get("emulated_flux","nbp")
@@ -198,7 +185,7 @@ class ConfCO2(Confrontation):
         ilon = np.abs(lon[:,np.newaxis]-obs.lon).argmin(axis=0)
 
         # Apply the operator
-        Nyrs  = mod.time.size/12
+        Nyrs  = int(mod.time.size/12)
         Ntot  = 12*Nyrs + Ninf
         eflux = np.zeros((obs.ndata,22,Ntot))
         for j in range(20):
@@ -224,6 +211,64 @@ class ConfCO2(Confrontation):
                        time      = obs.time,
                        time_bnds = obs.time_bnds,
                        data      = eflux)
+        return mod
+
+    def stageData(self,m):
+
+        # Get the observational data
+        obs = Variable(filename       = self.source,
+                       variable_name  = self.variable,
+                       alternate_vars = self.alternate_vars)
+
+        # Reduce the sites
+        if self.map:
+            obs.lat   = obs.lat  [  self.map]
+            obs.lon   = obs.lon  [  self.map]
+            obs.depth = obs.depth[  self.map]
+            obs.data  = obs.data [:,self.map]
+            obs.ndata = len(self.map)
+
+        # Get the model result
+        force_emulation = self.keywords.get("force_emulation","False").lower() == "true"
+        never_emulation = self.keywords.get("never_emulation","False").lower() == "true"
+        no_co2          = False
+        mod             = None
+        if not force_emulation:
+            try:
+                #print "Trying to get co2 from %s" % m.name
+                mod = m.extractTimeSeries(self.variable,
+                                          alt_vars     = self.alternate_vars,
+                                          initial_time = obs.time_bnds[ 0,0],
+                                          final_time   = obs.time_bnds[-1,1],
+                                          lats         = None if obs.spatial else obs.lat,
+                                          lons         = None if obs.spatial else obs.lon)
+            except il.VarNotInModel:
+                #print "co2 not in %s" % m.name
+                no_co2 = True
+
+        if (((mod is None) or no_co2) and (not never_emulation)):
+            #print "Emulating co2 in %s" % m.name
+            mod = self.emulatedModelResult(m,obs)
+
+        if mod is None: raise il.VarNotInModel()
+
+        # get the right layering, closest to the layer elevation where all aren't masked.
+        if mod.layered:
+            ind = (np.abs(obs.depth[:,np.newaxis]-mod.depth)).argmin(axis=1)
+            for i in range(ind.size):
+                while (mod.data[:,ind[i],i].mask.sum() > 0.5*mod.data.shape[0]):
+                    ind[i] += 1
+            data = []
+            for i in range(ind.size):
+                data.append(mod.data[:,ind[i],i])
+            mod.data = np.ma.masked_array(data).T
+            mod.depth = None
+            mod.depth_bnds = None
+            mod.layered = False
+            obs,mod = il.MakeComparable(obs,mod,
+                                        mask_ref  = True,
+                                        clip_ref  = True)
+            mod.data.mask += obs.data.mask
 
         # Remove the trend via quadradic polynomial
         obs = _detrend(obs)
@@ -251,121 +296,120 @@ class ConfCO2(Confrontation):
         well_define /= well_define.sum()
 
         # Write out ILAMB variables for observed quantities
-        np.seterr(under='ignore')
-        ocyc     = Variable(name  = "cycle", # mean annual cycle
-                            unit  = obs.unit,
-                            data  = ocyc.mean(axis=0),
-                            ndata = obs.ndata,
-                            lat   = obs.lat,
-                            lon   = obs.lon,
-                            time  = ot,
-                            time_bnds = otb)
-        oiav     = Variable(name  = "iav", # deseasonalized interannual variability
-                            unit  = obs.unit,
-                            data  = obs.data-ocyc.data[ocyc.time.searchsorted(obs.time % 365),...],
-                            time  = obs.time,
-                            ndata = obs.ndata,
-                            lat   = obs.lat,
-                            lon   = obs.lon,
-                            time_bnds = obs.time_bnds)
-        ocycf    = Variable(name  = "cycle_fine", # finely sampled cycle from cubic interpolation
-                            unit  = obs.unit,
-                            data  = obs_cyc,
-                            time  = np.linspace(0,365,366),
-                            ndata = obs.ndata,
-                            lat   = obs.lat,
-                            lon   = obs.lon)
-        obs_amp  = Variable(name  = "amp", # mean amplitude over time period
-                            unit  = obs.unit,
-                            data  = obs_amp,
-                            ndata = obs.ndata,
-                            lat   = obs.lat,
-                            lon   = obs.lon)
-        obs_maxp = Variable(name  = "maxp", # Julian day of the maximum of the annual cycle
-                            unit  = "d",
-                            data  = obs_maxp,
-                            ndata = obs.ndata,
-                            lat   = obs.lat,
-                            lon   = obs.lon)
-        obs_minp = Variable(name  = "minp", # Julian day of the minimum of the annual cycle
-                            unit  = "d",
-                            data  = obs_minp,
-                            ndata = obs.ndata,
-                            lat   = obs.lat,
-                            lon   = obs.lon)
+        with np.errstate(under='ignore'):
+            ocyc     = Variable(name  = "cycle", # mean annual cycle
+                                unit  = obs.unit,
+                                data  = ocyc.mean(axis=0),
+                                ndata = obs.ndata,
+                                lat   = obs.lat,
+                                lon   = obs.lon,
+                                time  = ot,
+                                time_bnds = otb)
+            oiav     = Variable(name  = "iav", # deseasonalized interannual variability
+                                unit  = obs.unit,
+                                data  = obs.data-il.ExtendAnnualCycle(obs.time,ocyc.data,ocyc.time),
+                                time  = obs.time,
+                                ndata = obs.ndata,
+                                lat   = obs.lat,
+                                lon   = obs.lon,
+                                time_bnds = obs.time_bnds)
+            ocycf    = Variable(name  = "cycle_fine", # finely sampled cycle from cubic interpolation
+                                unit  = obs.unit,
+                                data  = obs_cyc,
+                                time  = np.linspace(0,365,366),
+                                ndata = obs.ndata,
+                                lat   = obs.lat,
+                                lon   = obs.lon)
+            obs_amp  = Variable(name  = "amp", # mean amplitude over time period
+                                unit  = obs.unit,
+                                data  = obs_amp,
+                                ndata = obs.ndata,
+                                lat   = obs.lat,
+                                lon   = obs.lon)
+            obs_maxp = Variable(name  = "maxp", # Julian day of the maximum of the annual cycle
+                                unit  = "d",
+                                data  = obs_maxp,
+                                ndata = obs.ndata,
+                                lat   = obs.lat,
+                                lon   = obs.lon)
+            obs_minp = Variable(name  = "minp", # Julian day of the minimum of the annual cycle
+                                unit  = "d",
+                                data  = obs_minp,
+                                ndata = obs.ndata,
+                                lat   = obs.lat,
+                                lon   = obs.lon)
 
-        # Write out ILAMB variables for modeled quantities
-        mcyc     = Variable(name  = "cycle", # mean annual cycle
-                            unit  = mod.unit,
-                            data  = mcyc.mean(axis=0),
-                            ndata = mod.ndata,
-                            lat   = mod.lat,
-                            lon   = mod.lon,
-                            time  = mt,
-                            time_bnds = mtb)
-        miav     = Variable(name  = "iav", # deseasonalized interannual variability
-                            unit  = mod.unit,
-                            data  = mod.data-mcyc.data[mcyc.time.searchsorted(mod.time % 365),...],
-                            time  = mod.time,
-                            ndata = mod.ndata,
-                            lat   = mod.lat,
-                            lon   = mod.lon,
-                            time_bnds = mod.time_bnds)
-        mcycf    = Variable(name  = "cycle_fine", # finely sampled cycle from cubic interpolation
-                            unit  = mod.unit,
-                            data  = mod_cyc,
-                            time  = np.linspace(0,365,366),
-                            ndata = mod.ndata,
-                            lat   = mod.lat,
-                            lon   = mod.lon)
-        mod_amp  = Variable(name  = "amp", # mean amplitude over time period
-                            unit  = mod.unit,
-                            data  = mod_amp,
-                            ndata = mod.ndata,
-                            lat   = mod.lat,
-                            lon   = mod.lon)
-        mod_maxp = Variable(name  = "maxp", # Julian day of the maximum of the annual cycle
-                            unit  = "d",
-                            data  = mod_maxp,
-                            ndata = mod.ndata,
-                            lat   = mod.lat,
-                            lon   = mod.lon)
-        mod_minp = Variable(name  = "minp", # Julian day of the minimum of the annual cycle
-                            unit  = "d",
-                            data  = mod_minp,
-                            ndata = mod.ndata,
-                            lat   = mod.lat,
-                            lon   = mod.lon)
+            # Write out ILAMB variables for modeled quantities
+            mcyc     = Variable(name  = "cycle", # mean annual cycle
+                                unit  = mod.unit,
+                                data  = mcyc.mean(axis=0),
+                                ndata = mod.ndata,
+                                lat   = mod.lat,
+                                lon   = mod.lon,
+                                time  = mt,
+                                time_bnds = mtb)
+            miav     = Variable(name  = "iav", # deseasonalized interannual variability
+                                unit  = mod.unit,
+                                data  = mod.data-il.ExtendAnnualCycle(mod.time,mcyc.data,mcyc.time),
+                                time  = mod.time,
+                                ndata = mod.ndata,
+                                lat   = mod.lat,
+                                lon   = mod.lon,
+                                time_bnds = mod.time_bnds)
+            mcycf    = Variable(name  = "cycle_fine", # finely sampled cycle from cubic interpolation
+                                unit  = mod.unit,
+                                data  = mod_cyc,
+                                time  = np.linspace(0,365,366),
+                                ndata = mod.ndata,
+                                lat   = mod.lat,
+                                lon   = mod.lon)
+            mod_amp  = Variable(name  = "amp", # mean amplitude over time period
+                                unit  = mod.unit,
+                                data  = mod_amp,
+                                ndata = mod.ndata,
+                                lat   = mod.lat,
+                                lon   = mod.lon)
+            mod_maxp = Variable(name  = "maxp", # Julian day of the maximum of the annual cycle
+                                unit  = "d",
+                                data  = mod_maxp,
+                                ndata = mod.ndata,
+                                lat   = mod.lat,
+                                lon   = mod.lon)
+            mod_minp = Variable(name  = "minp", # Julian day of the minimum of the annual cycle
+                                unit  = "d",
+                                data  = mod_minp,
+                                ndata = mod.ndata,
+                                lat   = mod.lat,
+                                lon   = mod.lon)
 
-        # Amplitude score: for each site we compute the relative error
-        # in amplitude and then score each site using the
-        # exponential. The score for the model is then the arithmetic
-        # mean across sites.
-        Samp = Variable(name  = "Amplitude Score global",
-                        unit  = "1",
-                        data  = np.exp(-np.abs(mod_amp.data-obs_amp.data)/obs_amp.data).mean())
+            # Amplitude score: for each site we compute the relative error
+            # in amplitude and then score each site using the
+            # exponential. The score for the model is then the arithmetic
+            # mean across sites.
+            Samp = Variable(name  = "Amplitude Score global",
+                            unit  = "1",
+                            data  = np.exp(-np.abs(mod_amp.data-obs_amp.data)/obs_amp.data).mean())
 
-        # Interannual variability score: similar to the amplitude
-        # score, we also score the relative error in the stdev(iav)
-        # and report a mean across sites.
-        ostd = oiav.data.std(axis=0)
-        mstd = miav.data.std(axis=0)
-        Siav = Variable(name  = "Interannual Variability Score global",
-                        unit  = "1",
-                        data  = np.exp(-np.abs(mstd-ostd)/ostd).mean())
-        
-        # Min/Max Phase score: for each site we compute the phase
-        # shift and normalize it linearly where a 0 day shift gets a
-        # score of 1 and a 365/2 day shift is zero. We then compute a
-        # weighted mean across sites where sites without a well
-        # defined annual cycle are discarded.
-        Smax = Variable(name = "Max Phase Score global",
-                        unit = "1",
-                        data = np.average(_computeShift(obs_maxp,mod_maxp),weights=well_define))
-        Smin = Variable(name = "Min Phase Score global",
-                        unit = "1",
-                        data = np.average(_computeShift(obs_minp,mod_minp),weights=well_define))
-        np.seterr(under='raise')
+            # Interannual variability score: similar to the amplitude
+            # score, we also score the relative error in the stdev(iav)
+            # and report a mean across sites.
+            ostd = oiav.data.std(axis=0)
+            mstd = miav.data.std(axis=0)
+            Siav = Variable(name  = "Interannual Variability Score global",
+                            unit  = "1",
+                            data  = np.exp(-np.abs(mstd-ostd)/ostd).mean())
+
+            # Min/Max Phase score: for each site we compute the phase
+            # shift and normalize it linearly where a 0 day shift gets a
+            # score of 1 and a 365/2 day shift is zero. We then compute a
+            # weighted mean across sites where sites without a well
+            # defined annual cycle are discarded.
+            Smax = Variable(name = "Max Phase Score global",
+                            unit = "1",
+                            data = np.average(_computeShift(obs_maxp,mod_maxp),weights=well_define))
+            Smin = Variable(name = "Min Phase Score global",
+                            unit = "1",
+                            data = np.average(_computeShift(obs_minp,mod_minp),weights=well_define))
 
         # Write out the intermediate variables
         with Dataset(os.path.join(self.output_path,"%s_%s.nc" % (self.name,m.name)),mode="w") as results:
@@ -526,20 +570,19 @@ class ConfCO2(Confrontation):
         nb       = lat_bnds.size-1
         o_band_min = np.zeros(nb); o_band_max = np.zeros(nb); o_band_amp = np.zeros(nb); o_band_iav = np.zeros(nb)
         m_band_min = np.zeros(nb); m_band_max = np.zeros(nb); m_band_amp = np.zeros(nb); m_band_iav = np.zeros(nb)
-        np.seterr(under='ignore')
-        for i in range(o_band_min.size):
-            ind  = np.where((obs.lat >  lat_bnds[i  ])*
-                            (obs.lat <= lat_bnds[i+1]))[0]
-            o_band_min[i] = _meanDay(ominp.data[ind])
-            o_band_max[i] = _meanDay(omaxp.data[ind])
-            o_band_amp[i] =           oamp.data[ind].mean()
-            o_band_iav[i] =           oiav.data.std(axis=0)[ind].mean()
-            m_band_min[i] = _meanDay(mminp.data[ind])
-            m_band_max[i] = _meanDay(mmaxp.data[ind])
-            m_band_amp[i] =           mamp.data[ind].mean()
-            m_band_iav[i] =           miav.data.std(axis=0)[ind].mean()
-        np.seterr(under='raise')
-            
+        with np.errstate(under='ignore'):
+            for i in range(o_band_min.size):
+                ind  = np.where((obs.lat >  lat_bnds[i  ])*
+                                (obs.lat <= lat_bnds[i+1]))[0]
+                o_band_min[i] = _meanDay(ominp.data[ind])
+                o_band_max[i] = _meanDay(omaxp.data[ind])
+                o_band_amp[i] =           oamp.data[ind].mean()
+                o_band_iav[i] =           oiav.data.std(axis=0)[ind].mean()
+                m_band_min[i] = _meanDay(mminp.data[ind])
+                m_band_max[i] = _meanDay(mmaxp.data[ind])
+                m_band_amp[i] =           mamp.data[ind].mean()
+                m_band_iav[i] =           miav.data.std(axis=0)[ind].mean()
+
         # To plot the mean values over latitude bands superimposed on
         # the globe, we have to transform the phase and amplitude
         # values to [-180,180], as if they were longitudes.
@@ -547,7 +590,7 @@ class ConfCO2(Confrontation):
         o_band_max = o_band_max/365.*360-180
         m_band_min = m_band_min/365.*360-180
         m_band_max = m_band_max/365.*360-180
-        
+
         max_amp    = o_band_amp.max()
         min_amp    = o_band_amp.min()
         amp_ticks = np.linspace(min_amp,max_amp,6)
@@ -558,7 +601,7 @@ class ConfCO2(Confrontation):
         o_band_amp = (o_band_amp-min_amp)/(max_amp-min_amp)*360-180
         m_band_amp = (m_band_amp-min_amp)/(max_amp-min_amp)*360-180
         amp_ticks  = (amp_ticks -min_amp)/(max_amp-min_amp)*360-180
-        
+
         max_iav    = max(o_band_iav.max(),m_band_iav.max())
         min_iav    = 0.
         iav_ticks = np.linspace(min_iav,max_iav,6)
@@ -569,7 +612,7 @@ class ConfCO2(Confrontation):
         o_band_iav = (o_band_iav-min_iav)/(max_iav-min_iav)*360.-180.
         m_band_iav = (m_band_iav-min_iav)/(max_iav-min_iav)*360.-180.
         iav_ticks  = (iav_ticks -min_iav)/(max_iav-min_iav)*360.-180.
-        
+
         # Plot mean latitude band amplitude where amplitude is on the longitude axis
         fig,ax = plt.subplots(figsize=(8,4.5),tight_layout=True)
         bmap = Basemap(projection = 'cyl',
@@ -633,7 +676,7 @@ class ConfCO2(Confrontation):
                        side   = "INTERANNUAL VARIABILITY",
                        width  = fig.get_size_inches()[0]*fig.dpi*0.75,
                        legend = False)
-        
+
         # Plot mean latitude band max phase where the phase is on the longitude axis
         fig,ax = plt.subplots(figsize=(8,4.5),tight_layout=True)
         bmap = Basemap(projection = 'cyl',
@@ -693,3 +736,6 @@ class ConfCO2(Confrontation):
                        side   = "TIMING OF MINIMUM",
                        width  = fig.get_size_inches()[0]*fig.dpi*0.75,
                        legend = False)
+
+    def compositePlots(self):
+        pass

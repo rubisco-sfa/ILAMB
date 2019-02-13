@@ -1,6 +1,6 @@
 from numpy import asarray,ones,copy as npcopy
 from matplotlib.colors import from_levels_and_colors
-from Regions import Regions
+from .Regions import Regions
 
 __all__ = ['spm','mph','hpd','mpy','dpy_noleap','dpy_gregorian','dpy_360','dpm_noleap','dpm_gregorian','dpm_360','g_per_Pg','g_per_kg','Ar_molar_mass','C_molar_mass','N_molar_mass','O_molar_mass','CO2_molar_mass','dry_air_molar_mass','dry_air_mass','dry_air_moles','co2_g_per_ppm','co2_ppm_per_kg','co2_ppm_per_C_Pg','regions','NCARclrs','NCARcmap','NCARnorm','region_names','dpy','mid_months','spd','spy']
 
@@ -24,8 +24,8 @@ bnd_months       = asarray([0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 33
 dpy = {"noleap"    : dpy_noleap,
        "365_day"   : dpy_noleap,
        "360_day"   : dpy_360,
-       "gregorian" : dpy_gregorian, 
-       "proleptic_gregorian" : dpy_gregorian} 
+       "gregorian" : dpy_gregorian,
+       "proleptic_gregorian" : dpy_gregorian}
 
 # Mass unit conversions
 g_per_Pg         = 1e+15   # grams per Pg

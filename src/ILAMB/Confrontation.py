@@ -1,10 +1,10 @@
-import ilamblib as il
-from Variable import *
-from Regions import Regions
-from constants import space_opts,time_opts,mid_months,bnd_months
+from . import ilamblib as il
+from .Variable import *
+from .Regions import Regions
+from .constants import space_opts,time_opts,mid_months,bnd_months
 import os,glob,re
 from netCDF4 import Dataset
-import Post as post
+from . import Post as post
 import pylab as plt
 from matplotlib.colors import LogNorm
 from mpl_toolkits.axes_grid1 import make_axes_locatable
@@ -12,7 +12,7 @@ from mpi4py import MPI
 from sympy import sympify
 
 import logging
-logger = logging.getLogger("%i" % MPI.COMM_WORLD.rank)	
+logger = logging.getLogger("%i" % MPI.COMM_WORLD.rank)
 
 def getVariableList(dataset):
     """Extracts the list of variables in the dataset that aren't
@@ -70,7 +70,7 @@ class Confrontation(object):
         change the types of plot limits, one of ['minmax', '99per' (default)]
     """
     def __init__(self,**keywords):
-        
+
         # Initialize
         self.master         = True
         self.name           = keywords.get("name",None)
@@ -88,11 +88,11 @@ class Confrontation(object):
         self.longname       = "/".join(self.longname.replace("//","/").rstrip("/").split("/")[-2:])
         self.table_unit     = keywords.get("table_unit",None)
         self.plot_unit      = keywords.get("plot_unit",None)
-        self.space_mean     = keywords.get("space_mean",True)        
+        self.space_mean     = keywords.get("space_mean",True)
         self.relationships  = keywords.get("relationships",None)
         self.keywords       = keywords
         self.extents        = np.asarray([[-90.,+90.],[-180.,+180.]])
-        
+
         # Make sure the source data exists
         try:
             os.stat(self.source)
@@ -101,10 +101,10 @@ class Confrontation(object):
             msg += "%s\n\nbut I cannot find it. " % self.source
             msg += "Did you download the data? Have you set the ILAMB_ROOT envronment variable?\n"
             raise il.MisplacedData(msg)
-                
+
         # Setup a html layout for generating web views of the results
         pages = []
-        
+
         # Mean State page
         pages.append(post.HtmlPage("MeanState","Mean State"))
         pages[-1].setHeader("CNAME / RNAME / MNAME")
@@ -116,13 +116,13 @@ class Confrontation(object):
         self.lbls     = None
         y0 = None; yf = None
         with Dataset(self.source) as dataset:
-            if dataset.dimensions.has_key("data"):
+            if "data" in dataset.dimensions:
                 #self.hasSites = True
                 if "site_name" in dataset.ncattrs():
                     self.lbls = dataset.site_name.split(",")
                 else:
                     self.lbls = ["site%d" % s for s in range(len(dataset.dimensions["data"]))]
-            if dataset.dimensions.has_key("time"):
+            if "time" in dataset.dimensions:
                 t = dataset.variables["time"]
                 if "bounds" in t.ncattrs():
                     t  = dataset.variables[t.bounds][...]
@@ -146,7 +146,7 @@ class Confrontation(object):
             pages[-1].unit  = var.unit
             pages[-1].vals  = var.data
             pages[-1].sites = self.lbls
-            
+
         # Relationships page
         if self.relationships is not None:
             pages.append(post.HtmlPage("Relationships","Relationships"))
@@ -184,10 +184,10 @@ class Confrontation(object):
             ands = []
             ors  = [self.variable] + self.alternate_vars
         return ands,ors
-    
+
     def stageData(self,m):
         r"""Extracts model data which matches the observational dataset.
-        
+
         The datafile associated with this confrontation defines what
         is to be extracted from the model results. If the
         observational data represents sites, as opposed to spatially
@@ -220,7 +220,7 @@ class Confrontation(object):
                        alternate_vars = self.alternate_vars)
         if obs.time is None: raise il.NotTemporalVariable()
         self.pruneRegions(obs)
-        
+
         # Try to extract a commensurate quantity from the model
         mod = m.extractTimeSeries(self.variable,
                                   alt_vars     = self.alternate_vars,
@@ -234,7 +234,7 @@ class Confrontation(object):
                                     clip_ref  = True,
                                     extents   = self.extents,
                                     logstring = "[%s][%s]" % (self.longname,m.name))
-        
+
         # Check the order of magnitude of the data and convert to help avoid roundoff errors
         def _reduceRoundoffErrors(var):
             if "s-1" in var.unit: return var.convert(var.unit.replace("s-1","d-1"))
@@ -248,7 +248,7 @@ class Confrontation(object):
             obs    = _reduceRoundoffErrors(obs)
             order  = _getOrder(obs)
             count += 1
-            
+
         # convert the model data to the same unit
         mod = mod.convert(obs.unit)
 
@@ -276,10 +276,10 @@ class Confrontation(object):
         """
         # Grab the data
         obs,mod = self.stageData(m)
-        
+
         mod_file = os.path.join(self.output_path,"%s_%s.nc"        % (self.name,m.name))
         obs_file = os.path.join(self.output_path,"%s_Benchmark.nc" % (self.name,      ))
-        with FileContextManager(self.master,mod_file,obs_file) as fcm:
+        with il.FileContextManager(self.master,mod_file,obs_file) as fcm:
 
             # Encode some names and colors
             fcm.mod_dset.setncatts({"name" :m.name,
@@ -287,7 +287,7 @@ class Confrontation(object):
             if self.master:
                 fcm.obs_dset.setncatts({"name" :"Benchmark",
                                         "color":np.asarray([0.5,0.5,0.5])})
-                
+
             # Read in some options and run the mean state analysis
             mass_weighting = self.keywords.get("mass_weighting",False)
             skip_rmse      = self.keywords.get("skip_rmse"     ,False)
@@ -317,7 +317,7 @@ class Confrontation(object):
                                           mass_weighting    = mass_weighting)
 
         logger.info("[%s][%s] Success" % (self.longname,m.name))
-                
+
     def determinePlotLimits(self):
         """Determine the limits of all plots which are inclusive of all ranges.
 
@@ -333,7 +333,7 @@ class Confrontation(object):
         if self.keywords.get("limit_type","99per") == "minmax":
             max_str = "max"
             min_str = "min"
-            
+
         # Determine the min/max of variables over all models
         limits = {}
         prune  = False
@@ -347,17 +347,17 @@ class Confrontation(object):
                     pname  = vname.split("_")[0]
                     region = vname.split("_")[-1]
                     if var[...].size <= 1: continue
-                    if space_opts.has_key(pname):
-                        if not limits.has_key(pname):
+                    if pname in space_opts:
+                        if pname not in limits:
                             limits[pname] = {}
                             limits[pname]["min"]  = +1e20
                             limits[pname]["max"]  = -1e20
                             limits[pname]["unit"] = post.UnitStringToMatplotlib(var.getncattr("units"))
                         limits[pname]["min"] = min(limits[pname]["min"],var.getncattr(min_str))
                         limits[pname]["max"] = max(limits[pname]["max"],var.getncattr(max_str))
-                    elif time_opts.has_key(pname):
-                        if not limits.has_key(pname): limits[pname] = {}
-                        if not limits[pname].has_key(region):
+                    elif pname in time_opts:
+                        if pname not in limits: limits[pname] = {}
+                        if region not in limits[pname]:
                             limits[pname][region] = {}
                             limits[pname][region]["min"]  = +1e20
                             limits[pname][region]["max"]  = -1e20
@@ -369,7 +369,7 @@ class Confrontation(object):
                         self.pruneRegions(Variable(filename      = fname,
                                                    variable_name = vname,
                                                    groupname     = "MeanState"))
-        
+
         # Second pass to plot legends (FIX: only for master?)
         for pname in limits.keys():
 
@@ -377,7 +377,7 @@ class Confrontation(object):
                 opts = space_opts[pname]
             except:
                 continue
-            
+
             # Determine plot limits and colormap
             if opts["sym"]:
                 vabs =  max(abs(limits[pname]["min"]),abs(limits[pname]["min"]))
@@ -404,7 +404,7 @@ class Confrontation(object):
                               ticks = opts["ticks"],
                               ticklabels = opts["ticklabels"],
                               label = label)
-                fig.savefig(os.path.join(self.output_path,"legend_%s.png" % (pname)))                
+                fig.savefig(os.path.join(self.output_path,"legend_%s.png" % (pname)))
                 plt.close()
 
         # Determine min/max of relationship variables
@@ -413,7 +413,7 @@ class Confrontation(object):
                 for g in dataset.groups.keys():
                     if "relationship" not in g: continue
                     grp = dataset.groups[g]
-                    if not limits.has_key(g):
+                    if g not in limits:
                         limits[g] = {}
                         limits[g]["xmin"] = +1e20
                         limits[g]["xmax"] = -1e20
@@ -424,7 +424,7 @@ class Confrontation(object):
                     limits[g]["ymin"] = min(limits[g]["ymin"],grp.variables["dep_bnd"][ 0, 0])
                     limits[g]["ymax"] = max(limits[g]["ymax"],grp.variables["dep_bnd"][-1,-1])
 
-            
+
         self.limits = limits
 
     def computeOverallScore(self,m):
@@ -443,7 +443,7 @@ class Confrontation(object):
             the model results
 
         """
-        
+
         def _computeOverallScore(scalars):
             """Given a netCDF4 group of scalars, blend them into an overall score"""
             scores     = {}
@@ -455,7 +455,7 @@ class Confrontation(object):
                     if region not in v: continue
                     score = v.replace(region,"").strip()
                     weight = 1.
-                    if self.weight.has_key(score): weight = self.weight[score]
+                    if score in self.weight: weight = self.weight[score]
                     overall_score  += weight*scalars.variables[v][...]
                     sum_of_weights += weight
                 overall_score /= max(sum_of_weights,1e-12)
@@ -492,7 +492,7 @@ class Confrontation(object):
 
         # get the HTML page
         page = [page for page in self.layout.pages if "MeanState" in page.name][0]
-        
+
         models = []
         colors = []
         corr   = {}
@@ -507,15 +507,15 @@ class Confrontation(object):
             models.append(dataset.getncattr("name"))
             colors.append(dataset.getncattr("color"))
             for region in self.regions:
-                
-                if not cycle.has_key(region): cycle[region] = []
+
+                if region not in cycle: cycle[region] = []
                 key = [v for v in dset.variables.keys() if ("cycle_"  in v and region in v)]
                 if len(key)>0:
                     has_cycle = True
                     cycle[region].append(Variable(filename=fname,groupname="MeanState",variable_name=key[0]))
 
-                if not std.  has_key(region): std  [region] = []
-                if not corr. has_key(region): corr [region] = []
+                if region not in std: std[region] = []
+                if region not in corr: corr[region] = []
 
                 key = []
                 if "scalars" in dset.groups:
@@ -535,7 +535,7 @@ class Confrontation(object):
                            legend = False)
 
         for region in self.regions:
-            if not cycle.has_key(region): continue
+            if region not in cycle: continue
             fig,ax = plt.subplots(figsize=(6.8,2.8),tight_layout=True)
             for name,color,var in zip(models,colors,cycle[region]):
                 dy = 0.05*(self.limits["cycle"][region]["max"]-self.limits["cycle"][region]["min"])
@@ -557,8 +557,8 @@ class Confrontation(object):
                        side   = "MODEL COLORS",
                        legend = False)
         def _alphabeticalBenchmarkFirst(key):
-            key = key[0].upper()
-            if key == "BENCHMARK": return 0
+            key = key[0].lower()
+            if key == "BENCHMARK": return "A"
             return key
         tmp = sorted(zip(models,colors),key=_alphabeticalBenchmarkFirst)
         fig,ax = plt.subplots()
@@ -566,7 +566,7 @@ class Confrontation(object):
             ax.plot(0,0,'o',mew=0,ms=8,color=color,label=model)
         handles,labels = ax.get_legend_handles_labels()
         plt.close()
-        
+
         ncol = np.ceil(float(len(models))/11.).astype(int)
         if ncol > 0:
             fig,ax = plt.subplots(figsize=(3.*ncol,2.8),tight_layout=True)
@@ -576,7 +576,7 @@ class Confrontation(object):
             fig.savefig(os.path.join(self.output_path,"legend_spatial_variance.png"))
             fig.savefig(os.path.join(self.output_path,"legend_temporal_variance.png"))
             plt.close()
-        
+
         # spatial distribution Taylor plot
         if has_std:
             page.addFigure("Temporally integrated period mean",
@@ -588,17 +588,17 @@ class Confrontation(object):
                            "legend_spatial_variance",
                            "legend_spatial_variance.png",
                            side   = "MODEL COLORS",
-                           legend = False) 
+                           legend = False)
         if "Benchmark" in models: colors.pop(models.index("Benchmark"))
         for region in self.regions:
-            if not (std.has_key(region) and corr.has_key(region)): continue
+            if not (region in std and region in corr): continue
             if len(std[region]) != len(corr[region]): continue
             if len(std[region]) == 0: continue
             fig = plt.figure(figsize=(6.0,6.0))
             post.TaylorDiagram(np.asarray(std[region]),np.asarray(corr[region]),1.0,fig,colors)
             fig.savefig(os.path.join(self.output_path,"%s_spatial_variance.png" % region))
             plt.close()
-            
+
     def modelPlots(self,m):
         """For a given model, create the plots of the analysis results.
 
@@ -615,101 +615,101 @@ class Confrontation(object):
         if not os.path.isfile(fname): return
 
         # get the HTML page
-        page = [page for page in self.layout.pages if "MeanState" in page.name][0]  
-        
+        page = [page for page in self.layout.pages if "MeanState" in page.name][0]
+
         with Dataset(fname) as dataset:
             group     = dataset.groups["MeanState"]
             variables = getVariableList(group)
             color     = dataset.getncattr("color")
             for vname in variables:
-	                
-	            # is this a variable we need to plot?
-	            pname = vname.split("_")[0]
-	            if group.variables[vname][...].size <= 1: continue
-	            var = Variable(filename=fname,groupname="MeanState",variable_name=vname)
-                    
-	            if (var.spatial or (var.ndata is not None)) and not var.temporal:
-	
-	                # grab plotting options
-	                if pname not in self.limits.keys(): continue
-	                opts = space_opts[pname]
-	
-	                # add to html layout
-	                page.addFigure(opts["section"],
-	                               pname,
-	                               opts["pattern"],
-	                               side   = opts["sidelbl"],
-	                               legend = opts["haslegend"])
-	
-	                # plot variable
-	                for region in self.regions:
-	                    fig = plt.figure(figsize=(6.8,2.8))
-	                    ax  = fig.add_axes([0.06,0.025,0.88,0.965])
-	                    var.plot(ax,
-	                             region = region,
-	                             vmin   = self.limits[pname]["min"],
-	                             vmax   = self.limits[pname]["max"],
-	                             cmap   = self.limits[pname]["cmap"])
-	                    fig.savefig(os.path.join(self.output_path,"%s_%s_%s.png" % (m.name,region,pname)))
-	                    plt.close()
-                            
-	                # Jumping through hoops to get the benchmark plotted and in the html output
-	                if self.master and (pname == "timeint" or pname == "phase" or pname == "iav"):
-	
-	                    opts = space_opts[pname]
-	
-	                    # add to html layout
-	                    page.addFigure(opts["section"],
-	                                   "benchmark_%s" % pname,
-	                                   opts["pattern"].replace("MNAME","Benchmark"),
-	                                   side   = opts["sidelbl"].replace("MODEL","BENCHMARK"),
-	                                   legend = True)
-	
-	                    # plot variable
-	                    obs = Variable(filename=bname,groupname="MeanState",variable_name=vname)
-	                    for region in self.regions:
-	                        fig = plt.figure(figsize=(6.8,2.8))
-	                        ax  = fig.add_axes([0.06,0.025,0.88,0.965])
-	                        obs.plot(ax,
-	                                 region = region,
-	                                 vmin   = self.limits[pname]["min"],
-	                                 vmax   = self.limits[pname]["max"],
-	                                 cmap   = self.limits[pname]["cmap"])
-	                        fig.savefig(os.path.join(self.output_path,"Benchmark_%s_%s.png" % (region,pname)))
-	                        plt.close()
-	                    
-	            if not (var.spatial or (var.ndata is not None)) and var.temporal:
-	                
-	                # grab the benchmark dataset to plot along with
-	                obs = Variable(filename=bname,groupname="MeanState",variable_name=vname).convert(var.unit)
-	                
-	                # grab plotting options
-	                opts = time_opts[pname]
-	
-	                # add to html layout
-	                page.addFigure(opts["section"],
-	                               pname,
-	                               opts["pattern"],
-	                               side   = opts["sidelbl"],
-	                               legend = opts["haslegend"])
-	
-	                # plot variable
-	                for region in self.regions:
-	                    if region not in vname: continue
-	                    fig,ax = plt.subplots(figsize=(6.8,2.8),tight_layout=True)
-	                    obs.plot(ax,lw=2,color='k',alpha=0.5)
-	                    var.plot(ax,lw=2,color=color,label=m.name,
-	                             ticks     =opts["ticks"],
-	                             ticklabels=opts["ticklabels"])
+
+                    # is this a variable we need to plot?
+                    pname = vname.split("_")[0]
+                    if group.variables[vname][...].size <= 1: continue
+                    var = Variable(filename=fname,groupname="MeanState",variable_name=vname)
+
+                    if (var.spatial or (var.ndata is not None)) and not var.temporal:
+
+                        # grab plotting options
+                        if pname not in self.limits.keys(): continue
+                        opts = space_opts[pname]
+
+                        # add to html layout
+                        page.addFigure(opts["section"],
+                                       pname,
+                                       opts["pattern"],
+                                       side   = opts["sidelbl"],
+                                       legend = opts["haslegend"])
+
+                        # plot variable
+                        for region in self.regions:
+                            fig = plt.figure(figsize=(6.8,2.8))
+                            ax  = fig.add_axes([0.06,0.025,0.88,0.965])
+                            var.plot(ax,
+                                     region = region,
+                                     vmin   = self.limits[pname]["min"],
+                                     vmax   = self.limits[pname]["max"],
+                                     cmap   = self.limits[pname]["cmap"])
+                            fig.savefig(os.path.join(self.output_path,"%s_%s_%s.png" % (m.name,region,pname)))
+                            plt.close()
+
+                        # Jumping through hoops to get the benchmark plotted and in the html output
+                        if self.master and (pname == "timeint" or pname == "phase" or pname == "iav"):
+
+                            opts = space_opts[pname]
+
+                            # add to html layout
+                            page.addFigure(opts["section"],
+                                           "benchmark_%s" % pname,
+                                           opts["pattern"].replace("MNAME","Benchmark"),
+                                           side   = opts["sidelbl"].replace("MODEL","BENCHMARK"),
+                                           legend = True)
+
+                            # plot variable
+                            obs = Variable(filename=bname,groupname="MeanState",variable_name=vname)
+                            for region in self.regions:
+                                fig = plt.figure(figsize=(6.8,2.8))
+                                ax  = fig.add_axes([0.06,0.025,0.88,0.965])
+                                obs.plot(ax,
+                                         region = region,
+                                         vmin   = self.limits[pname]["min"],
+                                         vmax   = self.limits[pname]["max"],
+                                         cmap   = self.limits[pname]["cmap"])
+                                fig.savefig(os.path.join(self.output_path,"Benchmark_%s_%s.png" % (region,pname)))
+                                plt.close()
+
+                    if not (var.spatial or (var.ndata is not None)) and var.temporal:
+
+                        # grab the benchmark dataset to plot along with
+                        obs = Variable(filename=bname,groupname="MeanState",variable_name=vname).convert(var.unit)
+
+                        # grab plotting options
+                        opts = time_opts[pname]
+
+                        # add to html layout
+                        page.addFigure(opts["section"],
+                                       pname,
+                                       opts["pattern"],
+                                       side   = opts["sidelbl"],
+                                       legend = opts["haslegend"])
+
+                        # plot variable
+                        for region in self.regions:
+                            if region not in vname: continue
+                            fig,ax = plt.subplots(figsize=(6.8,2.8),tight_layout=True)
+                            obs.plot(ax,lw=2,color='k',alpha=0.5)
+                            var.plot(ax,lw=2,color=color,label=m.name,
+                                     ticks     =opts["ticks"],
+                                     ticklabels=opts["ticklabels"])
 
                             dy = 0.05*(self.limits[pname][region]["max"]-self.limits[pname][region]["min"])
-	                    ax.set_ylim(self.limits[pname][region]["min"]-dy,
-	                                self.limits[pname][region]["max"]+dy)
-	                    ylbl = opts["ylabel"]
-	                    if ylbl == "unit": ylbl = post.UnitStringToMatplotlib(var.unit)
-	                    ax.set_ylabel(ylbl)
-	                    fig.savefig(os.path.join(self.output_path,"%s_%s_%s.png" % (m.name,region,pname)))
-	                    plt.close()
+                            ax.set_ylim(self.limits[pname][region]["min"]-dy,
+                                        self.limits[pname][region]["max"]+dy)
+                            ylbl = opts["ylabel"]
+                            if ylbl == "unit": ylbl = post.UnitStringToMatplotlib(var.unit)
+                            ax.set_ylabel(ylbl)
+                            fig.savefig(os.path.join(self.output_path,"%s_%s_%s.png" % (m.name,region,pname)))
+                            plt.close()
 
         logger.info("[%s][%s] Success" % (self.longname,m.name))
 
@@ -721,13 +721,13 @@ class Confrontation(object):
 
         obs,mod = self.stageData(m)
         for i in range(obs.ndata):
-	    fig,ax = plt.subplots(figsize=(6.8,2.8),tight_layout=True)
+            fig,ax = plt.subplots(figsize=(6.8,2.8),tight_layout=True)
             tmask  = np.where(mod.data.mask[:,i]==False)[0]
             if tmask.size > 0:
                 tmin,tmax = tmask[[0,-1]]
-            else:                
+            else:
                 tmin = 0; tmax = mod.time.size-1
-                
+
             t = mod.time[tmin:(tmax+1)  ]
             x = mod.data[tmin:(tmax+1),i]
             y = obs.data[tmin:(tmax+1),i]
@@ -740,10 +740,10 @@ class Confrontation(object):
             ax.set_xticks     (ticks     )
             ax.set_xticklabels(ticklabels)
             ax.set_ylabel(post.UnitStringToMatplotlib(mod.unit))
-	    fig.savefig(os.path.join(self.output_path,"%s_%s_%s.png" % (m.name,self.lbls[i],"time")))
-	    plt.close()
-            
-            
+            fig.savefig(os.path.join(self.output_path,"%s_%s_%s.png" % (m.name,self.lbls[i],"time")))
+            plt.close()
+
+
     def generateHtml(self):
         """Generate the HTML for the results of this confrontation.
 
@@ -757,7 +757,7 @@ class Confrontation(object):
         if not self.master: return
 
         for page in self.layout.pages:
-        
+
             # build the metric dictionary
             metrics = {}
             page.models = []
@@ -765,18 +765,18 @@ class Confrontation(object):
                 with Dataset(fname) as dataset:
                     mname = dataset.getncattr("name")
                     if mname != "Benchmark": page.models.append(mname)
-                    if not dataset.groups.has_key(page.name): continue
+                    if page.name not in dataset.groups: continue
                     group = dataset.groups[page.name]
 
                     # if the dataset opens, we need to add the model (table row)
                     metrics[mname] = {}
-        
+
                     # each model will need to have all regions
                     for region in self.regions: metrics[mname][region] = {}
-                    
+
                     # columns in the table will be in the scalars group
-                    if not group.groups.has_key("scalars"): continue
-        
+                    if "scalars" not in group.groups: continue
+
                     # we add scalars to the model/region based on the region
                     # name being in the variable name. If no region is found,
                     # we assume it is the global region.
@@ -784,7 +784,7 @@ class Confrontation(object):
                     for vname in grp.variables.keys():
                         found = False
                         for region in self.regions:
-                            if region in vname: 
+                            if region in vname:
                                 found = True
                                 var   = grp.variables[vname]
                                 name  = vname.replace(region,"")
@@ -793,21 +793,23 @@ class Confrontation(object):
                                                                         data = var[...])
                         if not found:
                             var = grp.variables[vname]
+                            if "global" not in metrics[mname]:
+                                logger.debug("[%s][%s] 'global' not in region list = [%s]" % (self.longname,m.name,",".join(self.regions)))
+                                raise ValueError()
                             metrics[mname]["global"][vname] = Variable(name = vname,
                                                                        unit = var.units,
                                                                        data = var[...])
             page.setMetrics(metrics)
-                        
+
         # write the HTML page
-        f = file(os.path.join(self.output_path,"%s.html" % (self.name)),"w")
-        f.write(str(self.layout))
-        f.close()
+        with open(os.path.join(self.output_path,"%s.html" % (self.name)),"w") as f:
+            f.write(str(self.layout))
 
     def _relationship(self,m,nbin=25):
         """
-        
+
         """
-        
+
         def _retrieveData(filename):
             key = None
             with Dataset(filename,mode="r") as dset:
@@ -835,29 +837,29 @@ class Confrontation(object):
                 lim[0] = min(lmin,lim[0])
                 lim[1] = max(lmax,lim[1])
             return lim
-    
+
         def _buildDistributionResponse(ind,dep,ind_lim=None,dep_lim=None,region=None,nbin=25,eps=3e-3):
-            
+
             r = Regions()
 
             # Checks on the input parameters
             assert np.allclose(ind.data.shape,dep.data.shape)
             ind_lim = _checkLim(ind.data,ind_lim)
             dep_lim = _checkLim(dep.data,dep_lim)
-    
+
             # Mask data
             mask = ind.data.mask + dep.data.mask
             if region is not None: mask += r.getMask(region,ind)
             x = ind.data[mask==False].flatten()
             y = dep.data[mask==False].flatten()
 
-            # Compute normalized 2D distribution 
+            # Compute normalized 2D distribution
             dist,xedges,yedges = np.histogram2d(x,y,
                                                 bins  = [nbin,nbin],
                                                 range = [ind_lim,dep_lim])
             dist  = np.ma.masked_values(dist.T,0).astype(float)
             dist /= dist.sum()
-            
+
             # Compute the functional response
             which_bin = np.digitize(x,xedges).clip(1,xedges.size-1)-1
             mean = np.ma.zeros(xedges.size-1)
@@ -870,7 +872,7 @@ class Confrontation(object):
                 mean[i] = yi.mean()
                 std [i] = yi.std()
             mean = np.ma.masked_array(mean,mask = (cnt/cnt.sum()) < eps)
-            std  = np.ma.masked_array( std,mask = (cnt/cnt.sum()) < eps)     
+            std  = np.ma.masked_array( std,mask = (cnt/cnt.sum()) < eps)
             np.seterr(under='warn')
             return dist,xedges,yedges,mean,std
 
@@ -890,7 +892,7 @@ class Confrontation(object):
             fig,ax = plt.subplots(figsize=(6,5.25),tight_layout=True)
             pc = ax.pcolormesh(xedges, yedges, dist,
                                norm = LogNorm(),
-                               cmap = 'plasma' if plt.cm.cmap_d.has_key('plasma') else 'summer',
+                               cmap = 'plasma' if 'plasma' in plt.cm.cmap_d else 'summer',
                                vmin = 1e-4, vmax = 1e-1)
             div = make_axes_locatable(ax)
             fig.colorbar(pc,cax=div.append_axes("right",size="5%",pad=0.05),
@@ -900,7 +902,7 @@ class Confrontation(object):
             ax.set_xlim(xedges[0],xedges[-1])
             ax.set_ylim(yedges[0],yedges[-1])
             fig.savefig(filename)
-            plt.close()            
+            plt.close()
 
         def _plotDifference(ref,com,xedges,yedges,xlabel,ylabel,filename):
             ref = np.ma.copy(ref)
@@ -924,7 +926,7 @@ class Confrontation(object):
             plt.close()
 
         def _plotFunction(ref_mean,ref_std,com_mean,com_std,xedges,yedges,xlabel,ylabel,color,filename):
-            
+
             xe    = 0.5*(xedges[:-1]+xedges[1:])
             delta = 0.1*np.diff(xedges).mean()
 
@@ -937,7 +939,7 @@ class Confrontation(object):
                 ref_x = xe      [ind]-delta
                 ref_y = ref_mean[ind]
                 ref_e = ref_std [ind]
-                
+
             # comparison function
             com_x = xe + delta
             com_y = com_mean
@@ -947,7 +949,7 @@ class Confrontation(object):
                 com_x = xe      [ind]-delta
                 com_y = com_mean[ind]
                 com_e = com_std [ind]
-            
+
             fig,ax = plt.subplots(figsize=(6,5.25),tight_layout=True)
             ax.errorbar(ref_x,ref_y,yerr=ref_e,fmt='-o',color='k')
             ax.errorbar(com_x,com_y,yerr=com_e,fmt='-o',color=color)
@@ -957,15 +959,15 @@ class Confrontation(object):
             ax.set_ylim(yedges[0],yedges[-1])
             fig.savefig(filename)
             plt.close()
-            
+
         # If there are no relationships to analyze, get out of here
-        if self.relationships is None: return      
+        if self.relationships is None: return
 
         # Get the HTML page
         page = [page for page in self.layout.pages if "Relationships" in page.name]
         if len(page) == 0: return
         page = page[0]
-        
+
         # Try to get the dependent data from the model and obs
         try:
             ref_dep  = _retrieveData(os.path.join(self.output_path,"%s_%s.nc" % (self.name,"Benchmark")))
@@ -977,7 +979,7 @@ class Confrontation(object):
             return
 
         with Dataset(os.path.join(self.output_path,"%s_%s.nc" % (self.name,m.name)),mode="r+") as results:
-            
+
             # Grab/create a relationship and scalars group
             group = None
             if "Relationships" not in results.groups:
@@ -991,16 +993,22 @@ class Confrontation(object):
 
             # for each relationship...
             for c in self.relationships:
-                
+
                 # try to get the independent data from the model and obs
                 try:
                     ref_ind  = _retrieveData(os.path.join(c.output_path,"%s_%s.nc" % (c.name,"Benchmark")))
                     com_ind  = _retrieveData(os.path.join(c.output_path,"%s_%s.nc" % (c.name,m.name     )))
-                    ind_name = c.longname.split("/")[0]          
+                    ind_name = c.longname.split("/")[0]
                     ind_min  = c.limits["timeint"]["min"]-1e-12
                     ind_max  = c.limits["timeint"]["max"]+1e-12
                 except:
                     continue
+
+                # Check on data shape
+                if not np.allclose(ref_dep.data.shape,ref_ind.data.shape):
+                    msg = "[%s][%s] Data size mismatch in relationship: %s %s vs. %s %s" % (self.longname,m.name,dep_name,str(ref_dep.data.shape),ind_name,str(ref_ind.data.shape))
+                    logger.debug(msg)
+                    raise ValueError
 
                 # Add figures to the html page
                 page.addFigure(c.longname,
@@ -1023,7 +1031,7 @@ class Confrontation(object):
                                "MNAME_RNAME_rel_func_%s.png" % ind_name,
                                legend    = False,
                                benchmark = False)
-                
+
                 # Analysis over regions
                 lim_dep  = [dep_min,dep_max]
                 lim_ind  = [ind_min,ind_max]
@@ -1050,7 +1058,7 @@ class Confrontation(object):
                                       "%s,  %s" % (dep_name,post.UnitStringToMatplotlib(com_dep.unit)),
                                       m.color,
                                       os.path.join(self.output_path,"%s_%s_rel_func_%s.png" % (m.name,region,ind_name)))
-            
+
                     # Score the distribution
                     score = _scoreDistribution(ref_dist[0],com_dist[0])
                     sname = "%s Hellinger Distance %s" % (longname,region)
@@ -1070,36 +1078,3 @@ class Confrontation(object):
                         Variable(name = sname,
                                  unit = "1",
                                  data = score).toNetCDF4(results,group="Relationships")
-                    
-
-                    
-            
-
-class FileContextManager():
-
-    def __init__(self,master,mod_results,obs_results):
-        
-        self.master       = master
-        self.mod_results  = mod_results
-        self.obs_results  = obs_results
-        self.mod_dset     = None
-        self.obs_dset     = None
-        
-    def __enter__(self):
-
-        # Open the file on entering, both if you are the master
-        self.mod_dset                 = Dataset(self.mod_results,mode="w")
-        if self.master: self.obs_dset = Dataset(self.obs_results,mode="w")
-        return self
-    
-    def __exit__(self, exc_type, exc_value, traceback):
-
-        # Always close the file(s) on exit
-        self.mod_dset.close()
-        if self.master: self.obs_dset.close()
-
-        # If an exception occurred, also remove the files
-        if exc_type is not None:
-            os.system("rm -f %s" % self.mod_results)
-
-    

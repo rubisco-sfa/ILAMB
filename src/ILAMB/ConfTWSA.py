@@ -1,10 +1,10 @@
-from Confrontation import Confrontation
+from .Confrontation import Confrontation
 import matplotlib.pyplot as plt
-from Variable import Variable
-from Regions import Regions
+from .Variable import Variable
+from .Regions import Regions
 from netCDF4 import Dataset
-import ilamblib as il
-import Post as post
+from . import ilamblib as il
+from . import Post as post
 import numpy as np
 import os
 
@@ -23,7 +23,7 @@ class ConfTWSA(Confrontation):
                        "Seasonal Cycle Score"          :1.,
                        "Interannual Variability Score" :1.,
                        "Spatial Distribution Score"    :1.}
-        
+
         # Now we overwrite some things which are different here
         self.regions        = ['global']
         self.layout.regions = self.regions
@@ -45,7 +45,7 @@ class ConfTWSA(Confrontation):
         observational data. Then, to get the anomaly, we subtract off
         the temporal mean,
 
-        .. math:: \mathit{twsa}(t,\mathbf{x}) = tws(t,\mathbf{x}) - \frac{1}{t_f-t_0}\int_{t_0}^{t_f} tws(t,\mathbf{x})\ dt 
+        .. math:: \mathit{twsa}(t,\mathbf{x}) = tws(t,\mathbf{x}) - \frac{1}{t_f-t_0}\int_{t_0}^{t_f} tws(t,\mathbf{x})\ dt
 
         We do this for the model 'tws' variable, and optionally for
         the observation, treating its 'twsa' variable as 'tws' in the
@@ -101,12 +101,12 @@ class ConfTWSA(Confrontation):
         obs.data = odata; obs.ndata = odata.shape[1]; obs.spatial = False
         mod.data = mdata; mod.ndata = mdata.shape[1]; mod.spatial = False
         mod.data.mask = obs.data.mask
-        
+
         return obs,mod
 
     def requires(self):
         return ["tws"],[]
-        
+
     def confront(self,m):
         """Confront the GRACE data by computing a mean over river
         basins. Fine-scale, point comparisons aren't meaningful as the
@@ -126,7 +126,7 @@ class ConfTWSA(Confrontation):
         obs_anom     = obs.rms()
         obs_anom_val = obs_anom.siteStats()
         mod_anom     = mod.rms()
-        mod_anom_val = mod_anom.siteStats()      
+        mod_anom_val = mod_anom.siteStats()
         rmse         = obs.rmse(mod).convert(obs.unit)
         rmse_val     = rmse.siteStats()
         rmse_smap    = Variable(name = "",
@@ -139,13 +139,13 @@ class ConfTWSA(Confrontation):
         iav_score    = Variable(name = "Interannual Variability Score global",
                                 unit = "1",
                                 data = np.exp(-np.abs(mod_anom_val.data-obs_anom_val.data)/obs_anom_val.data))
-        
+
         # remap for plotting
         obs_anom_map = self._extendSitesToMap(obs_anom )
         mod_anom_map = self._extendSitesToMap(mod_anom )
         rmse_map     = self._extendSitesToMap(rmse     )
         rmse_smap    = self._extendSitesToMap(rmse_smap)
-        
+
         # renames
         obs_anom_val.name = "Anomaly Magnitude global"
         mod_anom_val.name = "Anomaly Magnitude global"
@@ -155,7 +155,7 @@ class ConfTWSA(Confrontation):
         rmse_smap   .name = "rmsescore_of_anomaly"
         rmse_val    .name = "RMSE global"
         rmse_score  .name = "RMSE Score global"
-        
+
         # dump results to a netCDF4 file
         results = Dataset(os.path.join(self.output_path,"%s_%s.nc" % (self.name,m.name)),mode="w")
         results.setncatts({"name" :m.name, "color":m.color})
@@ -178,7 +178,7 @@ class ConfTWSA(Confrontation):
 
     def _extendSitesToMap(self,var):
         """A local function to extend site data to the basins.
-        
+
         Parameters
         ----------
         var : ILAMB.Variable.Variable
@@ -190,7 +190,7 @@ class ConfTWSA(Confrontation):
             the spatial variable which is the extended version of the
             input variable
         """
-        
+
         # determine the global mask
         global_mask = None
         global_data = None
@@ -208,7 +208,7 @@ class ConfTWSA(Confrontation):
                         data      = np.ma.masked_array(global_data,mask=global_mask),
                         lat       = lat,
                         lon       = lon)
-    
+
     def modelPlots(self,m):
 
         # some of the plots can be generated using the standard
@@ -219,12 +219,12 @@ class ConfTWSA(Confrontation):
                 for fig in page.figures[sec]:
                     fig.side = fig.side.replace("MEAN","ANOMALY MAGNITUDE")
 
-        # 
+        #
         bname = os.path.join(self.output_path,"%s_Benchmark.nc" % (self.name       ))
         fname = os.path.join(self.output_path,"%s_%s.nc"        % (self.name,m.name))
-        
+
         # get the HTML page
-        page = [page for page in self.layout.pages if "MeanState" in page.name][0]  
+        page = [page for page in self.layout.pages if "MeanState" in page.name][0]
 
         if not os.path.isfile(bname): return
         if not os.path.isfile(fname): return
@@ -236,7 +236,7 @@ class ConfTWSA(Confrontation):
                            basin,
                            "MNAME_global_%s.png" % basin,
                            basin,False,longname=basin)
-            
+
             fig,ax = plt.subplots(figsize=(6.8,2.8),tight_layout=True)
             ax.plot(obs.time/365+1850,obs.data[:,i],lw=2,color='k',alpha=0.5)
             ax.plot(mod.time/365+1850,mod.data[:,i],lw=2,color=m.color      )
@@ -244,4 +244,3 @@ class ConfTWSA(Confrontation):
             ax.set_ylabel(post.UnitStringToMatplotlib(obs.unit))
             fig.savefig(os.path.join(self.output_path,"%s_global_%s.png" % (m.name,basin)))
             plt.close()
-

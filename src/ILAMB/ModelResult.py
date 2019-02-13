@@ -1,8 +1,8 @@
-from Variable import Variable
+from .Variable import Variable
 from netCDF4 import Dataset
-import ilamblib as il
+from . import ilamblib as il
 import numpy as np
-import glob,os
+import glob,os,re
 from mpi4py import MPI
 import logging
 
@@ -37,10 +37,11 @@ class ModelResult():
         used to shift model times, all model years at model_year[0]
         are shifted to model_year[1]
     """
-    def __init__(self,path,modelname="unamed",color=(0,0,0),filter="",model_year=None):
+    def __init__(self,path,modelname="unamed",color=(0,0,0),filter="",regex="",model_year=None):
         self.path           = path
         self.color          = color
         self.filter         = filter
+        self.regex          = regex
         self.shift          = 0.
         if model_year is not None: self.shift = (model_year[1]-model_year[0])*365.
         self.name           = modelname
@@ -49,15 +50,20 @@ class ModelResult():
         self.land_fraction  = None
         self.land_areas     = None
         self.land_area      = None
-        self.lat            = None
-        self.lon            = None        
-        self.lat_bnds       = None
-        self.lon_bnds       = None
         self.variables      = None
+        self.names          = None
         self.extents        = np.asarray([[-90.,+90.],[-180.,+180.]])
         self._findVariables()
         self._getGridInformation()
-        
+
+    def __str__(self):
+        s  = ""
+        s += "ModelResult: %s\n" % self.name
+        s += "-"*(len(self.name)+13) + "\n"
+        for key in self.names:
+            s += "{0:>20}: {1:<50}".format(key,self.names[key]) + "\n"
+        return s
+
     def _findVariables(self):
         """Loops through the netCDF4 files in a model's path and builds a dictionary of which variables are in which files.
         """
@@ -68,21 +74,39 @@ class ModelResult():
                 dim_bnd_name = v.getncattr("bounds")
             except:
                 dim_bnd_name = None
-            return dim_name,dim_bnd_name 
+            return dim_name,dim_bnd_name
 
         variables = {}
-        for subdir, dirs, files in os.walk(self.path):
+        names     = {}
+        for subdir, dirs, files in os.walk(self.path,followlinks=True):
             for fileName in files:
-                if ".nc"       not in fileName: continue
+                if not fileName.endswith(".nc"): continue
                 if self.filter not in fileName: continue
+                if self.regex is not "":
+                    m = re.search(self.regex,fileName)
+                    if not m: continue
                 pathName  = os.path.join(subdir,fileName)
-                dataset   = Dataset(pathName)
-                
+
+                try:
+                    dataset = Dataset(pathName)
+                except:
+                    logger.debug("[%s] Error opening file %s" % (self.name,pathName))
+                    continue
+
                 # populate dictionary for which variables are in which files
                 for key in dataset.variables.keys():
-                    if not variables.has_key(key):
+                    if key not in variables:
                         variables[key] = []
                     variables[key].append(pathName)
+
+                    v = dataset.variables[key]
+                    if key not in names:
+                        if "long_name" in v.ncattrs():
+                            names[key] = v.long_name
+                            continue
+                        if "standard_name" in v.ncattrs():
+                            names[key] = v.standard_name
+                            continue
 
         # determine spatial extents
         lats = [key for key in variables.keys() if (key.lower().startswith("lat" ) or
@@ -107,7 +131,7 @@ class ModelResult():
                     lon = (lon<=180)*lon + (lon>180)*(lon-360) + (lon<-180)*360
                     self.extents[1,0] = max(self.extents[1,0],lon.min())
                     self.extents[1,1] = min(self.extents[1,1],lon.max())
-                    
+
         # fix extents
         eps = 5.
         if self.extents[0,0] < (- 90.+eps): self.extents[0,0] = - 90.
@@ -115,37 +139,31 @@ class ModelResult():
         if self.extents[1,0] < (-180.+eps): self.extents[1,0] = -180.
         if self.extents[1,1] > (+180.-eps): self.extents[1,1] = +180.
         self.variables = variables
-    
+        self.names = names
+
     def _getGridInformation(self):
-        """Looks in the model output for cell areas as well as land fractions. 
+        """Looks in the model output for cell areas as well as land fractions.
         """
         # Are there cell areas associated with this model?
         if "areacella" not in self.variables.keys(): return
-        f = Dataset(self.variables["areacella"][0])
-        self.cell_areas    = f.variables["areacella"][...]
-        self.lat           = f.variables["lat"][...]
-        self.lon           = f.variables["lon"][...]
-        self.lat_bnds      = np.zeros(self.lat.size+1)
-        self.lat_bnds[:-1] = f.variables["lat_bnds"][:,0]
-        self.lat_bnds[-1]  = f.variables["lat_bnds"][-1,1]
-        self.lon_bnds      = np.zeros(self.lon.size+1)
-        self.lon_bnds[:-1] = f.variables["lon_bnds"][:,0]
-        self.lon_bnds[-1]  = f.variables["lon_bnds"][-1,1]
+        with Dataset(self.variables["areacella"][0]) as f:
+            self.cell_areas = f.variables["areacella"][...]
 
         # Now we do the same for land fractions
         if "sftlf" not in self.variables.keys():
-            self.land_areas = self.cell_areas 
+            self.land_areas = self.cell_areas
         else:
-            self.land_fraction = (Dataset(self.variables["sftlf"][0]).variables["sftlf"])[...]
-            # some models represent the fraction as a percent 
+            with Dataset(self.variables["sftlf"][0]) as f:
+                self.land_fraction = f.variables["sftlf"][...]                
+            # some models represent the fraction as a percent
             if np.ma.max(self.land_fraction) > 1: self.land_fraction *= 0.01
             np.seterr(over='ignore')
             self.land_areas = self.cell_areas*self.land_fraction
             np.seterr(over='warn')
         self.land_area = np.ma.sum(self.land_areas)
         return
-                
-    def extractTimeSeries(self,variable,lats=None,lons=None,alt_vars=[],initial_time=-1e20,final_time=1e20,output_unit="",expression=None):
+
+    def extractTimeSeries(self,variable,lats=None,lons=None,alt_vars=[],initial_time=-1e20,final_time=1e20,output_unit="",expression=None,convert_calendar=True):
         """Extracts a time series of the given variable from the model.
 
         Parameters
@@ -159,8 +177,8 @@ class ModelResult():
         final_time : float, optional
             include model results occurring before this time
         output_unit : str, optional
-            if specified, will try to convert the units of the variable 
-            extract to these units given. 
+            if specified, will try to convert the units of the variable
+            extract to these units given.
         lats : numpy.ndarray, optional
             a 1D array of latitude locations at which to extract information
         lons : numpy.ndarray, optional
@@ -188,15 +206,18 @@ class ModelResult():
         V = []
         tmin =  1e20
         tmax = -1e20
+        same_site_epsilon = 0.1
         for v in altvars:
-            if not self.variables.has_key(v): continue
+            if v not in self.variables: continue
             for pathName in self.variables[v]:
                 var = Variable(filename       = pathName,
                                variable_name  = variable,
                                alternate_vars = altvars[1:],
                                area           = self.land_areas,
+                               convert_calendar = convert_calendar,
                                t0             = initial_time - self.shift,
                                tf             = final_time   - self.shift)
+                if var.time is None: continue
                 tmin = min(tmin,var.time_bnds.min())
                 tmax = max(tmax,var.time_bnds.max())
                 if ((var.time_bnds.max() < initial_time - self.shift) or
@@ -206,16 +227,15 @@ class ModelResult():
                                 (lons[:,np.newaxis]-var.lon)**2)
                     imin = r.argmin(axis=1)
                     rmin = r.   min(axis=1)
-                    imin = imin[np.where(rmin<1.0)]
+                    imin = imin[np.where(rmin<same_site_epsilon)]
                     if imin.size == 0:
-                        logger.debug("[%s] Could not find [%s] at the input sites in the model results" % (self.name,",".join(altvars)))
-                        raise il.VarNotInModel()
+                        continue
                     var.lat   = var.lat [  imin]
                     var.lon   = var.lon [  imin]
                     var.data  = var.data[:,imin]
                     var.ndata = var.data.shape[1]
-                if lats is not None and var.spatial: var = var.extractDatasites(lats,lons)                    
-                var.time      += self.shift 
+                if lats is not None and var.spatial: var = var.extractDatasites(lats,lons)
+                var.time      += self.shift
                 var.time_bnds += self.shift
                 V.append(var)
             if len(V) > 0: break
@@ -237,11 +257,11 @@ class ModelResult():
                 raise il.VarNotInModel()
         else:
             v = il.CombineVariables(V)
-        
-            
+
+
         return v
 
-    def derivedVariable(self,variable_name,expression,lats=None,lons=None,initial_time=-1e20,final_time=1e20):
+    def derivedVariable(self,variable_name,expression,lats=None,lons=None,initial_time=-1e20,final_time=1e20,convert_calendar=True):
         """Creates a variable from an algebraic expression of variables in the model results.
 
         Parameters
@@ -258,13 +278,13 @@ class ModelResult():
             a 1D array of latitude locations at which to extract information
         lons : numpy.ndarray, optional
             a 1D array of longitude locations at which to extract information
-        
+
         Returns
         -------
         var : ILAMB.Variable.Variable
             the new variable
 
-        """      
+        """
         from sympy import sympify
         if expression is None: raise il.VarNotInModel()
         args  = {}
@@ -279,14 +299,15 @@ class ModelResult():
         area  = None
         depth = None
         dbnds = None
-        
+
         for arg in sympify(expression).free_symbols:
-            
+
             var  = self.extractTimeSeries(arg.name,
                                           lats = lats,
                                           lons = lons,
+                                          convert_calendar = convert_calendar,
                                           initial_time = initial_time,
-                                          final_time   = final_time)          
+                                          final_time   = final_time)
             units[arg.name] = var.unit
             args [arg.name] = var.data.data
 
@@ -332,7 +353,7 @@ class ModelResult():
         np.seterr(divide='raise',invalid='raise')
         mask  += np.isnan(result)
         result = np.ma.masked_array(np.nan_to_num(result),mask=mask)
-        
+
         return Variable(data       = np.ma.masked_array(result,mask=mask),
                         unit       = unit,
                         name       = variable_name,

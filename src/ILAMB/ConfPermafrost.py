@@ -1,10 +1,10 @@
-from Confrontation import Confrontation
+from .Confrontation import Confrontation
 from mpl_toolkits.basemap import Basemap
-from Variable import Variable
-from Post import ColorBar
+from .Variable import Variable
+from .Post import ColorBar
 import matplotlib.pyplot as plt
 from netCDF4 import Dataset
-import ilamblib as il
+from . import ilamblib as il
 import numpy as np
 
 def _ALTFromTSL(tsl,dmax=3.5,dres=0.01,Teps=273.15):
@@ -12,13 +12,13 @@ def _ALTFromTSL(tsl,dmax=3.5,dres=0.01,Teps=273.15):
 
     """
     from scipy.interpolate import interp1d
-    
+
     # find the annual cycle
     mask = tsl.data.mask.all(axis=(0,1))
     area = tsl.area
     tsl  = tsl.annualCycle()
-    
-    # which month is the mean soil temperature maximum?    
+
+    # which month is the mean soil temperature maximum?
     T = tsl.data.mean(axis=1).argmax(axis=0)
     T = T[np.newaxis,np.newaxis,...]*np.ones((1,)+tsl.data.shape[-3:],dtype=int)
     D,X,Y = np.ix_(np.arange(tsl.data.shape[1]),
@@ -27,18 +27,18 @@ def _ALTFromTSL(tsl,dmax=3.5,dres=0.01,Teps=273.15):
     d   = tsl.depth
     tsl = tsl.data[T,D,X,Y]
     tsl = tsl.reshape(tsl.shape[-3:])
-    
+
     # now we interpolate to find a more precise active layer thickness
     D   = np.arange(0,dmax+0.1*dres,dres)
     TSL = interp1d(d,tsl,axis=0,fill_value="extrapolate")
     TSL = TSL(D)
-        
+
     # the active layer thickness is then the sum of all level
     # thicknesses whose temperature is greater than the threshold.
     ALT = np.ma.masked_array((TSL>Teps).sum(axis=0)*dres,mask=mask+(TSL>Teps).all(axis=0))
 
     return ALT
-    
+
 class ConfPermafrost(Confrontation):
 
     def __init__(self,**keywords):
@@ -60,7 +60,7 @@ class ConfPermafrost(Confrontation):
                                     "Missed Score"   ,
                                     "Excess Score"   ,
                                     "Overall Score"])
-                
+
     def stageData(self,m):
 
         obs = Variable(filename      = self.source,
@@ -71,14 +71,14 @@ class ConfPermafrost(Confrontation):
         yf   = float(self.keywords.get("yf"  ,2000.))  # [yr]      end year to include in analysis
         dmax = float(self.keywords.get("dmax",3.5))    # [m]       consider layers where depth in is the range [0,dmax]
         Teps = float(self.keywords.get("Teps",273.15)) # [K]       temperature below which we assume permafrost occurs
-        
+
         t0  = (y0  -1850.)*365.
         tf  = (yf+1-1850.)*365.
         mod = m.extractTimeSeries(self.variable,
                                   initial_time = t0,
                                   final_time   = tf)
         mod.trim(t   = [t0           ,tf  ],
-                 lat = [obs.lat.min(),90  ],
+                 lat = [max(obs.lat.min(),mod.lat.min()), 90  ],
                  d   = [0            ,dmax]) #.annualCycle()
 
         alt = _ALTFromTSL(mod)
@@ -89,13 +89,13 @@ class ConfPermafrost(Confrontation):
                        lon  = mod.lon,
                        area = mod.area)
         return obs,mod
-        
+
     def confront(self,m):
 
         obs,mod  = self.stageData(m)
         obs_area = obs.integrateInSpace().convert("1e6 km2")
         mod_area = mod.integrateInSpace().convert("1e6 km2")
-        
+
         # Interpolate to a composed grid
         lat,lon,lat_bnds,lon_bnds = il._composeGrids(obs,mod)
         OBS = obs.interpolate(lat=lat,lon=lon,lat_bnds=lat_bnds,lon_bnds=lon_bnds)
@@ -155,7 +155,7 @@ class ConfPermafrost(Confrontation):
                                unit = "1",
                                data = np.ma.masked_values(zones==2,0).astype(float),
                                lat  = lat, lon  = lon, area = MOD.area)
-        
+
         # compute the mod that is not the obs but because of land representation
         data = (OBS.data.mask==1)*(MOD.data.mask==0)
         mod_not_obs_land = Variable(name = "mod_not_obs_land",
@@ -168,7 +168,7 @@ class ConfPermafrost(Confrontation):
         obs_not_mod_area = obs_not_mod.integrateInSpace().convert("1e6 km2")
         mod_not_obs_area = mod_not_obs.integrateInSpace().convert("1e6 km2")
         mod_not_obs_land_area = mod_not_obs_land.integrateInSpace().convert("1e6 km2")
-        
+
         # determine score
         obs_score = Variable(name = "Missed Score global",
                              unit = "1",
@@ -176,7 +176,7 @@ class ConfPermafrost(Confrontation):
         mod_score = Variable(name = "Excess Score global",
                              unit = "1",
                              data = obs_and_mod_area.data / (obs_and_mod_area.data + mod_not_obs_area.data))
-                
+
         # Write to datafiles --------------------------------------
 
         obs_area.name         = "Total Area"
@@ -185,14 +185,14 @@ class ConfPermafrost(Confrontation):
         obs_not_mod_area.name = "Missed Area"
         mod_not_obs_area.name = "Excess Area"
         mod_not_obs_land_area.name = "Excess Area (Land Representation)"
-        
+
         results = Dataset("%s/%s_%s.nc" % (self.output_path,self.name,m.name),mode="w")
         results.setncatts({"name" :m.name, "color":m.color})
         mod                  .toNetCDF4(results,group="MeanState")
         obs_and_mod          .toNetCDF4(results,group="MeanState")
         obs_not_mod          .toNetCDF4(results,group="MeanState")
-        mod_not_obs          .toNetCDF4(results,group="MeanState")        
-        mod_not_obs_land     .toNetCDF4(results,group="MeanState")        
+        mod_not_obs          .toNetCDF4(results,group="MeanState")
+        mod_not_obs_land     .toNetCDF4(results,group="MeanState")
         mod_area             .toNetCDF4(results,group="MeanState")
         obs_and_mod_area     .toNetCDF4(results,group="MeanState")
         obs_not_mod_area     .toNetCDF4(results,group="MeanState")
@@ -207,9 +207,9 @@ class ConfPermafrost(Confrontation):
             results.setncatts({"name" :"Benchmark", "color":np.asarray([0.5,0.5,0.5])})
             obs_area.toNetCDF4(results,group="MeanState")
             results.close()
-        
+
     def modelPlots(self,m):
-        
+
         fname   = "%s/%s_%s.nc" % (self.output_path,self.name,m.name)
         try:
             mod = Variable(filename      = fname,
@@ -219,7 +219,7 @@ class ConfPermafrost(Confrontation):
             return
 
         page = [page for page in self.layout.pages if "MeanState" in page.name][0]
-        
+
         page.addFigure("Temporally integrated period mean",
                        "benchmark_timeint",
                        "Benchmark_global_timeint.png",
@@ -235,7 +235,7 @@ class ConfPermafrost(Confrontation):
                        "MNAME_global_bias.png",
                        side   = "BIAS",
                        legend = True)
-        
+
         plt.figure(figsize=(10,10),dpi=60)
         mp  = Basemap(projection='ortho',lat_0=90.,lon_0=180.,resolution='c')
         X,Y = np.meshgrid(mod.lat,mod.lon,indexing='ij')
@@ -286,4 +286,3 @@ class ConfPermafrost(Confrontation):
                      label = "")
             fig.savefig("%s/legend_%s.png" % (self.output_path,"bias"))
             plt.close()
-

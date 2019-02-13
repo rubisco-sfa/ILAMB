@@ -1,0 +1,21 @@
+# This file creates an environment suitable for installing ILAMB. Use
+# this file if you are running on a institutional machine where you
+# need to submit jobs in order to run. The difference is that this
+# file will attempt to wrap the system MPI.
+name: ilamb
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3
+  - proj4
+  - numpy
+  - matplotlib
+  - basemap
+  - netCDF4
+  - sympy
+  - scipy
+  - udunits
+  - pip:
+    - cf_units
+    - mpi4py

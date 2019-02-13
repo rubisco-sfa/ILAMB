@@ -24,45 +24,88 @@ system, initially focused on assessing land model performance.
 Useful Information
 ------------------
 
-* `Documentation <http://ilamb.ornl.gov/doc/>`_ - installation and
+* `Documentation <https://www.ilamb.org/doc/>`_ - installation and
   basic usage tutorials
 * Sample Output
   
-  * `CLM <http://ilamb.ornl.gov/CLM/>`_ - land comparison against 3 CLM versions and 2 forcings
-  * `CMIP5 <http://ilamb.ornl.gov/CMIP5/>`_ - land comparison against a collection of CMIP5 models
-  * `IOMB <http://ilamb.ornl.gov/IOMB/>`_ - ocean comparison against a few ocean models
+  * `CLM <http://www.ilamb.org/CLM/>`_ - land comparison against 3 CLM versions
+  * `CMIP5 <http://www.ilamb.org/CMIP5/esmHistorical/>`_ - land comparison against a collection of CMIP5 models
+  * `IOMB <http://www.ilamb.org/IOMB/>`_ - ocean comparison against a few ocean models
 
-* Paper `preprint <https://www.ilamb.org/ILAMB_paper.pdf>`_ which
-  details the design and methodology employed in the ILAMB package
-* If you find the package or the ouput helpful in your research or
-  development efforts, we kindly ask you to cite the following
-  reference (DOI:10.18139/ILAMB.v002.00/1251621).
+* `Paper <https://doi.org/10.1029/2018MS001354>`_ published in JAMES
+  which details the design and methodology employed in the ILAMB
+  package. If you find the package or the output helpful in your
+  research or development efforts, we kindly ask you to cite this
+  work.
 
-ILAMB 2.3 Release
+ILAMB 2.4 Release
 -----------------
 
-We are pleased to announce version 2.3 of the ILAMB python
-package. Among many bugfixes and improvements we highlight these major
-changes:
+This release marks an important technical shift in ILAMB
+development--ILAMB v2.4 and onward will be python3 only. If you are
+new to python, it might seem strange that python3 has been released
+for 10 years and yet python2 is still ubiquitous. There is now an
+official `announcement <https://pythonclock.org/>`_ that python2 will
+reach its end of life at the end of 2019. Furthermore there is a
+growing `list <https://python3statement.org/>`_ of popular python
+packages (most of our dependencies) that are phasing out support for
+python2 during this year. So in keeping with this community trend, the
+last version of ILAMB which will be compatible with python2.7x is
+2.3.1, version 2.4 and beyond will by python3 only.
 
-* You may observe a large shift in some score values. In this version
-  we solidified our scoring methodology while writing a `paper
-  <https://www.ilamb.org/ILAMB_paper.pdf>`_ which necesitated
-  reworking some of the scores. For details, see the linked paper.
-* Made a memory optimization pass through the analysis routines. Peak
-  memory usage and the time at peak was reduced improving performance. 
-* Restructured the symbolic manipulation of derived variables to
-  greatly reduce the required memory.
-* Moved from using cfunits to cf_units. Both are python wrappers
-  around the UDUNITS library, but cfunits is stagnant and placed a
-  lower limit to the version of the netCDF4 python wrappers we could
-  use.
-* The scoring of the interannual variability was missed in the port
-  from version 1 to 2, we have added the metric.
-* The terrestrial water storage anomaly GRACE metric was changed to
-  compare mean anomaly values over large river basins. For details see
-  the ILAMB paper.
+Part of my reason for sticking with python2 for so long was that ILAMB
+was designed to run on large machines whose software stacks are often
+not frequently updated. I wanted to ensure that ILAMB would run on old
+software. However, this is less an issue as computing centers are
+moving away from providing users with python packages they load via
+center-supported environment modules and towards users creating
+personalized environments using `conda
+<https://conda.io/docs/>`_. Look for the ``ilamb.yml`` file in the
+repository which conda can use to create an environment that will
+support an ILAMB installation. If these words do not mean anything to
+you, look for a more detailed explanation in the `tutorials
+<https://www.ilamb.org/doc/install.html>`_ which have be rewritten to
+reflect this shift.
 
+We have also changed the location of the supported configure files in
+the repository. They used to be located in the ``demo`` directory, but
+now may be found in ``src/ILAMB/data``. The motivation for this change
+is to have these files be installed along with the
+package. Previously, if a user were to get ILAMB via PyPI, these
+configure files would not install along with the package. This made
+the next step of finding a configure file confusing. Furthermore,
+these configure files change as we continue to work on the package and
+so it is important that they are installed along with the python
+source code. Now, for example, if you install ILAMB via ``pip install
+ILAMB --user``, you can expect to find the configure files in a
+location like
+``${HOME}/.local/lib/python3.7/site-packages/ILAMB/data/``.
+
+We have published a `paper <https://doi.org/10.1029/2018MS001354>`_ in
+JAMES which details the methodology which this package implements. If
+you find ILAMB helpful in your research, we would appreciate a
+citation to this work as it helps us communicate the impact that these
+investments have on the community.
+
+The collection of land surface confrontations now includes the
+emulation of CO\ :sub:`2`\ fluxes. The default setup is to compare
+``nbp`` fluxes to those recorded at a subset of NOAA sites, but this
+is configurable from inside the configure file. Browse the CMIP5
+`output
+<https://www.ilamb.org/CMIP5/esmHistorical/EcosystemandCarbonCycle/CarbonDioxide/NOAA.Emulated/NOAA.Emulated.html>`_
+for an overview of what this addition provides.
+
+Finally, we are making some shifts in how we support ILAMB. Until now,
+I have directed user questions to my personal email. This is still ok,
+however consider `joining
+<https://www.ilamb.org/mailman/listinfo/ilamb-users>`_ the ILAMB
+mailing list and sending your questions there. Not only does this open
+up your question to being answered more quickly by the community, but
+the answers are searchable which may help the next user. In addition
+to this, we have a Slack `channel
+<https://ilamb-community.slack.com/>`_ if you prefer to ask your
+questions there. This has more of a chat interface but the
+conversations are all still public and searchable by the members.
 
 Funding
 -------

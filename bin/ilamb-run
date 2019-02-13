@@ -22,13 +22,14 @@ comm = MPI.COMM_WORLD
 size = comm.Get_size()
 rank = comm.Get_rank()
 proc = np.zeros(size)
+ierr = np.zeros(size)
 
 # Some color constants for printing to the terminal
 OK   = '\033[92m'
 FAIL = '\033[91m'
 ENDC = '\033[0m'
 
-def InitializeModels(model_root,models=[],verbose=False,filter="",model_year=[]):
+def InitializeModels(model_root,models=[],verbose=False,filter="",regex="",model_year=[]):
     """Initializes a list of models
 
     Initializes a list of models where each model is the subdirectory
@@ -56,11 +57,11 @@ def InitializeModels(model_root,models=[],verbose=False,filter="",model_year=[])
     M = []
     if len(model_year) != 2: model_year = None
     max_model_name_len = 0
-    if rank == 0 and verbose: print "\nSearching for model results in %s\n" % model_root
+    if rank == 0 and verbose: print("\nSearching for model results in %s\n" % model_root)
     for subdir, dirs, files in os.walk(model_root):
         for mname in dirs:
             if len(models) > 0 and mname not in models: continue
-            M.append(ModelResult(os.path.join(subdir,mname), modelname = mname, filter=filter, model_year = model_year))
+            M.append(ModelResult(os.path.join(subdir,mname), modelname = mname, filter=filter, regex=regex, model_year = model_year))
             max_model_name_len = max(max_model_name_len,len(mname))
         break
     M = sorted(M,key=lambda m: m.name.upper())
@@ -74,10 +75,10 @@ def InitializeModels(model_root,models=[],verbose=False,filter="",model_year=[])
     # optionally output models which were found
     if rank == 0 and verbose:
         for m in M:
-            print ("    {0:>45}").format(m.name)
+            print(("    {0:>45}").format(m.name))
 
     if len(M) == 0:
-        if verbose and rank == 0: print "No model results found"
+        if verbose and rank == 0: print("No model results found")
         comm.Barrier()
         comm.Abort(0)
 
@@ -108,8 +109,8 @@ def ParseModelSetup(model_setup,models=[],verbose=False,filter=""):
     # initialize the models
     M = []
     max_model_name_len = 0
-    if rank == 0 and verbose: print "\nSetting up model results from %s\n" % model_setup
-    with file(model_setup) as f:
+    if rank == 0 and verbose: print("\nSetting up model results from %s\n" % model_setup)
+    with open(model_setup) as f:
         for line in f.readlines():
             if line.strip().startswith("#"): continue
             line       = line.split(",")
@@ -120,7 +121,7 @@ def ParseModelSetup(model_setup,models=[],verbose=False,filter=""):
                 mname  = line[0].strip()
                 mdir   = line[1].strip()
                 # if mdir not a directory, then maybe path is relative to ILAMB_ROOT
-                if not os.path.isdir(mdir): 
+                if not os.path.isdir(mdir):
                     mdir = os.path.join(os.environ["ILAMB_ROOT"],mdir).strip()
             if len(line) == 4:
                 model_year = [float(line[2].strip()),float(line[3].strip())]
@@ -139,10 +140,10 @@ def ParseModelSetup(model_setup,models=[],verbose=False,filter=""):
     # optionally output models which were found
     if rank == 0 and verbose:
         for m in M:
-            print ("    {0:>45}").format(m.name)
+            print(("    {0:>45}").format(m.name))
 
     if len(M) == 0:
-        if verbose and rank == 0: print "No model results found"
+        if verbose and rank == 0: print("No model results found")
         comm.Barrier()
         comm.Abort(0)
 
@@ -172,7 +173,7 @@ def InitializeRegions(filenames):
         try:
             r.addRegionNetCDF4(filename)
         except IOError:
-            for line in file(filename):
+            for line in open(filename):
                 line = line.strip()
                 if line.startswith("#"): continue
                 line = line.split(",")
@@ -181,7 +182,7 @@ def InitializeRegions(filenames):
                                             line[1].strip(),
                                             [float(line[2]),float(line[3])],
                                             [float(line[4]),float(line[5])])
-            
+
 def MatchRelationshipConfrontation(C):
     """Match relationship strings to confrontation longnames
 
@@ -317,7 +318,7 @@ def WorkConfront(W,verbose=False,clean=False):
         # if the results file exists, skip this confrontation unless we want to clean
         if os.path.isfile(os.path.join(c.output_path,"%s_%s.nc" % (c.name,m.name))) and clean is False:
             if verbose:
-                print ("    {0:>%d} {1:<%d} %sUsingCachedData%s " % (maxCL,maxML,OK,ENDC)).format(c.longname,m.name)
+                print(("    {0:>%d} {1:<%d} %sUsingCachedData%s " % (maxCL,maxML,OK,ENDC)).format(c.longname,m.name))
                 sys.stdout.flush()
             continue
 
@@ -328,14 +329,16 @@ def WorkConfront(W,verbose=False,clean=False):
             dt = time.time()-t0
             proc[rank] += dt
             if verbose:
-                print ("    {0:>%d} {1:<%d} %sCompleted%s {2:>5.1f} s" % (maxCL,maxML,OK,ENDC)).format(c.longname,m.name,dt)
+                dt = datetime.timedelta(seconds=max(1,int(np.round(dt))))
+                print(("    {0:>%d} {1:<%d} %sCompleted%s {2:>8}" % (maxCL,maxML,OK,ENDC)).format(c.longname,m.name,str(dt)))
                 sys.stdout.flush()
 
         # if things do not work out, print the exception so the user has some idea
         except Exception as ex:
+            ierr[rank] = 1
             logger.debug("[%s][%s]\n%s" % (c.longname,m.name,format_exc()))
             if verbose:
-                print ("    {0:>%d} {1:<%d} %s%s%s" % (maxCL,maxML,FAIL,ex.__class__.__name__,ENDC)).format(c.longname,m.name)
+                print(("    {0:>%d} {1:<%d} %s%s%s" % (maxCL,maxML,FAIL,ex.__class__.__name__,ENDC)).format(c.longname,m.name))
 
 def WorkPost(M,C,W,S,verbose=False,skip_plots=False):
     """Performs the post-processing
@@ -374,12 +377,14 @@ def WorkPost(M,C,W,S,verbose=False,skip_plots=False):
             dt = time.time()-t0
             proc[rank] += dt
             if verbose:
-                print ("    {0:>%d} {1:<%d} %sCompleted%s {2:>5.1f} s" % (maxCL,maxML,OK,ENDC)).format(c.longname,m.name,dt)
+                dt = datetime.timedelta(seconds=max(1,int(np.round(dt))))
+                print(("    {0:>%d} {1:<%d} %sCompleted%s {2:>8}" % (maxCL,maxML,OK,ENDC)).format(c.longname,m.name,str(dt)))
                 sys.stdout.flush()
         except Exception as ex:
+            ierr[rank] = 1
             logger.debug("[%s][%s]\n%s" % (c.longname,m.name,format_exc()))
             if verbose:
-                print ("    {0:>%d} {1:<%d} %s%s%s" % (maxCL,maxML,FAIL,ex.__class__.__name__,ENDC)).format(c.longname,m.name)
+                print(("    {0:>%d} {1:<%d} %s%s%s" % (maxCL,maxML,FAIL,ex.__class__.__name__,ENDC)).format(c.longname,m.name))
                 sys.stdout.flush()
 
     comm.Barrier()
@@ -388,6 +393,7 @@ def WorkPost(M,C,W,S,verbose=False,skip_plots=False):
             try:
                 c.compositePlots()
             except Exception as ex:
+                ierr[rank] = 1
                 logger.debug("[compositePlots][%s]\n%s" % (c.longname,format_exc()))
         c.generateHtml()
 
@@ -407,50 +413,66 @@ def RestrictiveModelExtents(M,eps=2.):
     extents = (diff<=eps)*extents0 + (diff>eps)*extents
     return extents
 
-class MPIStream():
-    """
-    The MPI.File stream doesn't have the functions we need, so we will
-    wrap what we need in a simple class.
-    """
-    def __init__(self, comm, filename, mode):
-        self.fh = MPI.File.Open(comm, filename, mode)
-        self.fh.Set_atomicity(True)
-
-    def write(self,buf):
-        self.fh.Write_shared(buf)
-
-    def flush(self):
-        self.fh.Sync()
-
-    def close(self):
-        self.fh.Close()
-
 class MPIFileHandler(logging.FileHandler):
     """
-    A handler class which writes formatted logging records to disk files.
+    Class written by Di Cheng for parallel logging.
+
+    https://gist.github.com/chengdi123000/42ec8ed2cbef09ee050766c2f25498cb
+
     """
-    def __init__(self, filename, mode = MPI.MODE_WRONLY|MPI.MODE_CREATE, delay = 0, comm = MPI.COMM_WORLD):
-        """
-        Open the specified file and use it as the stream for logging.
-        """
+    def __init__(self,
+                 filename,
+                 mode=MPI.MODE_WRONLY|MPI.MODE_CREATE|MPI.MODE_APPEND ,
+                 encoding='utf-8',
+                 delay=False,
+                 comm=MPI.COMM_WORLD ):
         self.baseFilename = os.path.abspath(filename)
-        self.mode         = mode
-        self.encoding     = None
-        self.delay        = delay
-        self.comm         = comm
+        self.mode = mode
+        self.encoding = encoding
+        self.comm = comm
         if delay:
+            #We don't open the stream, but we still need to call the
+            #Handler constructor to set level, formatter, lock etc.
             logging.Handler.__init__(self)
             self.stream = None
         else:
-            logging.StreamHandler.__init__(self, self._open())
+           logging.StreamHandler.__init__(self, self._open())
 
     def _open(self):
-        """
-        Open the current base file with the (original) mode and encoding.
-        Return the resulting stream.
-        """
-        stream = MPIStream(self.comm, self.baseFilename, self.mode )
+        stream = MPI.File.Open( self.comm, self.baseFilename, self.mode )
+        stream.Set_atomicity(True)
         return stream
+
+    def emit(self, record):
+        """
+        Emit a record.
+        If a formatter is specified, it is used to format the record.
+        The record is then written to the stream with a trailing newline.  If
+        exception information is present, it is formatted using
+        traceback.print_exception and appended to the stream.  If the stream
+        has an 'encoding' attribute, it is used to determine how to do the
+        output to the stream.
+
+        Modification:
+            stream is MPI.File, so it must use `Write_shared` method rather
+            than `write` method. And `Write_shared` method only accept
+            bytestring, so `encode` is used. `Write_shared` should be invoked
+            only once in each all of this emit function to keep atomicity.
+        """
+        try:
+            msg = self.format(record)
+            stream = self.stream
+            stream.Write_shared((msg+self.terminator).encode(self.encoding))
+            #self.flush()
+        except Exception:
+            self.handleError(record)
+
+    def close(self):
+        if self.stream:
+            self.stream.Sync()
+            self.stream.Close()
+            self.stream = None
+
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--model_root', dest="model_root", metavar='root', type=str, nargs=1, default=["./"],
@@ -473,6 +495,8 @@ parser.add_argument('-q','--quiet', dest="quiet", action="store_true",
                     help='enable to silence screen output')
 parser.add_argument('--filter', dest="filter", metavar='filter', type=str, nargs=1, default=[""],
                     help='a string which much be in the model filenames')
+parser.add_argument('--regex', dest="regex", metavar='regex', type=str, nargs=1, default=[""],
+                    help='a regular expression which filenames must conform to in order to be included')
 parser.add_argument('--build_dir', dest="build_dir", metavar='build_dir', type=str, nargs=1,default=["./_build"],
                     help='path of where to save the output')
 parser.add_argument('--define_regions', dest="define_regions", type=str, nargs='+',default=[],
@@ -483,10 +507,12 @@ parser.add_argument('--skip_plots', dest="skip_plots", action="store_true",
                     help='enable to skip the plotting phase')
 parser.add_argument('--rel_only', dest="rel_only", action="store_true",
                     help='enable only display relative differences in overall scores')
+parser.add_argument('--mem_per_pair', dest="mem_per_pair", metavar='MEM', type=float, default=100000.,
+                    help='maximum memory for IOMB model-confrontation pairs')
 args = parser.parse_args()
 if args.config is None:
     if rank == 0:
-        print "\nError: You must specify a configuration file using the option --config\n"
+        print("\nError: You must specify a configuration file using the option --config\n")
     comm.Barrier()
     comm.Abort(1)
 
@@ -502,26 +528,34 @@ if len(missing) > 0:
 # Setup study
 T0 = time.time()
 if args.model_setup is None:
-    M = InitializeModels(args.model_root[0],args.models,not args.quiet,filter=args.filter[0],model_year=args.model_year)
+    M = InitializeModels(args.model_root[0],
+                         args.models,
+                         not args.quiet,
+                         filter=args.filter[0],
+                         regex=args.regex[0],
+                         model_year=args.model_year)
 else:
     M = ParseModelSetup(args.model_setup[0],args.models,not args.quiet,filter=args.filter[0])
-if rank == 0 and not args.quiet: print "\nParsing config file %s...\n" % args.config[0]
+if rank == 0 and not args.quiet: print("\nParsing config file %s...\n" % args.config[0])
 S = Scoreboard(args.config[0],
                regions   = args.regions,
                master    = rank==0,
                verbose   = not args.quiet,
                build_dir = args.build_dir[0],
                extents   = RestrictiveModelExtents(M),
-               rel_only  = args.rel_only)
+               rel_only  = args.rel_only,
+               mem_per_pair = args.mem_per_pair)
 C  = MatchRelationshipConfrontation(S.list())
 Cf = FilterConfrontationList(C,args.confront)
 
 # Setup logging
 logger    = logging.getLogger("%i" % comm.rank)
+logname   = ""
 formatter = logging.Formatter('[%(levelname)s][%(name)s][%(funcName)s]%(message)s')
 logger.setLevel(logging.DEBUG)
 if args.logging:
-    mh = MPIFileHandler('%s/ILAMB%02d.log' % (S.build_dir,len(glob.glob("%s/*.log" % S.build_dir))+1))
+    logname = '%s/ILAMB%02d.log' % (S.build_dir,len(glob.glob("%s/*.log" % S.build_dir))+1)
+    mh = MPIFileHandler(logname)
     mh.setFormatter(formatter)
     logger.addHandler(mh)
 
@@ -537,13 +571,13 @@ if rank == 0:
     logger.info(" %s" % datetime.datetime.now())
 
 if rank == 0 and not args.quiet and len(Cf) != len(C):
-    print "\nWe filtered some confrontations, actually running...\n"
-    for c in Cf: print ("    {0:>45}").format(c.longname)
+    print("\nWe filtered some confrontations, actually running...\n")
+    for c in Cf: print(("    {0:>45}").format(c.longname))
 C = Cf
 
 sys.stdout.flush(); comm.Barrier()
 
-if rank==0 and not args.quiet: print "\nRunning model-confrontation pairs...\n"
+if rank==0 and not args.quiet: print("\nRunning model-confrontation pairs...\n")
 
 sys.stdout.flush(); comm.Barrier()
 
@@ -552,7 +586,7 @@ WorkConfront(W,not args.quiet,args.clean)
 
 sys.stdout.flush(); comm.Barrier()
 
-if rank==0 and not args.quiet: print "\nFinishing post-processing which requires collectives...\n"
+if rank==0 and not args.quiet: print("\nFinishing post-processing which requires collectives...\n")
 
 sys.stdout.flush(); comm.Barrier()
 
@@ -562,7 +596,9 @@ sys.stdout.flush(); comm.Barrier()
 
 # Runtime information
 proc_reduced = np.zeros(proc.shape)
+ierr_reduced = np.zeros(ierr.shape)
 comm.Reduce(proc,proc_reduced,root=0)
+comm.Reduce(ierr,ierr_reduced,root=0)
 if size > 1: logger.info("[process time] %.1f s" % proc[rank])
 if rank==0:
     logger.info("[total time] %.1f s" % (time.time()-T0))
@@ -575,4 +611,10 @@ if rank==0:
 
 if rank==0: S.dumpScores(M,"scores.csv")
 
-if rank==0 and not args.quiet: print "\nCompleted in {0:>5.1f} s\n".format(time.time()-T0)
+if (rank == 0              and
+    ierr_reduced.max() > 0 and
+    args.logging           and
+    not args.quiet):
+    print("\nErrors occurred in the run, please consult %s for more detailed information" % logname)
+
+if rank==0 and not args.quiet: print("\nCompleted in {0:>8}\n".format(str(datetime.timedelta(seconds=int(np.round((time.time()-T0)))))))
