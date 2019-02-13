@@ -98,6 +98,7 @@ setup(
     package_dir={'ILAMB' : 'src/ILAMB'},
     package_data={'ILAMB' : ['data/*.cfg']},
     scripts=['bin/ilamb-run','bin/ilamb-fetch','bin/ilamb-mean','bin/ilamb-doctor','bin/ilamb-table'],
+    zip_safe=False,
     install_requires=['numpy>=1.11.0',
                       'matplotlib>=1.4.3',
                       #'basemap>=1.0.7', # basemap is in pypi but broken, need to manually install
