@@ -95,7 +95,7 @@ setup(
     ],
     keywords=['benchmarking','earth system modeling','climate modeling','model intercomparison'],
     packages=['ILAMB'],
-    package_dir={'ILAMB' : 'src/ILAMB'},
+    package_dir={'' : 'src'},
     package_data={'ILAMB' : ['data/*.cfg']},
     scripts=['bin/ilamb-run','bin/ilamb-fetch','bin/ilamb-mean','bin/ilamb-doctor','bin/ilamb-table'],
     install_requires=['numpy>=1.11.0',
