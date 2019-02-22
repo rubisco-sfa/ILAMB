@@ -1650,6 +1650,8 @@ def ClipTime(v,t0,tf):
     v.time      = v.time     [begin:(end+1)    ]
     v.time_bnds = v.time_bnds[begin:(end+1),...]
     v.data      = v.data     [begin:(end+1),...]
+    if v.data_bnds is not None:
+        v.data_bnds = v.data_bnds[begin:(end+1),...]
     return v
 
 def MakeComparable(ref,com,**keywords):

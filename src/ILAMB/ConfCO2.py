@@ -498,7 +498,7 @@ class ConfCO2(Confrontation):
                        transform=ax[0].transAxes)
             ax[0].set_xticks([])
             ax[0].set_yticks([])
-            ax[0].axis('off')
+            ax[0].axis(False)
 
             # Plot the finely interpolated annual cycle, shade JFM and JJA
             ax[1].fill_between(bndmonths[[0,3]],[vmin,vmin],[vmax,vmax],color='k',alpha=0.05,lw=0)

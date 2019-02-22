@@ -1155,7 +1155,7 @@ class Variable:
             if ticks      is not None: ax.set_xticks(ticks)
             if ticklabels is not None: ax.set_xticklabels(ticklabels)
             ax.grid(True)
-            ax.set_ylim(vmin,vmax)
+            if (vmax-vmin) > 1e-12: ax.set_ylim(vmin,vmax)
 
         elif not self.temporal:
 
@@ -1779,6 +1779,8 @@ class Variable:
             self.lat      = self.lat     [i:j]
             self.lat_bnds = self.lat_bnds[i:j]
             self.data     = self.data[...,i:j,:]
+            if self.data_bnds is not None:
+                self.data_bnds = self.data_bnds[...,i:j,:,:]                
             self.area     = self.area[    i:j,:]
         if lon is not None:
             assert len(lon) == 2
@@ -1788,6 +1790,8 @@ class Variable:
             self.lon      = self.lon     [i:j]
             self.lon_bnds = self.lon_bnds[i:j]
             self.data     = self.data[...,i:j]
+            if self.data_bnds is not None:
+                self.data_bnds = self.data_bnds[...,i:j,:]                
             self.area     = self.area[  :,i:j]
         if t is not None:
             assert len(t) == 2

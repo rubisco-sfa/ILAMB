@@ -383,8 +383,11 @@ class HtmlPage(object):
                <td%s class="divider"></td>""" % (opts)
                     add = ""
                     try:
-                        add = ("%#." + "%d" % sig + "g") % self.metric_dict[model][region][metric].data
-                        add = add.lower().replace("nan","")
+                        tmp = self.metric_dict[model][region][metric].data
+                        if tmp.mask.all():
+                            add = ""
+                        else:
+                            add = ("%#." + "%d" % sig + "g") % tmp
                     except:
                         pass
                     html += """
