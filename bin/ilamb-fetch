@@ -2,6 +2,12 @@
 import hashlib,argparse,os,sys
 import requests
 
+# Here I am disabling warnings as they pollute long download
+# screens. However, I am passing a more readable warning to the user
+# instructing them.
+from requests.packages.urllib3.exceptions import InsecureRequestWarning
+requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
+
 def BuildDirectories(filepath):
     d = os.path.dirname(filepath)
     if not os.path.isdir(d):
@@ -53,7 +59,7 @@ if "ILAMB_ROOT" in os.environ: local_root = os.environ["ILAMB_ROOT"]
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--local_root', dest="local_root", metavar="PATH", type=str, default=local_root,
                     help='Location on your system.')
-parser.add_argument('--remote_root', dest="remote_root", metavar="PATH", type=str, default="http://ilamb.ornl.gov/ILAMB-Data/",
+parser.add_argument('--remote_root', dest="remote_root", metavar="PATH", type=str, default="https://www.ilamb.org/ILAMB-Data/",
                     help='Location on the remote system.')
 parser.add_argument('-c', '--create', dest="create", action="store_true",
                     help='Enable to create a sha1sum check file of the contents of the local root')
@@ -70,7 +76,18 @@ if args.create:
 print("\nComparing remote location:\n\n\t%s\n\nTo local location:\n\n\t%s" % (args.remote_root,args.local_root))
 
 # download and build the sha1sum check files
-resp = requests.get(args.remote_root + "/SHA1SUM", verify= (not args.check))
+try:
+    resp = requests.get(args.remote_root + "/SHA1SUM", verify= (not args.check))
+except requests.exceptions.SSLError:
+    print("""
+SSLError: The certificate from the remote site you contacted could not
+be verified. If you trust this site (for example if you are connecting
+to our server https://www.ilamb.org) then you may rerun ilamb-fetch
+with the --no-check-certificate option which will bypass the
+certificate check step.
+""")
+    sys.exit(1)
+
 with open(args.local_root  + "/SHA1SUM", "wb") as f:
     f.write(resp.content)
 if "404 Not Found" in open(args.local_root  + "/SHA1SUM").read():
