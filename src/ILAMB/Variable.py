@@ -1267,6 +1267,7 @@ class Variable:
         output_area = self.area      if (lat  is None and lon is None) else None
 
         data = self.data
+        data_bnds = None
         if self.spatial and (lat is not None or lon is not None):
             if lat is None: lat = self.lat
             if lon is None: lon = self.lon
@@ -1283,6 +1284,10 @@ class Variable:
                 if data.mask.size > 1: mask = data.mask[ind]
                 data  = data.data[ind]
                 data  = np.ma.masked_array(data,mask=mask)
+                if self.data_bnds is not None:
+                    args.append([0,1])
+                    ind = np.ix_(*args)
+                    data_bnds = self.data_bnds[ind]
                 np.seterr(under='ignore',over='ignore')
                 frac  = self.area / il.CellAreas(self.lat,self.lon,self.lat_bnds,self.lon_bnds).clip(1e-12)
                 np.seterr(under='raise',over='raise')
@@ -1312,7 +1317,9 @@ class Variable:
             data  = data.data[times,...]
             data  = np.ma.masked_array(data,mask=mask)
             output_tbnd = self.time_bnds[times]
-        return Variable(data = data, unit = self.unit, name = self.name, ndata = self.ndata,
+        return Variable(data = data,
+                        data_bnds = data_bnds,
+                        unit = self.unit, name = self.name, ndata = self.ndata,
                         lat  = output_lat,
                         lon  = output_lon,
                         area = output_area,
@@ -1581,6 +1588,21 @@ class Variable:
         rms.name = "rms_of_%s" % self.name
         return rms
 
+    def variability(self,mean=None):
+        """Computes the variability of the variable.
+        """
+        if not self.temporal: raise il.NotTemporalVariable
+        if mean is None: mean = self.integrateInTime(mean=True)
+        var = Variable(unit = self.unit,
+                       data = self.data - mean.data[np.newaxis,...],
+                       time = self.time, time_bnds = self.time_bnds,
+                       lat  = self.lat, lat_bnds = self.lat_bnds,
+                       lon  = self.lon, lon_bnds = self.lon_bnds,
+                       area = self.area,
+                       ndata = self.ndata).rms()
+        var.name = "var_of_%s" % self.name
+        return var
+        
     def interannualVariability(self):
         """Computes the interannual variability.
 
