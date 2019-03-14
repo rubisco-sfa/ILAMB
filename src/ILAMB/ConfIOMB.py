@@ -836,7 +836,7 @@ class ConfIOMB(Confrontation):
 
             # Pick colormap
             cmap = self.cmap
-            if base_name in cmaps:
+            if base_pname in cmaps:
                 cmap = cmaps[base_pname]
             elif "score" in pname:
                 cmap = "RdYlGn"
