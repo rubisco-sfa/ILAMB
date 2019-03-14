@@ -163,7 +163,7 @@ class Variable:
                 self.spatial = False
                 self.ndata   = 1
                 self.data    = self.data.reshape(self.data.shape[:-2]+(1,))
-
+        
         if self.spatial is True:
             if np.all(np.diff(self.lat)<0): # Flip if monotonically decreasing
                 self.lat      = self.lat     [::-1     ]
@@ -172,7 +172,6 @@ class Variable:
                 if self.area     is not None: self.area     = self.area    [::-1,:]
             if self.lat_bnds is None: self.lat_bnds = _createBnds(self.lat)
             if self.lon_bnds is None: self.lon_bnds = _createBnds(self.lon)
-            if self.area     is None: self.area     = il.CellAreas(self.lat,self.lon)
             # Some data arrays are arranged such that the first column
             # of data is arranged at the prime meridian. This does not
             # work well with some of the plotting and/or analysis
@@ -183,13 +182,16 @@ class Variable:
             self.lon      = np.roll(self.lon     ,-shift)
             self.lon_bnds = np.roll(self.lon_bnds,-shift,axis= 0)
             self.data     = np.roll(self.data    ,-shift,axis=-1)
-            self.area     = np.roll(self.area    ,-shift,axis=-1)
+            if self.area is not None: self.area = np.roll(self.area,-shift,axis=-1)
             # Fix potential problems with rolling the axes of the lon_bnds
             if self.lon_bnds[ 0,0] > self.lon_bnds[ 0,1]: self.lon_bnds[ 0,0] = -180.
             if self.lon_bnds[-1,0] > self.lon_bnds[-1,1]: self.lon_bnds[-1,1] = +180.
             # Make sure that the value lies within the bounds
             assert np.all((self.lat>=self.lat_bnds[:,0])*(self.lat<=self.lat_bnds[:,1]))
             assert np.all((self.lon>=self.lon_bnds[:,0])*(self.lon<=self.lon_bnds[:,1]))
+            if self.area is None: self.area = il.CellAreas(None,None,
+                                                           lat_bnds=self.lat_bnds,
+                                                           lon_bnds=self.lon_bnds)
 
         # Is the data layered
         self.layered    = False
