@@ -640,6 +640,7 @@ def GenerateRelSummaryFigure(S,M,figname,rel_only=False):
     data = np.ma.zeros((len(rows),len(M)))
     for i,row in enumerate(rows):
         data[i,:] = scores[row] / counts[row]
+    data = np.ma.masked_values(data,0)
     BenchmarkSummaryFigure([m.name for m in M],rows,data,figname,rel_only=rel_only,vcolor=vcolors)
 
 def GenerateRelationshipTree(S,M):
