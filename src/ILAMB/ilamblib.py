@@ -283,9 +283,9 @@ def GetTime(var,t0=None,tf=None,convert_calendar=True,ignore_time_array=True):
         raise ValueError(msg)
 
     # Convert time array to ILAMB default calendar / datum
-    datum_shift = (cf.num2date(0,t.units                       ,calendar=t.calendar)-
-                   cf.num2date(0,"days since 1850-1-1 00:00:00",calendar=t.calendar)).total_seconds()
-    if ((datum_shift > 60) or (convert_calendar and t.calendar != "noleap")):
+    datum_shift = (cf.num2date(0,"days since 1850-1-1 00:00:00",calendar=t.calendar)-
+                   cf.num2date(0,t.units                       ,calendar=t.calendar)).total_seconds()
+    if ((abs(datum_shift) > 60) or (convert_calendar and t.calendar != "noleap")):
         T  = cf.num2date(T ,units=t.units,calendar=t.calendar)
         TB = cf.num2date(TB,units=t.units,calendar=t.calendar)
         for index,x in np.ndenumerate(T):
