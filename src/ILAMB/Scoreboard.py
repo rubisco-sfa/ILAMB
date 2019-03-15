@@ -282,6 +282,7 @@ class Scoreboard():
         nav      = ""
         if has_rel:
             GenerateRelSummaryFigure(rel_tree,M,"%s/overview_rel.png" % self.build_dir,rel_only=self.rel_only)
+            GenerateRelSummaryFigure(rel_tree,M,"%s/overview_rel_both.png" % self.build_dir)
             nav = """
             <li><a href="#pageRel">Relationship</a></li>"""
             #global global_print_node_string
@@ -464,6 +465,7 @@ class Scoreboard():
 
     def createSummaryFigure(self,M):
         GenerateSummaryFigure(self.tree,M,"%s/overview.png" % self.build_dir,rel_only=self.rel_only)
+        GenerateSummaryFigure(self.tree,M,"%s/overview_both.png" % self.build_dir)
 
     def dumpScores(self,M,filename):
         with open("%s/%s" % (self.build_dir,filename),"w") as out:
