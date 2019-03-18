@@ -938,7 +938,6 @@ class HtmlLayout():
           border-collapse: collapse;
       }
       td {
-          width: 30px;
           text-align: center;
           padding: 10px 5px;
           border: 1px solid #ccc;
