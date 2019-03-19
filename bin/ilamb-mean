@@ -76,6 +76,10 @@ Vs = []
 for m in M:
     Vs += [v for v in m.variables.keys() if v not in Vs]
 
+
+skip = ['time', 'time_bnds', 'lat', 'lat_bnds', 'lon', 'lon_bnds', 'plev', 'time_bounds', 'type', 'nav_lat', 'nav_lon', 'bounds_nav_lon', 'bounds_nav_lat', 'area', 'areacello']
+Vs = [v for v in Vs if v not in skip]
+
 # compute mean
 yrs = (np.asarray(range(1850,2016),dtype=float)-1850)*365
 yrs = (yrs[:,np.newaxis] + bnd_months[:12]).flatten()
@@ -85,23 +89,38 @@ lat_bnd,lon_bnd,lat,lon = il.GlobalLatLonGrid(1.0)
 lat_bnd = np.asarray([lat_bnd[:-1],lat_bnd[1:]]).T
 lon_bnd = np.asarray([lon_bnd[:-1],lon_bnd[1:]]).T
 for v in Vs:
+    print("checking ",v)
     data  = np.zeros((t.size,lat.size,lon.size))
     count = np.zeros((t.size,lat.size,lon.size),dtype=int)
+    skip = False
+    unit = None
     for i,m in enumerate(M):
+        print("  ",m.name)
+        if skip: continue
         try:
             u = m.extractTimeSeries(v)
         except:
             continue
-        if i == 0: unit = u.unit
-        if not (u.temporal and u.spatial): continue
+        if not (u.temporal and u.spatial):
+            skip = True
+            continue
+        if u.layered or u.data.ndim > 3:
+            skip = True
+            continue
+        if unit is None: unit = u.unit
+        print("    convert")
         u.convert(unit)
+        print("    interpolate %e %e" % (u.data.min(),u.data.max()))
         ui = u.interpolate(time=t,lat=lat,lon=lon,lat_bnds=lat_bnd,lon_bnds=lon_bnd)
+        print("    sum")
         with np.errstate(under='ignore',over='ignore'):
-            data  +=  ui.data.data
+            data  +=  ui.data.data*(ui.data.mask==False)
             count += (ui.data.mask==False)
     if count.sum() == 0: continue
+    print("  average")
     with np.errstate(all='ignore'):
         data = np.ma.masked_array(data=(data/count.clip(1)),mask=(count==0))
+    print("  output")
     with Dataset("%s_mean.nc" % v,mode="w") as dset:
         o = Variable(data       = data,
                      unit       = unit,
