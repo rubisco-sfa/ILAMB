@@ -341,11 +341,11 @@ class Variable:
         else:
 
             # if not a mean, we need to potentially handle unit conversions
-            unit0    = Unit("d")*unit
-            unit     = Unit(unit0.format().split()[-1])
-            integral = unit0.convert(integral,unit)
+            unit0 = Unit("d")*unit
+            unit  = Unit(unit0.format().split()[-1])
+            unit0.convert(integral.data,unit,inplace=True)
             if integral_bnd is not None:
-                integral_bnd = unit0.convert(integral_bnd,unit)
+                unit0.convert(integral_bnd.data,unit,inplace=True)
                 
         return Variable(data       = integral,
                         data_bnds   = integral_bnd,
@@ -463,7 +463,7 @@ class Variable:
             # if not a mean, we need to potentially handle unit conversions
             unit0    = Unit("m")*unit
             unit     = Unit(unit0.format().split()[-1])
-            integral = unit0.convert(integral,unit)
+            unit0.convert(integral.data,unit,inplace=True)
 
         return Variable(data       = integral,
                         unit       = "%s" % unit,
@@ -576,7 +576,7 @@ class Variable:
             # if not a mean, we need to potentially handle unit conversions
             unit0    = Unit("m2")*unit
             unit     = Unit(unit0.format().split()[-1])
-            integral = unit0.convert(integral,unit)
+            unit0.convert(integral.data,unit,inplace=True)
 
         return Variable(data       = np.ma.masked_array(integral),
                         unit       = "%s" % unit,
@@ -865,10 +865,9 @@ class Variable:
 
         # Convert units
         try:
-            self.data = src_unit.convert(self.data,tar_unit)
-            self.data = np.ma.masked_array(self.data,mask=mask)
+            src_unit.convert(self.data.data,tar_unit,inplace=True)
             if self.data_bnds is not None:
-                self.data_bnds = src_unit.convert(self.data_bnds,tar_unit)
+                src_unit.convert(self.data_bnds.data,tar_unit,inplace=True)
             self.unit = unit
         except:
             raise il.UnitConversionError()
