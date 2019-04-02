@@ -49,11 +49,7 @@ class ConfNBP(Confrontation):
         tmin = mod.time_bnds[ 0,0]
         tmax = mod.time_bnds[-1,1]
         obs,mod = il.MakeComparable(obs,mod,clip_ref=True)
-
-        # The obs can go beyond the information which models have
-        obs.trim(t=[tmin,tmax])
-        mod.trim(t=[tmin,tmax])
-
+        
         # sign convention is backwards
         obs.data *= -1.
         if obs.data_bnds is not None: obs.data_bnds *= -1.
@@ -76,7 +72,9 @@ class ConfNBP(Confrontation):
         mod_sum = mod.accumulateInTime().convert("Pg")
 
         # End of period information
-        yf = np.round(obs.time_bnds[-1,1]/365.+1850.)
+        
+        
+        yf = np.round(min(obs.time_bnds[-1,1],mod.time_bnds[-1,1])/365.+1850.)
         obs_end = Variable(name = "nbp(%4d)" % yf,
                            unit = obs_sum.unit,
                            data = obs_sum.data[-1])
