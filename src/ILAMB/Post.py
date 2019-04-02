@@ -1090,7 +1090,8 @@ def BenchmarkSummaryFigure(models,variables,data,figname,vcolor=None,rel_only=Fa
     if vcolor is not None:
         assert type(vcolor) is type(list())
         assert len(vcolor) == len(variables)
-
+    rel_cmap = "PuOr"
+        
     # define some parameters
     nmodels    = len(models)
     nvariables = len(variables)
@@ -1151,7 +1152,7 @@ def BenchmarkSummaryFigure(models,variables,data,figname,vcolor=None,rel_only=Fa
     Z    = (data-mean[:,np.newaxis])/std[:,np.newaxis]
     Z    = np.ma.masked_invalid(Z)
     np.seterr(invalid='warn',under='raise')
-    cmap = plt.get_cmap('RdGn')
+    cmap = plt.get_cmap(rel_cmap)
     cmap.set_bad('k',bad)
     qc   = ax[i].pcolormesh(Z[::-1],cmap=cmap,vmin=-2,vmax=2,linewidth=0)
     div  = make_axes_locatable(ax[i])
