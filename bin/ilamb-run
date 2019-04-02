@@ -584,8 +584,8 @@ if rank==0 and not args.quiet: print("\nRunning model-confrontation pairs...\n")
 
 sys.stdout.flush(); comm.Barrier()
 
-#W = BuildLocalWorkList(M,C,skip_cache=True)
-#WorkConfront(W,not args.quiet,args.clean)
+W = BuildLocalWorkList(M,C,skip_cache=True)
+WorkConfront(W,not args.quiet,args.clean)
 
 sys.stdout.flush(); comm.Barrier()
 
@@ -595,8 +595,8 @@ if not args.skip_plots:
 
     sys.stdout.flush(); comm.Barrier()
     
-    #W = BuildLocalWorkList(M,C,skip_cache=False)
-    #WorkPost(M,C,W,S,not args.quiet,args.skip_plots)
+    W = BuildLocalWorkList(M,C,skip_cache=False)
+    WorkPost(M,C,W,S,not args.quiet,args.skip_plots)
 
 if rank==0:
     S.createHtml(M)
