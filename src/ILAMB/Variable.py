@@ -576,7 +576,7 @@ class Variable:
             # if not a mean, we need to potentially handle unit conversions
             unit0    = Unit("m2")*unit
             unit     = Unit(unit0.format().split()[-1])
-            unit0.convert(integral.data,unit,inplace=True)
+            unit0.convert(integral,unit,inplace=True)
 
         return Variable(data       = np.ma.masked_array(integral),
                         unit       = "%s" % unit,
