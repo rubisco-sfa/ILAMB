@@ -162,7 +162,9 @@ class Confrontation(object):
         with Dataset(self.source) as dset:
             for attr in dset.ncattrs():
                 try:
-                    attr_line = "<p><b>&nbsp;&nbsp;%s:&nbsp;</b>%s</p>\n" % (attr,str(dset.getncattr(attr)).encode('ascii','ignore'))
+                    val = dset.getncattr(attr)
+                    if type(val) != str: val = str(val)
+                    attr_line = "<p><b>&nbsp;&nbsp;%s:&nbsp;</b>%s</p>\n" % (attr,val)
                     pages[-1].text += attr_line
                 except:
                     pass
