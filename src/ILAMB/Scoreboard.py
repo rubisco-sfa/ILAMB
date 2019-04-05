@@ -14,6 +14,7 @@ from netCDF4 import Dataset
 import numpy as np
 from .Post import BenchmarkSummaryFigure
 from .ilamblib import MisplacedData
+import glob,json
 
 global_print_node_string  = ""
 global_confrontation_list = []
@@ -175,6 +176,73 @@ def ParseScoreboardConfigureFile(filename):
     TraversePostorder(root,InheritVariableNames)
     return root
 
+def getDict(node,scalars):
+    if node.name is None: return {}
+    n = node
+    keys = []
+    while n.parent is not None:
+        keys.append(n.name)
+        n = n.parent
+    keys = keys[::-1]
+    s = scalars
+    for key in keys[:-1]:
+        s = s[key]['children']
+    return s[keys[-1]]
+
+def BuildDictionary(node):
+    global scalars
+    if node.name is None: return
+    n = node
+    keys = []
+    while n.parent is not None:
+        keys.append(n.name)
+        n = n.parent
+    keys = keys[::-1]
+    s = scalars
+    for key in keys:
+        if key not in s.keys():
+            s[key] = {}
+            s[key]['children'] = {}
+        s = s[key]['children']
+
+def BuildScalars(node):
+    if node.name is None: return
+    global scalars
+    global models
+    global global_scores
+    s = getDict(node,scalars)
+    if node.isLeaf():
+        files = [f for f in glob.glob(os.path.join(node.output_path,"*.nc")) if "Benchmark" not in f]
+        for fname in files:
+            with Dataset(fname) as dset:
+                if dset.name not in models: continue
+                grp = dset.groups["MeanState"]["scalars"]
+                scores = [c for c in grp.variables.keys() if "Score" in c]
+                global_scores += [c for c in scores if ((c not in global_scores) and ("global" in c))]
+                for c in scores:
+                    if c not in s.keys():
+                        s[c] = np.ma.masked_array(np.zeros(len(models)),mask=np.ones(len(models),dtype=bool))
+                    s[c][models.index(dset.name)] = grp[c][...]
+    else:
+        scores = None
+        for child in node.children:
+            if scores is None: scores = [c for c in s['children'][child.name].keys() if "children" not in c]
+            for c in scores:
+                if c not in s.keys():
+                    s[c] = np.ma.masked_array(np.zeros(len(models)),mask=np.zeros(len(models),dtype=bool))
+                if c in s['children'][child.name].keys():
+                    s[c] = s[c] + s['children'][child.name][c]*child.normalize_weight
+
+def ConvertList(node):
+    if node.name is None: return
+    global scalars
+    s = getDict(node,scalars)
+    for key in s.keys():
+        if key == "children": continue
+        x = s[key]
+        x = (x-x.mean())/(x.std().clip(0.02) if x.std() > 1e-12 else 1)
+        x.data[x.mask] = -999
+        s[key] = list(x.data)
 
 ConfrontationTypes = { None              : Confrontation,
                        "ConfNBP"         : ConfNBP,
@@ -192,13 +260,14 @@ class Scoreboard():
     """
     A class for managing confrontations
     """
-    def __init__(self,filename,regions=["global"],verbose=False,master=True,build_dir="./_build",extents=None,rel_only=False,mem_per_pair=100000.):
+    def __init__(self,filename,regions=["global"],verbose=False,master=True,build_dir="./_build",extents=None,rel_only=False,mem_per_pair=100000.,run_title="ILAMB"):
 
         if 'ILAMB_ROOT' not in os.environ:
             raise ValueError("You must set the environment variable 'ILAMB_ROOT'")
         self.build_dir = build_dir
         self.rel_only  = rel_only
-
+        self.run_title = run_title
+        
         if (master and not os.path.isdir(self.build_dir)): os.mkdir(self.build_dir)
 
         self.tree = ParseScoreboardConfigureFile(filename)
@@ -266,206 +335,306 @@ class Scoreboard():
         TraversePreorder(self.tree,_hasConfrontation)
         return global_confrontation_list
 
+    def createJSON(self,M,filename="scalars.json"):
+
+        global scalars
+        global models
+        global global_scores
+        global_scores = []
+        models  = [m.name for m in M]
+        scalars = {}
+        TraversePreorder (self.tree,BuildDictionary)
+        TraversePostorder(self.tree,BuildScalars)
+        TraversePreorder (self.tree,ConvertList)
+        with open(os.path.join(self.build_dir,filename),mode='w') as f:
+            f.write("data = '%s'" % (json.dumps(scalars)))
+        return global_scores
+        
     def createHtml(self,M,filename="index.html"):
-
-        # Create html assets
-        from pylab import imsave
-        arrows = np.zeros((32,16,4))
-        for i in range(7):
-            arrows[ 4+i,(7-i):(7+i+1),3] = 1
-            arrows[27-i,(7-i):(7+i+1),3] = 1
-        imsave("%s/arrows.png" % self.build_dir,arrows)
-
-        # Create a tree for relationship scores (hack)
-        rel_tree = GenerateRelationshipTree(self,M)
-        has_rel  = np.asarray([len(rel.children) for rel in rel_tree.children]).sum() > 0
-        nav      = ""
-        if has_rel:
-            GenerateRelSummaryFigure(rel_tree,M,"%s/overview_rel.png" % self.build_dir,rel_only=self.rel_only)
-            GenerateRelSummaryFigure(rel_tree,M,"%s/overview_rel_both.png" % self.build_dir)
-            nav = """
-            <li><a href="#pageRel">Relationship</a></li>"""
-            #global global_print_node_string
-            #global_print_node_string = ""
-            #TraversePreorder(rel_tree,PrintNode)
-            #print global_print_node_string
-
+        global models
         from ILAMB.generated_version import version as ilamb_version
-        html = r"""
+        models = [m.name for m in M]
+        maxM = max([len(m) for m in models])
+        px = int(round(maxM*6.875))
+        if px % 2 == 1: px += 1
+        py = int(px/2)-5
+        scores = self.createJSON(M)
+        scores = [s.replace(" global","") for s in scores if " global" in s]
+        print("Created JSON")
+        print(scores)
+
+        html = """
 <html>
   <head>
-    <title>ILAMB Benchmark Results</title>
-    <link rel="stylesheet" href="https://code.jquery.com/mobile/1.4.5/jquery.mobile-1.4.5.min.css"></link>
-    <script src="https://code.jquery.com/jquery-1.11.2.min.js"></script>
-    <script>
-      $(document).bind('mobileinit',function(){
-      $.mobile.changePage.defaults.changeHash = false;
-      $.mobile.hashListeningEnabled = false;
-      $.mobile.pushStateEnabled = false;
-      });
-    </script>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="https://code.jquery.com/mobile/1.4.5/jquery.mobile-1.4.5.min.css">
+    <script src="https://code.jquery.com/jquery-1.11.3.min.js"></script>
     <script src="https://code.jquery.com/mobile/1.4.5/jquery.mobile-1.4.5.min.js"></script>
-    <script type="text/javascript" src="https://www.google.com/jsapi"></script>
+
+    <script type="text/javascript" src="scalars.json"></script>
     <script type="text/javascript">
-      $(document).ready(function(){
-      function getChildren($row) {
-      var children = [];
-      while($row.next().hasClass('child')) {
-      children.push($row.next());
-      $row = $row.next();
-      }
-      return children;
-      }
-      $('.parent').on('click', function() {
-      $(this).find(".arrow").toggleClass("up");
-      var children = getChildren($(this));
-      $.each(children, function() {
-      $(this).toggle();
-      })
+
+
+ $(document).ready(function(){
+	  function getH2Children($row) {
+	      var children = [];
+	      while($row.next().hasClass('child_dataset')) {
+		  children.push($row.next());
+		  $row = $row.next();
+	      }
+	      return children;
+	  }
+	  function getH1Children($row) {
+	      var children = [];
+	      var turning_on = $row.next().is(":hidden");
+	      while($row.next().hasClass('child_dataset') ||
+		    $row.next().hasClass('child_variable')) {
+		  if(turning_on){
+		      if( ($row.next().is(":hidden")) &&
+			  ($row.next().hasClass('child_variable'))) children.push($row.next());
+		  }else{
+		      if(!($row.next().is(":hidden"))) children.push($row.next());
+		  }
+		  $row = $row.next();
+	      }
+	      return children;
+	  }
+	  $('.parent').on('click', function() {
+	      var children = getH1Children($(this));	 
+	      $.each(children, function() {
+		  $(this).toggle();
+	      })
+	  });
+	  $('.child_variable').on('click', function() {
+	      var children = getH2Children($(this));
+	      $.each(children, function() {
+		  $(this).toggle();
+	      })
+	  });
+	  $('.child_dataset').toggle();
       });
-      $('.child').toggle();
-      });
-    </script>"""
-        html += """
-    <style>
-      div.arrow {
-        background:transparent url(arrows.png) no-repeat scroll 0px -16px;
-        width:16px;
-        height:16px;
-        display:block;
+
+      function pageLoad() {
+	  
+	  $("table").delegate('td','mouseover mouseleave', function(e) {
+	      var table = document.getElementById("scoresTable");
+	      if (e.type == 'mouseover') {
+		  $(this).parent().addClass("hover");
+		  table.rows[0].cells[$(this).index()].style.fontWeight = "bolder";
+	      }
+	      else {
+		  $(this).parent().removeClass("hover");
+		  table.rows[0].cells[$(this).index()].style.fontWeight = "normal";
+	      }
+	  });
+
+	  colorTable();
       }
-      div.up {
-        background-position:0px 0px;
+      
+      function printRow(table,row,array,cmap) {
+	  if(typeof array == 'undefined'){
+	      for(var i = 1, col; col = table.rows[row].cells[i]; i++) {
+		  col.style.backgroundColor = "#808080";
+	      }
+	      return;
+	  }
+	  var nc = cmap.length;
+	  for(var col=0;col<array.length;col++){
+	      var clr = "#808080";
+	      if(array[col] > -900){
+		  var ind = Math.round(nc*(array[col]+2.0)/4.0);
+		  ind = Math.min(Math.max(ind,0),nc-1);
+		  clr = cmap[ind];
+	      }
+	      table.rows[row].cells[col+1].style.backgroundColor = clr;
+	  }
       }
-      .child {
+      
+      function colorTable() {
+	  	  
+	  var scalars = JSON.parse(data);	  
+	  var scalar_option = document.getElementById("ScalarOption");
+	  var scalar_name   = scalar_option.options[scalar_option.selectedIndex].value + " global";
+	  
+	  var PuOr = ['#b35806','#e08214','#fdb863','#fee0b6','#f7f7f7','#d8daeb','#b2abd2','#8073ac','#542788'];
+	  var GnRd = ['#b2182b','#d6604d','#f4a582','#fddbc7','#f7f7f7','#d9f0d3','#a6dba0','#5aae61','#1b7837'];
+	  var cmap = GnRd;
+	  if(document.getElementById("colorblind").checked) cmap = PuOr;
+
+	  var row = 1;
+	  var tab = "";
+	  var table = document.getElementById("scoresTable");
+	  for(let h1 in scalars){
+	      tab = "";
+	      table.rows[row].cells[0].innerHTML = tab + h1;
+	      printRow(table,row,scalars[h1][scalar_name],cmap);
+	      row += 1;
+	      H1 = scalars[h1]["children"]
+	      for(let h2 in H1){
+		  tab = "&nbsp;&nbsp;&nbsp;&nbsp;";
+		  table.rows[row].cells[0].innerHTML = tab + h2;
+		  printRow(table,row,H1[h2][scalar_name],cmap);
+		  row += 1;
+		  H2 = H1[h2]["children"]
+		  for(let v in H2){
+		      tab = "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;";
+		      table.rows[row].cells[0].innerHTML = tab + v;
+		      printRow(table,row,H2[v][scalar_name],cmap);
+		      row += 1;
+		  }
+	      }
+	  }
+
+	  table = document.getElementById("scoresLegend");
+	  row = 0;
+	  for(var col=0;col<cmap.length;col++){
+	      table.rows[row].cells[col].style.backgroundColor = cmap[col];
+	  }
+	  
       }
-      .parent {
-        cursor:pointer;
+    </script>
+    <style type="text/css">
+      .parent{
       }
-      th {
-        border-bottom: 1px solid #d6d6d6;
+      .child_variable{
       }
-      img.displayed {
-        display: block;
-        margin-left: auto;
-        margin-right: auto
+      .child_dataset{
       }
-    </style>"""
-        html += """
+      table.table-header-rotated {
+          border-collapse: collapse;
+      }
+      th.rotate {
+          height: %dpx;
+          white-space: nowrap;
+	  font-weight: normal;
+      }
+      th.rotate > div {
+          transform: translate(10px, %dpx) rotate(-45deg);
+          width: 0px;
+      }
+      th.rotate > div > span {
+      }
+      td {
+	  height: 25px;
+	  width: 25px;
+	  border: 1px solid;
+      }
+      td.row-label {
+	  width: 325px;
+      }
+      a {
+	  display:block;
+	  text-decoration: none;
+      }
+      .hover {
+	  font-weight: bold;
+          border: 2px solid;
+      }
+    </style>
+    
   </head>
+  <body onload="pageLoad()">
 
-  <body>"""
-
-        html += """
-    <div data-role="page" id="pageOverview">
+    <div data-role="page" id="MeanState">      
       <div data-role="header" data-position="fixed" data-tap-toggle="false">
-        <h1>ILAMB Benchmark Results</h1>
-        <div data-role="navbar">
-          <ul>
-            <li><a href="#pageOverview" class="ui-btn-active ui-state-persist">Mean State</a></li>%s
-            <li><a href="#pageTable">Results Table</a></li>
-          </ul>
-        </div>
+        <h1>%s</h1>
       </div>
-      <div data-role="main" class="ui-content">
-        <img class="displayed" src="./overview.png"></img>
-      </div>
+
+      <select id="ScalarOption" onchange="colorTable()">""" % (px,py,self.run_title[0])
+        print("Adding Score Options")
+        for s in scores:
+            opts  = ' selected="selected"' if "Overall" in s else ''
+            html += """
+        <option value="%s"%s>%s</option>""" % (s,opts,s)
+        html += """
+      </select>
+
+      <form>
+	<fieldset data-role="controlgroup" data-type="horizontal" data-mini="True">
+	  <input type="checkbox" name="colorblind" id="colorblind" checked onchange="colorTable()">
+	  <label for="colorblind" >Colorblind colors</label>
+	</fieldset>
+      </form>
+      
+      <center>
+	<table class="table-header-rotated" id="scoresTable">
+	  <thead>
+            <tr>
+              <th></th>"""
+        print("Adding Models")
+        
+        for m in M:
+            html += """
+              <th class="rotate"><div>%s</div></th>""" % (m.name)
+        html += """
+            </tr>
+	  </thead>
+	  <tbody>"""
+
+
+        global global_html
+        global row_color
+        global_html = ""
+        row_color = ""
+            
+        def GenRowHTML(node):
+            row_class = ['','parent','child_variable','child_dataset']
+            global global_html
+            global row_color
+            global models
+            global global_sb
+            d = node.getDepth()
+            if d == 0: return
+            if d == 1:
+                row_color = node.bgcolor
+            global_html += """
+	    <tr class="%s" bgcolor="%s">
+              <td class="row-label"></td>""" % (row_class[d],row_color)
+            for m in models:
+                if d < 3:
+                    href = ''
+                else:
+                    path = node.output_path.replace(global_sb.build_dir,"")
+                    if path.startswith("/"): path = path[1:]
+                    href = '<a href="%s?model=%s" target="_blank">&nbsp;</a>' % (os.path.join(path,"%s.html" % (node.name)),m)
+
+                global_html += """
+              <td>%s</td>""" % href
+
+        global global_sb
+        global_sb = self
+        print("Generating Rows")
+        TraversePreorder(self.tree,GenRowHTML)
+        html += global_html
+        html += """
+	  </tbody>
+	</table>
+
+	
+	<p>Relative Value
+	<table class="table-header-rotated" id="scoresLegend">
+	  <tbody>
+            <tr>
+              <td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td>
+	    </tr>
+	  </tbody>
+	</table>
+	Worse Value&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Better Value
+      </center>
+
       <div data-role="footer">
         <center>ILAMB %s</center>
       </div>
-    </div>""" % (nav,ilamb_version)
+    </body>
+</html>""" % (ilamb_version)
 
-        if has_rel:
-            html += """
-    <div data-role="page" id="pageRel">
-      <div data-role="header" data-position="fixed" data-tap-toggle="false">
-        <h1>ILAMB Benchmark Results</h1>
-        <div data-role="navbar">
-          <ul>
-            <li><a href="#pageOverview">Mean State</a></li>
-            <li><a href="#pageRel" class="ui-btn-active ui-state-persist">Relationship</a></li>
-            <li><a href="#pageTable">Results Table</a></li>
-          </ul>
-        </div>
-      </div>
-      <div data-role="main" class="ui-content">
-        <img class="displayed" src="./overview_rel.png"></img>
-      </div>
-      <div data-role="footer">
-      </div>
-    </div>"""
-
-        html += """
-    <div data-role="page" id="pageTable">
-      <div data-role="header" data-position="fixed" data-tap-toggle="false">
-        <h1>ILAMB Benchmark Results</h1>
-        <div data-role="navbar">
-          <ul>
-            <li><a href="#pageOverview">Mean State</a></li>%s
-            <li><a href="#pageTable" class="ui-btn-active ui-state-persist">Results Table</a></li>
-          </ul>
-        </div>
-      </div>
-
-      <div data-role="main" class="ui-content">
-        <div data-role="collapsible" data-collapsed="false"><h1>Mean State Scores</h1>
-        <table data-role="table" data-mode="columntoggle" class="ui-responsive ui-shadow" id="meanTable">
-          <thead>
-            <tr>
-              <th> </th>""" % nav
-        for m in M:
-            html += """
-              <th data-priority="1">%s</th>""" % m.name
-        html += """
-              <th style="width:20px"></th>
-            </tr>
-          </thead>
-          <tbody>"""
-
-        html += GenerateTable(self.tree,M,self)
-
-        html += """
-          </tbody>
-        </table>
-        </div>"""
-
-        if has_rel:
-            html += """
-        <div data-role="collapsible" data-collapsed="false"><h1>Relationship Scores</h1>
-        <table data-role="table" data-mode="columntoggle" class="ui-responsive ui-shadow" id="relTable">
-          <thead>
-            <tr>
-              <th> </th>"""
-            for m in M:
-                html += """
-              <th data-priority="1">%s</th>""" % m.name
-            html += """
-              <th style="width:20px"></th>
-            </tr>
-          </thead>
-          <tbody>"""
-            html += GenerateTable(rel_tree,M,self,composite=False)
-            html += """
-          </tbody>
-        </table>
-        </div>"""
-
-        html += """
-      </div>
-      <div data-role="footer"></div>
-    </div>
-
-</body>
-</html>"""
+        print("Write")
         with open("%s/%s" % (self.build_dir,filename),"w") as f:
             f.write(html)
-
+        print("Done")
+        
     def createBarCharts(self,M):
         html = GenerateBarCharts(self.tree,M)
-
-    def createSummaryFigure(self,M):
-        GenerateSummaryFigure(self.tree,M,"%s/overview.png" % self.build_dir,rel_only=self.rel_only)
-        GenerateSummaryFigure(self.tree,M,"%s/overview_both.png" % self.build_dir)
 
     def dumpScores(self,M,filename):
         with open("%s/%s" % (self.build_dir,filename),"w") as out:
@@ -477,171 +646,6 @@ class Scoreboard():
                     except:
                         out.write("%s,%s\n" % (v.name,','.join(["~"]*len(M))))
 
-def CompositeScores(tree,M):
-    global global_model_list
-    global_model_list = M
-    def _loadScores(node):
-        if node.isLeaf():
-            if node.confrontation is None: return
-            data = np.zeros(len(global_model_list))
-            mask = np.ones (len(global_model_list),dtype=bool)
-            for ind,m in enumerate(global_model_list):
-                fname = "%s/%s_%s.nc" % (node.confrontation.output_path,node.confrontation.name,m.name)
-                if os.path.isfile(fname):
-                    try:
-                        dataset = Dataset(fname)
-                        grp     = dataset.groups["MeanState"].groups["scalars"]
-                    except:
-                        continue
-                    if "Overall Score global" in grp.variables:
-                        data[ind] = grp.variables["Overall Score global"][0]
-                        mask[ind] = 0
-                    else:
-                        data[ind] = -999.
-                        mask[ind] = 1
-                    node.score = np.ma.masked_array(data,mask=mask)
-        else:
-            node.score  = 0
-            sum_weights = 0
-            for child in node.children:
-                node.score  += child.score*child.weight
-                sum_weights += child.weight
-            np.seterr(over='ignore',under='ignore')
-            node.score /= sum_weights
-            np.seterr(over='raise',under='raise')
-    TraversePostorder(tree,_loadScores)
-
-global_html = ""
-global_table_color = ""
-
-def DarkenRowColor(clr,fraction=0.9):
-    from colorsys import rgb_to_hsv,hsv_to_rgb
-    def hex_to_rgb(value):
-        value = value.lstrip('#')
-        lv  = len(value)
-        rgb = tuple(int(value[i:i + lv // 3], 16) for i in range(0, lv, lv // 3))
-        rgb = np.asarray(rgb)/255.
-        return rgb
-    def rgb_to_hex(rgb):
-        return '#%02x%02x%02x' % rgb
-    rgb = hex_to_rgb(clr)
-    hsv = rgb_to_hsv(rgb[0],rgb[1],rgb[2])
-    rgb = hsv_to_rgb(hsv[0],hsv[1],fraction*hsv[2])
-    rgb = tuple(np.asarray(np.asarray(rgb)*255.,dtype=int))
-    return rgb_to_hex(rgb)
-
-def BuildHTMLTable(tree,M,build_dir):
-    global global_model_list
-    global_model_list = M
-    global global_table_color
-    def _genHTML(node):
-        global global_html
-        global global_table_color
-        ccolor = DarkenRowColor(global_table_color,fraction=0.95)
-
-        # setup a html table row
-        if node.isLeaf():
-            row = '<tr class="child" bgcolor="%s">'  % ccolor
-        else:
-            row = '<tr class="parent" bgcolor="%s">' % global_table_color
-
-        # first table column
-        tab = ''
-        if node.isLeaf(): tab = '&nbsp;&nbsp;&nbsp;'
-        name = node.name
-        if node.confrontation:
-            conf = node.confrontation
-            if type(conf) == str:
-                path = conf.replace(build_dir,"").lstrip("/")
-            else:
-                path = os.path.join(conf.output_path.replace(build_dir,"").lstrip("/"),conf.name + ".html")
-            name = '<a href="%s" rel="external" target="_blank">%s</a>' % (path,node.name)
-        if node.isLeaf():
-            row += '<td>%s%s&nbsp;(%.1f%%)</td>' % (tab,name,100*node.normalize_weight)
-        else:
-            row += '<td>%s%s</td>' % (tab,name)
-
-        # populate the rest of the columns
-        if type(node.score) != type(np.ma.empty(0)): node.score = np.ma.masked_array(np.zeros(len(global_model_list)),mask=True)
-        for i,m in enumerate(global_model_list):
-            if not node.score.mask[i]:
-                row += '<td>%.2f</td>' % node.score[i]
-            else:
-                row += '<td>~</td>'
-
-        # end the table row
-        row += '<td><div class="arrow"></div></td></tr>'
-        global_html += row
-
-    for cat in tree.children:
-        global_table_color = cat.bgcolor
-        for var in cat.children:
-            TraversePreorder(var,_genHTML)
-        cat.name += " Summary"
-        _genHTML(cat)
-        cat.name.replace(" Summary","")
-    global_table_color = tree.bgcolor
-    tree.name = "Overall Summary"
-    _genHTML(tree)
-
-def GenerateTable(tree,M,S,composite=True):
-    global global_html
-    global global_model_list
-    if composite: CompositeScores(tree,M)
-    global_model_list = M
-    global_html = ""
-    BuildHTMLTable(tree,M,S.build_dir)
-    return global_html
-
-def GenerateSummaryFigure(tree,M,filename,rel_only=False):
-
-    models    = [m.name for m in M]
-    variables = []
-    vcolors   = []
-    for cat in tree.children:
-        for var in cat.children:
-            variables.append(var.name)
-            vcolors.append(cat.bgcolor)
-
-    data = np.ma.zeros((len(variables),len(models)))
-    row  = -1
-    for cat in tree.children:
-        for var in cat.children:
-            row += 1
-            if type(var.score) == float:
-                data[row,:] = np.nan
-            else:
-                data[row,:] = var.score
-
-    BenchmarkSummaryFigure(models,variables,data,filename,vcolor=vcolors,rel_only=rel_only)
-
-def GenerateRelSummaryFigure(S,M,figname,rel_only=False):
-
-    # reorganize the relationship data
-    scores  = {}
-    counts  = {}
-    rows    = []
-    vcolors = []
-    for h1 in S.children:
-        for dep in h1.children:
-            dname = dep.name.split("/")[0]
-            for ind in dep.children:
-                iname = ind.name.split("/")[0]
-                key   = "%s/%s" % (dname,iname)
-                if key in scores:
-                    scores[key] += ind.score
-                    counts[key] += 1.
-                else:
-                    scores[key]  = np.copy(ind.score)
-                    counts[key]  = 1.
-                    rows   .append(key)
-                    vcolors.append(h1.bgcolor)
-    if len(rows) == 0: return
-    data = np.ma.zeros((len(rows),len(M)))
-    for i,row in enumerate(rows):
-        data[i,:] = scores[row] / counts[row]
-    data = np.ma.masked_values(data,0)
-    BenchmarkSummaryFigure([m.name for m in M],rows,data,figname,rel_only=rel_only,vcolor=vcolors)
 
 def GenerateRelationshipTree(S,M):
 
