@@ -516,7 +516,10 @@ class Scoreboard():
 		  H2 = H1[h2]["children"]
 		  for(let v in H2){
 		      tab = "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;";
-		      table.rows[row].cells[0].innerHTML = tab + v;
+                      var link = h1.replace(/ /g,"") + "/";
+                      link    += h2.replace(/ /g,"") + "/";
+                      link    += v.replace(/ /g,"")  + "/" + v.replace(/ /g,"") + ".html#DataInformation";
+		      table.rows[row].cells[0].innerHTML = "<a href='" + link + "' target='_blank'>" + tab + v + "</a>";
 		      printRow(table,row,H2[v][scalar_name],cmap);
 		      row += 1;
 		  }
