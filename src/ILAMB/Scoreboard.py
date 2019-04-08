@@ -245,6 +245,40 @@ def ConvertList(node):
         x.data[x.mask] = -999
         s[key] = list(x.data)
 
+def CompositeScores(tree,M):
+    global global_model_list
+    global_model_list = M
+    def _loadScores(node):
+        if node.isLeaf():
+            if node.confrontation is None: return
+            data = np.zeros(len(global_model_list))
+            mask = np.ones (len(global_model_list),dtype=bool)
+            for ind,m in enumerate(global_model_list):
+                fname = "%s/%s_%s.nc" % (node.confrontation.output_path,node.confrontation.name,m.name)
+                if os.path.isfile(fname):
+                    try:
+                        dataset = Dataset(fname)
+                        grp     = dataset.groups["MeanState"].groups["scalars"]
+                    except:
+                        continue
+                    if "Overall Score global" in grp.variables:
+                        data[ind] = grp.variables["Overall Score global"][0]
+                        mask[ind] = 0
+                    else:
+                        data[ind] = -999.
+                        mask[ind] = 1
+                    node.score = np.ma.masked_array(data,mask=mask)
+        else:
+            node.score  = 0
+            sum_weights = 0
+            for child in node.children:
+                node.score  += child.score*child.weight
+                sum_weights += child.weight
+            np.seterr(over='ignore',under='ignore')
+            node.score /= sum_weights
+            np.seterr(over='raise',under='raise')
+    TraversePostorder(tree,_loadScores)
+    
 ConfrontationTypes = { None              : Confrontation,
                        "ConfNBP"         : ConfNBP,
                        "ConfTWSA"        : ConfTWSA,
@@ -632,6 +666,8 @@ class Scoreboard():
         html = GenerateBarCharts(self.tree,M)
 
     def dumpScores(self,M,filename):
+        
+        CompositeScores(self.tree,M)
         with open("%s/%s" % (self.build_dir,filename),"w") as out:
             out.write("Variables,%s\n" % (",".join([m.name for m in M])))
             for cat in self.tree.children:
