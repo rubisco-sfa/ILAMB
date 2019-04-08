@@ -240,7 +240,8 @@ def ConvertList(node):
     for key in s.keys():
         if key == "children": continue
         x = s[key]
-        x = (x-x.mean())/(x.std().clip(0.02) if x.std() > 1e-12 else 1)
+        with np.errstate(under="ignore"):
+            x = (x-x.mean())/(x.std().clip(0.02) if x.std() > 1e-12 else 1)
         x.data[x.mask] = -999
         s[key] = list(x.data)
 
@@ -353,6 +354,7 @@ class Scoreboard():
     def createHtml(self,M,filename="index.html"):
         global models
         from ILAMB.generated_version import version as ilamb_version
+        run_title = "ILAMB Benchmarking" if self.run_title is None else self.run_title[0] 
         models = [m.name for m in M]
         maxM = max([len(m) for m in models])
         px = int(round(maxM*6.875))
@@ -360,9 +362,6 @@ class Scoreboard():
         py = int(px/2)-5
         scores = self.createJSON(M)
         scores = [s.replace(" global","") for s in scores if " global" in s]
-        print("Created JSON")
-        print(scores)
-
         html = """
 <html>
   <head>
@@ -442,7 +441,7 @@ class Scoreboard():
 	  for(var col=0;col<array.length;col++){
 	      var clr = "#808080";
 	      if(array[col] > -900){
-		  var ind = Math.round(nc*(array[col]+2.0)/4.0);
+		  var ind = Math.floor(nc*(array[col]+2.0)/4.0);
 		  ind = Math.min(Math.max(ind,0),nc-1);
 		  clr = cmap[ind];
 	      }
@@ -540,8 +539,8 @@ class Scoreboard():
         <h1>%s</h1>
       </div>
 
-      <select id="ScalarOption" onchange="colorTable()">""" % (px,py,self.run_title[0])
-        print("Adding Score Options")
+      <select id="ScalarOption" onchange="colorTable()">""" % (px,py,run_title)
+
         for s in scores:
             opts  = ' selected="selected"' if "Overall" in s else ''
             html += """
@@ -561,7 +560,6 @@ class Scoreboard():
 	  <thead>
             <tr>
               <th></th>"""
-        print("Adding Models")
         
         for m in M:
             html += """
@@ -603,7 +601,6 @@ class Scoreboard():
 
         global global_sb
         global_sb = self
-        print("Generating Rows")
         TraversePreorder(self.tree,GenRowHTML)
         html += global_html
         html += """
@@ -628,10 +625,8 @@ class Scoreboard():
     </body>
 </html>""" % (ilamb_version)
 
-        print("Write")
         with open("%s/%s" % (self.build_dir,filename),"w") as f:
             f.write(html)
-        print("Done")
         
     def createBarCharts(self,M):
         html = GenerateBarCharts(self.tree,M)
