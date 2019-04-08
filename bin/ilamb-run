@@ -238,7 +238,7 @@ def FilterConfrontationList(C,match_list):
             if match in c.longname: Cf.append(c)
     return Cf
 
-def BuildLocalWorkList(M,C):
+def BuildLocalWorkList(M,C,skip_cache=False):
     """Build the local work list
 
     We enumerate a list of work by taking combinations of model
@@ -266,7 +266,12 @@ def BuildLocalWorkList(M,C):
     W = []
     for c in C:
         for m in M:
-            W.append([m,c])
+            if skip_cache:
+                if not os.path.isfile(os.path.join(c.output_path,"%s_%s.nc" % (c.name,m.name))):
+                    W.append([m,c])
+            else:
+                W.append([m,c])
+                    
     wpp    = float(len(W))/size
     begin  = int(round( rank   *wpp))
     end    = int(round((rank+1)*wpp))
@@ -364,7 +369,8 @@ def WorkPost(M,C,W,S,verbose=False,skip_plots=False):
     maxCL = 45; maxML = 20
 
     # work done on just the master confrontation
-    for c in C: c.determinePlotLimits()
+    if not skip_plots:
+        for c in C: c.determinePlotLimits()
 
     for w in W:
         m,c = w
@@ -398,9 +404,6 @@ def WorkPost(M,C,W,S,verbose=False,skip_plots=False):
         c.generateHtml()
 
     comm.Barrier()
-    if rank==0:
-        S.createHtml(M)
-        S.createSummaryFigure(M)
 
 def RestrictiveModelExtents(M,eps=2.):
     extents0 = np.asarray([[-90.,+90.],[-180.,+180.]])
@@ -581,17 +584,24 @@ if rank==0 and not args.quiet: print("\nRunning model-confrontation pairs...\n")
 
 sys.stdout.flush(); comm.Barrier()
 
-W = BuildLocalWorkList(M,C)
+W = BuildLocalWorkList(M,C,skip_cache=True)
 WorkConfront(W,not args.quiet,args.clean)
 
 sys.stdout.flush(); comm.Barrier()
 
-if rank==0 and not args.quiet: print("\nFinishing post-processing which requires collectives...\n")
+if not args.skip_plots:
+    
+    if rank==0 and not args.quiet: print("\nFinishing post-processing which requires collectives...\n")
 
-sys.stdout.flush(); comm.Barrier()
+    sys.stdout.flush(); comm.Barrier()
+    
+    W = BuildLocalWorkList(M,C,skip_cache=False)
+    WorkPost(M,C,W,S,not args.quiet,args.skip_plots)
 
-WorkPost(M,C,W,S,not args.quiet,args.skip_plots)
-
+if rank==0:
+    S.createHtml(M)
+    S.createSummaryFigure(M)
+    
 sys.stdout.flush(); comm.Barrier()
 
 # Runtime information
