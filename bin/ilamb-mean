@@ -77,7 +77,7 @@ for m in M:
     Vs += [v for v in m.variables.keys() if v not in Vs]
 
 
-skip = ['time', 'time_bnds', 'lat', 'lat_bnds', 'lon', 'lon_bnds', 'plev', 'time_bounds', 'type', 'nav_lat', 'nav_lon', 'bounds_nav_lon', 'bounds_nav_lat', 'area', 'areacello']
+skip = ['time', 'time_bnds', 'lat', 'lat_bnds', 'lon', 'lon_bnds', 'plev', 'time_bounds', 'type', 'nav_lat', 'nav_lon', 'bounds_nav_lon', 'bounds_nav_lat', 'area', 'areacello', 'areacella', 'mcdata']
 Vs = [v for v in Vs if v not in skip]
 
 # compute mean
@@ -100,33 +100,43 @@ for v in Vs:
         try:
             u = m.extractTimeSeries(v)
         except:
-            continue
-        if not (u.temporal and u.spatial):
-            skip = True
-            continue
-        if u.layered or u.data.ndim > 3:
+            if v == 'sftlf':
+                if 'sftlf' not in m.variables: continue
+                u = Variable(filename = m.variables['sftlf'][0],variable_name = 'sftlf')
+            else:
+                continue
+        #if not (u.temporal and u.spatial):
+        #    skip = True
+        #    continue
+        if u.layered or u.data.ndim > 3 or u.data.ndim == 1:
             skip = True
             continue
         if unit is None: unit = u.unit
-        print("    convert")
+        print("    convert",u.data.shape)
         u.convert(unit)
         print("    interpolate %e %e" % (u.data.min(),u.data.max()))
-        ui = u.interpolate(time=t,lat=lat,lon=lon,lat_bnds=lat_bnd,lon_bnds=lon_bnd)
+        ui = u.interpolate(time=t if u.temporal else None,
+                           lat=lat,lon=lon,lat_bnds=lat_bnd,lon_bnds=lon_bnd)
         print("    sum")
         with np.errstate(under='ignore',over='ignore'):
-            data  +=  ui.data.data*(ui.data.mask==False)
-            count += (ui.data.mask==False)
+            if u.temporal:
+                data  +=  ui.data.data*(ui.data.mask==False)
+                count += (ui.data.mask==False)
+            else:
+                data [0,...] +=  ui.data.data*(ui.data.mask==False)
+                count[0,...] += (ui.data.mask==False)
+                
     if count.sum() == 0: continue
     print("  average")
     with np.errstate(all='ignore'):
         data = np.ma.masked_array(data=(data/count.clip(1)),mask=(count==0))
     print("  output")
     with Dataset("%s_mean.nc" % v,mode="w") as dset:
-        o = Variable(data       = data,
+        o = Variable(data       = data if u.temporal else data[0,...],
                      unit       = unit,
                      name       = v,
-                     time       = t,
-                     time_bnds  = t_bnd,
+                     time       = t     if u.temporal else None,
+                     time_bnds  = t_bnd if u.temporal else None,
                      lat        = lat,
                      lat_bnds   = lat_bnd,
                      lon        = lon,

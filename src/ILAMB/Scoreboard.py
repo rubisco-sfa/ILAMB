@@ -665,7 +665,7 @@ class Scoreboard():
 	</table>
 
 	
-	<p>Relative Value
+	<p>Relative Scale
 	<table class="table-header-rotated" id="scoresLegend">
 	  <tbody>
             <tr>
