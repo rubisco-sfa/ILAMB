@@ -343,9 +343,10 @@ class Variable:
             # if not a mean, we need to potentially handle unit conversions
             unit0 = Unit("d")*unit
             unit  = Unit(unit0.format().split()[-1])
-            unit0.convert(integral.data,unit,inplace=True)
+            unit0.convert(integral,unit,inplace=True)
             if integral_bnd is not None:
-                unit0.convert(integral_bnd.data,unit,inplace=True)
+                unit0.convert(integral_bnd,unit,inplace=True)
+                
                 
         return Variable(data       = integral,
                         data_bnds   = integral_bnd,
@@ -463,7 +464,7 @@ class Variable:
             # if not a mean, we need to potentially handle unit conversions
             unit0    = Unit("m")*unit
             unit     = Unit(unit0.format().split()[-1])
-            unit0.convert(integral.data,unit,inplace=True)
+            unit0.convert(integral,unit,inplace=True)
 
         return Variable(data       = integral,
                         unit       = "%s" % unit,
@@ -574,9 +575,7 @@ class Variable:
         else:
 
             # if not a mean, we need to potentially handle unit conversions
-            unit0    = Unit("m2")*unit
-            unit     = Unit(unit0.format().split()[-1])
-            unit0.convert(integral,unit,inplace=True)
+            unit *= Unit("m2")
 
         return Variable(data       = np.ma.masked_array(integral),
                         unit       = "%s" % unit,
