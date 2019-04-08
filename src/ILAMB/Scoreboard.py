@@ -9,6 +9,7 @@ from .ConfPermafrost import ConfPermafrost
 from .ConfAlbedo import ConfAlbedo
 from .ConfSWE import ConfSWE
 from .ConfCO2 import ConfCO2
+from .Regions import Regions
 import os,re
 from netCDF4 import Dataset
 import numpy as np
@@ -302,6 +303,7 @@ class Scoreboard():
         self.build_dir = build_dir
         self.rel_only  = rel_only
         self.run_title = run_title
+        self.regions = regions
         
         if (master and not os.path.isdir(self.build_dir)): os.mkdir(self.build_dir)
 
@@ -388,6 +390,7 @@ class Scoreboard():
     def createHtml(self,M,filename="index.html"):
         global models
         from ILAMB.generated_version import version as ilamb_version
+        r = Regions()
         run_title = "ILAMB Benchmarking" if self.run_title is None else self.run_title[0] 
         models = [m.name for m in M]
         maxM = max([len(m) for m in models])
@@ -487,7 +490,9 @@ class Scoreboard():
 	  	  
 	  var scalars = JSON.parse(data);	  
 	  var scalar_option = document.getElementById("ScalarOption");
-	  var scalar_name   = scalar_option.options[scalar_option.selectedIndex].value + " global";
+          var region_option = document.getElementById("RegionOption");
+	  var scalar_name   = scalar_option.options[scalar_option.selectedIndex].value;
+	  scalar_name  += " " + region_option.options[region_option.selectedIndex].value;
 	  
 	  var PuOr = ['#b35806','#e08214','#fdb863','#fee0b6','#f7f7f7','#d8daeb','#b2abd2','#8073ac','#542788'];
 	  var GnRd = ['#b2182b','#d6604d','#f4a582','#fddbc7','#f7f7f7','#d9f0d3','#a6dba0','#5aae61','#1b7837'];
@@ -579,6 +584,21 @@ class Scoreboard():
             opts  = ' selected="selected"' if "Overall" in s else ''
             html += """
         <option value="%s"%s>%s</option>""" % (s,opts,s)
+        html += """
+      </select>
+      <select id="RegionOption" onchange="colorTable()">"""
+
+
+        for region in self.regions:
+            try:
+                rname = r.getRegionName(region)
+            except:
+                rname = region
+            opts  = ''
+            if region == "global" or len(self.regions) == 1:
+                opts  = ' selected="selected"'
+            html += """
+          <option value='%s'%s>%s</option>""" % (region,opts,rname)        
         html += """
       </select>
 
