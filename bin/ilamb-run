@@ -512,6 +512,8 @@ parser.add_argument('--rel_only', dest="rel_only", action="store_true",
                     help='enable only display relative differences in overall scores')
 parser.add_argument('--mem_per_pair', dest="mem_per_pair", metavar='MEM', type=float, default=100000.,
                     help='maximum memory for IOMB model-confrontation pairs')
+parser.add_argument('--title', dest="run_title", metavar='title', type=str, nargs=1,
+                    help='title of the study to use in the HTML output')
 args = parser.parse_args()
 if args.config is None:
     if rank == 0:
@@ -547,7 +549,8 @@ S = Scoreboard(args.config[0],
                build_dir = args.build_dir[0],
                extents   = RestrictiveModelExtents(M),
                rel_only  = args.rel_only,
-               mem_per_pair = args.mem_per_pair)
+               mem_per_pair = args.mem_per_pair,
+               run_title = args.run_title)
 C  = MatchRelationshipConfrontation(S.list())
 Cf = FilterConfrontationList(C,args.confront)
 
@@ -600,7 +603,6 @@ if not args.skip_plots:
 
 if rank==0:
     S.createHtml(M)
-    S.createSummaryFigure(M)
     
 sys.stdout.flush(); comm.Barrier()
 
