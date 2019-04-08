@@ -3,8 +3,8 @@ import sys
 if len(sys.argv) != 3:
     print("usage: python score_diff.py scores1.csv scores2.csv")
     sys.exit(1)
-gold = np.recfromcsv(sys.argv[1])
-test = np.recfromcsv(sys.argv[2])
+gold = np.recfromcsv(sys.argv[1],encoding=None)
+test = np.recfromcsv(sys.argv[2],encoding=None)
 assert gold.dtype == test.dtype
 ok   = True
 for model in gold.dtype.names[1:]:
