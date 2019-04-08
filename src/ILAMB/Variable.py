@@ -1157,7 +1157,7 @@ class Variable:
             if ticks      is not None: ax.set_xticks(ticks)
             if ticklabels is not None: ax.set_xticklabels(ticklabels)
             ax.grid(True)
-            ax.set_ylim(vmin,vmax)
+            if(abs(vmax-vmin) > 1e-14): ax.set_ylim(vmin,vmax)
 
         elif not self.temporal:
 
