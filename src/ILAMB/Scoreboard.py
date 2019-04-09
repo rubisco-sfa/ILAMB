@@ -674,6 +674,13 @@ class Scoreboard():
 	  </tbody>
 	</table>
 	Worse Value&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Better Value
+	<table class="table-header-rotated" id="scoresLegend">
+	  <tbody>
+            <tr>
+              <td bgcolor="#808080"></td>
+	    </tr>
+	  </tbody>
+	</table>Missing Data or Error
       </center>
 
       <div data-role="footer">
