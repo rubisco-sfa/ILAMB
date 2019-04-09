@@ -211,13 +211,14 @@ def BuildScalars(node):
     global scalars
     global models
     global global_scores
+    global section
     s = getDict(node,scalars)
     if node.isLeaf():
         files = [f for f in glob.glob(os.path.join(node.output_path,"*.nc")) if "Benchmark" not in f]
         for fname in files:
             with Dataset(fname) as dset:
                 if dset.name not in models: continue
-                grp = dset.groups["MeanState"]["scalars"]
+                grp = dset.groups[section]["scalars"]
                 scores = [c for c in grp.variables.keys() if "Score" in c]
                 global_scores += [c for c in scores if ((c not in global_scores) and ("global" in c))]
                 for c in scores:
@@ -377,15 +378,20 @@ class Scoreboard():
         global scalars
         global models
         global global_scores
+        global section
+        rel_tree = GenerateRelationshipTree(self,M)
         global_scores = []
         models  = [m.name for m in M]
         scalars = {}
         TraversePreorder (self.tree,BuildDictionary)
-        TraversePostorder(self.tree,BuildScalars)
+        TraversePreorder ( rel_tree,BuildDictionary)
+        section = "MeanState"    ; TraversePostorder(self.tree,BuildScalars)
+        section = "Relationships"; TraversePostorder( rel_tree,BuildScalars)
         TraversePreorder (self.tree,ConvertList)
+        TraversePreorder ( rel_tree,ConvertList)
         with open(os.path.join(self.build_dir,filename),mode='w') as f:
             f.write("data = '%s'" % (json.dumps(scalars)))
-        return global_scores
+        return global_scores,rel_tree
         
     def createHtml(self,M,filename="index.html"):
         global models
@@ -397,7 +403,7 @@ class Scoreboard():
         px = int(round(maxM*6.875))
         if px % 2 == 1: px += 1
         py = int(px/2)-5
-        scores = self.createJSON(M)
+        scores,rel_tree = self.createJSON(M)
         scores = [s.replace(" global","") for s in scores if " global" in s]
         html = """
 <html>
@@ -659,6 +665,7 @@ class Scoreboard():
         global global_sb
         global_sb = self
         TraversePreorder(self.tree,GenRowHTML)
+        TraversePreorder( rel_tree,GenRowHTML)
         html += global_html
         html += """
 	  </tbody>
@@ -719,12 +726,15 @@ def GenerateRelationshipTree(S,M):
     #
     # root -> category -> variable -> datasets
     #
-    rel_tree = Node("root")
+    rel_tree = Node(None)
+    h1 = None
     for cat in S.tree.children:
-        h1 = Node(cat.name)
-        h1.bgcolor = cat.bgcolor
-        h1.parent  = rel_tree
-        rel_tree.children.append(h1)
+        if h1 is None:
+            h1 = Node("Relationships")
+            h1.bgcolor = "#fff2e5"
+            h1.parent  = rel_tree
+            h1.normalize_weight = 1.
+            rel_tree.children.append(h1)
         for var in cat.children:
             for data in var.children:
                 if data               is None: continue
@@ -734,7 +744,8 @@ def GenerateRelationshipTree(S,M):
                 h2 = Node(data.confrontation.longname)
                 h1.children.append(h2)
                 h2.parent = h1
-                h2.score  = np.ma.masked_array(np.zeros(len(M)),mask=True)
+                h2.normalize_weight = 1.
+                h2.bgcolor = h1.bgcolor
                 for rel in data.relationships:
                     try:
                         longname = rel.longname
@@ -743,29 +754,7 @@ def GenerateRelationshipTree(S,M):
                     v = Node(longname)
                     h2.children.append(v)
                     v.parent = h2
-                    v.score  = np.ma.masked_array(np.zeros(len(M)),mask=True)
                     v.normalize_weight = 1./len(data.relationships)
-                    path = data.confrontation.output_path
-                    path = os.path.join(path,data.confrontation.name + ".html#Relationships")
-                    v.confrontation = path
-
-                # load scores
-                for i,m in enumerate(M):
-                    fname = os.path.join(data.output_path,"%s_%s.nc" % (data.name,m.name))
-                    if not os.path.isfile(fname): continue
-                    with Dataset(fname) as dset:
-                        grp = dset.groups["Relationships"]["scalars"]
-                        for rel,v in zip(data.relationships,h2.children):
-                            try:
-                                longname = rel.longname
-                            except:
-                                longname = rel
-                            rs  = [key for key in grp.variables if (longname.split("/")[0] in key and
-                                                                    "global"               in key and
-                                                                    "RMSE"                 in key)]
-                            if len(rs) != 1: continue
-                            v.score[i] = grp.variables[rs[0]][...]
-                        if "Overall Score global" not in grp.variables.keys(): continue
-                        h2.score[i] = grp.variables["Overall Score global"][...]
-
+                    v.bgcolor = h2.bgcolor
+                    v.output_path = data.output_path
     return rel_tree
