@@ -674,7 +674,7 @@ class Scoreboard():
 	  </tbody>
 	</table>
 	Worse Value&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Better Value
-	<table class="table-header-rotated" id="scoresLegend">
+	<table class="table-header-rotated" id="missingLegend">
 	  <tbody>
             <tr>
               <td bgcolor="#808080"></td>
