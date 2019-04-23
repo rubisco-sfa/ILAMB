@@ -144,11 +144,26 @@ class ModelResult():
     def _getGridInformation(self):
         """Looks in the model output for cell areas as well as land fractions.
         """
+        def _shiftLon(lon):
+            return (lon<=180)*lon + (lon>180)*(lon-360) + (lon<-180)*360
+        
         # Are there cell areas associated with this model?
-        if "areacella" not in self.variables.keys(): return
-        with Dataset(self.variables["areacella"][0]) as f:
-            self.cell_areas = f.variables["areacella"][...]
-
+        if "areacella" in self.variables.keys():
+            with Dataset(self.variables["areacella"][0]) as f:
+                self.cell_areas = f.variables["areacella"][...]
+        else:
+            if not ("lat_bnds" in self.variables.keys() and
+                    "lon_bnds" in self.variables.keys()): return
+            with Dataset(self.variables["lat_bnds"][0]) as f:
+                x = f.variables["lat_bnds"][...]
+            with Dataset(self.variables["lon_bnds"][0]) as f:
+                y = f.variables["lon_bnds"][...]
+                s = y.mean(axis=1).argmin()
+                y = np.roll(_shiftLon(y),-s,axis=0)
+                if y[ 0,0] > y[ 0,1]: y[ 0,0] = -180.
+                if y[-1,0] > y[-1,1]: y[-1,1] = +180.
+            self.cell_areas = il.CellAreas(None,None,lat_bnds=x,lon_bnds=y)
+            
         # Now we do the same for land fractions
         if "sftlf" not in self.variables.keys():
             self.land_areas = self.cell_areas
@@ -157,9 +172,8 @@ class ModelResult():
                 self.land_fraction = f.variables["sftlf"][...]                
             # some models represent the fraction as a percent
             if np.ma.max(self.land_fraction) > 1: self.land_fraction *= 0.01
-            np.seterr(over='ignore')
-            self.land_areas = self.cell_areas*self.land_fraction
-            np.seterr(over='warn')
+            with np.errstate(over='ignore',under='ignore'):
+                self.land_areas = self.cell_areas*self.land_fraction
         self.land_area = np.ma.sum(self.land_areas)
         return
 
