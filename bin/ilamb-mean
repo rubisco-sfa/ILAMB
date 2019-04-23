@@ -145,7 +145,7 @@ else:
     lon_bnd = np.asarray([lon_bnd[:-1],lon_bnd[1:]]).T
 
     for v in Vs:
-        sys.stdout.write('Processing %s.' % v)
+        sys.stdout.write('\nProcessing %s.' % v)
         data  = np.zeros((t.size,lat.size,lon.size))
         count = np.zeros((t.size,lat.size,lon.size),dtype=int)
 
@@ -200,4 +200,4 @@ else:
                          lat_bnds   = lat_bnd,
                          lon        = lon,
                          lon_bnds   = lon_bnd).toNetCDF4(dset)
-        sys.stdout.write('\n');sys.stdout.flush()
+        sys.stdout.flush()
