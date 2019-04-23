@@ -68,7 +68,9 @@ class ConfTWSA(Confrontation):
         # get the observational data
         obs = Variable(filename       = self.source,
                        variable_name  = self.variable,
-                       alternate_vars = self.alternate_vars).convert("cm")
+                       alternate_vars = self.alternate_vars,
+                       t0 = None if len(self.study_limits) != 2 else self.study_limits[0],
+                       tf = None if len(self.study_limits) != 2 else self.study_limits[1]).convert("cm")
 
         # get the model data, in the units of the obseravtions
         mod = m.extractTimeSeries(self.variable,

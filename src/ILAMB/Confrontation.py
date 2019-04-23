@@ -92,7 +92,8 @@ class Confrontation(object):
         self.relationships  = keywords.get("relationships",None)
         self.keywords       = keywords
         self.extents        = np.asarray([[-90.,+90.],[-180.,+180.]])
-
+        self.study_limits   = []
+        
         # Make sure the source data exists
         try:
             os.stat(self.source)
@@ -219,7 +220,9 @@ class Confrontation(object):
         """
         obs = Variable(filename       = self.source,
                        variable_name  = self.variable,
-                       alternate_vars = self.alternate_vars)
+                       alternate_vars = self.alternate_vars,
+                       t0 = None if len(self.study_limits) != 2 else self.study_limits[0],
+                       tf = None if len(self.study_limits) != 2 else self.study_limits[1])
         if obs.time is None: raise il.NotTemporalVariable()
         self.pruneRegions(obs)
 

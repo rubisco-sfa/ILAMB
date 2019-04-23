@@ -38,9 +38,13 @@ class ConfEvapFraction(Confrontation):
 
         # Handle obs data
         sh_obs = Variable(filename      = os.path.join(os.environ["ILAMB_ROOT"],"DATA/sh/GBAF/sh_0.5x0.5.nc"),
-                          variable_name = "sh")
+                          variable_name = "sh",
+                          t0 = None if len(self.study_limits) != 2 else self.study_limits[0],
+                          tf = None if len(self.study_limits) != 2 else self.study_limits[1])
         le_obs = Variable(filename      = os.path.join(os.environ["ILAMB_ROOT"],"DATA/le/GBAF/le_0.5x0.5.nc"),
-                          variable_name = "le")
+                          variable_name = "le",
+                          t0 = None if len(self.study_limits) != 2 else self.study_limits[0],
+                          tf = None if len(self.study_limits) != 2 else self.study_limits[1])
         sh_obs,le_obs,obs = _evapfrac(sh_obs,le_obs,self.variable,energy_threshold)
 
         # Prune out uncovered regions

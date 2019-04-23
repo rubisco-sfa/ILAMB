@@ -36,9 +36,13 @@ class ConfAlbedo(Confrontation):
 
         # Handle obs data
         dn_obs = Variable(filename      = self.source.replace("albedo","rsds"),
-                          variable_name = "rsds")
+                          variable_name = "rsds",
+                          t0 = None if len(self.study_limits) != 2 else self.study_limits[0],
+                          tf = None if len(self.study_limits) != 2 else self.study_limits[1])
         up_obs = Variable(filename      = self.source.replace("albedo","rsus"),
-                          variable_name = "rsus")
+                          variable_name = "rsus",
+                          t0 = None if len(self.study_limits) != 2 else self.study_limits[0],
+                          tf = None if len(self.study_limits) != 2 else self.study_limits[1])
         dn_obs,up_obs,obs = _albedo(dn_obs,up_obs,self.variable,energy_threshold)
 
         # Prune out uncovered regions

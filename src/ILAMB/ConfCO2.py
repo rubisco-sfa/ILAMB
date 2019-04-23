@@ -218,7 +218,9 @@ class ConfCO2(Confrontation):
         # Get the observational data
         obs = Variable(filename       = self.source,
                        variable_name  = self.variable,
-                       alternate_vars = self.alternate_vars)
+                       alternate_vars = self.alternate_vars,
+                       t0 = None if len(self.study_limits) != 2 else self.study_limits[0],
+                       tf = None if len(self.study_limits) != 2 else self.study_limits[1])
 
         # Reduce the sites
         if self.map:

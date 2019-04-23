@@ -43,7 +43,9 @@ class ConfRunoff(Confrontation):
         """
         # Extract the observational data for basins
         obs = Variable(filename      = self.source,
-                       variable_name = self.variable).convert("mm d-1")
+                       variable_name = self.variable,
+                       t0 = None if len(self.study_limits) != 2 else self.study_limits[0],
+                       tf = None if len(self.study_limits) != 2 else self.study_limits[1]).convert("mm d-1")
 
         # Extract the globally gridded runoff
         mod = m.extractTimeSeries(self.variable,

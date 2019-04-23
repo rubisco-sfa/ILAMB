@@ -486,6 +486,8 @@ parser.add_argument('--models', dest="models", metavar='m', type=str, nargs='+',
                     help='specify which models to run, list model names with no quotes and only separated by a space.')
 parser.add_argument('--model_year', dest="model_year", metavar='y0 yf', type=int, nargs='+',default=[],
                     help='set to shift model years, "--model_year y0 yf" will shift years from y0 to yf')
+parser.add_argument('--study_limits', dest="study_limits", metavar='y0 yf', type=int, nargs='+',default=[],
+                    help='set study period, "--study_limits y0 yf" will limit run from y0 thru yf')
 parser.add_argument('--confrontations', dest="confront", metavar='c', type=str, nargs='+',default=[],
                     help='specify which confrontations to run, list confrontation names with no quotes and only separated by a space.')
 parser.add_argument('--regions', dest="regions", metavar='r', type=str, nargs='+',default=['global'],
@@ -552,6 +554,9 @@ S = Scoreboard(args.config[0],
                mem_per_pair = args.mem_per_pair,
                run_title = args.run_title)
 C  = MatchRelationshipConfrontation(S.list())
+if len(args.study_limits) == 2:
+    args.study_limits[1] += 1
+    for c in C: c.study_limits = (np.asarray(args.study_limits)-1850)*365.
 Cf = FilterConfrontationList(C,args.confront)
 
 # Setup logging
