@@ -343,6 +343,14 @@ class Variable:
             # if not a mean, we need to potentially handle unit conversions
             unit0 = Unit("d")*unit
             unit  = Unit(unit0.format().split()[-1])
+
+
+            if not isinstance(integral.mask, np.ndarray):
+               if integral.mask == True:
+                  integral=np.ma.masked_array(data=integral.data, mask=np.ones(integral.shape,dtype='bool'))
+               else:
+                  integral=np.ma.masked_array(data=integral.data, mask=np.zeros(integral.shape,dtype='bool'))
+
             unit0.convert(integral,unit,inplace=True)
             if integral_bnd is not None:
                 unit0.convert(integral_bnd,unit,inplace=True)
@@ -864,7 +872,7 @@ class Variable:
 
         # Convert units
         try:
-            src_unit.convert(self.data.data,tar_unit,inplace=True)
+            src_unit.convert(self.data,tar_unit,inplace=True)
             if self.data_bnds is not None:
                 src_unit.convert(self.data_bnds.data,tar_unit,inplace=True)
             self.unit = unit
