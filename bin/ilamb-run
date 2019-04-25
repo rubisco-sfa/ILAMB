@@ -344,7 +344,7 @@ def WorkConfront(W,verbose=False,clean=False):
             logger.debug("[%s][%s]\n%s" % (c.longname,m.name,format_exc()))
             if verbose:
                 print(("    {0:>%d} {1:<%d} %s%s%s" % (maxCL,maxML,FAIL,ex.__class__.__name__,ENDC)).format(c.longname,m.name))
-
+                
 def WorkPost(M,C,W,S,verbose=False,skip_plots=False):
     """Performs the post-processing
 
@@ -604,11 +604,10 @@ if not args.skip_plots:
     sys.stdout.flush(); comm.Barrier()
     
     W = BuildLocalWorkList(M,C,skip_cache=False)
-    WorkPost(M,C,W,S,not args.quiet,args.skip_plots)
+    WorkPost(M,C,W,S,not args.quiet)
 
-if rank==0:
-    S.createHtml(M)
-    
+    if rank==0: S.createHtml(M)
+
 sys.stdout.flush(); comm.Barrier()
 
 # Runtime information
