@@ -525,8 +525,14 @@ class Scoreboard():
                       var link = h1.replace(/ /g,"") + "/";
                       link    += h2.replace(/ /g,"") + "/";
                       link    += v.replace(/ /g,"")  + "/" + v.replace(/ /g,"") + ".html#DataInformation";
-		      table.rows[row].cells[0].innerHTML = "<a href='" + link + "' target='_blank'>" + tab + v + "</a>";
-		      printRow(table,row,H2[v][scalar_name],cmap);
+	              var s_name = scalar_name;
+                      if(h1 == "Relationships") {
+                        s_name = v.substring(0,v.indexOf("/")) + " RMSE Score " + region_option.options[region_option.selectedIndex].value;
+                        table.rows[row].cells[0].innerHTML = "<a href='' target='_blank'>" + tab + v + "</a>";
+                      }else{
+                        table.rows[row].cells[0].innerHTML = "<a href='" + link + "' target='_blank'>" + tab + v + "</a>";
+                      }
+		      printRow(table,row,H2[v][s_name],cmap);
 		      row += 1;
 		  }
 	      }
