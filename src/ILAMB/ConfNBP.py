@@ -48,9 +48,15 @@ class ConfNBP(Confrontation):
         mod  = m.extractTimeSeries(self.variable,
                                    alt_vars = self.alternate_vars)
         mod  = mod.integrateInSpace().convert(obs.unit)
-        tmin = mod.time_bnds[ 0,0]
-        tmax = mod.time_bnds[-1,1]
+
+        # if the model output doesn't start where the obs starts, the
+        # accumulation is not fair to compare
+        if ( mod.time_bnds[0,0] > (obs.time_bnds[0,0]+7) ):
+            msg = "nbp is in the model, but starts (%f) after the observationss (%f) which makes the accumulation incomparable" % (mod.time_bnds[0,0],obs.time_bnds[0,0])
+            raise il.VarNotInModel(msg)
+        
         obs,mod = il.MakeComparable(obs,mod,clip_ref=True)
+        
         
         # sign convention is backwards
         obs.data *= -1.
