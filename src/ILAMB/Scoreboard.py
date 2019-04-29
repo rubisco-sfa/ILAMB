@@ -384,11 +384,14 @@ class Scoreboard():
         models  = [m.name for m in M]
         scalars = {}
         TraversePreorder (self.tree,BuildDictionary)
-        TraversePreorder ( rel_tree,BuildDictionary)
         section = "MeanState"    ; TraversePostorder(self.tree,BuildScalars)
-        section = "Relationships"; TraversePostorder( rel_tree,BuildScalars)
         TraversePreorder (self.tree,ConvertList)
-        TraversePreorder ( rel_tree,ConvertList)
+        check = rel_tree.children
+        if len(check) > 0: check = check[0]
+        if len(check.children) > 0:
+            TraversePreorder(rel_tree,BuildDictionary)
+            section = "Relationships"; TraversePostorder(rel_tree,BuildScalars)
+            TraversePreorder(rel_tree,ConvertList)
         with open(os.path.join(self.build_dir,filename),mode='w') as f:
             f.write("data = '%s'" % (json.dumps(scalars)))
         return global_scores,rel_tree
