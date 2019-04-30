@@ -85,7 +85,13 @@ class ConfTWSA(Confrontation):
             mod.convert(obs.unit)
         except:
             mod = mod.accumulateInTime()
+            # once we accumulate, the data is defined at the breaks of
+            # the obs, so we average to restore compatibility
+            mod.data = 0.5*(mod.data[:-1]+mod.data[+1:])
+            mod.time = obs.time[...]
+            mod.time_bnds = obs.time_bnds[...]
             mod.name = obs.name
+            
         obs,mod = il.MakeComparable(obs,mod,clip_ref=True)
 
         # subtract off the mean
