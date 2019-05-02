@@ -664,15 +664,15 @@ def FromNetCDF4(filename,variable_name,alternate_vars=[],t0=None,tf=None,group=N
         raise RuntimeError("Unable to find [%s] in the file: %s" % (",".join(alternate_vars),filename))
 
     # Check on dimensions
-    time_name = [name for name in var.dimensions if "time" in name.lower()]
-    lat_name  = [name for name in var.dimensions if "lat"  in name.lower()]
-    lon_name  = [name for name in var.dimensions if "lon"  in name.lower()]
-    data_name = [name for name in var.dimensions if name.lower() in ("data",
-                                                                     "lndgrid")]
-    missed    = [name for name in var.dimensions if name not in (time_name +
-                                                                 lat_name  +
-                                                                 lon_name  +
-                                                                 data_name)]
+    time_name  = [name for name in var.dimensions if "time" in name.lower()]
+    lat_name   = [name for name in var.dimensions if "lat"  in name.lower()]
+    lon_name   = [name for name in var.dimensions if "lon"  in name.lower()]
+    data_name  = [name for name in var.dimensions if "data" in name.lower()]
+    data_name += [name for name in var.dimensions if name.lower() in ["lndgrid"]]
+    missed     = [name for name in var.dimensions if name not in (time_name +
+                                                                  lat_name  +
+                                                                  lon_name  +
+                                                                  data_name)]
 
     # Lat/lon might be indexing arrays, find their shape
     shp = None
