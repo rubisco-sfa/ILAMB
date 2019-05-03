@@ -487,7 +487,13 @@ class Scoreboard():
 	  for(var col=0;col<array.length;col++){
 	      var clr = "#808080";
 	      if(array[col] > -900){
-		  var ind = Math.floor(nc*(array[col]+2.0)/4.0);
+                  var ae = Math.abs(array[col]);
+                  var ind;
+                  if(ae>=0.25){
+                     ind = Math.round(2*array[col]+4);
+                  }else{
+                     ind = Math.round(4*array[col]+4);
+                  }
 		  ind = Math.min(Math.max(ind,0),nc-1);
 		  clr = cmap[ind];
 	      }

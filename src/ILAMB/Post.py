@@ -351,7 +351,7 @@ class HtmlPage(object):
         html    = ""
         inserts = self.inserts
         j0 = 0 if "Benchmark" in self.models else -1
-        score_sig = 2 # number of significant digits used in the score tables
+        score_sig = 3 # number of significant digits used in the score tables
         other_sig = 3 # number of significant digits used for non-score quantities
         for region in regions:
             html += """
@@ -485,8 +485,15 @@ class HtmlPage(object):
                     scores[r-%d] = Math.min(+2,Math.max(-2,(scores[r-%d]-mean)/std));
                 }
                 for (var r = %d; r < rows.length; r++) {
-		    var clr = Math.floor(nc*(scores[r-%d]+2.0)/4.0);
-		    ind = Math.min(Math.max(clr,0),nc-1);
+		    var e  = scores[r-%d];
+                    var ae = Math.abs(e);
+                    var clr;
+                    if(ae >= 0.25){
+                      clr = math.round(2*e+4);
+                    }else{
+		      clr = math.round(4*e+4);
+                    }
+                    clr = math.min(math.max(0,clr),8);
                     rows[r].cells[c].style.backgroundColor = colors[clr];
                 }
             }
