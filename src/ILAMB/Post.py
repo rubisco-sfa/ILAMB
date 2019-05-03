@@ -465,7 +465,7 @@ class HtmlPage(object):
 
 	    var PuOr = ['#b35806','#e08214','#fdb863','#fee0b6','#f7f7f7','#d8daeb','#b2abd2','#8073ac','#542788'];
 	    var GnRd = ['#b2182b','#d6604d','#f4a582','#fddbc7','#f7f7f7','#d9f0d3','#a6dba0','#5aae61','#1b7837'];
-	    var colors = PuOr;
+	    var colors = GnRd;
             var nc = colors.length;
             var table  = document.getElementById("%s_table_" + RNAME);
             var rows   = table.getElementsByTagName("tr");
