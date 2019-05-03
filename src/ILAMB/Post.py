@@ -462,7 +462,11 @@ class HtmlPage(object):
         head += """
 
         function paintScoreCells%s(RNAME) {
-            var colors = ['#fb6a4a','#fc9272','#fcbba1','#fee0d2','#fff5f0','#f7fcf5','#e5f5e0','#c7e9c0','#a1d99b','#74c476'];
+
+	    var PuOr = ['#b35806','#e08214','#fdb863','#fee0b6','#f7f7f7','#d8daeb','#b2abd2','#8073ac','#542788'];
+	    var GnRd = ['#b2182b','#d6604d','#f4a582','#fddbc7','#f7f7f7','#d9f0d3','#a6dba0','#5aae61','#1b7837'];
+	    var colors = PuOr;
+            var nc = colors.length;
             var table  = document.getElementById("%s_table_" + RNAME);
             var rows   = table.getElementsByTagName("tr");
             for (var c = rows[0].cells.length-%d; c < rows[0].cells.length; c++) {
@@ -478,17 +482,11 @@ class HtmlPage(object):
                 var mean = math.mean(scores);
                 var std  = math.max(0.02,math.std(scores));
                 for (var r = %d; r < rows.length; r++) {
-                    scores[r-%d] = (scores[r-%d]-mean)/std;
-                }
-                var smax = math.max(scores);
-                var smin = math.min(scores);
-                if (math.abs(smax-smin) < 1e-12) {
-                    smin = -1.0;
-                    smax =  1.0;
+                    scores[r-%d] = Math.min(+2,Math.max(-2,(scores[r-%d]-mean)/std));
                 }
                 for (var r = %d; r < rows.length; r++) {
-                    var clr = math.round((scores[r-%d]-smin)/(smax-smin)*10);
-                    clr     = math.min(9,math.max(0,clr));
+		    var clr = Math.floor(nc*(scores[r-%d]+2.0)/4.0);
+		    ind = Math.min(Math.max(clr,0),nc-1);
                     rows[r].cells[c].style.backgroundColor = colors[clr];
                 }
             }
