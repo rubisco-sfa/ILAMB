@@ -45,18 +45,17 @@ class ConfNBP(Confrontation):
                        tf = None if len(self.study_limits) != 2 else self.study_limits[1])
         
         # the model data needs integrated over the globe
-        mod  = m.extractTimeSeries(self.variable,
-                                   alt_vars = self.alternate_vars)
-        mod  = mod.integrateInSpace().convert(obs.unit)
-
-        # if the model output doesn't start where the obs starts, the
-        # accumulation is not fair to compare
-        if ( mod.time_bnds[0,0] > (obs.time_bnds[0,0]+7) ):
-            msg = "nbp is in the model, but starts (%f) after the observationss (%f) which makes the accumulation incomparable" % (mod.time_bnds[0,0],obs.time_bnds[0,0])
-            raise il.VarNotInModel(msg)
-        
-        obs,mod = il.MakeComparable(obs,mod,clip_ref=True)
-        
+        mod = m.extractTimeSeries(self.variable,
+                                  alt_vars = self.alternate_vars)
+        mod = mod.integrateInSpace().convert(obs.unit)
+        mod = mod.coarsenInTime(obs.time_bnds)      
+        if not isinstance(mod.data.mask,np.ndarray):
+            if mod.data.mask == True:
+                mod.data=np.ma.masked_array(data=mod.data,mask=np.ones(mod.data.shape,dtype='bool'))
+            else:
+                mod.data=np.ma.masked_array(data=mod.data,mask=np.zeros(mod.data.shape,dtype='bool'))
+        ind = np.where(mod.data.mask==False)[0]
+        mod = mod.trim(t=mod.time_bnds[ind[[0,-1]],[0,1]])
         
         # sign convention is backwards
         obs.data *= -1.
@@ -76,13 +75,30 @@ class ConfNBP(Confrontation):
         """
         # Grab the data
         obs,mod = self.stageData(m)
+        if self.master:
+            obs_sum = obs.accumulateInTime().convert("Pg")
+            yf = np.round(obs.time_bnds[-1,1]/365.+1850.)
+            obs_end = Variable(name = "nbp(%4d)" % yf,
+                               unit = obs_sum.unit,
+                               data = obs_sum.data[-1])
+            obs    .name = "spaceint_of_nbp_over_global"
+            obs_sum.name = "accumulate_of_nbp_over_global"
+            with Dataset(os.path.join(self.output_path,"%s_Benchmark.nc" % (self.name)),mode="w") as results:
+                results.setncatts({"name" :"Benchmark", "color":np.asarray([0.5,0.5,0.5])})
+                obs     .toNetCDF4(results,group="MeanState")
+                obs_sum .toNetCDF4(results,group="MeanState")
+                obs_end .toNetCDF4(results,group="MeanState")
+
+        # Now that we have written out the obs as they are, let's look at the maximum overlap
+        t0 = max(obs.time_bnds[ 0,0],mod.time_bnds[ 0,0])
+        tf = min(obs.time_bnds[-1,1],mod.time_bnds[-1,1])
+        obs.trim(t=[t0,tf])
+        mod.trim(t=[t0,tf])
         obs_sum = obs.accumulateInTime().convert("Pg")
         mod_sum = mod.accumulateInTime().convert("Pg")
-
-        # End of period information
         
-        
-        yf = np.round(min(obs.time_bnds[-1,1],mod.time_bnds[-1,1])/365.+1850.)
+        # End of period information        
+        yf = np.round(mod.time_bnds[-1,1])/365.+1850.
         obs_end = Variable(name = "nbp(%4d)" % yf,
                            unit = obs_sum.unit,
                            data = obs_sum.data[-1])
@@ -95,7 +111,7 @@ class ConfNBP(Confrontation):
 
         # Difference score normlized by the uncertainty in the
         # accumulation at the end of the time period.
-        normalizer = 0.
+        normalizer = 21.6*0.5
         if "GCP"     in self.longname: normalizer = 21.6*0.5
         if "Hoffman" in self.longname: normalizer = 84.6*0.5
         dscore = Variable(name = "Difference Score global" % yf,
@@ -117,9 +133,7 @@ class ConfNBP(Confrontation):
                              data = 4.0*(1.0+R.data)/((std+1.0/std)**2 *(1.0+R0)))
 
         # Change names to make things easier to parse later
-        obs     .name = "spaceint_of_nbp_over_global"
         mod     .name = "spaceint_of_nbp_over_global"
-        obs_sum .name = "accumulate_of_nbp_over_global"
         mod_sum .name = "accumulate_of_nbp_over_global"
 
         # Dump to files
@@ -133,15 +147,6 @@ class ConfNBP(Confrontation):
         if not skip_taylor:
             score .toNetCDF4(results,group="MeanState",attributes={"std":std,"R":R.data})
         results.close()
-
-        if self.master:
-            results = Dataset(os.path.join(self.output_path,"%s_Benchmark.nc" % (self.name)),mode="w")
-            results.setncatts({"name" :"Benchmark", "color":np.asarray([0.5,0.5,0.5])})
-            obs     .toNetCDF4(results,group="MeanState")
-            obs_sum .toNetCDF4(results,group="MeanState")
-            obs_end .toNetCDF4(results,group="MeanState")
-            results.close()
-
 
     def compositePlots(self):
 
