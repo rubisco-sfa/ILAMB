@@ -271,13 +271,10 @@ class ConfCO2(Confrontation):
             mod.depth = None
             mod.depth_bnds = None
             mod.layered = False
-            print(mod)
 
             obs,mod = il.MakeComparable(obs,mod,
                                         mask_ref  = True,
                                         clip_ref  = True)
-
-            print(mod)
             mod.data.mask += obs.data.mask
             
             
