@@ -254,47 +254,53 @@ class ConfCO2(Confrontation):
 
         if mod is None: raise il.VarNotInModel()
 
+        print(mod)
         # if flagTakahashiFFco2 is true, add TakahashiFFco2 and FFco2 to mod
         flagTakahashiFFco2 = True
         if flagTakahashiFFco2:
-           #Read in Fosil fuel CO2 concentration from GEOSChem output 
-           filename = "GEOSChemOcnFfCo2_32yr_360daytime.nc"
+           #Read in Fosil fuel CO2 concentration from GEOSChem output
+           filename = os.path.join(self.pulse_dir,"GEOSChemOcnFfCo2_32yr_360daytime.nc") #"GEOSChemOcnFfCo2_32yr_360daytime.nc"
+           print(filename)
            FFco2Emu = Variable(filename = filename, variable_name = "FFco2" )
            #Grab FFco2Emu at obs sites
-           FFco2Emu = FFco2Emu.extractDatasites(lat = None if obs.spatial else obs.lat,# Knoxville/AnnArbor (this will be obs.lat later)
+           FFco2Emu = FFco2Emu.extractDatasites(lat = None if obs.spatial else obs.lat,
                                   lon =None if obs.spatial else obs.lon )
-        
-        
+
            #Read in Takahashi
            OCNco2Emu = Variable(filename = filename, variable_name = "OCNco2" )
            #OCNco2Emu at two selected sites
-           OCNco2Emu = OCNco2Emu.extractDatasites(lat = None if obs.spatial else obs.lat, # Knoxville/AnnArbor (this will be obs.lat later)
+           OCNco2Emu = OCNco2Emu.extractDatasites(lat = None if obs.spatial else obs.lat,
                                   lon = None if obs.spatial else obs.lon)
 
 
-           # get the right layering, closest to the layer elevation where all aren't masked        
+           # get the right layering, closest to the layer elevation where all aren't masked
            if OCNco2Emu.layered:
               ind = (np.abs(obs.depth[:,np.newaxis]-OCNco2Emu.depth)).argmin(axis=1)
               for i in range(ind.size):
                   while (OCNco2Emu.data[:,ind[i],i].mask.sum() > 0.5*OCNco2Emu.data.shape[0]):
                       ind[i] += 1
-        
+
               data = []
               dataFF = []
               for i in range(ind.size):
                   data.append(OCNco2Emu.data[:,ind[i],i])
                   dataFF.append(FFco2Emu.data[:,ind[i],i])
-        
+
               OCNco2Emu.data = np.ma.masked_array(data).T
               OCNco2Emu.depth = None
               OCNco2Emu.depth_bnds = None
-              OCNco2Emu.layered = False        
-        
+              OCNco2Emu.layered = False
+              OCNco2Emu.unit = "mol mol-1"
+
               FFco2Emu.data = np.ma.masked_array(dataFF).T
               FFco2Emu.depth = None
               FFco2Emu.depth_bnds = None
-              FFco2Emu.layered = False        
+              FFco2Emu.layered = False
+              FFco2Emu.unit = "mol mol-1"
+              print(OCNco2Emu)
+              print(FFco2Emu)
 
+        print(mod.layered)
         # get the right layering, closest to the layer elevation where all aren't masked.
         if mod.layered:
             ind = (np.abs(obs.depth[:,np.newaxis]-mod.depth)).argmin(axis=1)
@@ -308,22 +314,34 @@ class ConfCO2(Confrontation):
             mod.depth = None
             mod.depth_bnds = None
             mod.layered = False
-        
+            print(mod)
+
             # actual processing to add OCNco2 and FFco2 to mod terrestrial CO2
             if flagTakahashiFFco2:
+                  mod, OCNco2Emu = il.MakeComparable(mod, OCNco2Emu,
+                         mask_ref = True,
+                         clip_ref = True)
+
+                  mod, FFco2Emu = il.MakeComparable(mod, FFco2Emu,
+                         mask_ref = True,
+                         clip_ref = True)
+
+
                   #trim data in time domain
                   tmin = max(OCNco2Emu.time_bnds[0,0],mod.time_bnds[0,0])
                   tmax = min(OCNco2Emu.time_bnds[-1,1],mod.time_bnds[-1,1])
-            
+
                   if tmax >= tmin:
                     OCNco2Emu.trim(t=[tmin, tmax])
                     FFco2Emu.trim(t=[tmin, tmax])
                     mod.trim(t=[tmin, tmax])
                     mod.data = OCNco2Emu.data + FFco2Emu.data + mod.data
-            
+
             obs,mod = il.MakeComparable(obs,mod,
                                         mask_ref  = True,
                                         clip_ref  = True)
+
+            print(mod)
             mod.data.mask += obs.data.mask
 
         # Remove the trend via quadradic polynomial
