@@ -255,7 +255,7 @@ class ConfCO2(Confrontation):
         if mod is None: raise il.VarNotInModel()
 
         print(mod)
-        
+
 
         print(mod.layered)
         # get the right layering, closest to the layer elevation where all aren't masked.
@@ -276,8 +276,8 @@ class ConfCO2(Confrontation):
                                         mask_ref  = True,
                                         clip_ref  = True)
             mod.data.mask += obs.data.mask
-            
-            
+        print(mod)
+
         # if flagTakahashiFFco2 is true, add TakahashiFFco2 and FFco2 to mod
         flagTakahashiFFco2 = True
         if flagTakahashiFFco2:
@@ -322,9 +322,9 @@ class ConfCO2(Confrontation):
               FFco2Emu.unit = "mol mol-1"
               print(OCNco2Emu)
               print(FFco2Emu)
-           
-           
-           
+
+
+
            # actual processing to add OCNco2 and FFco2 to mod terrestrial CO2
            mod, OCNco2Emu = il.MakeComparable(mod, OCNco2Emu,
                                                mask_ref = True,
@@ -344,7 +344,8 @@ class ConfCO2(Confrontation):
                 FFco2Emu.trim(t=[tmin, tmax])
                 mod.trim(t=[tmin, tmax])
                 mod.data = OCNco2Emu.data + FFco2Emu.data + mod.data
-          
+
+        print(mod)
 
         # Remove the trend via quadradic polynomial
         obs = _detrend(obs)
