@@ -822,7 +822,13 @@ class Confrontation(object):
             return Variable(filename      = filename,
                             groupname     = "MeanState",
                             variable_name = key[0])
-
+        
+        def _applyRefMask(ref,com):
+            tmp = ref.interpolate(lat=com.lat,lat_bnds=com.lat_bnds,
+                                  lon=com.lon,lon_bnds=com.lon_bnds)
+            com.data.mask += tmp.data.mask
+            return com
+        
         def _checkLim(data,lim):
             if lim is None:
                 lim     = [min(data.min(),data.min()),
@@ -977,6 +983,7 @@ class Confrontation(object):
         try:
             ref_dep  = _retrieveData(os.path.join(self.output_path,"%s_%s.nc" % (self.name,"Benchmark")))
             com_dep  = _retrieveData(os.path.join(self.output_path,"%s_%s.nc" % (self.name,m.name     )))
+            com_dep  = _applyRefMask(ref_dep,com_dep)
             dep_name = self.longname.split("/")[0]
             dep_min  = self.limits["timeint"]["min"]
             dep_max  = self.limits["timeint"]["max"]
@@ -1003,6 +1010,7 @@ class Confrontation(object):
                 try:
                     ref_ind  = _retrieveData(os.path.join(c.output_path,"%s_%s.nc" % (c.name,"Benchmark")))
                     com_ind  = _retrieveData(os.path.join(c.output_path,"%s_%s.nc" % (c.name,m.name     )))
+                    com_ind  = _applyRefMask(ref_ind,com_ind)
                     ind_name = c.longname.split("/")[0]
                     ind_min  = c.limits["timeint"]["min"]-1e-12
                     ind_max  = c.limits["timeint"]["max"]+1e-12
