@@ -254,10 +254,9 @@ class ConfCO2(Confrontation):
 
         if mod is None: raise il.VarNotInModel()
 
-        print(mod)
+        #print(mod)
 
 
-        print(mod.layered)
         # get the right layering, closest to the layer elevation where all aren't masked.
         if mod.layered:
             ind = (np.abs(obs.depth[:,np.newaxis]-mod.depth)).argmin(axis=1)
@@ -276,14 +275,13 @@ class ConfCO2(Confrontation):
                                         mask_ref  = True,
                                         clip_ref  = True)
             mod.data.mask += obs.data.mask
-        print(mod)
+        #print(mod)
 
-        # if flagTakahashiFFco2 is true, add TakahashiFFco2 and FFco2 to mod
-        flagTakahashiFFco2 = True
-        if flagTakahashiFFco2:
+        # if flag_emulation_co2 is true, add TakahashiFFco2 and FFco2 to mod
+        flag_emulation_co2 = True
+        if flag_emulation_co2:
            #Read in Fosil fuel CO2 concentration from GEOSChem output
            filename = os.path.join(self.pulse_dir,"GEOSChemOcnFfCo2_32yr_360daytime.nc") #"GEOSChemOcnFfCo2_32yr_360daytime.nc"
-           print(filename)
            FFco2Emu = Variable(filename = filename, variable_name = "FFco2" )
            #Grab FFco2Emu at obs sites
            FFco2Emu = FFco2Emu.extractDatasites(lat = None if obs.spatial else obs.lat,
@@ -320,8 +318,8 @@ class ConfCO2(Confrontation):
               FFco2Emu.depth_bnds = None
               FFco2Emu.layered = False
               FFco2Emu.unit = "mol mol-1"
-              print(OCNco2Emu)
-              print(FFco2Emu)
+              #print(OCNco2Emu)
+              #print(FFco2Emu)
 
 
 
@@ -345,7 +343,7 @@ class ConfCO2(Confrontation):
                 mod.trim(t=[tmin, tmax])
                 mod.data = OCNco2Emu.data + FFco2Emu.data + mod.data
 
-        print(mod)
+        #print(mod)
 
         # Remove the trend via quadradic polynomial
         obs = _detrend(obs)
