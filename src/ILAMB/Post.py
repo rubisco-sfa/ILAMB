@@ -63,7 +63,7 @@ def ColorBar(ax,**keywords):
     ticks = keywords.get("ticks",None)
     ticklabels = keywords.get("ticklabels",None)
     label = keywords.get("label",None)
-    cb = colorbar.ColorbarBase(ax,cmap=cmap,
+    cb = colorbar.ColorbarBase(ax,cmap=plt.get_cmap(cmap),
                                norm=colors.Normalize(vmin=vmin,vmax=vmax),
                                orientation='horizontal')
     cb.set_label(label)
