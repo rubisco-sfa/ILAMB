@@ -235,7 +235,7 @@ python, but it is installed in some other location.
 Now we provide some interpretation of the possible output you got from
 the test. If you ran::
 
-  python -c "import ILAMB; print(ILAMB.__version__")
+  python -c "import ILAMB; print(ILAMB.__version__)"
 
 and you see something like::
 
