@@ -342,6 +342,7 @@ class ConfCO2(Confrontation):
                 FFco2Emu.trim(t=[tmin, tmax])
                 mod.trim(t=[tmin, tmax])
                 mod.data = OCNco2Emu.data + FFco2Emu.data + mod.data
+                obs.trim(t=[tmin, tmax])
 
         #print(mod)
 
