@@ -5,10 +5,6 @@ from netCDF4 import Dataset
 import numpy as np
 import os
 
-"""
-* 
-"""
-
 def getSource(filename,unit):
     vname = filename.split("/")[-1].split("_")[0]
     files = filename.split(",") if "," in filename else [filename]
@@ -28,12 +24,12 @@ def getSource(filename,unit):
             data[ind] = v.data[ind]
     return lat,lon,data
 
-def SensitivityPlot(tas,tau,pr,X,Y,std,gauss_critval,filename):
-    fig,ax = plt.subplots(figsize=(5,5.5),tight_layout=True,dpi=200)
+def sensitivityPlot(tas,tau,pr,X,Y,std,gauss_critval,filename):
+    fig,ax = plt.subplots(figsize=(5,5.5),tight_layout=True,dpi=100)
     sc = ax.scatter(tas,tau,c=pr,s=0.1,alpha=1,vmin=0,vmax=2000,cmap='wetdry')
-    ax.semilogy(X,Y,'-r',lw=2)
-    ax.semilogy(X,10**(np.log10(Y)-gauss_critval*std),'-r',lw=1)
-    ax.semilogy(X,10**(np.log10(Y)+gauss_critval*std),'-r',lw=1)
+    ax.semilogy(X,Y,'-k',lw=2)
+    ax.semilogy(X,10**(np.log10(Y)-gauss_critval*std),'-k',lw=1)
+    ax.semilogy(X,10**(np.log10(Y)+gauss_critval*std),'-k',lw=1)
     ax.set_yscale('log')
     ax.set_xlim(-22,30)
     ax.set_ylim(1,3e3)
@@ -154,26 +150,26 @@ class ConfSoilCarbon(Confrontation):
                            "Benchmark_global_timeint.png",
                            side   = "BENCHMARK",
                            legend = False)
-            SensitivityPlot(tas,tau,pr,X,Y,std,gauss_critval,"%s/Benchmark_global_timeing.png" % (self.output_path))
+            sensitivityPlot(tas,tau,pr,X,Y,std,gauss_critval,"%s/Benchmark_global_timeint.png" % (self.output_path))
             with Dataset("%s/%s_Benchmark.nc" % (self.output_path,self.name),mode="w") as results:
                 results.setncatts({"name" :"Benchmark", "color":np.asarray([0.5,0.5,0.5])})
-                Variable(name = "T^2",unit="1",data=p[0]).toNetCDF4(results)
-                Variable(name = "T"  ,unit="1",data=p[1]).toNetCDF4(results)
-                Variable(name = "1"  ,unit="1",data=p[2]).toNetCDF4(results)
+                Variable(name = "T^2",unit="1",data=p[0]).toNetCDF4(results,group="MeanState")
+                Variable(name = "T"  ,unit="1",data=p[1]).toNetCDF4(results,group="MeanState")
+                Variable(name = "1"  ,unit="1",data=p[2]).toNetCDF4(results,group="MeanState")
                 
         page.addFigure("Temporally integrated period mean",
                        "timeint",
                        "MNAME_global_timeint.png",
                        side   = "MODEL",
                        legend = False)
-        SensitivityPlot(mod_tas,mod_tau,mod_pr,mod_X,mod_Y,mod_std,gauss_critval,
-                        "%s/%s_global_timeing.png" % (self.output_path,m.name))
+        sensitivityPlot(mod_tas,mod_tau,mod_pr,mod_X,mod_Y,mod_std,gauss_critval,
+                        "%s/%s_global_timeint.png" % (self.output_path,m.name))
         with Dataset("%s/%s_%s.nc" % (self.output_path,self.name,m.name),mode="w") as results:
             results.setncatts({"name" :m.name, "color":m.color})
-            Variable(name = "T^2" ,unit="1",data=mod_p[0]).toNetCDF4(results)
-            Variable(name = "T"   ,unit="1",data=mod_p[1]).toNetCDF4(results)
-            Variable(name = "1"   ,unit="1",data=mod_p[2]).toNetCDF4(results)
-            Variable(name = "RMSE",unit="1",data=rmse    ).toNetCDF4(results)
+            Variable(name = "T^2" ,unit="1",data=mod_p[0]).toNetCDF4(results,group="MeanState")
+            Variable(name = "T"   ,unit="1",data=mod_p[1]).toNetCDF4(results,group="MeanState")
+            Variable(name = "1"   ,unit="1",data=mod_p[2]).toNetCDF4(results,group="MeanState")
+            Variable(name = "RMSE",unit="1",data=rmse    ).toNetCDF4(results,group="MeanState")
 
 if __name__ == "__main__":
     from ILAMB.ModelResult import ModelResult
