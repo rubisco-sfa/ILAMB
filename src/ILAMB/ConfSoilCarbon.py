@@ -136,8 +136,7 @@ class ConfSoilCarbon(Confrontation):
             tmid = 0.5*(relationship_bins[i]+relationship_bins[i+1])
             mean_obs[i] = np.polyval(p,tmid)
             mean_mod[i] = np.log10(mod_tau[bins==i]).mean()
-            rmse += mean_obs[i]**2 + mean_mod[i]**2
-        rmse = np.sqrt(rmse)
+        rmse = np.linalg.norm(mean_obs-mean_mod)
         
         # Outputs and plots
         page = [page for page in self.layout.pages if "MeanState" in page.name][0]
@@ -169,7 +168,15 @@ class ConfSoilCarbon(Confrontation):
             Variable(name = "1"   ,unit="1",data=mod_p[2]).toNetCDF4(results,group="MeanState")
             Variable(name = "RMSE",unit="1",data=rmse    ).toNetCDF4(results,group="MeanState")
 
-            
+    def determinePlotLimits(self):
+        pass
+    
+    def compositePlots(self):
+        pass
+    
+    def modelPlots(self,m):
+        pass
+    
 if __name__ == "__main__":
     from ILAMB.ModelResult import ModelResult
     from ILAMB.Post import RegisterCustomColormaps
