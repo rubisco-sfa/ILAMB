@@ -1,5 +1,6 @@
 from .Confrontation import Confrontation
 from .Variable import Variable
+from .Relationship import Relationship
 import matplotlib.pyplot as plt
 from netCDF4 import Dataset
 import numpy as np
@@ -24,21 +25,6 @@ def getSource(filename,unit):
             ind = np.where(data.mask + (data < 1e-12*data.max()))
             data[ind] = v.data[ind]
     return lat,lon,data
-
-def sensitivityPlot(tas,tau,pr,X,Y,std,gauss_critval,filename):
-    fig,ax = plt.subplots(figsize=(5,5.5),tight_layout=True,dpi=100)
-    sc = ax.scatter(tas,tau,c=pr,s=0.1,alpha=1,vmin=0,vmax=2000,cmap='wetdry')
-    ax.semilogy(X,Y,'-k',lw=2)
-    ax.semilogy(X,10**(np.log10(Y)-gauss_critval*std),'-k',lw=1)
-    ax.semilogy(X,10**(np.log10(Y)+gauss_critval*std),'-k',lw=1)
-    ax.set_yscale('log')
-    ax.set_xlim(-22,30)
-    ax.set_ylim(1,3e3)
-    ax.set_xlabel("Mean air temperature [$^{\circ}$C]")
-    ax.set_ylabel("Inferred turnover time [yr]")
-    fig.colorbar(sc,orientation='horizontal',pad=0.15,label='Precipitation [mm yr$^{-1}$]')
-    plt.savefig(filename)
-    plt.close()
     
 class ConfSoilCarbon(Confrontation):
     """
@@ -84,15 +70,11 @@ class ConfSoilCarbon(Confrontation):
         mask += (fracpeat > sat_threshold)  # where mostly peatland
         soilc = np.ma.masked_array(soilc,mask=mask).compressed()
         npp   = np.ma.masked_array(npp  ,mask=mask).compressed()
-        tas   = np.ma.masked_array(tas  ,mask=mask).compressed()
-        pr    = np.ma.masked_array(pr   ,mask=mask).compressed()
-
-        # Compute inferred turnover and fit quadratic
-        tau = soilc/npp
-        p   = np.polyfit(tas,np.log10(tau),2)
-        std = np.sqrt(((np.log10(tau) - np.polyval(p,tas))**2).sum()/tas.size)
-        X   = np.linspace(-22,30,100)
-        Y   = 10**np.polyval(p,X)
+        tas   = Variable(name="Mean air temperature",unit="degC",data=np.ma.masked_array(tas,mask=mask).compressed())
+        pr    = Variable(name="Precipitation",unit="mm yr-1",data=np.ma.masked_array(pr,mask=mask).compressed())
+        tau   = Variable(name="Inferred turnover time",unit="yr",data=soilc/npp)
+        r     = Relationship(tas,tau,dep_log=True,order=2,color=pr)
+        r.limits = [[1.,1e3],[-22.,30.]]
         
         # Get model results
         y0 = self.keywords.get("y0",1980.)
@@ -120,36 +102,41 @@ class ConfSoilCarbon(Confrontation):
         mask += (mod_npp.data < npp_threshold)
         mod_soilc = np.ma.masked_array(mod_soilc.data,mask=mask).compressed()
         mod_npp   = np.ma.masked_array(mod_npp.data  ,mask=mask).compressed()
-        mod_tas   = np.ma.masked_array(mod_tas.data  ,mask=mask).compressed()
-        mod_pr    = np.ma.masked_array(mod_pr.data   ,mask=mask).compressed()
+        mod_tas   = Variable(name="Mean air temperature",unit="degC",data=np.ma.masked_array(mod_tas.data,mask=mask).compressed())
+        mod_pr    = Variable(name="Precipitation",unit="mm yr-1",data=np.ma.masked_array(mod_pr.data,mask=mask).compressed())
 
         # Compute inferred turnover and fit quadratic
-        mod_tau = mod_soilc/mod_npp
-        mod_p   = np.polyfit(mod_tas,np.log10(mod_tau),2)
+        mod_tau = Variable(name="Inferred turnover time",unit="yr",data=mod_soilc/mod_npp)
+        mod_r   = Relationship(mod_tas,mod_tau,dep_log=True,order=2,color=mod_pr)
+        mod_r.limits = r.limits
 
-        # Binned Relationship RMSE
-        mean_obs = np.ma.masked_array(np.zeros(relationship_bins.size-1),mask=True)
-        mean_mod = np.ma.masked_array(np.zeros(relationship_bins.size-1),mask=True)
-        bins = np.digitize(mod_tas,relationship_bins).clip(1,relationship_bins.size-1)-1
-        rmse = 0.
-        for i in np.unique(bins):
-            tmid = 0.5*(relationship_bins[i]+relationship_bins[i+1])
-            mean_obs[i] = np.polyval(p,tmid)
-            mean_mod[i] = np.log10(mod_tau[bins==i]).mean()
-        rmse = np.linalg.norm(mean_obs-mean_mod)
+        """
+        print(r)
+        print(mod_r)
+        print(r.scoreRMSE(mod_r))
+        print(r.scoreHellinger(mod_r))
+        """
         
         # Outputs and plots
-        page = [page for page in self.layout.pages if "MeanState" in page.name][0]
-        
+        page = [page for page in self.layout.pages if "MeanState" in page.name][0]        
         if self.master:
             page.addFigure("Temporally integrated period mean",
                            "benchmark_timeint",
                            "Benchmark_global_timeint.png",
                            side   = "BENCHMARK",
                            legend = False)
-            sensitivityPlot(tas,tau,pr,X,Y,std,gauss_critval,"%s/Benchmark_global_timeint.png" % (self.output_path))
+            
+            fig,ax = plt.subplots(figsize=(5,5.5),tight_layout=True,dpi=100)
+            r.plotPointCloud(ax,vmin=0,vmax=2000,cmap='wetdry')
+            r.plotModel(ax,color='k',prediction=True)
+            ax.set_xlim(-22,30)
+            ax.set_ylim(1,3e3)
+            plt.savefig("%s/Benchmark_global_timeint.png" % (self.output_path))
+            plt.close()
+    
             with Dataset("%s/%s_Benchmark.nc" % (self.output_path,self.name),mode="w") as results:
                 results.setncatts({"name" :"Benchmark", "color":np.asarray([0.5,0.5,0.5])})
+                p = r.dist["default"][5]
                 Variable(name = "T^2",unit="1",data=p[0]).toNetCDF4(results,group="MeanState")
                 Variable(name = "T"  ,unit="1",data=p[1]).toNetCDF4(results,group="MeanState")
                 Variable(name = "1"  ,unit="1",data=p[2]).toNetCDF4(results,group="MeanState")
@@ -159,15 +146,37 @@ class ConfSoilCarbon(Confrontation):
                        "MNAME_global_timeint.png",
                        side   = "MODEL",
                        legend = False)
-        sensitivityPlot(mod_tas,mod_tau,mod_pr,X,Y,std,gauss_critval,
-                        "%s/%s_global_timeint.png" % (self.output_path,m.name))
+        fig,ax = plt.subplots(figsize=(5,5.5),tight_layout=True,dpi=100)
+        mod_r.plotPointCloud(ax,vmin=0,vmax=2000,cmap='wetdry')
+        mod_r.plotModel(ax,color='k',prediction=True)
+        ax.set_xlim(-22,30)
+        ax.set_ylim(1,3e3)
+        plt.savefig("%s/%s_global_timeint.png" % (self.output_path,m.name))
+        plt.close()
+        
+        page.addFigure("Temporally integrated period mean",
+                       "rel_tas",
+                       "MNAME_global_rel_tas.png",
+                       side   = "MODEL",
+                       legend = False)
+        fig,ax = plt.subplots(figsize=(5,4.5),tight_layout=True,dpi=100)
+        r    .plotFunction(ax,color='k'    ,shift=-0.1)
+        mod_r.plotFunction(ax,color=m.color,shift=+0.1)
+        ax.set_xlim(-22,30)
+        ax.set_ylim(1,3e3)
+        plt.savefig("%s/%s_global_rel_tas.png" % (self.output_path,m.name))
+        plt.close()
+        
         with Dataset("%s/%s_%s.nc" % (self.output_path,self.name,m.name),mode="w") as results:
             results.setncatts({"name" :m.name, "color":m.color})
+            mod_p = mod_r.dist["default"][5]
             Variable(name = "T^2" ,unit="1",data=mod_p[0]).toNetCDF4(results,group="MeanState")
             Variable(name = "T"   ,unit="1",data=mod_p[1]).toNetCDF4(results,group="MeanState")
             Variable(name = "1"   ,unit="1",data=mod_p[2]).toNetCDF4(results,group="MeanState")
-            Variable(name = "RMSE",unit="1",data=rmse    ).toNetCDF4(results,group="MeanState")
+            Variable(name = "RMSE Score global",unit="1",data=r.scoreRMSE(mod_r)).toNetCDF4(results,group="MeanState")
+            Variable(name = "Distribution Score global",unit="1",data=r.scoreHellinger(mod_r)).toNetCDF4(results,group="MeanState")
 
+        
     def determinePlotLimits(self):
         pass
     
