@@ -1,5 +1,5 @@
-from ILAMB.Confrontation import Confrontation
-from ILAMB.Variable import Variable
+from .Confrontation import Confrontation
+from .Variable import Variable
 import matplotlib.pyplot as plt
 from netCDF4 import Dataset
 import numpy as np
@@ -170,17 +170,3 @@ class ConfSoilCarbon(Confrontation):
             Variable(name = "T"   ,unit="1",data=mod_p[1]).toNetCDF4(results,group="MeanState")
             Variable(name = "1"   ,unit="1",data=mod_p[2]).toNetCDF4(results,group="MeanState")
             Variable(name = "RMSE",unit="1",data=rmse    ).toNetCDF4(results,group="MeanState")
-
-if __name__ == "__main__":
-    from ILAMB.ModelResult import ModelResult
-    from ILAMB.Post import RegisterCustomColormaps
-    RegisterCustomColormaps()
-    m = ModelResult("/home/nate/data/ILAMB/MODELS/esmHistorical/CESM1-BGC/")
-    c = ConfSoilCarbon(source = "/home/nate/data/ILAMB/DATA/gpp/GBAF/gpp_0.5x0.5.nc",
-                       soilc_source = "DATA/soilc/NCSCDV22/soilc_0.5x0.5.nc, DATA/soilc/HWSD/soilc_0.5x0.5.nc",
-                       tas_source = "DATA/tas/CRU/tas_0.5x0.5.nc",
-                       pr_source = "DATA/pr/GPCC/pr_0.5x0.5.nc",
-                       npp_source = "DATA/soilc/Koven/npp_0.5x0.5.nc",
-                       pet_source = "DATA/soilc/Koven/pet_0.5x0.5.nc",
-                       fracpeat_source = "DATA/soilc/Koven/fracpeat_0.5x0.5.nc")
-    c.confront(m)
