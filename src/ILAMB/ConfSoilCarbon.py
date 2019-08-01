@@ -7,6 +7,7 @@ import os
 
 def getSource(filename,unit):
     vname = filename.split("/")[-1].split("_")[0]
+    if vname == "soilc": vname = "cSoilAbove1m"
     files = filename.split(",") if "," in filename else [filename]
     data,lat,lon = None,None,None
     for f in files:
@@ -98,14 +99,14 @@ class ConfSoilCarbon(Confrontation):
         yf = self.keywords.get("yf",2006.)
         t0 = (y0-1850  )*365
         tf = (yf-1850+1)*365
-        mod_soilc = m.extractTimeSeries("soilc",
-                                        alt_vars     = ["cSoil"],
+        mod_soilc = m.extractTimeSeries("cSoilAbove1m",
+                                        alt_vars     = ["soilc","cSoil"],
                                         initial_time = t0,
                                         final_time   = tf).integrateInTime(mean=True).convert("kg m-2")
         mod_npp   = m.extractTimeSeries("npp",
                                         initial_time = t0,
                                         final_time   = tf,
-                                        expression   = "gpp-ra-rh").integrateInTime(mean=True).convert("kg m-2 yr-1")
+                                        expression   = "gpp-ra").integrateInTime(mean=True).convert("kg m-2 yr-1")
         mod_tas   = m.extractTimeSeries("tas",
                                         initial_time = t0,
                                         final_time   = tf).integrateInTime(mean=True).convert("degC")
@@ -125,9 +126,6 @@ class ConfSoilCarbon(Confrontation):
         # Compute inferred turnover and fit quadratic
         mod_tau = mod_soilc/mod_npp
         mod_p   = np.polyfit(mod_tas,np.log10(mod_tau),2)
-        mod_std = np.sqrt(((np.log10(mod_tau) - np.polyval(mod_p,mod_tas))**2).sum()/mod_tas.size)
-        mod_X   = np.linspace(-22,30,100)
-        mod_Y   = 10**np.polyval(p,X)
 
         # Binned Relationship RMSE
         mean_obs = np.ma.masked_array(np.zeros(relationship_bins.size-1),mask=True)
@@ -138,8 +136,7 @@ class ConfSoilCarbon(Confrontation):
             tmid = 0.5*(relationship_bins[i]+relationship_bins[i+1])
             mean_obs[i] = np.polyval(p,tmid)
             mean_mod[i] = np.log10(mod_tau[bins==i]).mean()
-            rmse += mean_obs[i]**2 + mean_mod[i]**2
-        rmse = np.sqrt(rmse)
+        rmse = np.linalg.norm(mean_obs-mean_mod)
         
         # Outputs and plots
         page = [page for page in self.layout.pages if "MeanState" in page.name][0]
@@ -162,7 +159,7 @@ class ConfSoilCarbon(Confrontation):
                        "MNAME_global_timeint.png",
                        side   = "MODEL",
                        legend = False)
-        sensitivityPlot(mod_tas,mod_tau,mod_pr,mod_X,mod_Y,mod_std,gauss_critval,
+        sensitivityPlot(mod_tas,mod_tau,mod_pr,X,Y,std,gauss_critval,
                         "%s/%s_global_timeint.png" % (self.output_path,m.name))
         with Dataset("%s/%s_%s.nc" % (self.output_path,self.name,m.name),mode="w") as results:
             results.setncatts({"name" :m.name, "color":m.color})
@@ -170,3 +167,12 @@ class ConfSoilCarbon(Confrontation):
             Variable(name = "T"   ,unit="1",data=mod_p[1]).toNetCDF4(results,group="MeanState")
             Variable(name = "1"   ,unit="1",data=mod_p[2]).toNetCDF4(results,group="MeanState")
             Variable(name = "RMSE",unit="1",data=rmse    ).toNetCDF4(results,group="MeanState")
+
+    def determinePlotLimits(self):
+        pass
+    
+    def compositePlots(self):
+        pass
+    
+    def modelPlots(self,m):
+        pass
