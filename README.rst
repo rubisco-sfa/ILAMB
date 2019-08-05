@@ -51,7 +51,7 @@ growing `list <https://python3statement.org/>`_ of popular python
 packages (most of our dependencies) that are phasing out support for
 python2 during this year. So in keeping with this community trend, the
 last version of ILAMB which will be compatible with python2.7x is
-2.3.1, version 2.4 and beyond will by python3 only.
+2.3.1, version 2.4 and beyond will be python3 only.
 
 Part of my reason for sticking with python2 for so long was that ILAMB
 was designed to run on large machines whose software stacks are often
@@ -64,7 +64,7 @@ personalized environments using `conda
 repository which conda can use to create an environment that will
 support an ILAMB installation. If these words do not mean anything to
 you, look for a more detailed explanation in the `tutorials
-<https://www.ilamb.org/doc/install.html>`_ which have be rewritten to
+<https://www.ilamb.org/doc/install.html>`_ which have been rewritten to
 reflect this shift.
 
 We have also changed the location of the supported configure files in
