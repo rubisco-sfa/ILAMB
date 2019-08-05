@@ -48,7 +48,8 @@ class ConfSoilCarbon(Confrontation):
         relationship_bins = self.keywords.get("relationship_bins",np.arange(-15.5,28.6,1))
         if type(relationship_bins) == str:
             relationship_bins = np.asarray(relationship_bins.split(","),dtype=float)
-            
+        T10 = np.asarray([-10,+10,25]) # temperatures at which to report Q10
+        
         # Get the source datafiles
         lat,lon,soilc = getSource(self.keywords.get("soilc_source"),"kg m-2")
         LAT,LON,npp = getSource(self.keywords.get("npp_source"),"kg m-2 yr-1")
@@ -130,9 +131,9 @@ class ConfSoilCarbon(Confrontation):
             with Dataset("%s/%s_Benchmark.nc" % (self.output_path,self.name),mode="w") as results:
                 results.setncatts({"name" :"Benchmark", "color":np.asarray([0.5,0.5,0.5])})
                 p = r.dist["default"][5]
-                Variable(name = "T^2",unit="1",data=p[0]).toNetCDF4(results,group="MeanState")
-                Variable(name = "T"  ,unit="1",data=p[1]).toNetCDF4(results,group="MeanState")
-                Variable(name = "1"  ,unit="1",data=p[2]).toNetCDF4(results,group="MeanState")
+                Q10 = 10**(-10*(np.polyval(np.polyder(p),T10)))
+                for q,t in zip(Q10,T10):
+                    Variable(name = "Q10(%+d [C])" % int(t),unit="1",data=q).toNetCDF4(results,group="MeanState")
                 
         page.addFigure("Temporally integrated period mean",
                        "timeint",
@@ -163,9 +164,9 @@ class ConfSoilCarbon(Confrontation):
         with Dataset("%s/%s_%s.nc" % (self.output_path,self.name,m.name),mode="w") as results:
             results.setncatts({"name" :m.name, "color":m.color})
             mod_p = mod_r.dist["default"][5]
-            Variable(name = "T^2" ,unit="1",data=mod_p[0]).toNetCDF4(results,group="MeanState")
-            Variable(name = "T"   ,unit="1",data=mod_p[1]).toNetCDF4(results,group="MeanState")
-            Variable(name = "1"   ,unit="1",data=mod_p[2]).toNetCDF4(results,group="MeanState")
+            Q10 = 10**(-10*(np.polyval(np.polyder(mod_p),T10)))
+            for q,t in zip(Q10,T10):
+                Variable(name = "Q10(%+d [C])" % int(t),unit="1",data=q).toNetCDF4(results,group="MeanState")
             Variable(name = "RMSE Score global",unit="1",data=r.scoreRMSE(mod_r)).toNetCDF4(results,group="MeanState")
             Variable(name = "Distribution Score global",unit="1",data=r.scoreHellinger(mod_r)).toNetCDF4(results,group="MeanState")
 
