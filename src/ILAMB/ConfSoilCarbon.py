@@ -109,13 +109,6 @@ class ConfSoilCarbon(Confrontation):
         mod_tau = Variable(name="Inferred turnover time",unit="yr",data=mod_soilc/mod_npp)
         mod_r   = Relationship(mod_tas,mod_tau,dep_log=True,order=2,color=mod_pr)
         mod_r.limits = r.limits
-
-        """
-        print(r)
-        print(mod_r)
-        print(r.scoreRMSE(mod_r))
-        print(r.scoreHellinger(mod_r))
-        """
         
         # Outputs and plots
         page = [page for page in self.layout.pages if "MeanState" in page.name][0]        
@@ -148,7 +141,7 @@ class ConfSoilCarbon(Confrontation):
                        legend = False)
         fig,ax = plt.subplots(figsize=(5,5.5),tight_layout=True,dpi=100)
         mod_r.plotPointCloud(ax,vmin=0,vmax=2000,cmap='wetdry')
-        mod_r.plotModel(ax,color='k',prediction=True)
+        r    .plotModel(ax,color='k',prediction=True)
         ax.set_xlim(-22,30)
         ax.set_ylim(1,3e3)
         plt.savefig("%s/%s_global_timeint.png" % (self.output_path,m.name))
@@ -156,7 +149,7 @@ class ConfSoilCarbon(Confrontation):
         
         page.addFigure("Temporally integrated period mean",
                        "rel_tas",
-                       "MNAME_global_rel_tas.png",
+                       "MNAME_RNAME_rel_tas.png",
                        side   = "MODEL",
                        legend = False)
         fig,ax = plt.subplots(figsize=(5,4.5),tight_layout=True,dpi=100)
