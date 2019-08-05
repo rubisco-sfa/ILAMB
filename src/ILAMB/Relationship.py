@@ -426,6 +426,9 @@ class Relationship(object):
         mask = ref.mask + com.mask
         ref = np.ma.masked_array(ref.data,mask=mask).compressed()
         com = np.ma.masked_array(com.data,mask=mask).compressed()
+        if self.dep_log:
+            ref = np.log10(ref)
+            com = np.log10(com)
         S = np.exp(-np.linalg.norm(ref-com)/np.linalg.norm(ref))
 
         return S
