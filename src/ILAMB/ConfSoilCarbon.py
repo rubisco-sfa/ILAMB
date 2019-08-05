@@ -27,7 +27,15 @@ def getSource(filename,unit):
     return lat,lon,data
     
 class ConfSoilCarbon(Confrontation):
-    """
+    """A soil carbon temperature sensivity benchmark.
+
+    For details of the metric, see the following publication:
+
+    Koven, Hugelius, Lawrence, Wieder, Higher climatological
+    temperature sensitivity of soil carbon in cold than warm
+    climates. Nature Climate Change, October 2017, doi:
+    10.1038/NCLIMATE3421
+
     """
     def __init__(self,**keywords):
         super(ConfSoilCarbon,self).__init__(**keywords)
@@ -96,11 +104,13 @@ class ConfSoilCarbon(Confrontation):
         mod_pr    = m.extractTimeSeries("pr",
                                         initial_time = t0,
                                         final_time   = tf).integrateInTime(mean=True).convert("mm yr-1")
-
+        mod_pet   = Variable(lat=LAT,lon=LON,unit="mm yr-1",data=pet).interpolate(lat=mod_pr.lat,lon=mod_pr.lon)
+        
         # Determine what will be masked
         mask  = mod_soilc.data.mask + mod_npp.data.mask + mod_tas.data.mask + mod_pr.data.mask
         mask += (mod_soilc.data < soilc_threshold)
         mask += (mod_npp.data < npp_threshold)
+        mask += ((mod_pr.data-mod_pet.data) < aridity_threshold)
         mod_soilc = np.ma.masked_array(mod_soilc.data,mask=mask).compressed()
         mod_npp   = np.ma.masked_array(mod_npp.data  ,mask=mask).compressed()
         mod_tas   = Variable(name="Mean air temperature",unit="degC",data=np.ma.masked_array(mod_tas.data,mask=mask).compressed())
