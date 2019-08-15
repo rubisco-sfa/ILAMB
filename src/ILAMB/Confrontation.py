@@ -10,6 +10,10 @@ from matplotlib.colors import LogNorm
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from mpi4py import MPI
 from sympy import sympify
+from urllib.request import urlretrieve
+from scipy.interpolate import griddata
+from bibtexparser.bparser import BibTexParser
+from bibtexparser.bibdatabase import as_text
 
 import logging
 logger = logging.getLogger("%i" % MPI.COMM_WORLD.rank)
@@ -26,6 +30,84 @@ def getVariableList(dataset):
         except:
             pass
     return variables
+
+def find_url(string):
+    # Obtain url in string (created by Mingquan Mu on 2019-04-25)
+    url = ""
+    url = re.findall('http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+~]|[!*\(\), ]|(?:%[0-9a-fA-F][0-9a-fA-F]))+', string)
+    return url
+
+def create_data_header(attr, val):
+    # Rewrite Data header information (val) for given global attribute (attr) (created by Mingquan Mu on 2019-04-25)
+
+    attr     = attr.replace("\n", "")
+    val      = val.replace("\n", "")
+    list_val = val.split(";")
+
+    if isinstance(list_val, list):
+       nlist    = len(list_val)
+    else:
+       nlist    = 1
+
+    final_val = ""
+
+    if attr=="history":
+       for i in range(nlist):
+           sublist = list_val[i].split(":", 1)
+           sublist[0] = sublist[0] + ":"
+           if "http" in sublist[1]:
+              url = find_url(sublist[1])
+              url_new = "<a href='%s'>%s</a>" % (url[0], url[0])
+              sublist[1] = sublist[1].replace(url[0], url_new)
+              list_val[i] = "<dd>" + sublist[0] + "&nbsp;" + sublist[1] + "</dd>"
+           else:
+              list_val[i] = "<dd>" + sublist[0] + "&nbsp;" + sublist[1] + "</dd>"
+           final_val = final_val + list_val[i]
+    else:
+       if attr == "references":
+          bd = BibTexParser(interpolate_strings=False)
+          bib_database = bd.parse(val)
+          nartc = len(re.findall('title', as_text(bib_database.entries)))
+          for i in range(nartc):
+              ArtcID = as_text(bib_database.entries[i]['ID'])
+              author = as_text(bib_database.entries[i]['author'])
+              title  = as_text(bib_database.entries[i]['title'])
+              journal= as_text(bib_database.entries[i]['journal'])
+              year   = as_text(bib_database.entries[i]['year'])
+              number = as_text(bib_database.entries[i]['number'])
+              page   = as_text(bib_database.entries[i]['page'])
+              doi    = as_text(bib_database.entries[i]['doi'])
+
+              ArtcID = "<BR>&nbsp;&nbsp;" + ArtcID + ":"
+              #author  = author
+              subauth = author.split(",")
+              #if len(subauth)>2:
+              #   author  = subauth[0] + " et al."
+              #else:
+              #   author  = subauth[0]
+              #title = "<B>" + title + "</B>"
+              journal = "<I>" + journal + "</I>"
+              number = "<I>" + number + "</I>"
+              year   = "(" + year + ")"
+              new_doi = doi.replace("https://doi.org/", "doi:")
+              link_doi = "<a href='%s'>%s</a>" % (doi, new_doi)
+              #link_doi = "<a href='" + doi + "'><I>Link to the paper</I></a>"
+              #new_artc = ArtcID + "&nbsp;" + author + ",&nbsp;" + year + ",&nbsp;" + title + ".&nbsp;" + journal + ",&nbsp;" + number + ",&nbsp;" + new_doi + ".&nbsp;" + link_doi
+              if i == nartc-1:
+                 new_artc = "<dd>" + author + "&nbsp;" + year + ",&nbsp;" + title + ",&nbsp;" + journal + ",&nbsp;" + number + ",&nbsp;" + page + ",&nbsp;" + link_doi + ".</dd>"
+              else:
+                 new_artc = "<dd>" + author + "&nbsp;" + year + ",&nbsp;" + title + ",&nbsp;" + journal + ",&nbsp;" + number + ",&nbsp;" + page + ",&nbsp;" + link_doi + ".</dd><BR>"
+              final_val = final_val + new_artc
+       else:
+          for i in range(nlist):
+              if "http" in list_val[i]:
+                 url = find_url(list_val[i])
+                 url_new = "<a href='%s'>%s</a>" % (url[0], url[0])
+                 val_new = list_val[i].replace(url_old, url_new)
+                 final_val = final_val + "<dd>" + val_new + "</dd>"
+              else:
+                 final_val = final_val + "<dd>" + list_val[i] + "</dd>"
+    return final_val
 
 class Confrontation(object):
     """A generic class for confronting model results with observational data.
@@ -165,7 +247,9 @@ class Confrontation(object):
                 try:
                     val = dset.getncattr(attr)
                     if type(val) != str: val = str(val)
-                    attr_line = "<p><b>&nbsp;&nbsp;%s:&nbsp;</b>%s</p>\n" % (attr,val)
+                    final_val = create_data_header(attr, val)
+                    attr_line = "<p><dl><dt><b>&nbsp;&nbsp;%s:</dt></b>%s</dl></p>" % (attr.capitalize(),final_val)
+                    #attr_line = "<p><b>&nbsp;&nbsp;%s:&nbsp;</b>%s</p>\n" % (attr,val)
                     pages[-1].text += attr_line
                 except:
                     pass
