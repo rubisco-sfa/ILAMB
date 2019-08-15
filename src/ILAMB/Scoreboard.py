@@ -9,6 +9,7 @@ from .ConfPermafrost import ConfPermafrost
 from .ConfAlbedo import ConfAlbedo
 from .ConfSWE import ConfSWE
 from .ConfCO2 import ConfCO2
+from .ConfSoilCarbon import ConfSoilCarbon
 from .Regions import Regions
 import os,re
 from netCDF4 import Dataset
@@ -291,7 +292,8 @@ ConfrontationTypes = { None              : Confrontation,
                        "ConfPermafrost"  : ConfPermafrost,
                        "ConfAlbedo"      : ConfAlbedo,
                        "ConfSWE"         : ConfSWE,
-                       "ConfCO2"         : ConfCO2}
+                       "ConfCO2"         : ConfCO2,
+                       "ConfSoilCarbon"  : ConfSoilCarbon}
 
 class Scoreboard():
     """
