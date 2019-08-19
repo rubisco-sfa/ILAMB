@@ -1845,10 +1845,23 @@ def MakeComparable(ref,com,**keywords):
         # Check that we now are on the same time intervals
         if not allow_diff_times:
             if ref.time.size != com.time.size:
-                msg  = "%s Datasets have differing numbers of time intervals: " % logstring
-                msg += "reference = %d, comparison = %d" % (ref.time.size,com.time.size)
-                logger.debug(msg)
-                raise VarsNotComparable()
+
+                # Special case - it frequently works out that we are 1
+                # time interval off for some reason. For now, we will
+                # detect this and push a fix.
+                if ref.time.size == (com.time.size+1):
+
+                    if(np.abs(com.time[0]-ref.time[1])/(ref.time_bnds[0,1]-ref.time_bnds[0,0])<1e-2):
+                        ref.time = ref.time[1:]
+                        ref.time_bnds = ref.time_bnds[1:]
+                        ref.data = ref.data[1:]
+
+                else:
+                    msg  = "%s Datasets have differing numbers of time intervals: " % logstring
+                    msg += "reference = %d, comparison = %d" % (ref.time.size,com.time.size)
+                    logger.debug(msg)
+                    raise VarsNotComparable()
+
             if not np.allclose(ref.time_bnds,com.time_bnds,atol=0.75*ref.dt):
                 msg  = "%s Datasets are defined at different times" % logstring
                 logger.debug(msg)
