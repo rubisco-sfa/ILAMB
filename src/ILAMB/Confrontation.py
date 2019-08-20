@@ -38,8 +38,9 @@ def find_url(string):
 def create_data_header(attr, val):
     # Rewrite Data header information (val) for given global attribute (attr)
 
-    attr     = attr.replace("\n", "")
-    val      = val.replace("\n", "")
+    if type(val) != str: val = str(val)
+    attr     = attr.strip()
+    val      = val.strip()
     list_val = val.split(";")
 
     if isinstance(list_val, list):
@@ -77,20 +78,12 @@ def create_data_header(attr, val):
               doi    = as_text(bib_database.entries[i]['doi'])
 
               ArtcID = "<BR>&nbsp;&nbsp;" + ArtcID + ":"
-              #author  = author
               subauth = author.split(",")
-              #if len(subauth)>2:
-              #   author  = subauth[0] + " et al."
-              #else:
-              #   author  = subauth[0]
-              #title = "<B>" + title + "</B>"
               journal = "<I>" + journal + "</I>"
               number = "<I>" + number + "</I>"
               year   = "(" + year + ")"
               new_doi = doi.replace("https://doi.org/", "doi:")
               link_doi = "<a href='%s'>%s</a>" % (doi, new_doi)
-              #link_doi = "<a href='" + doi + "'><I>Link to the paper</I></a>"
-              #new_artc = ArtcID + "&nbsp;" + author + ",&nbsp;" + year + ",&nbsp;" + title + ".&nbsp;" + journal + ",&nbsp;" + number + ",&nbsp;" + new_doi + ".&nbsp;" + link_doi
               if i == nartc-1:
                  new_artc = "<dd>" + author + "&nbsp;" + year + ",&nbsp;" + title + ",&nbsp;" + journal + ",&nbsp;" + number + ",&nbsp;" + page + ",&nbsp;" + link_doi + ".</dd>"
               else:
