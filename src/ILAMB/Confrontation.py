@@ -10,8 +10,6 @@ from matplotlib.colors import LogNorm
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from mpi4py import MPI
 from sympy import sympify
-from urllib.request import urlretrieve
-from scipy.interpolate import griddata
 from bibtexparser.bparser import BibTexParser
 from bibtexparser.bibdatabase import as_text
 
