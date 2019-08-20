@@ -10,6 +10,7 @@ from .ConfAlbedo import ConfAlbedo
 from .ConfSWE import ConfSWE
 from .ConfCO2 import ConfCO2
 from .ConfSoilCarbon import ConfSoilCarbon
+from .ConfUncertainty import ConfUncertainty
 from .Regions import Regions
 import os,re
 from netCDF4 import Dataset
@@ -293,7 +294,8 @@ ConfrontationTypes = { None              : Confrontation,
                        "ConfAlbedo"      : ConfAlbedo,
                        "ConfSWE"         : ConfSWE,
                        "ConfCO2"         : ConfCO2,
-                       "ConfSoilCarbon"  : ConfSoilCarbon}
+                       "ConfSoilCarbon"  : ConfSoilCarbon,
+                       "ConfUncertainty" : ConfUncertainty}
 
 class Scoreboard():
     """

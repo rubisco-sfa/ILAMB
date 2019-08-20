@@ -396,7 +396,7 @@ class Confrontation(object):
 
             limits[pname]["cmap"] = opts["cmap"]
             if limits[pname]["cmap"] == "choose": limits[pname]["cmap"] = self.cmap
-
+            
             # Plot a legend for each key
             if opts["haslegend"]:
                 fig,ax = plt.subplots(figsize=(6.8,1.0),tight_layout=True)
