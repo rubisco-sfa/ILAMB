@@ -9,6 +9,7 @@ import ILAMB.ilamblib as il
 from ILAMB.constants import bnd_months
 from netCDF4 import Dataset
 import numpy as np
+from traceback import format_exc
 
 def InitializeModels(model_root,models=[],verbose=False,filter="",model_year=[]):
     """Initializes a list of models
@@ -42,7 +43,12 @@ def InitializeModels(model_root,models=[],verbose=False,filter="",model_year=[])
     for subdir, dirs, files in os.walk(model_root):
         for mname in dirs:
             if len(models) > 0 and mname not in models: continue
-            M.append(ModelResult(os.path.join(subdir,mname), modelname = mname, filter=filter, model_year = model_year))
+            try:
+                m = ModelResult(os.path.join(subdir,mname), modelname = mname, filter=filter, model_year = model_year)
+            except Exception as ex:
+                print(format_exc())
+                continue
+            M.append(m)
             max_model_name_len = max(max_model_name_len,len(mname))
         break
     M = sorted(M,key=lambda m: m.name.upper())

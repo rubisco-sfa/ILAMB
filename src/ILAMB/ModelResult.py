@@ -173,6 +173,11 @@ class ModelResult():
             # some models represent the fraction as a percent
             if np.ma.max(self.land_fraction) > 1: self.land_fraction *= 0.01
             with np.errstate(over='ignore',under='ignore'):
+                if not np.allclose(self.cell_areas.shape,self.land_fraction.shape):
+                    msg = "The model %s has areacella %s which is a different shape than sftlf %s" % (self.name,
+                                                                                                      str(self.cell_areas.shape),
+                                                                                                      str(self.land_fraction.shape))
+                    raise ValueError(msg)
                 self.land_areas = self.cell_areas*self.land_fraction
         self.land_area = np.ma.sum(self.land_areas)
         return

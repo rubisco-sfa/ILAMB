@@ -29,7 +29,7 @@ OK   = '\033[92m'
 FAIL = '\033[91m'
 ENDC = '\033[0m'
 
-def InitializeModels(model_root,models=[],verbose=False,filter="",regex="",model_year=[]):
+def InitializeModels(model_root,models=[],verbose=False,filter="",regex="",model_year=[],log=True):
     """Initializes a list of models
 
     Initializes a list of models where each model is the subdirectory
@@ -61,7 +61,12 @@ def InitializeModels(model_root,models=[],verbose=False,filter="",regex="",model
     for subdir, dirs, files in os.walk(model_root):
         for mname in dirs:
             if len(models) > 0 and mname not in models: continue
-            M.append(ModelResult(os.path.join(subdir,mname), modelname = mname, filter=filter, regex=regex, model_year = model_year))
+            try:
+                m = ModelResult(os.path.join(subdir,mname), modelname = mname, filter=filter, regex=regex, model_year = model_year)
+            except Exception as ex:
+                if log: logger.debug("[%s]" % mname,format_exc())
+                continue
+            M.append(m)
             max_model_name_len = max(max_model_name_len,len(mname))
         break
     M = sorted(M,key=lambda m: m.name.upper())
