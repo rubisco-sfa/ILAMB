@@ -30,13 +30,13 @@ def getVariableList(dataset):
     return variables
 
 def find_url(string):
-    # Obtain url in string (created by Mingquan Mu on 2019-04-25)
+    # Obtain url in string
     url = ""
     url = re.findall('http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+~]|[!*\(\), ]|(?:%[0-9a-fA-F][0-9a-fA-F]))+', string)
     return url
 
 def create_data_header(attr, val):
-    # Rewrite Data header information (val) for given global attribute (attr) (created by Mingquan Mu on 2019-04-25)
+    # Rewrite Data header information (val) for given global attribute (attr)
 
     attr     = attr.replace("\n", "")
     val      = val.replace("\n", "")
