@@ -337,10 +337,12 @@ class ConfIOMB(Confrontation):
 
             # Encode some names and colors
             fcm.mod_dset.setncatts({"name" :m.name,
-                                    "color":m.color})
+                                    "color":m.color,
+                                    "complete":0})
             if self.master:
                 fcm.obs_dset.setncatts({"name" :"Benchmark",
-                                        "color":np.asarray([0.5,0.5,0.5])})
+                                        "color":np.asarray([0.5,0.5,0.5]),
+                                        "complete":0})
 
             obs_timeint = {}; mod_timeint = {}
             obs_depth   = {}; mod_depth   = {}
@@ -496,7 +498,8 @@ class ConfIOMB(Confrontation):
                 if self.master:
                     obs_tmp     .toNetCDF4(fcm.obs_dset,group="MeanState")
                     ocyc[region].toNetCDF4(fcm.obs_dset,group="MeanState")
-
+            fcm.mod_dset.setncattr("complete",1)
+            if self.master: fcm.obs_dset.setncattr("complete",1)
 
     def modelPlots(self,m):
 

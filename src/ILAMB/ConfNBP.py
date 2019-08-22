@@ -84,10 +84,11 @@ class ConfNBP(Confrontation):
             obs    .name = "spaceint_of_nbp_over_global"
             obs_sum.name = "accumulate_of_nbp_over_global"
             with Dataset(os.path.join(self.output_path,"%s_Benchmark.nc" % (self.name)),mode="w") as results:
-                results.setncatts({"name" :"Benchmark", "color":np.asarray([0.5,0.5,0.5])})
+                results.setncatts({"name" :"Benchmark", "color":np.asarray([0.5,0.5,0.5]),"complete":0})
                 obs     .toNetCDF4(results,group="MeanState")
                 obs_sum .toNetCDF4(results,group="MeanState")
                 obs_end .toNetCDF4(results,group="MeanState")
+                results.setncattr("complete",1)
 
         # Now that we have written out the obs as they are, let's look at the maximum overlap
         t0 = max(obs.time_bnds[ 0,0],mod.time_bnds[ 0,0])
@@ -138,7 +139,7 @@ class ConfNBP(Confrontation):
 
         # Dump to files
         results = Dataset(os.path.join(self.output_path,"%s_%s.nc" % (self.name,m.name)),mode="w")
-        results.setncatts({"name" :m.name, "color":m.color})
+        results.setncatts({"name" :m.name, "color":m.color,"complete":0})
         mod       .toNetCDF4(results,group="MeanState")
         mod_sum   .toNetCDF4(results,group="MeanState")
         mod_end   .toNetCDF4(results,group="MeanState")
@@ -146,6 +147,7 @@ class ConfNBP(Confrontation):
         dscore    .toNetCDF4(results,group="MeanState")
         if not skip_taylor:
             score .toNetCDF4(results,group="MeanState",attributes={"std":std,"R":R.data})
+        results.setncattr("complete",1)
         results.close()
 
     def compositePlots(self):

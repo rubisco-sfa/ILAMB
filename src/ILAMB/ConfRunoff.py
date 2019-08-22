@@ -164,7 +164,7 @@ class ConfRunoff(Confrontation):
 
         # Dump to files
         results = Dataset(os.path.join(self.output_path,"%s_%s.nc" % (self.name,m.name)),mode="w")
-        results.setncatts({"name" :m.name, "color":m.color})
+        results.setncatts({"name" :m.name, "color":m.color,"complete":0})
         for var in [mod,
                     mod_period_mean,
                     mod_timeint,
@@ -174,14 +174,16 @@ class ConfRunoff(Confrontation):
                     iav_score]:
             var.toNetCDF4(results,group="MeanState")
         sd_score.toNetCDF4(results,group="MeanState",attributes={"std":std.data,"R":R.data})
+        results.setncattr("complete",1)
         results.close()
         if self.master:
             results = Dataset(os.path.join(self.output_path,"%s_Benchmark.nc" % self.name),mode="w")
-            results.setncatts({"name" :"Benchmark", "color":np.asarray([0.5,0.5,0.5])})
+            results.setncatts({"name" :"Benchmark", "color":np.asarray([0.5,0.5,0.5]),"complete":0})
             for var in [obs,
                         obs_period_mean,
                         obs_timeint]:
                 var.toNetCDF4(results,group="MeanState")
+            results.setncattr("complete",1)
             results.close()
 
     def modelPlots(self,m):

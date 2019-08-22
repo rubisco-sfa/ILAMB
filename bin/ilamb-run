@@ -12,7 +12,7 @@ import os,time,sys,argparse
 from mpi4py import MPI
 import numpy as np
 import datetime,glob
-
+from netCDF4 import Dataset
 import pylab as plt
 from ILAMB.Post import RegisterCustomColormaps
 if "stoplight" not in plt.colormaps(): RegisterCustomColormaps()
@@ -272,7 +272,19 @@ def BuildLocalWorkList(M,C,skip_cache=False):
     for c in C:
         for m in M:
             if skip_cache:
-                if not os.path.isfile(os.path.join(c.output_path,"%s_%s.nc" % (c.name,m.name))):
+                
+                # if we want to skip we have to check that it is complete                
+                fname = os.path.join(c.output_path,"%s_%s.nc" % (c.name,m.name))
+                complete = False
+                if os.path.isfile(fname):
+                    try:
+                        with Dataset(fname) as dset:
+                            if "complete" in dset.ncattrs():
+                                if dset.complete: complete = True
+                    except:
+                        pass
+                if not complete:
+                    os.system("rm -f %s" % fname)
                     W.append([m,c])
             else:
                 W.append([m,c])

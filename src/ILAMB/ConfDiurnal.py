@@ -291,6 +291,7 @@ class ConfDiurnal(Confrontation):
                      unit = "h",
                      data = mpeak).toNetCDF4(results,group="MeanState")
             for key in Smod.keys(): Smod[key].toNetCDF4(results,group="MeanState")
+            results.setncattr("complete",1)
         if not self.master: return
         with Dataset(os.path.join(self.output_path,"%s_Benchmark.nc" % self.name),mode="w") as results:
             results.setncatts({"name" :"Benchmark", "color":np.asarray([0.5,0.5,0.5])})
@@ -316,6 +317,7 @@ class ConfDiurnal(Confrontation):
                      unit = "h",
                      data = opeak).toNetCDF4(results,group="MeanState")
             for key in Sobs.keys(): Sobs[key].toNetCDF4(results,group="MeanState")
+            results.setncattr("complete",1)
 
     def determinePlotLimits(self):
 

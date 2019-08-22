@@ -128,10 +128,12 @@ class ConfAlbedo(Confrontation):
 
             # Encode some names and colors
             fcm.mod_dset.setncatts({"name" :m.name,
-                                    "color":m.color})
+                                    "color":m.color,
+                                    "complete":0})
             if self.master:
                 fcm.obs_dset.setncatts({"name" :"Benchmark",
-                                        "color":np.asarray([0.5,0.5,0.5])})
+                                        "color":np.asarray([0.5,0.5,0.5]),
+                                        "complete":0})
 
             # Read in some options and run the mean state analysis
             mass_weighting = self.keywords.get("mass_weighting",False)
@@ -162,5 +164,7 @@ class ConfAlbedo(Confrontation):
                                           skip_iav          = skip_iav,
                                           skip_cycle        = skip_cycle,
                                           mass_weighting    = mass_weighting)
+            fcm.mod_dset.setncattr("complete",1)
+            if self.master: fcm.obs_dset.setncattr("complete",1)
 
         logger.info("[%s][%s] Success" % (self.longname,m.name))

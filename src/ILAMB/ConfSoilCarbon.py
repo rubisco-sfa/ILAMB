@@ -139,12 +139,13 @@ class ConfSoilCarbon(Confrontation):
             plt.close()
     
             with Dataset("%s/%s_Benchmark.nc" % (self.output_path,self.name),mode="w") as results:
-                results.setncatts({"name" :"Benchmark", "color":np.asarray([0.5,0.5,0.5])})
+                results.setncatts({"name" :"Benchmark", "color":np.asarray([0.5,0.5,0.5]),"complete":0})
                 p = r.dist["default"][5]
                 Q10 = 10**(-10*(np.polyval(np.polyder(p),T10)))
                 for q,t in zip(Q10,T10):
                     Variable(name = "Q10(%+d [C])" % int(t),unit="1",data=q).toNetCDF4(results,group="MeanState")
-                
+                results.setncattr("complete",1)
+
         page.addFigure("Temporally integrated period mean",
                        "timeint",
                        "MNAME_global_timeint.png",
@@ -172,13 +173,15 @@ class ConfSoilCarbon(Confrontation):
         plt.close()
         
         with Dataset("%s/%s_%s.nc" % (self.output_path,self.name,m.name),mode="w") as results:
-            results.setncatts({"name" :m.name, "color":m.color})
+            results.setncatts({"name" :m.name, "color":m.color,"complete":0})
             mod_p = mod_r.dist["default"][5]
             Q10 = 10**(-10*(np.polyval(np.polyder(mod_p),T10)))
             for q,t in zip(Q10,T10):
                 Variable(name = "Q10(%+d [C])" % int(t),unit="1",data=q).toNetCDF4(results,group="MeanState")
             Variable(name = "RMSE Score global",unit="1",data=r.scoreRMSE(mod_r)).toNetCDF4(results,group="MeanState")
             Variable(name = "Distribution Score global",unit="1",data=r.scoreHellinger(mod_r)).toNetCDF4(results,group="MeanState")
+            results.setncattr("complete",1)
+
 
         
     def determinePlotLimits(self):

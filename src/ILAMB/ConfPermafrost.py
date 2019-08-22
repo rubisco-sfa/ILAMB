@@ -187,7 +187,7 @@ class ConfPermafrost(Confrontation):
         mod_not_obs_land_area.name = "Excess Area (Land Representation)"
 
         results = Dataset("%s/%s_%s.nc" % (self.output_path,self.name,m.name),mode="w")
-        results.setncatts({"name" :m.name, "color":m.color})
+        results.setncatts({"name" :m.name, "color":m.color, "complete":0})
         mod                  .toNetCDF4(results,group="MeanState")
         obs_and_mod          .toNetCDF4(results,group="MeanState")
         obs_not_mod          .toNetCDF4(results,group="MeanState")
@@ -200,12 +200,14 @@ class ConfPermafrost(Confrontation):
         mod_not_obs_land_area.toNetCDF4(results,group="MeanState")
         obs_score            .toNetCDF4(results,group="MeanState")
         mod_score            .toNetCDF4(results,group="MeanState")
+        results.setncattr("complete",1)
         results.close()
 
         if self.master:
             results = Dataset("%s/%s_Benchmark.nc" % (self.output_path,self.name),mode="w")
-            results.setncatts({"name" :"Benchmark", "color":np.asarray([0.5,0.5,0.5])})
+            results.setncatts({"name" :"Benchmark", "color":np.asarray([0.5,0.5,0.5]),"complete":0})
             obs_area.toNetCDF4(results,group="MeanState")
+            results.setncattr("complete",1)
             results.close()
 
     def modelPlots(self,m):
