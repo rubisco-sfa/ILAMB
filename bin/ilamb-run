@@ -8,7 +8,7 @@ from ILAMB.Scoreboard import Scoreboard
 from ILAMB.Regions import Regions
 from ILAMB import ilamblib as il
 from traceback import format_exc
-import os,time,sys,argparse
+import os,time,sys,argparse,pickle
 from mpi4py import MPI
 import numpy as np
 import datetime,glob
@@ -29,7 +29,7 @@ OK   = '\033[92m'
 FAIL = '\033[91m'
 ENDC = '\033[0m'
 
-def InitializeModels(model_root,models=[],verbose=False,filter="",regex="",model_year=[],log=True):
+def InitializeModels(model_root,models=[],verbose=False,filter="",regex="",model_year=[],log=True,models_path="./"):
     """Initializes a list of models
 
     Initializes a list of models where each model is the subdirectory
@@ -53,7 +53,7 @@ def InitializeModels(model_root,models=[],verbose=False,filter="",regex="",model
        a list of the model results, sorted alphabetically by name
 
     """
-    # initialize the models
+    # initialize the models    
     M = []
     if len(model_year) != 2: model_year = None
     max_model_name_len = 0
@@ -61,22 +61,33 @@ def InitializeModels(model_root,models=[],verbose=False,filter="",regex="",model
     for subdir, dirs, files in os.walk(model_root):
         for mname in dirs:
             if len(models) > 0 and mname not in models: continue
-            try:
-                m = ModelResult(os.path.join(subdir,mname), modelname = mname, filter=filter, regex=regex, model_year = model_year)
-            except Exception as ex:
-                if log: logger.debug("[%s]" % mname,format_exc())
-                continue
+            if os.path.isfile(os.path.join(models_path,"%s.pkl" % mname)):
+                with open('%s.pkl' % mname, 'rb') as infile:
+                    m = pickle.load(infile)
+            else:
+                try:
+                    m = ModelResult(os.path.join(subdir,mname), modelname = mname, filter=filter, regex=regex, model_year = model_year)
+                except Exception as ex:
+                    if log: logger.debug("[%s]" % mname,format_exc())
+                    continue
             M.append(m)
             max_model_name_len = max(max_model_name_len,len(mname))
         break
     M = sorted(M,key=lambda m: m.name.upper())
-
+    
     # assign unique colors
     clrs = il.GenerateDistinctColors(len(M))
     for m in M:
         clr     = clrs.pop(0)
         m.color = clr
 
+    # save model objects as pickle files
+    comm.Barrier()
+    if rank == 0:
+        for m in M:
+            with open('%s.pkl' % m.name, 'wb') as out:
+                pickle.dump(m,out,pickle.HIGHEST_PROTOCOL)
+        
     # optionally output models which were found
     if rank == 0 and verbose:
         for m in M:
