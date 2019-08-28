@@ -220,6 +220,7 @@ def BuildScalars(node):
         for fname in files:
             with Dataset(fname) as dset:
                 if dset.name not in models: continue
+                if section not in dset.groups: continue
                 grp = dset.groups[section]["scalars"]
                 scores = [c for c in grp.variables.keys() if "Score" in c]
                 global_scores += [c for c in scores if ((c not in global_scores) and ("global" in c))]
