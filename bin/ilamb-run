@@ -382,7 +382,7 @@ def WorkConfront(W,verbose=False,clean=False):
             proc[rank] += dt
             if verbose:
                 dt = datetime.timedelta(seconds=max(1,int(np.round(dt))))
-                print(("    {0:>%d} {1:<%d} %sCompleted%s {2:>8} [%d] %d/%d" % (maxCL,maxML,OK,ENDC,rank,i+1,len(W))).format(c.longname,m.name,str(dt)))
+                print(("    {0:>%d} {1:<%d} %sCompleted%s {2:>8}" % (maxCL,maxML,OK,ENDC)).format(c.longname,m.name,str(dt)))
                 sys.stdout.flush()
 
         # if things do not work out, print the exception so the user has some idea
@@ -390,7 +390,7 @@ def WorkConfront(W,verbose=False,clean=False):
             ierr[rank] = 1
             logger.debug("[%s][%s]\n%s" % (c.longname,m.name,format_exc()))
             if verbose:
-                print(("    {0:>%d} {1:<%d} %s%s%s [%d] %d/%d" % (maxCL,maxML,FAIL,ex.__class__.__name__,ENDC,rank,i+1,len(W))).format(c.longname,m.name))
+                print(("    {0:>%d} {1:<%d} %s%s%s" % (maxCL,maxML,FAIL,ex.__class__.__name__,ENDC)).format(c.longname,m.name))
                 
 def WorkPost(M,C,W,S,verbose=False,skip_plots=False):
     """Performs the post-processing
@@ -426,13 +426,13 @@ def WorkPost(M,C,W,S,verbose=False,skip_plots=False):
             proc[rank] += dt
             if verbose:
                 dt = datetime.timedelta(seconds=max(1,int(np.round(dt))))
-                print(("    {0:>%d} {1:<%d} %sCompleted%s {2:>8} [%d] %d/%d" % (maxCL,maxML,OK,ENDC,rank,i+1,len(W))).format(c.longname,m.name,str(dt)))
+                print(("    {0:>%d} {1:<%d} %sCompleted%s {2:>8}" % (maxCL,maxML,OK,ENDC)).format(c.longname,m.name,str(dt)))
                 sys.stdout.flush()
         except Exception as ex:
             ierr[rank] = 1
             logger.debug("[%s][%s]\n%s" % (c.longname,m.name,format_exc()))
             if verbose:
-                print(("    {0:>%d} {1:<%d} %s%s%s [%d] %d/%d" % (maxCL,maxML,FAIL,ex.__class__.__name__,ENDC,rank,i+1,len(W))).format(c.longname,m.name))
+                print(("    {0:>%d} {1:<%d} %s%s%s" % (maxCL,maxML,FAIL,ex.__class__.__name__,ENDC)).format(c.longname,m.name))
                 sys.stdout.flush()
 
     sys.stdout.flush(); comm.Barrier()
