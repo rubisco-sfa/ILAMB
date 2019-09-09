@@ -579,7 +579,7 @@ class Confrontation(object):
         if ncol > 0:
             fig,ax = plt.subplots(figsize=(3.*ncol,2.8),tight_layout=True)
             ax.legend(handles,labels,loc="upper right",ncol=ncol,fontsize=10,numpoints=1)
-            ax.axis('off')
+            ax.axis(False)
             fig.savefig(os.path.join(self.output_path,"legend_compcycle.png"))
             fig.savefig(os.path.join(self.output_path,"legend_spatial_variance.png"))
             fig.savefig(os.path.join(self.output_path,"legend_temporal_variance.png"))

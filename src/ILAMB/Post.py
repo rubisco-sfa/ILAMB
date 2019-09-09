@@ -385,7 +385,9 @@ class HtmlPage(object):
                     add = ""
                     try:
                         tmp = self.metric_dict[model][region][metric].data
-                        if type(tmp) != np.ma.core.MaskedConstant:
+                        if tmp.mask.all():
+                            add = ""
+                        else:
                             add = ("%#." + "%d" % sig + "g") % tmp
                     except:
                         pass
