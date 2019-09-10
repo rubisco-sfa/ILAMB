@@ -16,3 +16,4 @@ dependencies:
   - udunits
   - mpi4py
   - cf_units
+  - cython

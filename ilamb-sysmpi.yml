@@ -15,6 +15,7 @@ dependencies:
   - sympy
   - scipy
   - udunits
-  - cf_units  
+  - cf_units
+  - cython
   - pip:
     - mpi4py
