@@ -3,7 +3,6 @@ from .Confrontation import getVariableList
 import matplotlib.pyplot as plt
 from . import Post as post
 from scipy.interpolate import CubicSpline
-from mpl_toolkits.basemap import Basemap
 from .Variable import Variable
 from netCDF4 import Dataset
 from . import ilamblib as il

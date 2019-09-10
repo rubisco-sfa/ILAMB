@@ -1,5 +1,4 @@
 from .Confrontation import Confrontation
-from mpl_toolkits.basemap import Basemap
 from .Variable import Variable
 from netCDF4 import Dataset
 from . import ilamblib as il

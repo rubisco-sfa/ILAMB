@@ -7,14 +7,12 @@ channels:
   - defaults
 dependencies:
   - python=3
-  - proj4
   - numpy
   - matplotlib
-  - basemap
+  - cartopy
   - netCDF4
   - sympy
   - scipy
   - udunits
   - mpi4py
-  - pip:
-    - cf_units
+  - cf_units

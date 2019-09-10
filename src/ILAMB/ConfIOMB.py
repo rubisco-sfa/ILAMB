@@ -542,15 +542,14 @@ class ConfIOMB(Confrontation):
                                    side   = "MODEL %s AT %d [m]" % (plbl[ptype],z),
                                    legend = True)
                     for region in self.regions:
-                        fig = plt.figure()
-                        ax  = fig.add_axes([0.06,0.025,0.88,0.965])
-                        var.plot(ax,
-                                 region = region,
-                                 vmin   = self.limits[vname]["min"],
-                                 vmax   = self.limits[vname]["max"],
-                                 cmap   = cmap[ptype],
-                                 land   = 0.750,
-                                 water  = 0.875)
+                        ax = var.plot(None,
+                                      region = region,
+                                      vmin   = self.limits[vname]["min"],
+                                      vmax   = self.limits[vname]["max"],
+                                      cmap   = cmap[ptype],
+                                      land   = 0.750,
+                                      water  = 0.875)
+                        fig = ax.get_figure()
                         fig.savefig("%s/%s_%s_%s.png" % (self.output_path,m.name,region,vname))
                         plt.close()
 
@@ -690,15 +689,14 @@ class ConfIOMB(Confrontation):
                                    side   = "BENCHMARK %s AT %d [m]" % (plbl[ptype],z),
                                    legend = True)
                     for region in self.regions:
-                        fig = plt.figure()
-                        ax  = fig.add_axes([0.06,0.025,0.88,0.965])
-                        var.plot(ax,
-                                 region = region,
-                                 vmin   = self.limits[vname]["min"],
-                                 vmax   = self.limits[vname]["max"],
-                                 cmap   = cmap[ptype],
-                                 land   = 0.750,
-                                 water  = 0.875)
+                        ax = var.plot(None,
+                                      region = region,
+                                      vmin   = self.limits[vname]["min"],
+                                      vmax   = self.limits[vname]["max"],
+                                      cmap   = cmap[ptype],
+                                      land   = 0.750,
+                                      water  = 0.875)
+                        fig = ax.get_figure()
                         fig.savefig("%s/Benchmark_%s_%s.png" % (self.output_path,region,vname))
                         plt.close()
 

@@ -270,12 +270,12 @@ class ConfUncertainty(Confrontation):
             plt.close()
             
             for region in self.regions:
-                fig,ax = plt.subplots(figsize=(6.8,2.8),tight_layout=True)
-                v.plot(ax,
-                       region = region,
-                       vmin   = vmin,
-                       vmax   = vmax,
-                       cmap   = "Reds")
+                ax = v.plot(None,
+                            region = region,
+                            vmin   = vmin,
+                            vmax   = vmax,
+                            cmap   = "Reds")
+                fig = ax.get_figure()
                 fig.savefig(os.path.join(self.output_path,"%s_%s_%s.png" % (m.name,region,pname)))
                 plt.close()
 

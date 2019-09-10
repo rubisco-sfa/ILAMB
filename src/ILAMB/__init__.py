@@ -11,20 +11,13 @@ requires = {
     "matplotlib"           : "1.4.3",
     "netCDF4"              : "1.1.4",
     "cf_units"             : "2.0.0",
-    "mpl_toolkits.basemap" : "1.0.7",
+    "cartopy"              : "0.17.0",
     "sympy"                : "0.7.6",
     "mpi4py"               : "1.3.1"
 }
 
-froms = {
-    "mpl_toolkits.basemap" : "Basemap"
-}
-
 for key in requires.keys():
-    if "." in key:
-        pkg = __import__(key, globals(), locals(), [froms[key]])
-    else:
-        pkg = __import__(key)
+    pkg = __import__(key)
     if LooseVersion(pkg.__version__) < LooseVersion(requires[key]):
         raise ImportError(
             "Bad %s version: ILAMB %s requires %s >= %s got %s" %

@@ -1,12 +1,14 @@
 from .constants import mid_months,bnd_months
 from .Regions import Regions
-from mpl_toolkits.basemap import Basemap
 import matplotlib.colors as colors
+import cartopy.crs as ccrs
+import cartopy.feature as cfeature
 from pylab import get_cmap
 from cf_units import Unit
 from . import ilamblib as il
 from . import Post as post
 import numpy as np
+import matplotlib.pyplot as plt
 
 def _shiftLon(lon):
     return (lon<=180)*lon + (lon>180)*(lon-360) + (lon<-180)*360
@@ -1169,81 +1171,88 @@ class Variable:
 
         elif not self.temporal:
 
-            # Mask out areas outside our region
+            # mask out areas outside our region
             rem_mask  = np.copy(self.data.mask)
             self.data.mask += r.getMask(region,self)
 
-            # Find the figure geometry
-            if self.ndata:
-                LAT = np.ma.masked_array(self.lat,mask=self.data.mask,copy=True)
-                LON = np.ma.masked_array(self.lon,mask=self.data.mask,copy=True)
-                dateline = False
+            # determine the plotting extents
+            percent_pad = 0.2
+            if self.ndata is None:
+                
+                lat_empty = np.where(self.data.mask.all(axis=-1)==False)[0]
+                lon_empty = np.where(self.data.mask.all(axis=-2)==False)[0]        
+                extents = [self.lon_bnds[lon_empty[ 0],0],
+                           self.lon_bnds[lon_empty[-1],1],
+                           self.lat_bnds[lat_empty[ 0],0],
+                           self.lat_bnds[lat_empty[-1],1]]
+                dx = percent_pad*(extents[1]-extents[0])
+                dy = percent_pad*(extents[3]-extents[2])
+                extents[0] = max(extents[0]-dx,-180); extents[1] = min(extents[1]+dx,+180)
+                extents[2] = max(extents[2]-dy,- 90); extents[3] = min(extents[3]+dy,+ 90)
+                                
+                # ...but the data might cross the dateline, but not be global
+                if(lon_empty[ 0]== 0 and
+                   lon_empty[-1]==(self.lon.size-1) and
+                   np.diff(lon_empty).max() > 0.5*self.lon.size):
+                    wrap_lon  = self.lon[lon_empty]
+                    wrap_lon += (wrap_lon<0)*360
+                    extents[0] = wrap_lon.min()
+                    extents[1] = wrap_lon.max()
+                    dx = percent_pad*(extents[1]-extents[0])
+                    extents[0] -= dx; extents[1] += dx
+                    
+                # find the middle centroid by mean angle 
+                lons = self.lon[np.where(self.data.mask.all(axis=-2)==False)[0]]
+                lons = lons/360*2*np.pi
+                lon_mid = np.arctan2(np.sin(lons).mean(),np.cos(lons).mean())/2/np.pi*360
+                
             else:
-                LAT,LON = np.meshgrid(self.lat,self.lon,indexing='ij')
-                LAT = np.ma.masked_array(LAT,mask=self.data.mask,copy=False)
-                LON = np.ma.masked_array(LON,mask=self.data.mask,copy=False)
+                extents = [self.lon.min(),self.lon.max(),
+                           self.lat.min(),self.lat.max()]
+                dx = percent_pad*(extents[1]-extents[0])
+                dy = percent_pad*(extents[3]-extents[2])
+                extents[0] = max(extents[0]-dx,-180); extents[1] = min(extents[1]+dx,+180)
+                extents[2] = max(extents[2]-dy,- 90); extents[3] = min(extents[3]+dy,+ 90)
+                lon_mid = 0.5*(extents[0]+extents[1])
+                
+            # choose a projection based on the non-masked data
+            proj = ccrs.PlateCarree(central_longitude=lon_mid)
+            aspect_ratio = (extents[3]-extents[2])/(extents[1]-extents[0])
+            if (extents[1]-extents[0]) > 320:
+                if np.allclose(extents[2],-90) and extents[3] <= 0:
+                    proj = ccrs.Orthographic(central_latitude=-90,central_longitude=0)
+                    aspect_ratio = 1.
+                elif np.allclose(extents[3],+90) and extents[2] >= 0:
+                    proj = ccrs.Orthographic(central_latitude=+90,central_longitude=0)
+                    aspect_ratio = 1.
+                elif (extents[3]-extents[2]) > 160:
+                    proj = ccrs.Robinson(central_longitude=0)
 
-            lat0 = LAT.min() ; latf = LAT.max()
-            lon0 = LON.min() ; lonf = LON.max()
-            latm = LAT.mean(); lonm = LON.mean()
-            area = (latf-lat0)*(lonf-lon0)
-
-            # Setup the plot projection depending on data limits
-            bmap = Basemap(projection = 'robin',
-                           lon_0      = 0,
-                           ax         = ax,
-                           resolution = 'c')
-            if (lon0 < -170.) and (lonf > 170.):
-                if lat0 > 23.5:
-                    bmap = Basemap(projection  = 'npstere',
-                                   boundinglat = lat0-5.,
-                                   lon_0       = 0.,
-                                   ax          = ax,
-                                   resolution  = 'c')
-                elif latf < -23.5:
-                    bmap = Basemap(projection  = 'spstere',
-                                   boundinglat = latf+5.,
-                                   lon_0       = 180.,
-                                   ax          = ax,
-                                   resolution  = 'c')
+            # make the plot
+            w = 7.5; h = w*aspect_ratio
+            fig,ax = plt.subplots(figsize=(w,h),
+                                  subplot_kw={'projection':proj})
+            if self.ndata is None:
+                lat = np.hstack([self.lat_bnds[:,0],self.lat_bnds[-1,-1]])
+                lon = np.hstack([self.lon_bnds[:,0],self.lon_bnds[-1,-1]])
+                p = ax.pcolormesh(lon,lat,self.data,cmap=cmap,vmin=vmin,vmax=vmax,transform=ccrs.PlateCarree())
             else:
-                if area < 10000.:
-                    bmap = Basemap(projection = 'cyl',
-                                   llcrnrlon  = lon0-2*pad,
-                                   llcrnrlat  = lat0-  pad,
-                                   urcrnrlon  = lonf+2*pad,
-                                   urcrnrlat  = latf+  pad,
-                                   ax         = ax,
-                                   resolution = 'c')
-            try:
-                bmap.drawlsmask(land_color  = str(land),
-                                ocean_color = str(water),
-                                lakes       = True)
-            except:
-                bmap.drawcoastlines(linewidth = 0.2,
-                                    color     = "darkslategrey")
-
-            if self.spatial:
-                LAT,LON = np.meshgrid(self.lat,self.lon,indexing='ij')
-                ax = bmap.pcolormesh(LON,LAT,self.data,
-                                     latlon=True,vmin=vmin,vmax=vmax,cmap=cmap)
-            elif self.ndata is not None:
-                x,y  = bmap(self.lon[self.data.mask==False],
-                            self.lat[self.data.mask==False])
-                data = self.data[self.data.mask==False]
                 norm = colors.Normalize(vmin,vmax)
-                norm = norm(data)
-                clmp = get_cmap(cmap)
-                clrs = clmp(norm)
-                size = 35
-                ax   = bmap.scatter(x,y,s=size,color=clrs,ax=ax,linewidths=0,cmap=cmap)
-            if cbar:
-                cb = bmap.colorbar(ax,location='bottom',pad="5%")
-                if label is not None: cb.set_label(label)
+                cmap = get_cmap(cmap)
+                clrs = cmap(norm(self.data))
+                p = ax.scatter(self.lon,self.lat,s=35,color=clrs,cmap=cmap,linewidths=0)
+            ax.add_feature(cfeature.NaturalEarthFeature('physical','land','110m',
+                                                        edgecolor='face',
+                                                        facecolor='0.875'),zorder=-1)
+            ax.add_feature(cfeature.NaturalEarthFeature('physical','ocean','110m',
+                                                        edgecolor='face',
+                                                        facecolor='0.750'),zorder=-1)
+            ax.set_extent(extents,ccrs.PlateCarree())
+            if cbar: fig.colorbar(p,orientation='horizontal',pad=0.05,label=label)
             if rem_mask is not None: self.data.mask = rem_mask
+            
         return ax
-
-
+    
     def interpolate(self,time=None,lat=None,lon=None,lat_bnds=None,lon_bnds=None,itype='nearestneighbor'):
         """Use nearest-neighbor interpolation to interpolate time and/or space at given values.
 

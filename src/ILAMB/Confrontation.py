@@ -651,13 +651,12 @@ class Confrontation(object):
 
                         # plot variable
                         for region in self.regions:
-                            fig = plt.figure(figsize=(6.8,2.8))
-                            ax  = fig.add_axes([0.06,0.025,0.88,0.965])
-                            var.plot(ax,
-                                     region = region,
-                                     vmin   = self.limits[pname]["min"],
-                                     vmax   = self.limits[pname]["max"],
-                                     cmap   = self.limits[pname]["cmap"])
+                            ax = var.plot(None,
+                                          region = region,
+                                          vmin   = self.limits[pname]["min"],
+                                          vmax   = self.limits[pname]["max"],
+                                          cmap   = self.limits[pname]["cmap"])
+                            fig = ax.get_figure()
                             fig.savefig(os.path.join(self.output_path,"%s_%s_%s.png" % (m.name,region,pname)))
                             plt.close()
 
@@ -676,13 +675,12 @@ class Confrontation(object):
                             # plot variable
                             obs = Variable(filename=bname,groupname="MeanState",variable_name=vname)
                             for region in self.regions:
-                                fig = plt.figure(figsize=(6.8,2.8))
-                                ax  = fig.add_axes([0.06,0.025,0.88,0.965])
-                                obs.plot(ax,
-                                         region = region,
-                                         vmin   = self.limits[pname]["min"],
-                                         vmax   = self.limits[pname]["max"],
-                                         cmap   = self.limits[pname]["cmap"])
+                                ax = obs.plot(None,
+                                              region = region,
+                                              vmin   = self.limits[pname]["min"],
+                                              vmax   = self.limits[pname]["max"],
+                                              cmap   = self.limits[pname]["cmap"])
+                                fig = ax.get_figure()
                                 fig.savefig(os.path.join(self.output_path,"Benchmark_%s_%s.png" % (region,pname)))
                                 plt.close()
 

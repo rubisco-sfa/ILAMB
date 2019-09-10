@@ -101,7 +101,7 @@ setup(
     zip_safe=False,
     install_requires=['numpy>=1.11.0',
                       'matplotlib>=2.2',
-                      #'basemap>=1.0.7', # basemap is in pypi but broken, need to manually install
+                      'cartopy>=0.17.0',
                       'netCDF4>=1.1.4',
                       'cf_units>=2.0.0',
                       'sympy>=0.7.6',

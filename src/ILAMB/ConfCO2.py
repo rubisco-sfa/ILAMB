@@ -1,6 +1,7 @@
 from .Confrontation import Confrontation
 from scipy.interpolate import CubicSpline
-from mpl_toolkits.basemap import Basemap
+import cartopy.crs as ccrs
+import cartopy.feature as cfeature
 from .Variable import Variable
 from .Regions import Regions
 from .constants import mid_months,lbl_months,bnd_months
@@ -672,19 +673,16 @@ class ConfCO2(Confrontation):
         iav_ticks  = (iav_ticks -min_iav)/(max_iav-min_iav)*360.-180.
 
         # Plot mean latitude band amplitude where amplitude is on the longitude axis
-        fig,ax = plt.subplots(figsize=(8,4.5),tight_layout=True)
-        bmap = Basemap(projection = 'cyl',
-                       llcrnrlon  = -180,
-                       llcrnrlat  = - 90,
-                       urcrnrlon  = +180,
-                       urcrnrlat  = + 90,
-                       ax         = ax,
-                       resolution = 'c')
-        bmap.drawlsmask(land_color  = "0.875",
-                        ocean_color = "1.000",
-                        lakes       = True)
+        fig,ax = plt.subplots(figsize=(8,4.5),tight_layout=True,subplot_kw={'projection':ccrs.PlateCarree()})
+        ax.add_feature(cfeature.NaturalEarthFeature('physical','land','110m',
+                                                    edgecolor='face',
+                                                    facecolor='0.875'),zorder=-1)
+        ax.add_feature(cfeature.NaturalEarthFeature('physical','ocean','110m',
+                                                    edgecolor='face',
+                                                    facecolor='1.000'),zorder=-1)
+        ax.set_extent([-180,+180,-90,+90],ccrs.PlateCarree())
         ms = 8
-        bmap.scatter(obs.lon,obs.lat,8,color="0.60",latlon=True,label="Sites",ax=ax)
+        ax.scatter(obs.lon,obs.lat,8,color="0.60",label="Sites")
         ax.plot(o_band_amp,lat,'--o',color=np.asarray([0.5,0.5,0.5]),label="%s amplitude" % self.name,mew=0,markersize=ms)
         ax.plot(m_band_amp,lat,'-o' ,color=m.color,label="%s amplitude" % m.name,mew=0,markersize=ms)
         ax.yaxis.grid(color="0.875",linestyle="-")
@@ -704,19 +702,17 @@ class ConfCO2(Confrontation):
                        legend = False)
 
         # Plot mean latitude band iav where iav is on the longitude axis
-        fig,ax = plt.subplots(figsize=(8,4.5),tight_layout=True)
-        bmap = Basemap(projection = 'cyl',
-                       llcrnrlon  = -180,
-                       llcrnrlat  = - 90,
-                       urcrnrlon  = +180,
-                       urcrnrlat  = + 90,
-                       ax         = ax,
-                       resolution = 'c')
-        bmap.drawlsmask(land_color  = "0.875",
-                        ocean_color = "1.000",
-                        lakes       = True)
+       
+        fig,ax = plt.subplots(figsize=(8,4.5),tight_layout=True,subplot_kw={'projection':ccrs.PlateCarree()})
+        ax.add_feature(cfeature.NaturalEarthFeature('physical','land','110m',
+                                                    edgecolor='face',
+                                                    facecolor='0.875'),zorder=-1)
+        ax.add_feature(cfeature.NaturalEarthFeature('physical','ocean','110m',
+                                                    edgecolor='face',
+                                                    facecolor='1.000'),zorder=-1)
+        ax.set_extent([-180,+180,-90,+90],ccrs.PlateCarree())
         ms = 8
-        bmap.scatter(obs.lon,obs.lat,8,color="0.60",latlon=True,label="Sites",ax=ax)
+        ax.scatter(obs.lon,obs.lat,8,color="0.60",label="Sites")
         ax.plot(o_band_iav,lat,'--o',color=np.asarray([0.5,0.5,0.5]),label="%s variability" % self.name,mew=0,markersize=ms)
         ax.plot(m_band_iav,lat,'-o' ,color=m.color,label="%s variability" % m.name,mew=0,markersize=ms)
         ax.yaxis.grid(color="0.875",linestyle="-")
@@ -736,18 +732,16 @@ class ConfCO2(Confrontation):
                        legend = False)
 
         # Plot mean latitude band max phase where the phase is on the longitude axis
-        fig,ax = plt.subplots(figsize=(8,4.5),tight_layout=True)
-        bmap = Basemap(projection = 'cyl',
-                       llcrnrlon  = -180,
-                       llcrnrlat  = - 90,
-                       urcrnrlon  = +180,
-                       urcrnrlat  = + 90,
-                       ax         = ax,
-                       resolution = 'c')
-        bmap.drawlsmask(land_color  = "0.875",
-                        ocean_color = "1.000",
-                        lakes       = True)
-        bmap.scatter(obs.lon,obs.lat,8,color="0.60",latlon=True,label="Sites",ax=ax)
+        fig,ax = plt.subplots(figsize=(8,4.5),tight_layout=True,subplot_kw={'projection':ccrs.PlateCarree()})
+        ax.add_feature(cfeature.NaturalEarthFeature('physical','land','110m',
+                                                    edgecolor='face',
+                                                    facecolor='0.875'),zorder=-1)
+        ax.add_feature(cfeature.NaturalEarthFeature('physical','ocean','110m',
+                                                    edgecolor='face',
+                                                    facecolor='1.000'),zorder=-1)
+        ax.set_extent([-180,+180,-90,+90],ccrs.PlateCarree())
+        ms = 8
+        ax.scatter(obs.lon,obs.lat,8,color="0.60",label="Sites")
         ax.plot(o_band_max,lat,'--o',color=np.asarray([0.5,0.5,0.5]),label="%s maximum" % self.name,mew=0,markersize=ms)
         ax.plot(m_band_max,lat,'-o' ,color=m.color,label="%s maximum" % m.name,mew=0,markersize=ms)
         ax.yaxis.grid(color="0.875",linestyle="-")
@@ -766,18 +760,16 @@ class ConfCO2(Confrontation):
                        legend = False)
 
         # Plot mean latitude band min phase where the phase is on the longitude axis
-        fig,ax = plt.subplots(figsize=(8,4.5),tight_layout=True)
-        bmap = Basemap(projection = 'cyl',
-                       llcrnrlon  = -180,
-                       llcrnrlat  = - 90,
-                       urcrnrlon  = +180,
-                       urcrnrlat  = + 90,
-                       ax         = ax,
-                       resolution = 'c')
-        bmap.drawlsmask(land_color  = "0.875",
-                        ocean_color = "1.000",
-                        lakes       = True)
-        bmap.scatter(obs.lon,obs.lat,8,color="0.60",latlon=True,label="Sites",ax=ax)
+        fig,ax = plt.subplots(figsize=(8,4.5),tight_layout=True,subplot_kw={'projection':ccrs.PlateCarree()})
+        ax.add_feature(cfeature.NaturalEarthFeature('physical','land','110m',
+                                                    edgecolor='face',
+                                                    facecolor='0.875'),zorder=-1)
+        ax.add_feature(cfeature.NaturalEarthFeature('physical','ocean','110m',
+                                                    edgecolor='face',
+                                                    facecolor='1.000'),zorder=-1)
+        ax.set_extent([-180,+180,-90,+90],ccrs.PlateCarree())
+        ms = 8
+        ax.scatter(obs.lon,obs.lat,8,color="0.60",label="Sites")
         ax.plot(o_band_min,lat,'--o',color=np.asarray([0.5,0.5,0.5]),label="%s minimum" % self.name,mew=0,markersize=ms)
         ax.plot(m_band_min,lat,'-o' ,color=m.color,label="%s minimum" % m.name,mew=0,markersize=ms)
         ax.yaxis.grid(color="0.875",linestyle="-")

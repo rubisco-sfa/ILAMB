@@ -1,5 +1,6 @@
 from .Confrontation import Confrontation
-from mpl_toolkits.basemap import Basemap
+import cartopy.crs as ccrs
+import cartopy.feature as cfeature
 from .Variable import Variable
 from .Post import ColorBar
 import matplotlib.pyplot as plt
@@ -238,11 +239,18 @@ class ConfPermafrost(Confrontation):
                        side   = "BIAS",
                        legend = True)
 
-        plt.figure(figsize=(10,10),dpi=60)
-        mp  = Basemap(projection='ortho',lat_0=90.,lon_0=180.,resolution='c')
-        X,Y = np.meshgrid(mod.lat,mod.lon,indexing='ij')
-        mp.pcolormesh(Y,X,np.ma.masked_values(mod.data,0),latlon=True,cmap="Blues",vmin=0,vmax=2)
-        mp.drawlsmask(land_color='lightgrey',ocean_color='grey',lakes=True)
+        fig,ax = plt.subplots(figsize=(10,10),dpi=60,
+                              subplot_kw={'projection':ccrs.Orthographic(central_latitude=+90,central_longitude=180)})
+        lat = np.hstack([mod.lat_bnds[:,0],mod.lat_bnds[-1,-1]])
+        lon = np.hstack([mod.lon_bnds[:,0],mod.lon_bnds[-1,-1]])
+        ax.pcolormesh(lon,lat,np.ma.masked_values(mod.data,0),
+                      cmap="Blues",vmin=0,vmax=2,transform=ccrs.PlateCarree())
+        ax.add_feature(cfeature.NaturalEarthFeature('physical','land','110m',
+                                                    edgecolor='face',
+                                                    facecolor='0.875'),zorder=-1)
+        ax.add_feature(cfeature.NaturalEarthFeature('physical','ocean','110m',
+                                                    edgecolor='face',
+                                                    facecolor='0.750'),zorder=-1)
         plt.savefig("%s/%s_global_timeint.png" % (self.output_path,m.name),dpi='figure')
         plt.close()
 
@@ -257,11 +265,17 @@ class ConfPermafrost(Confrontation):
         bias = np.ma.masked_invalid(bias)
 
         cmap = plt.get_cmap('bwr',3)
-        plt.figure(figsize=(10,10),dpi=60)
-        mp  = Basemap(projection='ortho',lat_0=90.,lon_0=180.,resolution='c')
-        X,Y = np.meshgrid(tmp.lat,tmp.lon,indexing='ij')
-        mp.pcolormesh(Y,X,bias,latlon=True,cmap=cmap,vmin=-1.5,vmax=+1.5)
-        mp.drawlsmask(land_color='lightgrey',ocean_color='grey',lakes=True)
+        fig,ax = plt.subplots(figsize=(10,10),dpi=60,
+                              subplot_kw={'projection':ccrs.Orthographic(central_latitude=+90,central_longitude=180)})
+        lat = np.hstack([tmp.lat_bnds[:,0],tmp.lat_bnds[-1,-1]])
+        lon = np.hstack([tmp.lon_bnds[:,0],tmp.lon_bnds[-1,-1]])
+        ax.pcolormesh(lon,lat,bias,cmap=cmap,vmin=-1.5,vmax=+1.5,transform=ccrs.PlateCarree())
+        ax.add_feature(cfeature.NaturalEarthFeature('physical','land','110m',
+                                                    edgecolor='face',
+                                                    facecolor='0.875'),zorder=-1)
+        ax.add_feature(cfeature.NaturalEarthFeature('physical','ocean','110m',
+                                                    edgecolor='face',
+                                                    facecolor='0.750'),zorder=-1)
         plt.savefig("%s/%s_global_bias.png" % (self.output_path,m.name),dpi='figure')
         plt.close()
 
@@ -269,11 +283,20 @@ class ConfPermafrost(Confrontation):
             obs = Variable(filename      = self.source,
                            variable_name = "permafrost_extent")
             # plot result
-            plt.figure(figsize=(10,10),dpi=60)
-            mp  = Basemap(projection='ortho',lat_0=90.,lon_0=180.,resolution='c')
-            X,Y = np.meshgrid(obs.lat,obs.lon,indexing='ij')
-            mp.pcolormesh(Y,X,np.ma.masked_values(obs.data,0),latlon=True,cmap="Blues",vmin=0,vmax=2)
-            mp.drawlsmask(land_color='lightgrey',ocean_color='grey',lakes=True)
+
+            
+            fig,ax = plt.subplots(figsize=(10,10),dpi=60,
+                                  subplot_kw={'projection':ccrs.Orthographic(central_latitude=+90,central_longitude=180)})
+            lat = np.hstack([obs.lat_bnds[:,0],obs.lat_bnds[-1,-1]])
+            lon = np.hstack([obs.lon_bnds[:,0],obs.lon_bnds[-1,-1]])
+            ax.pcolormesh(lon,lat,np.ma.masked_values(obs.data,0),
+                          cmap="Blues",vmin=0,vmax=2,transform=ccrs.PlateCarree())
+            ax.add_feature(cfeature.NaturalEarthFeature('physical','land','110m',
+                                                        edgecolor='face',
+                                                        facecolor='0.875'),zorder=-1)
+            ax.add_feature(cfeature.NaturalEarthFeature('physical','ocean','110m',
+                                                        edgecolor='face',
+                                                        facecolor='0.750'),zorder=-1)
             plt.savefig("%s/Benchmark_global_timeint.png" % (self.output_path),dpi='figure')
             plt.close()
 
