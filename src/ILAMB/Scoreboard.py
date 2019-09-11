@@ -538,7 +538,7 @@ class Scoreboard():
 		      tab = "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;";
                       var link = h1.replace(/ /g,"") + "/";
                       link    += h2.replace(/ /g,"") + "/";
-                      link    += v.replace(/ /g,"")  + "/" + v.replace(/ /g,"") + ".html#DataInformation";
+                      link    += v.replace(/ /g,"")  + "/" + v.replace(/ /g,"") + ".html";
 	              var s_name = scalar_name;
                       if(h1 == "Relationships") {
                         s_name = v.substring(0,v.indexOf("/")) + " RMSE Score " + region_option.options[region_option.selectedIndex].value;
@@ -666,8 +666,7 @@ class Scoreboard():
             global global_sb
             d = node.getDepth()
             if d == 0: return
-            if d == 1:
-                row_color = node.bgcolor
+            if d == 1: row_color = node.bgcolor
             global_html += """
 	    <tr class="%s" bgcolor="%s">
               <td class="row-label"></td>""" % (row_class[d],row_color)
@@ -676,8 +675,14 @@ class Scoreboard():
                     href = ''
                 else:
                     path = node.output_path.replace(global_sb.build_dir,"")
+                    if "/" in node.name:
+                        fname = node.output_path[:-1] if node.output_path.endswith("/") else node.output_path
+                        fname = fname.split("/")[-1]
+                        path = os.path.join(path,"%s.html#Relationships" % (fname))                        
+                    else:
+                        path = os.path.join(path,"%s.html" % (node.name))
                     if path.startswith("/"): path = path[1:]
-                    href = '<a href="%s?model=%s" target="_blank">&nbsp;</a>' % (os.path.join(path,"%s.html" % (node.name)),m)
+                    href = '<a href="%s?model=%s" target="_blank">&nbsp;</a>' % (path,m)
 
                 global_html += """
               <td>%s</td>""" % href
