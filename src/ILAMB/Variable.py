@@ -1189,7 +1189,8 @@ class Variable:
                 dy = percent_pad*(extents[3]-extents[2])
                 extents[0] = max(extents[0]-dx,-180); extents[1] = min(extents[1]+dx,+180)
                 extents[2] = max(extents[2]-dy,- 90); extents[3] = min(extents[3]+dy,+ 90)
-                                
+                lon_mid    = 0.5*(extents[0]+extents[1])
+                
                 # ...but the data might cross the dateline, but not be global
                 if(lon_empty[ 0]== 0 and
                    lon_empty[-1]==(self.lon.size-1) and
@@ -1201,10 +1202,10 @@ class Variable:
                     dx = percent_pad*(extents[1]-extents[0])
                     extents[0] -= dx; extents[1] += dx
                     
-                # find the middle centroid by mean angle 
-                lons = self.lon[np.where(self.data.mask.all(axis=-2)==False)[0]]
-                lons = lons/360*2*np.pi
-                lon_mid = np.arctan2(np.sin(lons).mean(),np.cos(lons).mean())/2/np.pi*360
+                    # find the middle centroid by mean angle 
+                    lons = self.lon[np.where(self.data.mask.all(axis=-2)==False)[0]]
+                    lons = lons/360*2*np.pi
+                    lon_mid = np.arctan2(np.sin(lons).mean(),np.cos(lons).mean())/2/np.pi*360
                 
             else:
                 extents = [self.lon.min(),self.lon.max(),
@@ -1214,7 +1215,7 @@ class Variable:
                 extents[0] = max(extents[0]-dx,-180); extents[1] = min(extents[1]+dx,+180)
                 extents[2] = max(extents[2]-dy,- 90); extents[3] = min(extents[3]+dy,+ 90)
                 lon_mid = 0.5*(extents[0]+extents[1])
-                
+
             # choose a projection based on the non-masked data
             proj = ccrs.PlateCarree(central_longitude=lon_mid)
             aspect_ratio = (extents[3]-extents[2])/(extents[1]-extents[0])
@@ -1225,9 +1226,12 @@ class Variable:
                 elif np.allclose(extents[3],+90) and extents[2] >= 0:
                     proj = ccrs.Orthographic(central_latitude=+90,central_longitude=0)
                     aspect_ratio = 1.
-                elif (extents[3]-extents[2]) > 160:
+                elif (extents[3]-extents[2]) > 140:
                     proj = ccrs.Robinson(central_longitude=0)
-
+                    extents = [-180,180,-90,90]
+                    aspect_ratio = 0.5
+                    lon_mid = 0.
+                    
             # make the plot
             w = 7.5; h = w*aspect_ratio
             fig,ax = plt.subplots(figsize=(w,h),
@@ -1240,7 +1244,8 @@ class Variable:
                 norm = colors.Normalize(vmin,vmax)
                 cmap = get_cmap(cmap)
                 clrs = cmap(norm(self.data))
-                p = ax.scatter(self.lon,self.lat,s=35,color=clrs,cmap=cmap,linewidths=0)
+                p = ax.scatter(self.lon,self.lat,s=35,color=clrs,cmap=cmap,linewidths=0,
+                               transform=ccrs.PlateCarree())
             ax.add_feature(cfeature.NaturalEarthFeature('physical','land','110m',
                                                         edgecolor='face',
                                                         facecolor='0.875'),zorder=-1)
