@@ -1,13 +1,16 @@
 NP = 1
-OPTS = 
+OPTS =
 
-test_sample:
+all:
 	@mpirun -n ${NP} ilamb-run                \
 	--config test.cfg                         \
 	--model_root ${ILAMB_ROOT}/MODELS/TestModels \
 	--regions global shsa \
 	--title "ILAMB Benchmark: test runs" ${OPTS}
-	python score_diff.py scores_test.csv.gold _build/scores.csv 
+	@python score_diff.py scores_test.csv.gold _build/scores.csv 
+
+build:
+	@pushd ../; pip install ./; popd
 
 test_run_script:
 	nosetests test_run_script.py
