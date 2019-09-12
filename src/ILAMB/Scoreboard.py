@@ -523,28 +523,18 @@ class Scoreboard():
 	  var tab = "";
 	  var table = document.getElementById("scoresTable");
 	  for(let h1 in scalars){
-	      tab = "";
-	      table.rows[row].cells[0].innerHTML = tab + h1;
 	      printRow(table,row,scalars[h1][scalar_name],cmap);
 	      row += 1;
 	      H1 = scalars[h1]["children"]
 	      for(let h2 in H1){
-		  tab = "&nbsp;&nbsp;&nbsp;&nbsp;";
-		  table.rows[row].cells[0].innerHTML = tab + h2;
 		  printRow(table,row,H1[h2][scalar_name],cmap);
 		  row += 1;
 		  H2 = H1[h2]["children"]
 		  for(let v in H2){
-		      tab = "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;";
-                      var link = h1.replace(/ /g,"") + "/";
-                      link    += h2.replace(/ /g,"") + "/";
-                      link    += v.replace(/ /g,"")  + "/" + v.replace(/ /g,"") + ".html";
 	              var s_name = scalar_name;
                       if(h1 == "Relationships") {
                         s_name = v.substring(0,v.indexOf("/")) + " RMSE Score " + region_option.options[region_option.selectedIndex].value;
-                        table.rows[row].cells[0].innerHTML = "<a href='' target='_blank'>" + tab + v + "</a>";
                       }else{
-                        table.rows[row].cells[0].innerHTML = "<a href='" + link + "' target='_blank'>" + tab + v + "</a>";
                       }
 		      printRow(table,row,H2[v][s_name],cmap);
 		      row += 1;
@@ -667,9 +657,27 @@ class Scoreboard():
             d = node.getDepth()
             if d == 0: return
             if d == 1: row_color = node.bgcolor
+            row_header = "%s" % (";".join(["&nbsp"]*(4*(d-1))))
+            if len(row_header) > 0: row_header += ";"
+            row_header += node.name
+            if d == 3:
+                if node.parent.parent.name == "Relationships":
+                    path = node.output_path.replace(global_sb.build_dir,"")
+                    html = node.output_path.replace(global_sb.build_dir,"")
+                    if html.endswith("/"): html = html[:-1]
+                    html = html.split("/")[-1]
+                    row_link = "./%s/%s.html#Relationships" % (path,html)
+                    row_link = row_link.replace("//","/")
+                else:
+                    row_link = "./%s/%s/%s/%s.html" % (node.parent.parent.name.replace(" ",""),
+                                                       node.parent.name.replace(" ",""),
+                                                       node.name.replace(" ",""),
+                                                       node.name.replace(" ",""))
+                row_header = '<a href="%s" target="_blank">%s</a>' % (row_link,row_header)
+            
             global_html += """
 	    <tr class="%s" bgcolor="%s">
-              <td class="row-label"></td>""" % (row_class[d],row_color)
+              <td class="row-label">%s</td>""" % (row_class[d],row_color,row_header)
             for m in models:
                 if d < 3:
                     href = ''
