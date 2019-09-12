@@ -14,6 +14,7 @@ import numpy as np
 import datetime,glob
 from netCDF4 import Dataset
 import pylab as plt
+import re
 from ILAMB.Post import RegisterCustomColormaps
 if "stoplight" not in plt.colormaps(): RegisterCustomColormaps()
 
@@ -518,6 +519,17 @@ class MPIFileHandler(logging.FileHandler):
             self.stream.Close()
             self.stream = None
 
+def ParseRunOptions(filename):
+    run_opts = {}
+    for line in open(filename).readlines():
+        line = line.strip()
+        if line.startswith("#!"):
+            m3 = re.search(r"#!(.*)=(.*)",line)
+            if m3:
+                keyword = m3.group(1).strip()
+                value   = m3.group(2).strip().replace('"','')
+                run_opts[keyword] = value
+    return run_opts
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--model_root', dest="model_root", metavar='root', type=str, nargs=1, default=["./"],
@@ -564,6 +576,13 @@ if args.config is None:
         print("\nError: You must specify a configuration file using the option --config\n")
     comm.Barrier()
     comm.Abort(1)
+
+# Additional options could be in the configure file
+run_opts = ParseRunOptions(args.config[0])
+for key in run_opts:
+    if key in ['define_regions']:
+        define_regions = [os.path.join(os.environ['ILAMB_ROOT'],r) for r in run_opts[key].split(",")]
+        args.__dict__[key] += define_regions
 
 # Setup regions
 r = Regions()
