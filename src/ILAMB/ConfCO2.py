@@ -1,4 +1,4 @@
-from .Confrontation import Confrontation
+from .Confrontation import Confrontation,create_data_header
 from scipy.interpolate import CubicSpline
 import cartopy.crs as ccrs
 import cartopy.feature as cfeature
@@ -130,9 +130,27 @@ class ConfCO2(Confrontation):
         pages.append(post.HtmlPage("DataInformation","Data Information"))
         pages[-1].setSections([])
         pages[-1].text = "\n"
+
+        def _attribute_sort(attr):
+            # If the attribute begins with one of the ones we
+            # specifically order, return the index into order. If
+            # it does not, return the number of entries in the
+            # list and the file's order will be preserved.
+            order = ['title','version','institution','source','history','references','comments','convention']
+            for i,a in enumerate(order):
+                if attr.lower().startswith(a): return i
+            return len(order)
         with Dataset(self.source) as dset:
-            for attr in dset.ncattrs():
-                pages[-1].text += "<p><b>&nbsp;&nbsp;%s:&nbsp;</b>%s</p>\n" % (attr,dset.getncattr(attr).encode('ascii','ignore'))
+            attrs = dset.ncattrs()
+            attrs = sorted(attrs,key=_attribute_sort)
+            for attr in attrs:
+                try:
+                    val = dset.getncattr(attr)
+                    if type(val) != str: val = str(val)
+                    pages[-1].text += create_data_header(attr,val)
+                except:
+                    pass
+        
         self.layout = post.HtmlLayout(pages,self.longname)
 
         # Adding a member variable called basins, add them as regions
