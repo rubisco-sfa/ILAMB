@@ -88,15 +88,15 @@ def create_data_header(attr, val):
             else:
                 new_artc = "<dd>" + author + "&nbsp;" + year + ",&nbsp;" + title + ",&nbsp;" + journal + ",&nbsp;" + number + ",&nbsp;" + page + ",&nbsp;" + link_doi + ".</dd><BR>"
             final_val = final_val + new_artc
-       else:
-          for i in range(nlist):
-              if "http" in list_val[i]:
-                 url = find_url(list_val[i])
-                 url_new = "<a href='%s'>%s</a>" % (url[0], url[0])
-                 val_new = "XXX" #list_val[i].replace(url_old, url_new)
-                 final_val = final_val + "<dd>" + val_new + "</dd>"
-              else:
-                 final_val = final_val + "<dd>" + list_val[i] + "</dd>"
+    else:
+        for i in range(nlist):
+            if "http" in list_val[i]:
+                url = find_url(list_val[i])
+                url_new = "<a href='%s'>%s</a>" % (url[0], url[0])
+                val_new = "XXX" #list_val[i].replace(url_old, url_new)
+                final_val = final_val + "<dd>" + val_new + "</dd>"
+            else:
+                final_val = final_val + "<dd>" + list_val[i] + "</dd>"
     return final_val
 
 class Confrontation(object):
@@ -233,7 +233,20 @@ class Confrontation(object):
         pages[-1].setSections([])
         pages[-1].text = "\n"
         with Dataset(self.source) as dset:
-            for attr in dset.ncattrs():
+
+            def _attribute_sort(attr):
+                # If the attribute begins with one of the ones we
+                # specifically order, return the index into order. If
+                # it does not, return the number of entries in the
+                # list and the file's order will be preserved.
+                order = ['title','version','institution','source','history','references','comments','convention']
+                for i,a in enumerate(order):
+                    if attr.lower().startswith(a): return i
+                return len(order)
+            attrs = dset.ncattrs()
+            attrs = sorted(attrs,key=_attribute_sort)
+            
+            for attr in attrs:
                 try:
                     val = dset.getncattr(attr)
                     if type(val) != str: val = str(val)
