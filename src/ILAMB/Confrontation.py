@@ -27,6 +27,50 @@ def getVariableList(dataset):
             pass
     return variables
 
+def replace_url(string):
+    url = re.findall('http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+~]|[!*\(\), ]|(?:%[0-9a-fA-F][0-9a-fA-F]))+', string)
+    for u in url:
+        u_text = u
+        u_text = u_text.replace("https://doi.org/doi:","doi:")
+        u_text = u_text.replace("https://doi.org/","doi:")
+        u_text = u_text.replace("http://doi.org/doi:","doi:")
+        u_text = u_text.replace("http://doi.org/","doi:")
+        string = string.replace(u,"<a href='%s'>%s</a>" % (u,u_text))
+    return string
+
+def parse_bibtex(string):
+    citation = ""
+    entry_begins = []
+    for m in re.finditer("@",string): entry_begins.append(m.start())
+    entry_begins.append(len(string))
+    for i in range(len(entry_begins)-1):
+        entry = string[entry_begins[i]:entry_begins[i+1]]
+        e = dict(re.findall(r'\s+(\w+)\s+=\s+\{(.*)\}',entry))
+        if i > 0: citation += "<br>"
+        citation += "<dd>"
+        if 'author'  in e: citation += e['author']
+        if 'year'    in e: citation += " (%s)" % e['year']
+        if 'title'   in e: citation += ", %s" % e['title']
+        if 'journal' in e: citation += ", <i>%s</i>" % e['journal']
+        if 'number'  in e: citation += ", <i>%s</i>" % e['number']
+        if 'page'    in e: citation += ", %s" % e['page']
+        if 'doi'     in e: citation += ', %s' % replace_url(e['doi'])
+        citation += "</dd>"
+    return citation
+
+def create_data_header(attr, val):
+
+    vals = val.split(";")
+    html = "<p><dl><dt><b>&nbsp;&nbsp;%s:</dt></b>" % (attr.capitalize())
+    for v in vals:
+        v = v.strip()
+        if v.startswith("@"):
+            html += parse_bibtex(v)
+        else:
+            html += "<dd>%s</dd>" % (replace_url(v))
+    html += "</dl></p>"
+    return html
+
 class Confrontation(object):
     """A generic class for confronting model results with observational data.
 
@@ -161,11 +205,26 @@ class Confrontation(object):
         pages[-1].setSections([])
         pages[-1].text = "\n"
         with Dataset(self.source) as dset:
-            for attr in dset.ncattrs():
+
+            def _attribute_sort(attr):
+                # If the attribute begins with one of the ones we
+                # specifically order, return the index into order. If
+                # it does not, return the number of entries in the
+                # list and the file's order will be preserved.
+                order = ['title','version','institution','source','history','references','comments','convention']
+                for i,a in enumerate(order):
+                    if attr.lower().startswith(a): return i
+                return len(order)
+            attrs = dset.ncattrs()
+            attrs = sorted(attrs,key=_attribute_sort)
+            
+            for attr in attrs:
                 try:
                     val = dset.getncattr(attr)
                     if type(val) != str: val = str(val)
-                    attr_line = "<p><b>&nbsp;&nbsp;%s:&nbsp;</b>%s</p>\n" % (attr,val)
+                    final_val = create_data_header(attr, val)
+                    attr_line = "<p><dl><dt><b>&nbsp;&nbsp;%s:</dt></b>%s</dl></p>" % (attr.capitalize(),final_val)
+                    #attr_line = "<p><b>&nbsp;&nbsp;%s:&nbsp;</b>%s</p>\n" % (attr,val)
                     pages[-1].text += attr_line
                 except:
                     pass
