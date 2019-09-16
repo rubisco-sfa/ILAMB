@@ -29,14 +29,19 @@ def getVariableList(dataset):
             pass
     return variables
 
-def find_url(string):
-    # Obtain url in string
-    url = ""
+def replace_url(string):
     url = re.findall('http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+~]|[!*\(\), ]|(?:%[0-9a-fA-F][0-9a-fA-F]))+', string)
-    return url
+    for u in url: string = string.replace(u,"<a href='%s'>%s</a>" % (u,u))
+    return string
 
 def create_data_header(attr, val):
-    # Rewrite Data header information (val) for given global attribute (attr)
+
+    vals = val.split(";")
+    html = "<p><dl><dt><b>&nbsp;&nbsp;%s:</dt></b>" % (attr.capitalize())
+    for v in vals:
+        html += "<dd>%s</dd>" % (replace_url(v))
+    html += "</dl></p>"
+    return html
 
     if type(val) != str: val = str(val)
     attr     = attr.strip()
