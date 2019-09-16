@@ -10,8 +10,6 @@ from matplotlib.colors import LogNorm
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from mpi4py import MPI
 from sympy import sympify
-from bibtexparser.bparser import BibTexParser
-from bibtexparser.bibdatabase import as_text
 
 import logging
 logger = logging.getLogger("%i" % MPI.COMM_WORLD.rank)
@@ -31,78 +29,47 @@ def getVariableList(dataset):
 
 def replace_url(string):
     url = re.findall('http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+~]|[!*\(\), ]|(?:%[0-9a-fA-F][0-9a-fA-F]))+', string)
-    for u in url: string = string.replace(u,"<a href='%s'>%s</a>" % (u,u))
+    for u in url:
+        u_text = u
+        u_text = u_text.replace("https://doi.org/doi:","doi:")
+        u_text = u_text.replace("https://doi.org/","doi:")
+        u_text = u_text.replace("http://doi.org/doi:","doi:")
+        u_text = u_text.replace("http://doi.org/","doi:")
+        string = string.replace(u,"<a href='%s'>%s</a>" % (u,u_text))
     return string
+
+def parse_bibtex(string):
+    citation = ""
+    entry_begins = []
+    for m in re.finditer("@",string): entry_begins.append(m.start())
+    entry_begins.append(len(string))
+    for i in range(len(entry_begins)-1):
+        entry = string[entry_begins[i]:entry_begins[i+1]]
+        e = dict(re.findall(r'\s+(\w+)\s+=\s+\{(.*)\}',entry))
+        if i > 0: citation += "<br>"
+        citation += "<dd>"
+        if 'author'  in e: citation += e['author']
+        if 'year'    in e: citation += " (%s)" % e['year']
+        if 'title'   in e: citation += ", %s" % e['title']
+        if 'journal' in e: citation += ", <i>%s</i>" % e['journal']
+        if 'number'  in e: citation += ", <i>%s</i>" % e['number']
+        if 'page'    in e: citation += ", %s" % e['page']
+        if 'doi'     in e: citation += ', %s' % replace_url(e['doi'])
+        citation += "</dd>"
+    return citation
 
 def create_data_header(attr, val):
 
     vals = val.split(";")
     html = "<p><dl><dt><b>&nbsp;&nbsp;%s:</dt></b>" % (attr.capitalize())
     for v in vals:
-        html += "<dd>%s</dd>" % (replace_url(v))
+        v = v.strip()
+        if v.startswith("@"):
+            html += parse_bibtex(v)
+        else:
+            html += "<dd>%s</dd>" % (replace_url(v))
     html += "</dl></p>"
     return html
-
-    if type(val) != str: val = str(val)
-    attr     = attr.strip()
-    val      = val.strip()
-    list_val = val.split(";")
-
-    if isinstance(list_val, list):
-       nlist    = len(list_val)
-    else:
-       nlist    = 1
-
-    final_val = ""
-
-    if attr=="history":
-       for i in range(nlist):
-           sublist = list_val[i].split(":", 1)
-           sublist[0] = sublist[0] + ":"
-           if "http" in sublist[1]:
-              url = find_url(sublist[1])
-              url_new = "<a href='%s'>%s</a>" % (url[0], url[0])
-              sublist[1] = sublist[1].replace(url[0], url_new)
-              list_val[i] = "<dd>" + sublist[0] + "&nbsp;" + sublist[1] + "</dd>"
-           else:
-              list_val[i] = "<dd>" + sublist[0] + "&nbsp;" + sublist[1] + "</dd>"
-           final_val = final_val + list_val[i]
-    elif attr == "references":
-        bd = BibTexParser(interpolate_strings=False)
-        bib_database = bd.parse(val)
-        nartc = len(re.findall('title', as_text(bib_database.entries)))
-        for i in range(nartc):
-            ArtcID = as_text(bib_database.entries[i]['ID'])
-            author = as_text(bib_database.entries[i]['author'])
-            title  = as_text(bib_database.entries[i]['title'])
-            journal= as_text(bib_database.entries[i]['journal'])
-            year   = as_text(bib_database.entries[i]['year'])
-            number = as_text(bib_database.entries[i]['number'])
-            page   = as_text(bib_database.entries[i]['page'])
-            doi    = as_text(bib_database.entries[i]['doi'])
-            
-            ArtcID = "<BR>&nbsp;&nbsp;" + ArtcID + ":"
-            subauth = author.split(",")
-            journal = "<I>" + journal + "</I>"
-            number = "<I>" + number + "</I>"
-            year   = "(" + year + ")"
-            new_doi = doi.replace("https://doi.org/", "doi:")
-            link_doi = "<a href='%s'>%s</a>" % (doi, new_doi)
-            if i == nartc-1:
-                new_artc = "<dd>" + author + "&nbsp;" + year + ",&nbsp;" + title + ",&nbsp;" + journal + ",&nbsp;" + number + ",&nbsp;" + page + ",&nbsp;" + link_doi + ".</dd>"
-            else:
-                new_artc = "<dd>" + author + "&nbsp;" + year + ",&nbsp;" + title + ",&nbsp;" + journal + ",&nbsp;" + number + ",&nbsp;" + page + ",&nbsp;" + link_doi + ".</dd><BR>"
-            final_val = final_val + new_artc
-    else:
-        for i in range(nlist):
-            if "http" in list_val[i]:
-                url = find_url(list_val[i])
-                url_new = "<a href='%s'>%s</a>" % (url[0], url[0])
-                val_new = "XXX" #list_val[i].replace(url_old, url_new)
-                final_val = final_val + "<dd>" + val_new + "</dd>"
-            else:
-                final_val = final_val + "<dd>" + list_val[i] + "</dd>"
-    return final_val
 
 class Confrontation(object):
     """A generic class for confronting model results with observational data.
