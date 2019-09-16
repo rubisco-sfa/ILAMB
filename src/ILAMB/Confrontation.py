@@ -36,6 +36,15 @@ def replace_url(string):
         u_text = u_text.replace("http://doi.org/doi:","doi:")
         u_text = u_text.replace("http://doi.org/","doi:")
         string = string.replace(u,"<a href='%s'>%s</a>" % (u,u_text))
+    # if no https link was found, then it may be a doi link which we
+    # want to hyperlink appropriately
+    if len(url) == 0:
+        url = re.findall('doi:(?:[a-zA-Z]|[0-9]|[$-_@.&+~]|[!*\(\), ]|(?:%[0-9a-fA-F][0-9a-fA-F]))+', string)
+        for u in url:
+            # if doi is in a text reference, it ends with a period that we do not want
+            u = u.strip(".")
+            u_link = u.replace("doi:","https://doi.org/")
+            string = string.replace(u,"<a href='%s'>%s</a>" % (u_link,u))
     return string
 
 def parse_bibtex(string):
