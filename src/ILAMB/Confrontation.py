@@ -222,10 +222,7 @@ class Confrontation(object):
                 try:
                     val = dset.getncattr(attr)
                     if type(val) != str: val = str(val)
-                    final_val = create_data_header(attr, val)
-                    attr_line = "<p><dl><dt><b>&nbsp;&nbsp;%s:</dt></b>%s</dl></p>" % (attr.capitalize(),final_val)
-                    #attr_line = "<p><b>&nbsp;&nbsp;%s:&nbsp;</b>%s</p>\n" % (attr,val)
-                    pages[-1].text += attr_line
+                    pages[-1].text += create_data_header(attr,val)
                 except:
                     pass
         self.layout = post.HtmlLayout(pages,self.longname,years=(y0,yf))
