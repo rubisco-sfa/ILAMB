@@ -93,7 +93,7 @@ def create_data_header(attr, val):
               if "http" in list_val[i]:
                  url = find_url(list_val[i])
                  url_new = "<a href='%s'>%s</a>" % (url[0], url[0])
-                 val_new = list_val[i].replace(url_old, url_new)
+                 val_new = "XXX" #list_val[i].replace(url_old, url_new)
                  final_val = final_val + "<dd>" + val_new + "</dd>"
               else:
                  final_val = final_val + "<dd>" + list_val[i] + "</dd>"
