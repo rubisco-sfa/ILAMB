@@ -62,33 +62,32 @@ def create_data_header(attr, val):
            else:
               list_val[i] = "<dd>" + sublist[0] + "&nbsp;" + sublist[1] + "</dd>"
            final_val = final_val + list_val[i]
-    else:
-       if attr == "references":
-          bd = BibTexParser(interpolate_strings=False)
-          bib_database = bd.parse(val)
-          nartc = len(re.findall('title', as_text(bib_database.entries)))
-          for i in range(nartc):
-              ArtcID = as_text(bib_database.entries[i]['ID'])
-              author = as_text(bib_database.entries[i]['author'])
-              title  = as_text(bib_database.entries[i]['title'])
-              journal= as_text(bib_database.entries[i]['journal'])
-              year   = as_text(bib_database.entries[i]['year'])
-              number = as_text(bib_database.entries[i]['number'])
-              page   = as_text(bib_database.entries[i]['page'])
-              doi    = as_text(bib_database.entries[i]['doi'])
-
-              ArtcID = "<BR>&nbsp;&nbsp;" + ArtcID + ":"
-              subauth = author.split(",")
-              journal = "<I>" + journal + "</I>"
-              number = "<I>" + number + "</I>"
-              year   = "(" + year + ")"
-              new_doi = doi.replace("https://doi.org/", "doi:")
-              link_doi = "<a href='%s'>%s</a>" % (doi, new_doi)
-              if i == nartc-1:
-                 new_artc = "<dd>" + author + "&nbsp;" + year + ",&nbsp;" + title + ",&nbsp;" + journal + ",&nbsp;" + number + ",&nbsp;" + page + ",&nbsp;" + link_doi + ".</dd>"
-              else:
-                 new_artc = "<dd>" + author + "&nbsp;" + year + ",&nbsp;" + title + ",&nbsp;" + journal + ",&nbsp;" + number + ",&nbsp;" + page + ",&nbsp;" + link_doi + ".</dd><BR>"
-              final_val = final_val + new_artc
+    elif attr == "references":
+        bd = BibTexParser(interpolate_strings=False)
+        bib_database = bd.parse(val)
+        nartc = len(re.findall('title', as_text(bib_database.entries)))
+        for i in range(nartc):
+            ArtcID = as_text(bib_database.entries[i]['ID'])
+            author = as_text(bib_database.entries[i]['author'])
+            title  = as_text(bib_database.entries[i]['title'])
+            journal= as_text(bib_database.entries[i]['journal'])
+            year   = as_text(bib_database.entries[i]['year'])
+            number = as_text(bib_database.entries[i]['number'])
+            page   = as_text(bib_database.entries[i]['page'])
+            doi    = as_text(bib_database.entries[i]['doi'])
+            
+            ArtcID = "<BR>&nbsp;&nbsp;" + ArtcID + ":"
+            subauth = author.split(",")
+            journal = "<I>" + journal + "</I>"
+            number = "<I>" + number + "</I>"
+            year   = "(" + year + ")"
+            new_doi = doi.replace("https://doi.org/", "doi:")
+            link_doi = "<a href='%s'>%s</a>" % (doi, new_doi)
+            if i == nartc-1:
+                new_artc = "<dd>" + author + "&nbsp;" + year + ",&nbsp;" + title + ",&nbsp;" + journal + ",&nbsp;" + number + ",&nbsp;" + page + ",&nbsp;" + link_doi + ".</dd>"
+            else:
+                new_artc = "<dd>" + author + "&nbsp;" + year + ",&nbsp;" + title + ",&nbsp;" + journal + ",&nbsp;" + number + ",&nbsp;" + page + ",&nbsp;" + link_doi + ".</dd><BR>"
+            final_val = final_val + new_artc
        else:
           for i in range(nlist):
               if "http" in list_val[i]:
