@@ -221,10 +221,12 @@ class ConfUncertainty(Confrontation):
 
             # Encode some names and colors
             fcm.mod_dset.setncatts({"name" :m.name,
-                                    "color":m.color})
+                                    "color":m.color,
+                                    "complete":0})
             if self.master:
                 fcm.obs_dset.setncatts({"name" :"Benchmark",
-                                        "color":np.asarray([0.5,0.5,0.5])})
+                                        "color":np.asarray([0.5,0.5,0.5]),
+                                        "complete":0})
             AnalysisUncertaintySpatial(ref,mod,dataset    = fcm.mod_dset,
                                        regions            = self.regions,
                                        benchmark_dataset  = fcm.obs_dset,
@@ -233,7 +235,9 @@ class ConfUncertainty(Confrontation):
                                        space_mean         = self.space_mean,
                                        expert_uncertainty = expert_uncertainty,
                                        use_expert         = use_expert)
-            
+            fcm.mod_dset.setncattr("complete",1)
+            if self.master: fcm.obs_dset.setncattr("complete",1)
+        
     def modelPlots(self,m):
         super(ConfUncertainty,self).modelPlots(m)
         for page in self.layout.pages:
