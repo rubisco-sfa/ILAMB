@@ -2,6 +2,7 @@
 """
 Runs an ILAMB study.
 """
+import mpi4py.rc; mpi4py.rc.threads = False
 import logging
 from ILAMB.ModelResult import ModelResult
 from ILAMB.Scoreboard import Scoreboard
@@ -377,7 +378,7 @@ def WorkConfront(W,verbose=False,clean=False):
 
         # try to run the confrontation
         try:
-            t0 = time.time()
+            t0 = time.time()            
             c.confront(m)
             dt = time.time()-t0
             proc[rank] += dt
