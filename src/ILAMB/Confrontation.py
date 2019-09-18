@@ -346,14 +346,6 @@ class Confrontation(object):
         """
         # Grab the data
         obs,mod = self.stageData(m)
-        import psutil
-        comm = MPI.COMM_WORLD
-        size = comm.Get_size()
-        rank = comm.Get_rank()
-        name = MPI.Get_processor_name()
-        process = psutil.Process(os.getpid())
-        avail = process.memory_info().rss*1e-9
-        print(name,rank,size,avail)
 
         mod_file = os.path.join(self.output_path,"%s_%s.nc"        % (self.name,m.name))
         obs_file = os.path.join(self.output_path,"%s_Benchmark.nc" % (self.name,      ))
@@ -398,8 +390,6 @@ class Confrontation(object):
             fcm.mod_dset.setncattr("complete",1)
             if self.master: fcm.obs_dset.setncattr("complete",1)
         logger.info("[%s][%s] Success" % (self.longname,m.name))
-        avail = process.memory_info().rss*1e-9
-        print(name,rank,size,avail)
 
     def determinePlotLimits(self):
         """Determine the limits of all plots which are inclusive of all ranges.
