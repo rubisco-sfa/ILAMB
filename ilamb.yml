@@ -17,3 +17,4 @@ dependencies:
   - mpi4py
   - cf_units
   - cython
+  - psutil

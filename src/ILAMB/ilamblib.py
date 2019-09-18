@@ -1387,7 +1387,7 @@ def AnalysisMeanStateSpace(ref,com,**keywords):
     unit  = REF.unit
     area  = REF.area
     ndata = REF.ndata
-
+            
     # Find the mean values over the time period
     if ref_timeint is None:
         ref_timeint = ref.integrateInTime(mean=True).convert(plot_unit)
@@ -1591,6 +1591,18 @@ def AnalysisMeanStateSpace(ref,com,**keywords):
                 com_spaceint.name = "spaceint_of_%s_over_%s" % (name,region)
                 com_spaceint.toNetCDF4(dataset,group="MeanState")
 
+    try:
+        import psutil
+        comm = MPI.COMM_WORLD
+        rank = comm.Get_rank()
+        name = MPI.Get_processor_name()
+        process = psutil.Process(os.getpid())
+        used = process.memory_info().rss*1e-9
+        msg = "[%d][%s] Process peak memory %.2f [Gb]" % (rank,name,used)
+        logger.info(msg)
+    except:
+        pass
+
     # RMSE: maps, scalars, and scores
     if not skip_rmse:
         rmse = REF.rmse(COM).convert(plot_unit)
@@ -1617,7 +1629,7 @@ def AnalysisMeanStateSpace(ref,com,**keywords):
                 rmse_score.name = "RMSE Score %s" % region
                 rmse_score.toNetCDF4(dataset,group="MeanState")
         del rmse,crmse,rmse_score_map
-
+        
     return
 
 def ClipTime(v,t0,tf):
