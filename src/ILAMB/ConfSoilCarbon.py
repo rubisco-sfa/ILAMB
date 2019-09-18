@@ -181,8 +181,6 @@ class ConfSoilCarbon(Confrontation):
             Variable(name = "RMSE Score global",unit="1",data=r.scoreRMSE(mod_r)).toNetCDF4(results,group="MeanState")
             Variable(name = "Distribution Score global",unit="1",data=r.scoreHellinger(mod_r)).toNetCDF4(results,group="MeanState")
             results.setncattr("complete",1)
-
-
         
     def determinePlotLimits(self):
         pass
@@ -191,4 +189,22 @@ class ConfSoilCarbon(Confrontation):
         pass
     
     def modelPlots(self,m):
-        pass
+        
+        # Outputs and plots
+        page = [page for page in self.layout.pages if "MeanState" in page.name][0]        
+        if self.master:
+            page.addFigure("Temporally integrated period mean",
+                           "benchmark_timeint",
+                           "Benchmark_global_timeint.png",
+                           side   = "BENCHMARK",
+                           legend = False)
+        page.addFigure("Temporally integrated period mean",
+                       "timeint",
+                       "MNAME_global_timeint.png",
+                       side   = "MODEL",
+                       legend = False)        
+        page.addFigure("Temporally integrated period mean",
+                       "rel_tas",
+                       "MNAME_RNAME_rel_tas.png",
+                       side   = "MODEL",
+                       legend = False)
