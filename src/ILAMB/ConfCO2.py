@@ -712,6 +712,7 @@ class ConfCO2(Confrontation):
         ax.set_xticklabels(amp_ticklabels)
         ax.set_yticks(lat_bnds)
         fig.savefig(os.path.join(self.output_path,"%s_amp.png" % m.name))
+        plt.close()
         page.addFigure("Summary",
                        "amp",
                        "MNAME_amp.png",
@@ -742,6 +743,7 @@ class ConfCO2(Confrontation):
         ax.set_xticklabels(iav_ticklabels)
         ax.set_yticks(lat_bnds)
         fig.savefig(os.path.join(self.output_path,"%s_iav.png" % m.name))
+        plt.close()
         page.addFigure("Summary",
                        "iav",
                        "MNAME_iav.png",
@@ -770,6 +772,7 @@ class ConfCO2(Confrontation):
         ax.set_xticklabels(lbl_months)
         ax.set_yticks(lat_bnds)
         fig.savefig(os.path.join(self.output_path,"%s_maxphase.png" % m.name))
+        plt.close()
         page.addFigure("Summary",
                        "maxphase",
                        "MNAME_maxphase.png",
@@ -798,6 +801,7 @@ class ConfCO2(Confrontation):
         ax.set_xticklabels(lbl_months)
         ax.set_yticks(lat_bnds)
         fig.savefig(os.path.join(self.output_path,"%s_minphase.png" % m.name))
+        plt.close()
         page.addFigure("Summary",
                        "minphase",
                        "MNAME_minphase.png",
