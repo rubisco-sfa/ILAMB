@@ -796,7 +796,7 @@ class Variable:
                             name      = "%s_minus_%s" % (var.name,self.name))
         return diff
 
-    def convert(self,unit,density=998.2):
+    def convert(self,unit,density=998.2,mol_mass=12.0107):
         """Convert the variable to a given unit.
 
         We use the UDUNITS library via the cf_units python interface to
@@ -817,6 +817,9 @@ class Variable:
         density : float, optional
             the mass density in [kg m-3] to use when converting linear
             rates to area density rates
+        mol_mass : float, optional
+            the molar mass in [kg mol-1], default value assumes
+            substance to be converted is carbon
 
         Returns
         -------
@@ -842,7 +845,8 @@ class Variable:
         mass_density      = Unit("kg m-3")
         volume_conc       = Unit("mol m-3")
         mass_conc         = Unit("mol kg-1")
-
+        molar_mass        = Unit("kg mol-1")
+        
         # UDUNITS doesn't handle frequently found temperature expressions
         synonyms = {"K":"degK",
                     "R":"degR",
@@ -872,6 +876,16 @@ class Variable:
             np.seterr(over='raise',under='raise')
             src_unit = src_unit / mass_density
 
+        # Do we need to multiply or divide by molar mass? 
+        if (tar_unit / src_unit).is_convertible(molar_mass):
+             with np.errstate(over='ignore',under='ignore'):
+                self.data /= mol_mass
+                src_unit = src_unit / molar_mass
+        elif (src_unit / tar_unit).is_convertible(molar_mass):
+             with np.errstate(over='ignore',under='ignore'):
+                self.data *= mol_mass
+                src_unit = src_unit * molar_mass
+        
         # Convert units
         try:
             src_unit.convert(self.data,tar_unit,inplace=True)
