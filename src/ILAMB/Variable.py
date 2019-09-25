@@ -845,7 +845,7 @@ class Variable:
         mass_density      = Unit("kg m-3")
         volume_conc       = Unit("mol m-3")
         mass_conc         = Unit("mol kg-1")
-        molar_mass        = Unit("kg mol-1")
+        molar_mass        = Unit("g mol-1")
         
         # UDUNITS doesn't handle frequently found temperature expressions
         synonyms = {"K":"degK",
