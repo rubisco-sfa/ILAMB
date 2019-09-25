@@ -225,7 +225,7 @@ class ModelResult():
         V = []
         tmin =  1e20
         tmax = -1e20
-        same_site_epsilon = 0.1
+        same_site_epsilon = 0.25
         for v in altvars:
             if v not in self.variables: continue
             for pathName in self.variables[v]:

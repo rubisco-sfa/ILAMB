@@ -1711,8 +1711,9 @@ def MakeComparable(ref,com,**keywords):
     extents     = keywords.get("extents"  ,np.asarray([[-90.,+90.],[-180.,+180.]]))
     logstring   = keywords.get("logstring","")
     prune_sites = keywords.get("prune_sites",False)
+    site_atol   = keywords.get("site_atol",0.25)
     allow_diff_times = keywords.get("allow_diff_times",False)
-
+    
     # If one variable is temporal, then they both must be
     if ref.temporal != com.temporal:
         msg  = "%s Datasets are not uniformly temporal: " % logstring
@@ -1778,10 +1779,10 @@ def MakeComparable(ref,com,**keywords):
             logger.debug(msg)
             raise VarsNotComparable()
     if ref.ndata is not None:
-        if not (np.allclose(ref.lat,com.lat) or np.allclose(ref.lon,com.lon)):
+        if not (np.allclose(ref.lat,com.lat,atol=site_atol) or np.allclose(ref.lon,com.lon,atol=site_atol)):
             msg  = "%s Datasets represent sites, but the locations are different: " % logstring
-            msg += "maximum difference lat = %.f, lon = %.f" % (np.abs((ref.lat-com.lat)).max(),
-                                                                np.abs((ref.lon-com.lon)).max())
+            msg += "maximum difference lat = %.2f, lon = %.2f" % (np.abs((ref.lat-com.lat)).max(),
+                                                                  np.abs((ref.lon-com.lon)).max())
             logger.debug(msg)
             raise VarsNotComparable()
 
