@@ -1845,18 +1845,7 @@ def MakeComparable(ref,com,**keywords):
             t0  = max(t0,com.time_bnds[ 0,0])
             tf  = min(tf,com.time_bnds[-1,1])
             ref = ref.trim(t=[t0,tf])
-
-        else:
-
-            # The comparison dataset needs to fully cover the reference in time
-            if (com.time_bnds[ 0,0] > (t0+eps) or
-                com.time_bnds[-1,1] < (tf-eps)):
-                msg  = "%s Comparison dataset does not cover the time frame of the reference: " % logstring
-                msg += " t0: %.16e <= %.16e (%s)" % (com.time_bnds[0, 0],t0+eps,com.time_bnds[0, 0] <= (t0+eps))
-                msg += " tf: %.16e >= %.16e (%s)" % (com.time_bnds[1,-1],tf-eps,com.time_bnds[1,-1] >= (tf-eps))
-                logger.debug(msg)
-                raise VarsNotComparable()
-
+        
         # Check that we now are on the same time intervals
         if not allow_diff_times:
             if ref.time.size != com.time.size:
