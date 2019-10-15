@@ -1591,18 +1591,6 @@ def AnalysisMeanStateSpace(ref,com,**keywords):
                 com_spaceint.name = "spaceint_of_%s_over_%s" % (name,region)
                 com_spaceint.toNetCDF4(dataset,group="MeanState")
 
-    try:
-        import psutil
-        comm = MPI.COMM_WORLD
-        rank = comm.Get_rank()
-        name = MPI.Get_processor_name()
-        process = psutil.Process(os.getpid())
-        used = process.memory_info().rss*1e-9
-        msg = "[%d][%s] Process peak memory %.2f [Gb]" % (rank,name,used)
-        logger.info(msg)
-    except:
-        pass
-
     # RMSE: maps, scalars, and scores
     if not skip_rmse:
         rmse = REF.rmse(COM).convert(plot_unit)
@@ -1612,6 +1600,19 @@ def AnalysisMeanStateSpace(ref,com,**keywords):
                         time = COM.time, time_bnds = COM.time_bnds,
                         lat  = lat, lat_bnds = lat_bnds, lon = lon, lon_bnds = lon_bnds,
                         area = COM.area, ndata = COM.ndata).convert(plot_unit)
+        
+        try:
+            import psutil
+            comm = MPI.COMM_WORLD
+            rank = comm.Get_rank()
+            pname = MPI.Get_processor_name()
+            process = psutil.Process(os.getpid())
+            used = process.memory_info().rss*1e-9
+            msg = "[%d][%s] Process peak memory %.2f [Gb]" % (rank,pname,used)
+            logger.info(msg)
+        except:
+            pass
+        
         del COM
         crmse = cREF.rmse(cCOM).convert(plot_unit)
         del cREF,cCOM
