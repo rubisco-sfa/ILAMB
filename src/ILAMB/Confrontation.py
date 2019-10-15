@@ -752,7 +752,10 @@ class Confrontation(object):
                     if not (var.spatial or (var.ndata is not None)) and var.temporal:
 
                         # grab the benchmark dataset to plot along with
-                        obs = Variable(filename=bname,groupname="MeanState",variable_name=vname).convert(var.unit)
+                        try:
+                            obs = Variable(filename=bname,groupname="MeanState",variable_name=vname).convert(var.unit)
+                        except:
+                            continue
 
                         # grab plotting options
                         opts = time_opts[pname]
