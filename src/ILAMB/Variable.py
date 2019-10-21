@@ -13,6 +13,28 @@ import matplotlib.pyplot as plt
 def _shiftLon(lon):
     return (lon<=180)*lon + (lon>180)*(lon-360) + (lon<-180)*360
 
+def _shiftFirstColumnToDateline(lon,lon_bnds=None,data=None,area=None):
+    shift = lon.argmin()
+    lon = np.roll(lon,-shift)
+    if lon_bnds is not None:
+        lon_bnds = np.roll(lon_bnds,-shift,axis=0)
+        lon_bnds = lon_bnds.clip(-180,180)
+    if data is not None: data = np.roll(data,-shift,axis=-1)
+    if area is not None: area = np.roll(area,-shift,axis=-1)
+    return lon,lon_bnds,data,area
+
+def _createBnds(x):
+    x      = np.asarray(x)
+    x_bnds = np.zeros((x.size,2))
+    x_bnds[+1:,0] = 0.5*(x[:-1]+x[+1:])
+    x_bnds[:-1,1] = 0.5*(x[:-1]+x[+1:])
+    if x.size == 1:
+        x_bnds[ ...] = x
+    else:
+        x_bnds[ 0,0] = x[ 0] - 0.5*(x[ 1]-x[ 0])
+        x_bnds[-1,1] = x[-1] + 0.5*(x[-1]-x[-2])
+    return x_bnds
+        
 class Variable:
     r"""A class for managing variables and their analysis.
 
@@ -118,18 +140,6 @@ class Variable:
         self.cbounds = cbounds
         self.calendar = calendar
 
-        def _createBnds(x):
-            x      = np.asarray(x)
-            x_bnds = np.zeros((x.size,2))
-            x_bnds[+1:,0] = 0.5*(x[:-1]+x[+1:])
-            x_bnds[:-1,1] = 0.5*(x[:-1]+x[+1:])
-            if x.size == 1:
-                x_bnds[ ...] = x
-            else:
-                x_bnds[ 0,0] = x[ 0] - 0.5*(x[ 1]-x[ 0])
-                x_bnds[-1,1] = x[-1] + 0.5*(x[-1]-x[-2])
-            return x_bnds
-
         # Handle time data
         self.time      = time      # time data
         self.time_bnds = time_bnds # bounds on time
@@ -151,10 +161,6 @@ class Variable:
         self.lon_bnds = lon_bnds
         self.area     = keywords.get("area",None)
 
-        # Shift possible values on [0,360] to [-180,180]
-        if self.lon      is not None: self.lon      = _shiftLon(self.lon     )
-        if self.lon_bnds is not None: self.lon_bnds = _shiftLon(self.lon_bnds)
-
         # If the last dimensions are lat and lon, this is spatial data
         if lat is not None and lon is not None and data.ndim >= 2:
             if (data.shape[-2] == lat.size and data.shape[-1] == lon.size): self.spatial = True
@@ -166,28 +172,40 @@ class Variable:
                 self.ndata   = 1
                 self.data    = self.data.reshape(self.data.shape[:-2]+(1,))
         
-        if self.spatial is True:
-            if np.all(np.diff(self.lat)<0): # Flip if monotonically decreasing
+        if self.spatial is False:
+            
+            # Shift possible values on [0,360] to [-180,180]
+            if self.lon      is not None: self.lon      = _shiftLon(self.lon     )
+            if self.lon_bnds is not None: self.lon_bnds = _shiftLon(self.lon_bnds)
+
+        else:
+            
+            # Exception for CABLE, flips if monotonically decreasing
+            if np.all(np.diff(self.lat)<0):  
                 self.lat      = self.lat     [::-1     ]
                 self.data     = self.data[...,::-1,:   ]
                 if self.lat_bnds is not None: self.lat_bnds = self.lat_bnds[::-1,::-1]
                 if self.area     is not None: self.area     = self.area    [::-1,:]
+
+            # Shift possible values on [0,360] to [-180,180]
+            if self.lon      is not None: self.lon      = _shiftLon(self.lon     )
+            if self.lon_bnds is not None: self.lon_bnds = _shiftLon(self.lon_bnds)
+
+            # Shift first column of data to the international dateline
+            out = _shiftFirstColumnToDateline(self.lon,
+                                              lon_bnds = self.lon_bnds,
+                                              data     = self.data,
+                                              area     = self.area)
+            self.lon,self.lon_bnds,self.data,self.area = out
+            
+            # Finally create bounds if they are not there
             if self.lat_bnds is None: self.lat_bnds = _createBnds(self.lat)
             if self.lon_bnds is None: self.lon_bnds = _createBnds(self.lon)
-            # Some data arrays are arranged such that the first column
-            # of data is arranged at the prime meridian. This does not
-            # work well with some of the plotting and/or analysis
-            # operations we will need to perform. These require that
-            # the first column be coincident with the international
-            # dateline. Thus we roll the data the required amount.
-            shift         = self.lon.argmin()
-            self.lon      = np.roll(self.lon     ,-shift)
-            self.lon_bnds = np.roll(self.lon_bnds,-shift,axis= 0)
-            self.data     = np.roll(self.data    ,-shift,axis=-1)
-            if self.area is not None: self.area = np.roll(self.area,-shift,axis=-1)
+            
             # Fix potential problems with rolling the axes of the lon_bnds
-            if self.lon_bnds[ 0,0] > self.lon_bnds[ 0,1]: self.lon_bnds[ 0,0] = -180.
-            if self.lon_bnds[-1,0] > self.lon_bnds[-1,1]: self.lon_bnds[-1,1] = +180.
+            self.lat_bnds = self.lat_bnds.clip(- 90,+ 90)
+            self.lon_bnds = self.lon_bnds.clip(-180,+180)
+            
             # Make sure that the value lies within the bounds
             assert np.all((self.lat>=self.lat_bnds[:,0])*(self.lat<=self.lat_bnds[:,1]))
             assert np.all((self.lon>=self.lon_bnds[:,0])*(self.lon<=self.lon_bnds[:,1]))
@@ -1812,6 +1830,8 @@ class Variable:
             a 2-tuple containing the lower and upper limits beyond which we trim
         """
         def _whichInterval(val,bnds):
+            if val < bnds.min(): val = bnds.min()
+            if val > bnds.max(): val = bnds.max()            
             ind = np.where((val>=bnds[:,0])*(val<=bnds[:,1]))[0]
             assert ind.size <= 2
             ind = ind[0]
