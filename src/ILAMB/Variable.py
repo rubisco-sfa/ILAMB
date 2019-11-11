@@ -98,7 +98,9 @@ class Variable:
             assert data is not None
             assert unit is not None
             cbounds    = None
+            self.filename = ""
         else:
+            self.filename = filename
             assert variable_name is not None
             t0 = keywords.get("t0",None)
             tf = keywords.get("tf",None)
