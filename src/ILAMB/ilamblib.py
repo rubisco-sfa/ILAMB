@@ -283,8 +283,13 @@ def GetTime(var,t0=None,tf=None,convert_calendar=True,ignore_time_array=True):
         raise ValueError(msg)
 
     # Convert time array to ILAMB default calendar / datum
-    datum_shift = (cf.num2date(0,"days since 1850-1-1 00:00:00",calendar=t.calendar)-
-                   cf.num2date(0,t.units                       ,calendar=t.calendar)).total_seconds()
+    try:
+        datum_shift = (cf.num2date(0,"days since 1850-1-1 00:00:00",calendar=t.calendar)-
+                       cf.num2date(0,t.units                       ,calendar=t.calendar)).total_seconds()
+    except:
+        msg = "Error in computing the datum: t.units = %s, t.calendar = %s" % (t.units,t.calendar)
+        raise ValueError(msg)
+        
     if ((abs(datum_shift) > 60) or (convert_calendar and t.calendar != "noleap")):
         T  = cf.num2date(T ,units=t.units,calendar=t.calendar)
         TB = cf.num2date(TB,units=t.units,calendar=t.calendar)
@@ -1712,8 +1717,9 @@ def MakeComparable(ref,com,**keywords):
     extents     = keywords.get("extents"  ,np.asarray([[-90.,+90.],[-180.,+180.]]))
     logstring   = keywords.get("logstring","")
     prune_sites = keywords.get("prune_sites",False)
+    site_atol   = keywords.get("site_atol",0.25)
     allow_diff_times = keywords.get("allow_diff_times",False)
-
+    
     # If one variable is temporal, then they both must be
     if ref.temporal != com.temporal:
         msg  = "%s Datasets are not uniformly temporal: " % logstring
@@ -1779,10 +1785,10 @@ def MakeComparable(ref,com,**keywords):
             logger.debug(msg)
             raise VarsNotComparable()
     if ref.ndata is not None:
-        if not (np.allclose(ref.lat,com.lat) or np.allclose(ref.lon,com.lon)):
+        if not (np.allclose(ref.lat,com.lat,atol=site_atol) or np.allclose(ref.lon,com.lon,atol=site_atol)):
             msg  = "%s Datasets represent sites, but the locations are different: " % logstring
-            msg += "maximum difference lat = %.f, lon = %.f" % (np.abs((ref.lat-com.lat)).max(),
-                                                                np.abs((ref.lon-com.lon)).max())
+            msg += "maximum difference lat = %.2f, lon = %.2f" % (np.abs((ref.lat-com.lat)).max(),
+                                                                  np.abs((ref.lon-com.lon)).max())
             logger.debug(msg)
             raise VarsNotComparable()
 
@@ -1845,18 +1851,7 @@ def MakeComparable(ref,com,**keywords):
             t0  = max(t0,com.time_bnds[ 0,0])
             tf  = min(tf,com.time_bnds[-1,1])
             ref = ref.trim(t=[t0,tf])
-
-        else:
-
-            # The comparison dataset needs to fully cover the reference in time
-            if (com.time_bnds[ 0,0] > (t0+eps) or
-                com.time_bnds[-1,1] < (tf-eps)):
-                msg  = "%s Comparison dataset does not cover the time frame of the reference: " % logstring
-                msg += " t0: %.16e <= %.16e (%s)" % (com.time_bnds[0, 0],t0+eps,com.time_bnds[0, 0] <= (t0+eps))
-                msg += " tf: %.16e >= %.16e (%s)" % (com.time_bnds[1,-1],tf-eps,com.time_bnds[1,-1] >= (tf-eps))
-                logger.debug(msg)
-                raise VarsNotComparable()
-
+        
         # Check that we now are on the same time intervals
         if not allow_diff_times:
             if ref.time.size != com.time.size:
@@ -1960,7 +1955,7 @@ def CombineVariables(V):
             if i < (nV-1):
                 err += "" if tf[i+1] > t0[i  ] else "*"
                 err += "" if tf[i+1] > tf[i  ] else "*"
-            msg  += "\n  %2d: t = [%.3f, %.3f] %s" % (i,t0[i],tf[i],err)
+            msg  += "\n  %2d: t = [%.3f, %.3f] %2s %s" % (i,t0[i],tf[i],err,V[i].filename)
         logger.debug(msg)
         raise MonotonicityError()
 
