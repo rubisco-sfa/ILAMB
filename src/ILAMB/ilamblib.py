@@ -1960,7 +1960,7 @@ def CombineVariables(V):
             if i < (nV-1):
                 err += "" if tf[i+1] > t0[i  ] else "*"
                 err += "" if tf[i+1] > tf[i  ] else "*"
-            msg  += "\n  %2d: t = [%.3f, %.3f] %s" % (i,t0[i],tf[i],err)
+            msg  += "\n  %2d: t = [%.3f, %.3f] %2s %s" % (i,t0[i],tf[i],err,V[i].filename)
         logger.debug(msg)
         raise MonotonicityError()
 

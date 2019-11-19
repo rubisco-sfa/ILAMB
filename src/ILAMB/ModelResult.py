@@ -8,6 +8,26 @@ import logging
 
 logger = logging.getLogger("%i" % MPI.COMM_WORLD.rank)
 
+def _skipFile(pathName,altvars,lats,lons,same_site_epsilon):
+    """Some simple logic intended to help speed up models which consist of
+       many single site runs.
+    """
+    if lats is None: return False
+    if lats.size > 1: return False
+    with Dataset(pathName) as dset:
+        for v in altvars:
+            if v in dset.variables:
+                V = dset.variables[v]
+                D = V.dimensions[-1]
+                if D not in ['data','lndgrid']: continue
+                if dset.dimensions[D].size > 1: continue
+                X = dset.variables['lat'][...]
+                Y = dset.variables['lon'][...]
+                Y = (Y<=180)*Y + (Y>180)*(Y-360) + (Y<-180)*360
+                if (np.sqrt((X-lats[0])**2+(Y-lons[0])**2) > same_site_epsilon): return True
+
+    return False
+
 class ModelResult():
     """A class for exploring model results.
 
@@ -225,10 +245,11 @@ class ModelResult():
         V = []
         tmin =  1e20
         tmax = -1e20
-        same_site_epsilon = 0.1
+        same_site_epsilon = 0.5
         for v in altvars:
             if v not in self.variables: continue
-            for pathName in self.variables[v]:
+            for ifile,pathName in enumerate(self.variables[v]):
+                if _skipFile(pathName,altvars,lats,lons,same_site_epsilon): continue
                 var = Variable(filename       = pathName,
                                variable_name  = variable,
                                alternate_vars = altvars[1:],
