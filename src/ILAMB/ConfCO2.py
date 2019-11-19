@@ -109,7 +109,8 @@ class ConfCO2(Confrontation):
         # Ugly, but this is how we call the Confrontation constructor
         super(ConfCO2,self).__init__(**keywords)
         self.regions = ['global']
-
+        self.derived = self.keywords.get("emulated_flux","nbp")
+        
         self.lat_bands = np.asarray(self.keywords.get("lat_bands","-90,-60,-23,0,+23,+60,+90").split(","),dtype=float)
         sec = []
         for i in range(len(self.lat_bands)-1):
@@ -350,7 +351,7 @@ class ConfCO2(Confrontation):
         mod = _detrend(mod)
 
         return obs,mod
-
+    
     def confront(self,m):
 
         # Grab the data

@@ -18,7 +18,8 @@ def _shiftFirstColumnToDateline(lon,lon_bnds=None,data=None,area=None):
     lon = np.roll(lon,-shift)
     if lon_bnds is not None:
         lon_bnds = np.roll(lon_bnds,-shift,axis=0)
-        lon_bnds = lon_bnds.clip(-180,180)
+        if lon_bnds[ 0,0] > lon_bnds[ 0,1]: lon_bnds[ 0,0] = max(lon_bnds[ 0,0]-360,-180)
+        if lon_bnds[-1,1] < lon_bnds[-1,0]: lon_bnds[-1,1] = min(lon_bnds[-1,1]+360,+180)
     if data is not None: data = np.roll(data,-shift,axis=-1)
     if area is not None: area = np.roll(area,-shift,axis=-1)
     return lon,lon_bnds,data,area
