@@ -29,6 +29,10 @@ def _albedo(dn,up,vname,energy_threshold):
 
 class ConfAlbedo(Confrontation):
 
+    def __init__(self,**keywords):
+        super(ConfAlbedo,self).__init__(**keywords)
+        self.derived = "rsus / rsds"
+        
     def stageData(self,m):
 
         energy_threshold = float(self.keywords.get("energy_threshold",10))

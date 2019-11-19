@@ -31,6 +31,10 @@ def _evapfrac(sh,le,vname,energy_threshold):
 
 class ConfEvapFraction(Confrontation):
 
+    def __init__(self,**keywords):
+        super(ConfEvapFraction,self).__init__(**keywords)
+        self.derived = "hfss + hfls" # just for ilamb-doctor to detect required symbols
+        
     def stageData(self,m):
 
         energy_threshold = float(self.keywords.get("energy_threshold",20.))

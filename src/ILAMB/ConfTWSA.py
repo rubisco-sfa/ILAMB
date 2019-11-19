@@ -113,7 +113,7 @@ class ConfTWSA(Confrontation):
         return obs,mod
 
     def requires(self):
-        return ["tws"],[]
+        return ["tws"],["pr","evspsbl","mrro"]
 
     def confront(self,m):
         """Confront the GRACE data by computing a mean over river
