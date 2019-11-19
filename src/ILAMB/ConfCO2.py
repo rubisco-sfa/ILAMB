@@ -181,6 +181,7 @@ class ConfCO2(Confrontation):
 
         # What if I don't have Ninf leadtime?
         tf = min(obs.time_bnds[-1,1],mod.time_bnds[-1,1])
+        if (tf % 365 > 2): tf -= (tf % 365) # needs to end in integer years
         obs.trim(t=[-1e20,tf])
         mod.trim(t=[-1e20,tf])
 
