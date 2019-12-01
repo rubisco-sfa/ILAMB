@@ -1,7 +1,6 @@
-from .Confrontation import Confrontation,create_data_header
+from .Confrontation import Confrontation
 from scipy.interpolate import CubicSpline
-import cartopy.crs as ccrs
-import cartopy.feature as cfeature
+from mpl_toolkits.basemap import Basemap
 from .Variable import Variable
 from .Regions import Regions
 from .constants import mid_months,lbl_months,bnd_months
@@ -11,6 +10,7 @@ from netCDF4 import Dataset
 import pylab as plt
 import numpy as np
 import os
+import copy
 
 def _phaseWellDefined(t,v):
     """The phase of a site is considered well defined if:
@@ -109,6 +109,7 @@ class ConfCO2(Confrontation):
         # Ugly, but this is how we call the Confrontation constructor
         super(ConfCO2,self).__init__(**keywords)
         self.regions = ['global']
+        self.derived = self.keywords.get("emulated_flux","nbp")
 
         self.lat_bands = np.asarray(self.keywords.get("lat_bands","-90,-60,-23,0,+23,+60,+90").split(","),dtype=float)
         sec = []
@@ -130,27 +131,9 @@ class ConfCO2(Confrontation):
         pages.append(post.HtmlPage("DataInformation","Data Information"))
         pages[-1].setSections([])
         pages[-1].text = "\n"
-
-        def _attribute_sort(attr):
-            # If the attribute begins with one of the ones we
-            # specifically order, return the index into order. If
-            # it does not, return the number of entries in the
-            # list and the file's order will be preserved.
-            order = ['title','version','institution','source','history','references','comments','convention']
-            for i,a in enumerate(order):
-                if attr.lower().startswith(a): return i
-            return len(order)
         with Dataset(self.source) as dset:
-            attrs = dset.ncattrs()
-            attrs = sorted(attrs,key=_attribute_sort)
-            for attr in attrs:
-                try:
-                    val = dset.getncattr(attr)
-                    if type(val) != str: val = str(val)
-                    pages[-1].text += create_data_header(attr,val)
-                except:
-                    pass
-
+            for attr in dset.ncattrs():
+                pages[-1].text += "<p><b>&nbsp;&nbsp;%s:&nbsp;</b>%s</p>\n" % (attr,dset.getncattr(attr).encode('ascii','ignore'))
         self.layout = post.HtmlLayout(pages,self.longname)
 
         # Adding a member variable called basins, add them as regions
@@ -175,11 +158,12 @@ class ConfCO2(Confrontation):
 
         # Get the model result
         mod = m.extractTimeSeries(emulated_flux,
-                                  initial_time = obs.time_bnds[ 0,0]-float(Ninf)/12*360,
+                                  initial_time = obs.time_bnds[ 0,0]-float(Ninf)/12*365+29.,
                                   final_time   = obs.time_bnds[-1,1])
 
         # What if I don't have Ninf leadtime?
         tf = min(obs.time_bnds[-1,1],mod.time_bnds[-1,1])
+        if (tf % 365 > 2): tf -= (tf % 365) # needs to end in integer years
         obs.trim(t=[-1e20,tf])
         mod.trim(t=[-1e20,tf])
 
@@ -233,6 +217,15 @@ class ConfCO2(Confrontation):
         return mod
 
     def stageData(self,m):
+        """
+        #print("m")
+        #print(m)
+        #print("self")
+        #print(self)
+        #print("self.variable")
+        #print(self.variable)
+        #print(self.source)"""
+
 
         # Get the observational data
         obs = Variable(filename       = self.source,
@@ -253,10 +246,10 @@ class ConfCO2(Confrontation):
         force_emulation = self.keywords.get("force_emulation","False").lower() == "true"
         never_emulation = self.keywords.get("never_emulation","False").lower() == "true"
         no_co2          = False
-        emulated_co2    = False
         mod             = None
         if not force_emulation:
             try:
+                #print "Trying to get co2 from %s" % m.name
                 mod = m.extractTimeSeries(self.variable,
                                           alt_vars     = self.alternate_vars,
                                           initial_time = obs.time_bnds[ 0,0],
@@ -264,15 +257,19 @@ class ConfCO2(Confrontation):
                                           lats         = None if obs.spatial else obs.lat,
                                           lons         = None if obs.spatial else obs.lon)
             except il.VarNotInModel:
+                #print "co2 not in %s" % m.name
                 no_co2 = True
 
         if (((mod is None) or no_co2) and (not never_emulation)):
+            #print "Emulating co2 in %s" % m.name
             mod = self.emulatedModelResult(m,obs)
-            emulated_co2 = True
 
         if mod is None: raise il.VarNotInModel()
 
-        # Get the right layering, closest to the layer elevation where all aren't masked.
+        #print(mod)
+
+
+        # get the right layering, closest to the layer elevation where all aren't masked.
         if mod.layered:
             ind = (np.abs(obs.depth[:,np.newaxis]-mod.depth)).argmin(axis=1)
             for i in range(ind.size):
@@ -290,19 +287,26 @@ class ConfCO2(Confrontation):
                                         mask_ref  = True,
                                         clip_ref  = True)
             mod.data.mask += obs.data.mask
+        #print(mod)
 
-        if emulated_co2:
-
-           # Read in Fossil fuel and Ocean CO2 concentrations
-           filename = os.path.join(self.pulse_dir,"GEOSChemOcnFfCo2_32yr_360daytime.nc")
+        # if flag_emulation_co2 is true, add TakahashiFFco2 and FFco2 to mod
+        flag_emulation_co2 = True
+        if flag_emulation_co2:
+           #Read in Fosil fuel CO2 concentration from GEOSChem output
+           filename = os.path.join(self.pulse_dir,"GEOSChemOcnFfCo2_32yr_360daytime.nc") #"GEOSChemOcnFfCo2_32yr_360daytime.nc"
            FFco2Emu = Variable(filename = filename, variable_name = "FFco2" )
+           #Grab FFco2Emu at obs sites
            FFco2Emu = FFco2Emu.extractDatasites(lat = None if obs.spatial else obs.lat,
-                                                lon = None if obs.spatial else obs.lon )
-           OCNco2Emu = Variable(filename = filename, variable_name = "OCNco2" )
-           OCNco2Emu = OCNco2Emu.extractDatasites(lat = None if obs.spatial else obs.lat,
-                                                  lon = None if obs.spatial else obs.lon)
+                                  lon =None if obs.spatial else obs.lon )
 
-           # Get the right layering, closest to the layer elevation where all aren't masked
+           #Read in Takahashi
+           OCNco2Emu = Variable(filename = filename, variable_name = "OCNco2" )
+           #OCNco2Emu at two selected sites
+           OCNco2Emu = OCNco2Emu.extractDatasites(lat = None if obs.spatial else obs.lat,
+                                  lon = None if obs.spatial else obs.lon)
+
+
+           # get the right layering, closest to the layer elevation where all aren't masked
            if OCNco2Emu.layered:
               ind = (np.abs(obs.depth[:,np.newaxis]-OCNco2Emu.depth)).argmin(axis=1)
               for i in range(ind.size):
@@ -326,6 +330,10 @@ class ConfCO2(Confrontation):
               FFco2Emu.depth_bnds = None
               FFco2Emu.layered = False
               FFco2Emu.unit = "mol mol-1"
+              #print(OCNco2Emu)
+              #print(FFco2Emu)
+
+
 
            # actual processing to add OCNco2 and FFco2 to mod terrestrial CO2
            mod, OCNco2Emu = il.MakeComparable(mod, OCNco2Emu,
@@ -335,7 +343,10 @@ class ConfCO2(Confrontation):
            mod, FFco2Emu = il.MakeComparable(mod, FFco2Emu,
                                               mask_ref = True,
                                               clip_ref = True)
-           tmin = max(OCNco2Emu.time_bnds[ 0,0],mod.time_bnds[ 0,0])
+
+
+           #trim data in time domain
+           tmin = max(OCNco2Emu.time_bnds[0,0],mod.time_bnds[0,0])
            tmax = min(OCNco2Emu.time_bnds[-1,1],mod.time_bnds[-1,1])
 
            if tmax >= tmin:
@@ -343,18 +354,365 @@ class ConfCO2(Confrontation):
                 FFco2Emu.trim(t=[tmin, tmax])
                 mod.trim(t=[tmin, tmax])
                 mod.data = OCNco2Emu.data + FFco2Emu.data + mod.data
-                obs.trim(t=[tmin, tmax])
+
+        #print(mod)
 
         # Remove the trend via quadradic polynomial
+        print("obs before detrending")
+        print(obs)
+
         obs = _detrend(obs)
         mod = _detrend(mod)
 
+        print("obs after detrending")
+        print(obs)
+
         return obs,mod
+
+
+    def relationshipInd(self,m):
+        #Before plotting relationship between iav of co2 or co2 growth rate and iav of other variables, e.g. tas in this case, prepare the iav of independent variable at the location of co2 obs sites.
+
+        #get reference co2 obs to grab the site location [lat, lon, level]
+        co2Obs = Variable(filename       = self.source,
+                       variable_name  = self.variable,
+                       alternate_vars = self.alternate_vars,
+                       t0 = None if len(self.study_limits) != 2 else self.study_limits[0],
+                       tf = None if len(self.study_limits) != 2 else self.study_limits[1])
+
+        # Reduce the sites
+        if self.map:
+            co2Obs.lat   = co2Obs.lat  [  self.map]
+            co2Obs.lon   = co2Obs.lon  [  self.map]
+            co2Obs.depth = co2Obs.depth[  self.map]
+            co2Obs.data  = co2Obs.data [:,self.map]
+            co2Obs.ndata = len(self.map)
+
+        #print("co2Obs.spatial:")
+        #print(co2Obs.spatial)
+        #print("co2Obs.lat:")
+        #print(co2Obs.lat)
+
+
+
+        #get obs of independent variable
+        indObs = Variable(filename       = "/no_backup/GroupData/kxu/DATA/tas/CRU/tas_0.5x0.5.nc",
+                          variable_name  = "tas",
+                          #alternate_vars = self.alternate_vars,
+                          t0 = None ,
+                          tf = None)
+        print("indObs:")
+        print(indObs)
+
+
+        latTro = indObs.lat[(indObs.lat > -23) * (indObs.lat < 23)]
+        print(latTro)
+
+
+        print(np.repeat(latTro, len(indObs.lon))[1:10])
+        print(np.tile(indObs.lon, len(latTro))[1:10])
+        maskLat = np.repeat(latTro, len(indObs.lon))
+        maskLon = np.tile(indObs.lon, len(latTro))
+        print(len(maskLat))
+        print(len(maskLon))
+
+        indObs =  indObs.extractDatasites(lat         = maskLat, #None if co2Obs.spatial else co2Obs.lat,
+                                          lon         = maskLon) #None if co2Obs.spatial else co2Obs.lon)
+
+        print("indObs after mask:")
+        print(indObs)
+
+        #indObsDtr = _detrend(indObs)
+        print(indObs.data)
+
+        whrLand = np.where(indObs.data[1,:].mask==False)
+        print("whrLand")
+        print(whrLand)
+
+
+
+        indObsLand = copy.deepcopy(indObs)
+        indObsLand.data = indObs.data[:, whrLand]
+
+        print("indObsLand")
+        print(indObsLand)
+
+
+
+        cc = copy.deepcopy(indObsLand)
+        cc.data = np.mean(indObsLand.data, axis=2, keepdims = False)
+        cc.ndata = 1
+        print("spatial average np.mean axis 2:")
+        print(cc)
+
+
+        var = copy.deepcopy(cc)
+
+        j = np.where(var.data.mask==False)[0]
+        print("j")
+        print(j)
+        #t = var.time[j[0]]
+        print("var.time")
+        print(var.time)
+
+        t = var.time[j]
+        print("t")
+        print(t)
+        x = var.data[j,0]
+        print("x")
+        print(x)
+        p = np.polyfit(t,x,2)
+        print("p")
+        print(p)
+        #var.data.data[:,i] -= np.polyval(p,var.time)
+        bb = np.polyval(p,var.time)
+        print("bb")
+        print(bb)
+        var.data[j,0] -= bb
+
+
+
+        indObsLandDtr = copy.deepcopy(var)
+        print("detrending the spatial average over land mask:")
+        print(indObsLandDtr)
+
+
+        ########model output tas ---------------------
+        #whrLandTroLat = indObs.lat[whrLand]
+        print(indObs.lat[whrLand])
+        indObs.lon[whrLand]
+
+        #get the model output of independent variable
+        indModLand = m.extractTimeSeries("tas",
+                                         #alt_vars     = self.alternate_vars,
+                                         initial_time = co2Obs.time_bnds[ 0,0],
+                                         final_time   = co2Obs.time_bnds[-1,1],
+                                         lats         = indObs.lat[whrLand],#indMod.lat[(indMod.lat > -23.1) *(indMod.lat < 23.1)], #None if co2Obs.spatial else co2Obs.lat,
+                                         lons         = indObs.lon[whrLand]#indMod.lon#None
+                                         ) #if co2Obs.spatial else co2Obs.lon)
+        print("indModLand:")
+        print(indModLand)
+
+
+        #detrending-----------
+
+        cc = copy.deepcopy(indModLand)
+        cc.data = np.mean(indModLand.data, axis=1, keepdims= True)
+        cc.ndata = 1
+        print("spatial average of mod np.mean axis 1:")
+        print(cc)
+
+
+        var = copy.deepcopy(cc)
+
+        j = np.where(var.data.mask==False)[0]
+        print("j")
+        print(j)
+        #t = var.time[j[0]]
+        print("var.time")
+        print(var.time)
+
+        t = var.time[j]
+        print("t")
+        print(t)
+        print
+        x = var.data[j,0]
+        print("x")
+        print(x)
+        p = np.polyfit(t,x,2)
+        print("p")
+        print(p)
+        #var.data.data[:,i] -= np.polyval(p,var.time)
+        bb = np.polyval(p,var.time)
+        print("bb")
+        print(bb)
+        var.data[j,0] -= bb
+
+
+
+        indModLandDtr = copy.deepcopy(var)
+        print("detrending the spatial average over land mask:")
+        print(indModLandDtr)
+
+
+
+
+        ###calcualte iav of ind obs and ind mod----------
+
+        # Compute amplitude, min and max phase, and annual cycle as numpy data arrays
+        ocyc,ot,otb = _cycleShape(indObsLandDtr)
+        #print(ocyc)
+        #print(ot)
+        #print(otb)
+        mcyc,mt,mtb = _cycleShape(indModLandDtr)
+
+        n           = 1 #len(maskLat)#len(self.lbls)
+        obs_amp     = np.zeros(n); obs_maxp = np.zeros(n); obs_minp = np.zeros(n)
+        mod_amp     = np.zeros(n); mod_maxp = np.zeros(n); mod_minp = np.zeros(n)
+        obs_cyc     = np.zeros((366,n)); mod_cyc = np.zeros((366,n));
+        well_define = np.zeros(n)
+        #print("obs_amp")
+        #print(obs_amp)
+        #print("mod_amp")
+        #print(mod_amp)
+        #print("obs_cyc"); print(obs_cyc)
+
+        for i in range(1,n):
+            #print(i)
+            #print(site)
+            obs_amp[i],obs_maxp[i],obs_minp[i],obs_cyc[:,i] = _siteCharacteristics(ot,ocyc[...,i])
+            #print("siteCha function:")
+            #print(_siteCharacteristics(ot,ocyc[...,i]))
+            #print("obs_amp[i]:")
+            #print(obs_amp[i])
+            mod_amp[i],mod_maxp[i],mod_minp[i],mod_cyc[:,i] = _siteCharacteristics(mt,mcyc[...,i])
+        #print("site Chara model:")
+        #print(_siteCharacteristics(mt,mcyc[...,i]))
+        #print("mod_amp[i]")
+        #print(mod_amp[i])
+        #print("_phase function:")
+        #print(_phaseWellDefined(obs.time,obs.data[:,i]))
+
+
+        #well_define[i] = _phaseWellDefined(obs.time,obs.data[:,i])
+        #well_define /= well_define.sum()
+        #print(obs_amp)
+        #print(mod_amp)
+        # Write out ILAMB variables for observed quantities
+        #print(np.errstate(under='ignore'))
+        obs = copy.deepcopy(indObsLandDtr)
+        mod = indModLandDtr
+
+
+        with np.errstate(under='ignore'):
+            ocyc     = Variable(name  = "cycle", # mean annual cycle
+                                unit  = obs.unit,
+                                data  = ocyc.mean(axis=0),
+                                ndata = obs.ndata,
+                                lat   = obs.lat,
+                                lon   = obs.lon,
+                                time  = ot,
+                                time_bnds = otb)
+            #print("ocyc")
+            #print(ocyc)
+            oiav     = Variable(name  = "iav", # deseasonalized interannual variability
+                                unit  = obs.unit,
+                                data  = obs.data-il.ExtendAnnualCycle(obs.time,ocyc.data,ocyc.time),
+                                time  = obs.time,
+                                ndata = obs.ndata,
+                                lat   = obs.lat,
+                                lon   = obs.lon,
+                                time_bnds = obs.time_bnds)
+            print("oiav")
+            print(oiav)
+            ocycf    = Variable(name  = "cycle_fine", # finely sampled cycle from cubic interpolation
+                                unit  = obs.unit,
+                                data  = obs_cyc,
+                                time  = np.linspace(0,365,366),
+                                ndata = obs.ndata,
+                                lat   = obs.lat,
+                                lon   = obs.lon)
+            #print("ocycf")
+            #print(ocycf)
+            obs_amp  = Variable(name  = "amp", # mean amplitude over time period
+                                unit  = obs.unit,
+                                data  = obs_amp,
+                                ndata = obs.ndata,
+                                lat   = obs.lat,
+                                lon   = obs.lon)
+            #print("obs_amp")
+            #print(obs_amp)
+            obs_maxp = Variable(name  = "maxp", # Julian day of the maximum of the annual cycle
+                                unit  = "d",
+                                data  = obs_maxp,
+                                ndata = obs.ndata,
+                                lat   = obs.lat,
+                                lon   = obs.lon)
+            #print("obs_maxp")
+            #print(obs_maxp)
+            obs_minp = Variable(name  = "minp", # Julian day of the minimum of the annual cycle
+                                unit  = "d",
+                                data  = obs_minp,
+                                ndata = obs.ndata,
+                                lat   = obs.lat,
+                                lon   = obs.lon)
+        #print("obs_minp")
+        #print(obs_minp)
+        #print("oiav")
+        #print(oiav)
+        #print("ocyc")
+        #print(ocyc)
+
+        # Write out ILAMB variables for modeled quantities
+        mcyc     = Variable(name  = "cycle", # mean annual cycle
+                            unit  = mod.unit,
+                            data  = mcyc.mean(axis=0),
+                            ndata = mod.ndata,
+                            lat   = mod.lat,
+                            lon   = mod.lon,
+                            time  = mt,
+                            time_bnds = mtb)
+        miav     = Variable(name  = "iav", # deseasonalized interannual variability
+                            unit  = mod.unit,
+                            data  = mod.data-il.ExtendAnnualCycle(mod.time,mcyc.data,mcyc.time),
+                            time  = mod.time,
+                            ndata = mod.ndata,
+                            lat   = mod.lat,
+                            lon   = mod.lon,
+                            time_bnds = mod.time_bnds)
+        print(miav)
+        mcycf    = Variable(name  = "cycle_fine", # finely sampled cycle from cubic interpolation
+                            unit  = mod.unit,
+                            data  = mod_cyc,
+                            time  = np.linspace(0,365,366),
+                            ndata = mod.ndata,
+                            lat   = mod.lat,
+                            lon   = mod.lon)
+        mod_amp  = Variable(name  = "amp", # mean amplitude over time period
+                            unit  = mod.unit,
+                            data  = mod_amp,
+                            ndata = mod.ndata,
+                            lat   = mod.lat,
+                            lon   = mod.lon)
+        mod_maxp = Variable(name  = "maxp", # Julian day of the maximum of the annual cycle
+                            unit  = "d",
+                            data  = mod_maxp,
+                            ndata = mod.ndata,
+                            lat   = mod.lat,
+                            lon   = mod.lon)
+        mod_minp = Variable(name  = "minp", # Julian day of the minimum of the annual cycle
+                            unit  = "d",
+                            data  = mod_minp,
+                            ndata = mod.ndata,
+                            lat   = mod.lat,
+                            lon   = mod.lon)
+
+
+
+        # Write out the intermediate variables
+        with Dataset(os.path.join(self.output_path,"%s_%s.nc" % ("tas",m.name)),mode="w") as results:
+            results.setncatts({"name" :m.name, "color":m.color})
+            for v in [mod,mcyc,miav,mcycf,mod_maxp,mod_minp,mod_amp]:
+                v.toNetCDF4(results,group="MeanState")
+
+        with Dataset(os.path.join(self.output_path,"tas_CRU_Benchmark.nc"),mode="w") as results:
+            results.setncatts({"name" :"Benchmark", "color":np.asarray([0.5,0.5,0.5])})
+            for v in [obs,ocyc,oiav,ocycf,obs_maxp,obs_minp,obs_amp]:
+                v.toNetCDF4(results,group="MeanState")
+
+
+
 
     def confront(self,m):
 
         # Grab the data
         obs,mod = self.stageData(m)
+        #print("obsCO2:")
+        #print(obs)
+        #print("modCo2:")
+        #print(mod)
+        self.relationshipInd(m)
+
 
         # Compute amplitude, min and max phase, and annual cycle as numpy data arrays
         ocyc,ot,otb = _cycleShape(obs)
@@ -491,13 +849,11 @@ class ConfCO2(Confrontation):
             results.setncatts({"name" :m.name, "color":m.color})
             for v in [mod,mcyc,miav,mcycf,mod_maxp,mod_minp,mod_amp,Samp,Siav,Smax,Smin]:
                 v.toNetCDF4(results,group="MeanState")
-            results.setncattr("complete",1)
         if not self.master: return
         with Dataset(os.path.join(self.output_path,"%s_Benchmark.nc" % self.name),mode="w") as results:
             results.setncatts({"name" :"Benchmark", "color":np.asarray([0.5,0.5,0.5])})
             for v in [obs,ocyc,oiav,ocycf,obs_maxp,obs_minp,obs_amp]:
                 v.toNetCDF4(results,group="MeanState")
-            results.setncattr("complete",1)
 
     def modelPlots(self,m):
 
@@ -575,7 +931,7 @@ class ConfCO2(Confrontation):
                        transform=ax[0].transAxes)
             ax[0].set_xticks([])
             ax[0].set_yticks([])
-            ax[0].axis(False)
+            ax[0].axis('off')
 
             # Plot the finely interpolated annual cycle, shade JFM and JJA
             ax[1].fill_between(bndmonths[[0,3]],[vmin,vmin],[vmax,vmax],color='k',alpha=0.05,lw=0)
@@ -691,16 +1047,19 @@ class ConfCO2(Confrontation):
         iav_ticks  = (iav_ticks -min_iav)/(max_iav-min_iav)*360.-180.
 
         # Plot mean latitude band amplitude where amplitude is on the longitude axis
-        fig,ax = plt.subplots(figsize=(8,4.5),tight_layout=True,subplot_kw={'projection':ccrs.PlateCarree()})
-        ax.add_feature(cfeature.NaturalEarthFeature('physical','land','110m',
-                                                    edgecolor='face',
-                                                    facecolor='0.875'),zorder=-1)
-        ax.add_feature(cfeature.NaturalEarthFeature('physical','ocean','110m',
-                                                    edgecolor='face',
-                                                    facecolor='1.000'),zorder=-1)
-        ax.set_extent([-180,+180,-90,+90],ccrs.PlateCarree())
+        fig,ax = plt.subplots(figsize=(8,4.5),tight_layout=True)
+        bmap = Basemap(projection = 'cyl',
+                       llcrnrlon  = -180,
+                       llcrnrlat  = - 90,
+                       urcrnrlon  = +180,
+                       urcrnrlat  = + 90,
+                       ax         = ax,
+                       resolution = 'c')
+        bmap.drawlsmask(land_color  = "0.875",
+                        ocean_color = "1.000",
+                        lakes       = True)
         ms = 8
-        ax.scatter(obs.lon,obs.lat,8,color="0.60",label="Sites")
+        bmap.scatter(obs.lon,obs.lat,8,color="0.60",latlon=True,label="Sites",ax=ax)
         ax.plot(o_band_amp,lat,'--o',color=np.asarray([0.5,0.5,0.5]),label="%s amplitude" % self.name,mew=0,markersize=ms)
         ax.plot(m_band_amp,lat,'-o' ,color=m.color,label="%s amplitude" % m.name,mew=0,markersize=ms)
         ax.yaxis.grid(color="0.875",linestyle="-")
@@ -712,7 +1071,6 @@ class ConfCO2(Confrontation):
         ax.set_xticklabels(amp_ticklabels)
         ax.set_yticks(lat_bnds)
         fig.savefig(os.path.join(self.output_path,"%s_amp.png" % m.name))
-        plt.close()
         page.addFigure("Summary",
                        "amp",
                        "MNAME_amp.png",
@@ -721,17 +1079,19 @@ class ConfCO2(Confrontation):
                        legend = False)
 
         # Plot mean latitude band iav where iav is on the longitude axis
-
-        fig,ax = plt.subplots(figsize=(8,4.5),tight_layout=True,subplot_kw={'projection':ccrs.PlateCarree()})
-        ax.add_feature(cfeature.NaturalEarthFeature('physical','land','110m',
-                                                    edgecolor='face',
-                                                    facecolor='0.875'),zorder=-1)
-        ax.add_feature(cfeature.NaturalEarthFeature('physical','ocean','110m',
-                                                    edgecolor='face',
-                                                    facecolor='1.000'),zorder=-1)
-        ax.set_extent([-180,+180,-90,+90],ccrs.PlateCarree())
+        fig,ax = plt.subplots(figsize=(8,4.5),tight_layout=True)
+        bmap = Basemap(projection = 'cyl',
+                       llcrnrlon  = -180,
+                       llcrnrlat  = - 90,
+                       urcrnrlon  = +180,
+                       urcrnrlat  = + 90,
+                       ax         = ax,
+                       resolution = 'c')
+        bmap.drawlsmask(land_color  = "0.875",
+                        ocean_color = "1.000",
+                        lakes       = True)
         ms = 8
-        ax.scatter(obs.lon,obs.lat,8,color="0.60",label="Sites")
+        bmap.scatter(obs.lon,obs.lat,8,color="0.60",latlon=True,label="Sites",ax=ax)
         ax.plot(o_band_iav,lat,'--o',color=np.asarray([0.5,0.5,0.5]),label="%s variability" % self.name,mew=0,markersize=ms)
         ax.plot(m_band_iav,lat,'-o' ,color=m.color,label="%s variability" % m.name,mew=0,markersize=ms)
         ax.yaxis.grid(color="0.875",linestyle="-")
@@ -743,7 +1103,6 @@ class ConfCO2(Confrontation):
         ax.set_xticklabels(iav_ticklabels)
         ax.set_yticks(lat_bnds)
         fig.savefig(os.path.join(self.output_path,"%s_iav.png" % m.name))
-        plt.close()
         page.addFigure("Summary",
                        "iav",
                        "MNAME_iav.png",
@@ -752,16 +1111,18 @@ class ConfCO2(Confrontation):
                        legend = False)
 
         # Plot mean latitude band max phase where the phase is on the longitude axis
-        fig,ax = plt.subplots(figsize=(8,4.5),tight_layout=True,subplot_kw={'projection':ccrs.PlateCarree()})
-        ax.add_feature(cfeature.NaturalEarthFeature('physical','land','110m',
-                                                    edgecolor='face',
-                                                    facecolor='0.875'),zorder=-1)
-        ax.add_feature(cfeature.NaturalEarthFeature('physical','ocean','110m',
-                                                    edgecolor='face',
-                                                    facecolor='1.000'),zorder=-1)
-        ax.set_extent([-180,+180,-90,+90],ccrs.PlateCarree())
-        ms = 8
-        ax.scatter(obs.lon,obs.lat,8,color="0.60",label="Sites")
+        fig,ax = plt.subplots(figsize=(8,4.5),tight_layout=True)
+        bmap = Basemap(projection = 'cyl',
+                       llcrnrlon  = -180,
+                       llcrnrlat  = - 90,
+                       urcrnrlon  = +180,
+                       urcrnrlat  = + 90,
+                       ax         = ax,
+                       resolution = 'c')
+        bmap.drawlsmask(land_color  = "0.875",
+                        ocean_color = "1.000",
+                        lakes       = True)
+        bmap.scatter(obs.lon,obs.lat,8,color="0.60",latlon=True,label="Sites",ax=ax)
         ax.plot(o_band_max,lat,'--o',color=np.asarray([0.5,0.5,0.5]),label="%s maximum" % self.name,mew=0,markersize=ms)
         ax.plot(m_band_max,lat,'-o' ,color=m.color,label="%s maximum" % m.name,mew=0,markersize=ms)
         ax.yaxis.grid(color="0.875",linestyle="-")
@@ -772,7 +1133,6 @@ class ConfCO2(Confrontation):
         ax.set_xticklabels(lbl_months)
         ax.set_yticks(lat_bnds)
         fig.savefig(os.path.join(self.output_path,"%s_maxphase.png" % m.name))
-        plt.close()
         page.addFigure("Summary",
                        "maxphase",
                        "MNAME_maxphase.png",
@@ -781,16 +1141,18 @@ class ConfCO2(Confrontation):
                        legend = False)
 
         # Plot mean latitude band min phase where the phase is on the longitude axis
-        fig,ax = plt.subplots(figsize=(8,4.5),tight_layout=True,subplot_kw={'projection':ccrs.PlateCarree()})
-        ax.add_feature(cfeature.NaturalEarthFeature('physical','land','110m',
-                                                    edgecolor='face',
-                                                    facecolor='0.875'),zorder=-1)
-        ax.add_feature(cfeature.NaturalEarthFeature('physical','ocean','110m',
-                                                    edgecolor='face',
-                                                    facecolor='1.000'),zorder=-1)
-        ax.set_extent([-180,+180,-90,+90],ccrs.PlateCarree())
-        ms = 8
-        ax.scatter(obs.lon,obs.lat,8,color="0.60",label="Sites")
+        fig,ax = plt.subplots(figsize=(8,4.5),tight_layout=True)
+        bmap = Basemap(projection = 'cyl',
+                       llcrnrlon  = -180,
+                       llcrnrlat  = - 90,
+                       urcrnrlon  = +180,
+                       urcrnrlat  = + 90,
+                       ax         = ax,
+                       resolution = 'c')
+        bmap.drawlsmask(land_color  = "0.875",
+                        ocean_color = "1.000",
+                        lakes       = True)
+        bmap.scatter(obs.lon,obs.lat,8,color="0.60",latlon=True,label="Sites",ax=ax)
         ax.plot(o_band_min,lat,'--o',color=np.asarray([0.5,0.5,0.5]),label="%s minimum" % self.name,mew=0,markersize=ms)
         ax.plot(m_band_min,lat,'-o' ,color=m.color,label="%s minimum" % m.name,mew=0,markersize=ms)
         ax.yaxis.grid(color="0.875",linestyle="-")
@@ -801,7 +1163,6 @@ class ConfCO2(Confrontation):
         ax.set_xticklabels(lbl_months)
         ax.set_yticks(lat_bnds)
         fig.savefig(os.path.join(self.output_path,"%s_minphase.png" % m.name))
-        plt.close()
         page.addFigure("Summary",
                        "minphase",
                        "MNAME_minphase.png",
@@ -811,3 +1172,4 @@ class ConfCO2(Confrontation):
 
     def compositePlots(self):
         pass
+
