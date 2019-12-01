@@ -109,6 +109,7 @@ class ConfCO2(Confrontation):
         # Ugly, but this is how we call the Confrontation constructor
         super(ConfCO2,self).__init__(**keywords)
         self.regions = ['global']
+        self.derived = self.keywords.get("emulated_flux","nbp")
 
         self.lat_bands = np.asarray(self.keywords.get("lat_bands","-90,-60,-23,0,+23,+60,+90").split(","),dtype=float)
         sec = []
@@ -175,7 +176,7 @@ class ConfCO2(Confrontation):
 
         # Get the model result
         mod = m.extractTimeSeries(emulated_flux,
-                                  initial_time = obs.time_bnds[ 0,0]-float(Ninf)/12*360,
+                                  initial_time = obs.time_bnds[ 0,0]-float(Ninf)/12*365+29.,
                                   final_time   = obs.time_bnds[-1,1])
 
         # What if I don't have Ninf leadtime?
