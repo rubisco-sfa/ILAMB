@@ -11,7 +11,6 @@ from netCDF4 import Dataset
 import pylab as plt
 import numpy as np
 import os
-import copy
 
 def _phaseWellDefined(t,v):
     """The phase of a site is considered well defined if:
@@ -110,7 +109,6 @@ class ConfCO2(Confrontation):
         # Ugly, but this is how we call the Confrontation constructor
         super(ConfCO2,self).__init__(**keywords)
         self.regions = ['global']
-        self.derived = self.keywords.get("emulated_flux","nbp")
 
         self.lat_bands = np.asarray(self.keywords.get("lat_bands","-90,-60,-23,0,+23,+60,+90").split(","),dtype=float)
         sec = []
@@ -177,12 +175,11 @@ class ConfCO2(Confrontation):
 
         # Get the model result
         mod = m.extractTimeSeries(emulated_flux,
-                                  initial_time = obs.time_bnds[ 0,0]-float(Ninf)/12*365+29.,
+                                  initial_time = obs.time_bnds[ 0,0]-float(Ninf)/12*360,
                                   final_time   = obs.time_bnds[-1,1])
 
         # What if I don't have Ninf leadtime?
         tf = min(obs.time_bnds[-1,1],mod.time_bnds[-1,1])
-        if (tf % 365 > 2): tf -= (tf % 365) # needs to end in integer years
         obs.trim(t=[-1e20,tf])
         mod.trim(t=[-1e20,tf])
 
@@ -236,15 +233,6 @@ class ConfCO2(Confrontation):
         return mod
 
     def stageData(self,m):
-        """
-        #print("m")
-        #print(m)
-        #print("self")
-        #print(self)
-        #print("self.variable")
-        #print(self.variable)
-        #print(self.source)"""
-
 
         # Get the observational data
         obs = Variable(filename       = self.source,
@@ -358,361 +346,15 @@ class ConfCO2(Confrontation):
                 obs.trim(t=[tmin, tmax])
 
         # Remove the trend via quadradic polynomial
-        print("obs before detrending")
-        print(obs)
-
         obs = _detrend(obs)
         mod = _detrend(mod)
 
-        print("obs after detrending")
-        print(obs)
-
         return obs,mod
-
-
-    def relationshipInd(self,m):
-        #Before plotting relationship between iav of co2 or co2 growth rate and iav of other variables, e.g. tas in this case, prepare the iav of independent variable at the location of co2 obs sites.
-
-        #get reference co2 obs to grab the site location [lat, lon, level]
-        co2Obs = Variable(filename       = self.source,
-                       variable_name  = self.variable,
-                       alternate_vars = self.alternate_vars,
-                       t0 = None if len(self.study_limits) != 2 else self.study_limits[0],
-                       tf = None if len(self.study_limits) != 2 else self.study_limits[1])
-
-        # Reduce the sites
-        if self.map:
-            co2Obs.lat   = co2Obs.lat  [  self.map]
-            co2Obs.lon   = co2Obs.lon  [  self.map]
-            co2Obs.depth = co2Obs.depth[  self.map]
-            co2Obs.data  = co2Obs.data [:,self.map]
-            co2Obs.ndata = len(self.map)
-
-        #print("co2Obs.spatial:")
-        #print(co2Obs.spatial)
-        #print("co2Obs.lat:")
-        #print(co2Obs.lat)
-
-
-
-        #get obs of independent variable
-        indObs = Variable(filename       = "/no_backup/GroupData/kxu/DATA/tas/CRU/tas_0.5x0.5.nc",
-                          variable_name  = "tas",
-                          #alternate_vars = self.alternate_vars,
-                          t0 = None ,
-                          tf = None)
-        print("indObs:")
-        print(indObs)
-
-
-        latTro = indObs.lat[(indObs.lat > -23) * (indObs.lat < 23)]
-        print(latTro)
-
-
-        print(np.repeat(latTro, len(indObs.lon))[1:10])
-        print(np.tile(indObs.lon, len(latTro))[1:10])
-        maskLat = np.repeat(latTro, len(indObs.lon))
-        maskLon = np.tile(indObs.lon, len(latTro))
-        print(len(maskLat))
-        print(len(maskLon))
-
-        indObs =  indObs.extractDatasites(lat         = maskLat, #None if co2Obs.spatial else co2Obs.lat,
-                                          lon         = maskLon) #None if co2Obs.spatial else co2Obs.lon)
-
-        print("indObs after mask:")
-        print(indObs)
-
-        #indObsDtr = _detrend(indObs)
-        print(indObs.data)
-
-        whrLand = np.where(indObs.data[1,:].mask==False)
-        print("whrLand")
-        print(whrLand)
-
-
-
-        indObsLand = copy.deepcopy(indObs)
-        indObsLand.data = indObs.data[:, whrLand]
-
-        print("indObsLand")
-        print(indObsLand)
-
-
-
-        cc = copy.deepcopy(indObsLand)
-        cc.data = np.mean(indObsLand.data, axis=2, keepdims = False)
-        cc.ndata = 1
-        print("spatial average np.mean axis 2:")
-        print(cc)
-
-
-        var = copy.deepcopy(cc)
-
-        j = np.where(var.data.mask==False)[0]
-        print("j")
-        print(j)
-        #t = var.time[j[0]]
-        print("var.time")
-        print(var.time)
-
-        t = var.time[j]
-        print("t")
-        print(t)
-        x = var.data[j,0]
-        print("x")
-        print(x)
-        p = np.polyfit(t,x,2)
-        print("p")
-        print(p)
-        #var.data.data[:,i] -= np.polyval(p,var.time)
-        bb = np.polyval(p,var.time)
-        print("bb")
-        print(bb)
-        var.data[j,0] -= bb
-
-
-
-        indObsLandDtr = copy.deepcopy(var)
-        print("detrending the spatial average over land mask:")
-        print(indObsLandDtr)
-
-
-        ########model output tas ---------------------
-        #whrLandTroLat = indObs.lat[whrLand]
-        print(indObs.lat[whrLand])
-        indObs.lon[whrLand]
-
-        #get the model output of independent variable
-        indModLand = m.extractTimeSeries("tas",
-                                         #alt_vars     = self.alternate_vars,
-                                         initial_time = co2Obs.time_bnds[ 0,0],
-                                         final_time   = co2Obs.time_bnds[-1,1],
-                                         lats         = indObs.lat[whrLand],#indMod.lat[(indMod.lat > -23.1) *(indMod.lat < 23.1)], #None if co2Obs.spatial else co2Obs.lat,
-                                         lons         = indObs.lon[whrLand]#indMod.lon#None
-                                         ) #if co2Obs.spatial else co2Obs.lon)
-        print("indModLand:")
-        print(indModLand)
-
-
-        #detrending-----------
-
-        cc = copy.deepcopy(indModLand)
-        cc.data = np.mean(indModLand.data, axis=1, keepdims= True)
-        cc.ndata = 1
-        print("spatial average of mod np.mean axis 1:")
-        print(cc)
-
-
-        var = copy.deepcopy(cc)
-
-        j = np.where(var.data.mask==False)[0]
-        print("j")
-        print(j)
-        #t = var.time[j[0]]
-        print("var.time")
-        print(var.time)
-
-        t = var.time[j]
-        print("t")
-        print(t)
-        print
-        x = var.data[j,0]
-        print("x")
-        print(x)
-        p = np.polyfit(t,x,2)
-        print("p")
-        print(p)
-        #var.data.data[:,i] -= np.polyval(p,var.time)
-        bb = np.polyval(p,var.time)
-        print("bb")
-        print(bb)
-        var.data[j,0] -= bb
-
-
-
-        indModLandDtr = copy.deepcopy(var)
-        print("detrending the spatial average over land mask:")
-        print(indModLandDtr)
-
-
-
-
-        ###calcualte iav of ind obs and ind mod----------
-
-        # Compute amplitude, min and max phase, and annual cycle as numpy data arrays
-        ocyc,ot,otb = _cycleShape(indObsLandDtr)
-        #print(ocyc)
-        #print(ot)
-        #print(otb)
-        mcyc,mt,mtb = _cycleShape(indModLandDtr)
-
-        n           = 1 #len(maskLat)#len(self.lbls)
-        obs_amp     = np.zeros(n); obs_maxp = np.zeros(n); obs_minp = np.zeros(n)
-        mod_amp     = np.zeros(n); mod_maxp = np.zeros(n); mod_minp = np.zeros(n)
-        obs_cyc     = np.zeros((366,n)); mod_cyc = np.zeros((366,n));
-        well_define = np.zeros(n)
-        #print("obs_amp")
-        #print(obs_amp)
-        #print("mod_amp")
-        #print(mod_amp)
-        #print("obs_cyc"); print(obs_cyc)
-
-        for i in range(1,n):
-            #print(i)
-            #print(site)
-            obs_amp[i],obs_maxp[i],obs_minp[i],obs_cyc[:,i] = _siteCharacteristics(ot,ocyc[...,i])
-            #print("siteCha function:")
-            #print(_siteCharacteristics(ot,ocyc[...,i]))
-            #print("obs_amp[i]:")
-            #print(obs_amp[i])
-            mod_amp[i],mod_maxp[i],mod_minp[i],mod_cyc[:,i] = _siteCharacteristics(mt,mcyc[...,i])
-        #print("site Chara model:")
-        #print(_siteCharacteristics(mt,mcyc[...,i]))
-        #print("mod_amp[i]")
-        #print(mod_amp[i])
-        #print("_phase function:")
-        #print(_phaseWellDefined(obs.time,obs.data[:,i]))
-
-
-        #well_define[i] = _phaseWellDefined(obs.time,obs.data[:,i])
-        #well_define /= well_define.sum()
-        #print(obs_amp)
-        #print(mod_amp)
-        # Write out ILAMB variables for observed quantities
-        #print(np.errstate(under='ignore'))
-        obs = copy.deepcopy(indObsLandDtr)
-        mod = indModLandDtr
-
-
-        with np.errstate(under='ignore'):
-            ocyc     = Variable(name  = "cycle", # mean annual cycle
-                                unit  = obs.unit,
-                                data  = ocyc.mean(axis=0),
-                                ndata = obs.ndata,
-                                lat   = obs.lat,
-                                lon   = obs.lon,
-                                time  = ot,
-                                time_bnds = otb)
-            #print("ocyc")
-            #print(ocyc)
-            oiav     = Variable(name  = "iav", # deseasonalized interannual variability
-                                unit  = obs.unit,
-                                data  = obs.data-il.ExtendAnnualCycle(obs.time,ocyc.data,ocyc.time),
-                                time  = obs.time,
-                                ndata = obs.ndata,
-                                lat   = obs.lat,
-                                lon   = obs.lon,
-                                time_bnds = obs.time_bnds)
-            print("oiav")
-            print(oiav)
-            ocycf    = Variable(name  = "cycle_fine", # finely sampled cycle from cubic interpolation
-                                unit  = obs.unit,
-                                data  = obs_cyc,
-                                time  = np.linspace(0,365,366),
-                                ndata = obs.ndata,
-                                lat   = obs.lat,
-                                lon   = obs.lon)
-            #print("ocycf")
-            #print(ocycf)
-            obs_amp  = Variable(name  = "amp", # mean amplitude over time period
-                                unit  = obs.unit,
-                                data  = obs_amp,
-                                ndata = obs.ndata,
-                                lat   = obs.lat,
-                                lon   = obs.lon)
-            #print("obs_amp")
-            #print(obs_amp)
-            obs_maxp = Variable(name  = "maxp", # Julian day of the maximum of the annual cycle
-                                unit  = "d",
-                                data  = obs_maxp,
-                                ndata = obs.ndata,
-                                lat   = obs.lat,
-                                lon   = obs.lon)
-            #print("obs_maxp")
-            #print(obs_maxp)
-            obs_minp = Variable(name  = "minp", # Julian day of the minimum of the annual cycle
-                                unit  = "d",
-                                data  = obs_minp,
-                                ndata = obs.ndata,
-                                lat   = obs.lat,
-                                lon   = obs.lon)
-        #print("obs_minp")
-        #print(obs_minp)
-        #print("oiav")
-        #print(oiav)
-        #print("ocyc")
-        #print(ocyc)
-
-        # Write out ILAMB variables for modeled quantities
-        mcyc     = Variable(name  = "cycle", # mean annual cycle
-                            unit  = mod.unit,
-                            data  = mcyc.mean(axis=0),
-                            ndata = mod.ndata,
-                            lat   = mod.lat,
-                            lon   = mod.lon,
-                            time  = mt,
-                            time_bnds = mtb)
-        miav     = Variable(name  = "iav", # deseasonalized interannual variability
-                            unit  = mod.unit,
-                            data  = mod.data-il.ExtendAnnualCycle(mod.time,mcyc.data,mcyc.time),
-                            time  = mod.time,
-                            ndata = mod.ndata,
-                            lat   = mod.lat,
-                            lon   = mod.lon,
-                            time_bnds = mod.time_bnds)
-        print(miav)
-        mcycf    = Variable(name  = "cycle_fine", # finely sampled cycle from cubic interpolation
-                            unit  = mod.unit,
-                            data  = mod_cyc,
-                            time  = np.linspace(0,365,366),
-                            ndata = mod.ndata,
-                            lat   = mod.lat,
-                            lon   = mod.lon)
-        mod_amp  = Variable(name  = "amp", # mean amplitude over time period
-                            unit  = mod.unit,
-                            data  = mod_amp,
-                            ndata = mod.ndata,
-                            lat   = mod.lat,
-                            lon   = mod.lon)
-        mod_maxp = Variable(name  = "maxp", # Julian day of the maximum of the annual cycle
-                            unit  = "d",
-                            data  = mod_maxp,
-                            ndata = mod.ndata,
-                            lat   = mod.lat,
-                            lon   = mod.lon)
-        mod_minp = Variable(name  = "minp", # Julian day of the minimum of the annual cycle
-                            unit  = "d",
-                            data  = mod_minp,
-                            ndata = mod.ndata,
-                            lat   = mod.lat,
-                            lon   = mod.lon)
-
-
-
-        # Write out the intermediate variables
-        with Dataset(os.path.join(self.output_path,"%s_%s.nc" % ("tas",m.name)),mode="w") as results:
-            results.setncatts({"name" :m.name, "color":m.color})
-            for v in [mod,mcyc,miav,mcycf,mod_maxp,mod_minp,mod_amp]:
-                v.toNetCDF4(results,group="MeanState")
-
-        with Dataset(os.path.join(self.output_path,"tas_CRU_Benchmark.nc"),mode="w") as results:
-            results.setncatts({"name" :"Benchmark", "color":np.asarray([0.5,0.5,0.5])})
-            for v in [obs,ocyc,oiav,ocycf,obs_maxp,obs_minp,obs_amp]:
-                v.toNetCDF4(results,group="MeanState")
-
-
-
 
     def confront(self,m):
 
         # Grab the data
         obs,mod = self.stageData(m)
-        #print("obsCO2:")
-        #print(obs)
-        #print("modCo2:")
-        #print(mod)
-        self.relationshipInd(m)
-
 
         # Compute amplitude, min and max phase, and annual cycle as numpy data arrays
         ocyc,ot,otb = _cycleShape(obs)
@@ -1169,4 +811,3 @@ class ConfCO2(Confrontation):
 
     def compositePlots(self):
         pass
-
