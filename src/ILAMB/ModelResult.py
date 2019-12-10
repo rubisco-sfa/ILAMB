@@ -191,7 +191,7 @@ class ModelResult():
             with Dataset(self.variables["sftlf"][0]) as f:
                 self.land_fraction = f.variables["sftlf"][...]                
             # some models represent the fraction as a percent
-            if np.ma.max(self.land_fraction) > 1: self.land_fraction *= 0.01
+            if np.ma.max(self.land_fraction) > 10: self.land_fraction *= 0.01
             with np.errstate(over='ignore',under='ignore'):
                 if not np.allclose(self.cell_areas.shape,self.land_fraction.shape):
                     msg = "The model %s has areacella %s which is a different shape than sftlf %s" % (self.name,
