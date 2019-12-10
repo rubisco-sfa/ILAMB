@@ -114,10 +114,10 @@ def MultiModelMean(M,vname,wgt_file=None,maxV=20):
         count +=        (v.mask==False)
         sumw  += w
         vname = vname0
-        
+
     # Take the mean and write it out
     with np.errstate(all='ignore'):
-        data = np.ma.masked_array(data=(data/(count.clip(0,1)*sumw)),mask=(count==0))
+        data = np.ma.masked_array(data=(data/sumw),mask=(count==0))
     with Dataset(os.path.join(args.build_dir[0],"%s.nc" % vname),mode="w") as dset:
         Variable(data       = data,
                  unit       = unit,
