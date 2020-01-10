@@ -97,6 +97,18 @@ class ConfNBP(Confrontation):
         mod.trim(t=[t0,tf])
         obs_sum = obs.accumulateInTime().convert("Pg")
         mod_sum = mod.accumulateInTime().convert("Pg")
+
+        # Score by the trajectory
+        traj_score = None
+        if obs_sum.data_bnds is not None:
+            dV  = obs_sum.data_bnds[:,0]-obs_sum.data
+            eps = (np.abs(mod_sum.data-obs_sum.data)-dV).clip(0) # only count error outside uncertainty
+            with np.errstate(under='ignore'):
+                eps = eps / dV # normalize by the magnitude of the uncertainty
+            s = np.exp(-eps)
+            traj_score = Variable(name = "Trajectory Score global",
+                                  unit = "1",
+                                  data = s[1:].mean())
         
         # End of period information        
         yf = np.round(mod.time_bnds[-1,1])/365.+1850.
@@ -145,6 +157,7 @@ class ConfNBP(Confrontation):
         mod_end   .toNetCDF4(results,group="MeanState")
         mod_diff  .toNetCDF4(results,group="MeanState")
         dscore    .toNetCDF4(results,group="MeanState")
+        traj_score.toNetCDF4(results,group="MeanState")
         if not skip_taylor:
             score .toNetCDF4(results,group="MeanState",attributes={"std":std,"R":R.data})
         results.setncattr("complete",1)
