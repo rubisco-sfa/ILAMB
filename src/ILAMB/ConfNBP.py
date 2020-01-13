@@ -8,6 +8,19 @@ from . import Post as post
 import numpy as np
 import os,glob
 
+def SpaceLabels(y,ymin,maxit=1000):    
+    for j in range(maxit):
+        dy = np.diff(y)
+        for i in range(1,y.size-1):
+            if dy[i-1] < ymin:
+                y[i] += ymin*0.1
+                dy = np.diff(y)            
+            if dy[i]   < ymin:
+                y[i] -= ymin*0.1
+                dy = np.diff(y)
+        if dy.min() > ymin: return y
+    return y
+
 class ConfNBP(Confrontation):
     """A confrontation for examining the global net ecosystem carbon balance.
 
@@ -157,7 +170,7 @@ class ConfNBP(Confrontation):
         mod_end   .toNetCDF4(results,group="MeanState")
         mod_diff  .toNetCDF4(results,group="MeanState")
         dscore    .toNetCDF4(results,group="MeanState")
-        traj_score.toNetCDF4(results,group="MeanState")
+        if traj_score is not None: traj_score.toNetCDF4(results,group="MeanState")
         if not skip_taylor:
             score .toNetCDF4(results,group="MeanState",attributes={"std":std,"R":R.data})
         results.setncattr("complete",1)
@@ -187,10 +200,12 @@ class ConfNBP(Confrontation):
                 corr[mname] = sds.R
                 std [mname] = sds.std
             if "accumulate_of_nbp_over_global" in dset.variables.keys():
-                accum[mname] = Variable(filename      = fname,
-                                        variable_name = "accumulate_of_nbp_over_global",
-                                        groupname     = "MeanState")
-
+                v = Variable(filename      = fname,
+                             variable_name = "accumulate_of_nbp_over_global",
+                             groupname     = "MeanState")
+                if v.time.min() > 1: continue
+                accum[mname] = v
+                
         # temporal distribution Taylor plot
         if len(corr) > 0:
             page.addFigure("Spatially integrated regional mean",
@@ -215,11 +230,28 @@ class ConfNBP(Confrontation):
                            "RNAME_compaccumulation.png",
                            side   = "ACCUMULATION",
                            legend = False)
-            fig,ax = plt.subplots(figsize=(6.8,2.8),tight_layout=True)
-            dy = 0.05*(self.limits["accumulate"]["global"]["max"]-self.limits["accumulate"]["global"]["min"])
+
+            Y = []; L = []
             for key in accum:
+                if key == "Benchmark": continue
+                L.append(key)
+                Y.append(accum[key].data[-1])
+            Y = np.asarray(Y); L = np.asarray(L)
+            ind = np.argsort(Y)
+            Y = Y[ind]; L = L[ind]
+
+            data_range = (self.limits["accumulate"]["global"]["max"]-self.limits["accumulate"]["global"]["min"])
+            fig_height = fig.get_figheight()
+            font_size  = 10
+            fig = plt.figure(figsize=(11.8,5.8))
+            ax  = fig.add_subplot(1,1,1,position=[0.06,0.06,0.8,0.92])
+            y = SpaceLabels(Y.copy(),data_range/fig_height*font_size/62.3)
+            
+            dy = 0.05*data_range
+            for key in L:
                 accum[key].plot(ax,lw=2,color=colors[key],label=key,
                                 vmin=self.limits["accumulate"]["global"]["min"]-dy,
                                 vmax=self.limits["accumulate"]["global"]["max"]+dy)
+                accum[key].text(
             fig.savefig(os.path.join(self.output_path,"global_compaccumulation.png" ))
             plt.close()
