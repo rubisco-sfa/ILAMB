@@ -203,7 +203,6 @@ class ConfNBP(Confrontation):
                 v = Variable(filename      = fname,
                              variable_name = "accumulate_of_nbp_over_global",
                              groupname     = "MeanState")
-                if v.time.min() > 1: continue
                 accum[mname] = v
                 
         # temporal distribution Taylor plot
@@ -222,36 +221,62 @@ class ConfNBP(Confrontation):
             fig.savefig(os.path.join(self.output_path,"temporal_variance.png"))
             plt.close()
 
-
-        # composite annual cycle plot
+        # composite accumulation plot
         if len(accum) > 1:
             page.addFigure("Spatially integrated regional mean",
                            "compaccumulation",
                            "RNAME_compaccumulation.png",
                            side   = "ACCUMULATION",
                            legend = False)
+            NBPplot(accum,
+                    self.limits["accumulate"]["global"]["min"],
+                    self.limits["accumulate"]["global"]["max"],
+                    colors,
+                    os.path.join(self.output_path,"global_compaccumulation.png"))
 
-            Y = []; L = []
-            for key in accum:
-                if key == "Benchmark": continue
-                L.append(key)
-                Y.append(accum[key].data[-1])
-            Y = np.asarray(Y); L = np.asarray(L)
-            ind = np.argsort(Y)
-            Y = Y[ind]; L = L[ind]
-
-            data_range = (self.limits["accumulate"]["global"]["max"]-self.limits["accumulate"]["global"]["min"])
-            fig_height = fig.get_figheight()
-            font_size  = 10
-            fig = plt.figure(figsize=(11.8,5.8))
-            ax  = fig.add_subplot(1,1,1,position=[0.06,0.06,0.8,0.92])
-            y = SpaceLabels(Y.copy(),data_range/fig_height*font_size/62.3)
+            page.addFigure("Spatially integrated regional mean",
+                           "compdaccumulation",
+                           "RNAME_compdaccumulation.png",
+                           side   = "ACCUMULATION DETAIL",
+                           legend = False)
+            bnd = accum["Benchmark"].data_bnds if accum["Benchmark"].data_bnds is not None else accum["Benchmark"].data
+            NBPplot(accum,bnd.min(),bnd.max(),colors,
+                    os.path.join(self.output_path,"global_compdaccumulation.png"))
             
-            dy = 0.05*data_range
-            for key in L:
-                accum[key].plot(ax,lw=2,color=colors[key],label=key,
-                                vmin=self.limits["accumulate"]["global"]["min"]-dy,
-                                vmax=self.limits["accumulate"]["global"]["max"]+dy)
-                accum[key].text(
-            fig.savefig(os.path.join(self.output_path,"global_compaccumulation.png" ))
-            plt.close()
+            
+def NBPplot(V,vmin,vmax,colors,fname):
+
+    keys = V.keys()
+    Y = []; L = []
+    for key in V:
+        if key == "Benchmark": continue
+        if V[key].time[0] > V["Benchmark"].time[0]+10: continue
+        L.append(key)
+        Y.append(V[key].data[-1])
+    Y = np.asarray(Y); L = np.asarray(L)
+    ind = np.argsort(Y)
+    Y = Y[ind]; L = L[ind]
+            
+    fig = plt.figure(figsize=(11.8,5.8))
+    ax  = fig.add_subplot(1,1,1,position=[0.06,0.06,0.8,0.92])
+    data_range = vmax-vmin
+    fig_height = fig.get_figheight()
+    font_size  = 10
+    dy = 0.05*data_range
+    y = SpaceLabels(Y.copy(),data_range/fig_height*font_size/62.3)
+    for i in range(L.size):
+        key = L[i]
+        V[key].plot(ax,lw=2,color=colors[key],label=key,vmin=vmin-dy,vmax=vmax+dy)
+        ax.text(V[key].time[-1]/365+1850+2,y[i],key,color=colors[key],va="center",size=font_size)
+    v = None
+    if "Benchmark" in keys:
+        v = V["Benchmark"]
+        v.plot(ax,lw=2,color='k',label="Benchmark",vmin=vmin-dy,vmax=vmax+dy)
+    if v is None: v = V[keys[0]]
+    ax.text(0.02,0.95,"Land Source",transform=ax.transAxes,size=20,alpha=0.5,va='top')
+    ax.text(0.02,0.05,"Land Sink",transform=ax.transAxes,size=20,alpha=0.5)
+    ax.set_xticks(range(int(v.time[0]/365+1850),int(v.time[-1]/365+1850),25))
+    ax.set_xlim(v.time[0]/365+1850,v.time[-1]/365+1850)
+    ax.set_ylabel("[Pg]")
+    fig.savefig(os.path.join(fname))
+    plt.close()
