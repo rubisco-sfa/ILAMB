@@ -221,27 +221,38 @@ class ConfNBP(Confrontation):
             fig.savefig(os.path.join(self.output_path,"temporal_variance.png"))
             plt.close()
 
-        # composite accumulation plot
+        # composite accumulation plots
         if len(accum) > 1:
+
+            # play with the limits
+            bnd = accum["Benchmark"].data_bnds if accum["Benchmark"].data_bnds is not None else accum["Benchmark"].data
+            bmin = bnd.min()
+            bmax = bnd.max()
+            brange = bmax - bmin
+            vmin = min(self.limits["accumulate"]["global"]["min"],bmin)
+            vmax = max(self.limits["accumulate"]["global"]["max"],bmax)
+            vrange = vmax - vmin
+            if bmax/brange < 0.25: bmax = 0.25*brange
+            if vmax/vrange < 0.25: vmax = 0.25*vrange
+            skip_detail = False
+            if abs((vmax-bmax)/vrange) < 0.1 and abs((vmin-bmin)/vrange) < 0.1: skip_detail = True
+            
             page.addFigure("Spatially integrated regional mean",
                            "compaccumulation",
                            "RNAME_compaccumulation.png",
                            side   = "ACCUMULATION",
                            legend = False)
-            NBPplot(accum,
-                    self.limits["accumulate"]["global"]["min"],
-                    self.limits["accumulate"]["global"]["max"],
-                    colors,
+            NBPplot(accum,vmin,vmax,colors,
                     os.path.join(self.output_path,"global_compaccumulation.png"))
 
-            page.addFigure("Spatially integrated regional mean",
-                           "compdaccumulation",
-                           "RNAME_compdaccumulation.png",
-                           side   = "ACCUMULATION DETAIL",
-                           legend = False)
-            bnd = accum["Benchmark"].data_bnds if accum["Benchmark"].data_bnds is not None else accum["Benchmark"].data
-            NBPplot(accum,bnd.min(),bnd.max(),colors,
-                    os.path.join(self.output_path,"global_compdaccumulation.png"))
+            if not skip_detail:
+                page.addFigure("Spatially integrated regional mean",
+                               "compdaccumulation",
+                               "RNAME_compdaccumulation.png",
+                               side   = "ACCUMULATION DETAIL",
+                               legend = False)
+                NBPplot(accum,bmin,bmax,colors,
+                        os.path.join(self.output_path,"global_compdaccumulation.png"))
             
             
 def NBPplot(V,vmin,vmax,colors,fname):
@@ -264,18 +275,17 @@ def NBPplot(V,vmin,vmax,colors,fname):
     font_size  = 10
     dy = 0.05*data_range
     y = SpaceLabels(Y.copy(),data_range/fig_height*font_size/62.3)
+    v = V["Benchmark"]
     for i in range(L.size):
         key = L[i]
         V[key].plot(ax,lw=2,color=colors[key],label=key,vmin=vmin-dy,vmax=vmax+dy)
-        ax.text(V[key].time[-1]/365+1850+2,y[i],key,color=colors[key],va="center",size=font_size)
-    v = None
-    if "Benchmark" in keys:
-        v = V["Benchmark"]
-        v.plot(ax,lw=2,color='k',label="Benchmark",vmin=vmin-dy,vmax=vmax+dy)
+        ax.text(v.time[-1]/365+1850+2,y[i],key,color=colors[key],va="center",size=font_size)
+
+    v.plot(ax,lw=2,color='k',label="Benchmark",vmin=vmin-dy,vmax=vmax+dy)
     if v is None: v = V[keys[0]]
     ax.text(0.02,0.95,"Land Source",transform=ax.transAxes,size=20,alpha=0.5,va='top')
     ax.text(0.02,0.05,"Land Sink",transform=ax.transAxes,size=20,alpha=0.5)
-    ax.set_xticks(range(int(v.time[0]/365+1850),int(v.time[-1]/365+1850),25))
+    #ax.set_xticks(range(int(v.time[0]/365+1850),int(v.time[-1]/365+1850),25))
     ax.set_xlim(v.time[0]/365+1850,v.time[-1]/365+1850)
     ax.set_ylabel("[Pg]")
     fig.savefig(os.path.join(fname))
