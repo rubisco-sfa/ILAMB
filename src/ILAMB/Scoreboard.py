@@ -398,7 +398,7 @@ class Scoreboard():
             section = "Relationships"; TraversePostorder(rel_tree,BuildScalars)
             TraversePreorder(rel_tree,ConvertList)
         with open(os.path.join(self.build_dir,filename),mode='w') as f:
-            f.write("data = '%s'" % (json.dumps(scalars)))
+            json.dump(scalars, f)
         return global_scores,rel_tree
         
     def createHtml(self,M,filename="index.html"):
@@ -508,7 +508,7 @@ class Scoreboard():
       
       function colorTable() {
 	  	  
-	  var scalars = JSON.parse(data);	  
+        $.getJSON("scalars.json", function(data) {
 	  var scalar_option = document.getElementById("ScalarOption");
           var region_option = document.getElementById("RegionOption");
 	  var scalar_name   = scalar_option.options[scalar_option.selectedIndex].value;
@@ -547,7 +547,7 @@ class Scoreboard():
 	  for(var col=0;col<cmap.length;col++){
 	      table.rows[row].cells[col].style.backgroundColor = cmap[col];
 	  }
-	  
+	});  
       }
     </script>
     <style type="text/css">
