@@ -509,6 +509,7 @@ class Scoreboard():
       function colorTable() {
 	  	  
         $.getJSON("scalars.json", function(data) {
+          var scalars = data;
 	  var scalar_option = document.getElementById("ScalarOption");
           var region_option = document.getElementById("RegionOption");
 	  var scalar_name   = scalar_option.options[scalar_option.selectedIndex].value;
