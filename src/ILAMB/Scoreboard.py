@@ -421,7 +421,6 @@ class Scoreboard():
     <script src="https://code.jquery.com/jquery-1.11.3.min.js"></script>
     <script src="https://code.jquery.com/mobile/1.4.5/jquery.mobile-1.4.5.min.js"></script>
 
-    <script type="text/javascript" src="scalars.json"></script>
     <script type="text/javascript">
 
 
@@ -509,6 +508,7 @@ class Scoreboard():
       function colorTable() {
 	  	  
         $.getJSON("scalars.json", function(data) {
+          var scalars = data;
 	  var scalar_option = document.getElementById("ScalarOption");
           var region_option = document.getElementById("RegionOption");
 	  var scalar_name   = scalar_option.options[scalar_option.selectedIndex].value;
