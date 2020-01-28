@@ -17,7 +17,7 @@ import scipy
 import dateutil
 import csv
 
-yrLongTerm = 10
+yrLongTerm = 667/365.
 flag_OCNFFonly= False
 
 
@@ -625,6 +625,16 @@ class ConfCO2(Confrontation):
             ccgObsHarmo.data[whrData,ss] = filt.getHarmonicValue(xp)
             ccgObsSmooth.data[whrData,ss] = filt.getSmoothValue(xp)
             ccgObsIav.data[whrData,ss] = ccgObsSmooth.data[whrData,ss] - ccgObsTrend.data[whrData,ss] - ccgObsHarmo.data[whrData,ss]
+            
+            ccgCrossDates = filt.getTrendCrossingDates()
+            print(ccgCrossDates)
+            np.savetxt(os.path.join(self.output_path,"ccgCrossDates_%s_benchmark_site_%s.csv" % (self.name, ss)), ccgCrossDates, delimiter= ",", fmt= '%s')
+            
+            
+            if ss == 5:
+                ccgAmplitude = filt.getAmplitudes()
+                np.savetxt(os.path.join(self.output_path,"ccgAmplitude_%s_benchmark_lat%s.csv" % (self.name, obs_bftDtr.lat[ss])), ccgAmplitude, delimiter= ",", header="year, total_amplitude, max_date, max_value, min_date, min_value")
+                
 
             #print("obs site", ss,"is finished!")
         print("ccgObsIav:")
@@ -712,6 +722,14 @@ class ConfCO2(Confrontation):
                 ccgModHarmo.data[whrData,ss] = filt.getHarmonicValue(xp)
                 ccgModSmooth.data[whrData,ss] = filt.getSmoothValue(xp)
                 ccgModIav.data[whrData,ss] = ccgModSmooth.data[whrData,ss] - ccgModTrend.data[whrData,ss] - ccgModHarmo.data[whrData,ss]
+                
+                
+                ccgCrossDates = filt.getTrendCrossingDates()
+                np.savetxt(os.path.join(self.output_path,"ccgCrossDates_%s_%s_site_%s.csv" % (self.name, m.name, ss)), ccgCrossDates, delimiter= ",", fmt= '%s')
+                
+                if ss == 5:
+                    ccgAmplitude = filt.getAmplitudes()
+                    np.savetxt(os.path.join(self.output_path,"ccgAmplitude_%s_%s_lat%s.csv" % (self.name,m.name, mod_bftDtr.lat[ss])), ccgAmplitude, delimiter= ",", header="year, total_amplitude, max_date, max_value, min_date, min_value")
                 #print("mod site", ss,"is finished!")
 
         print("miav.data:")
