@@ -243,7 +243,7 @@ class ConfUncertainty(Confrontation):
         for page in self.layout.pages:
             for sec in page.figures.keys():
                 for fig in page.figures[sec]:
-                    fig.side = fig.side.replace("BIAS SCORE","ORIGINAL BIAS SCORE")
+                    if fig.side == "BIAS SCORE": fig.side = "ORIGINAL BIAS SCORE"
         bname = os.path.join(self.output_path,"%s_Benchmark.nc" % (self.name       ))
         fname = os.path.join(self.output_path,"%s_%s.nc"        % (self.name,m.name))
         page = [page for page in self.layout.pages if "MeanState" in page.name][0]
@@ -294,7 +294,8 @@ class ConfUncertainty(Confrontation):
                            pname,
                            "MNAME_RNAME_%s.png" % pname,
                            side = "UNCERTAINTY BIAS SCORE",
-                           legend = True)            
+                           longname = "Temporally integrated period mean uncertainty bias score",
+                           legend = True)          
             fig,ax = plt.subplots(figsize=(6.8,1.0),tight_layout=True)
             post.ColorBar(ax,
                           vmin = 0,
