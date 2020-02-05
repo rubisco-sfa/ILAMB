@@ -737,11 +737,15 @@ class Variable:
         ilat = np.apply_along_axis(np.argmin,1,np.abs(lat[:,np.newaxis]-self.lat))
         ilon = np.apply_along_axis(np.argmin,1,np.abs(lon[:,np.newaxis]-self.lon))
         ndata = lat.size
+        data_bnds = None
         if self.data.ndim == 2:
             data  = self.data[    ilat,ilon]
+            if self.data_bnds is not None: data_bnds = self.data_bnds[    ilat,ilon,:]
         else:
             data  = self.data[...,ilat,ilon]
+            if self.data_bnds is not None: data_bnds = self.data_bnds[...,ilat,ilon,:]
         return Variable(data       = data,
+                        data_bnds  = data_bnds,
                         unit       = self.unit,
                         name       = self.name,
                         lat        = lat,
@@ -1193,7 +1197,9 @@ class Variable:
                     alpha = alpha,
                     label = label)
             if self.data_bnds is not None:
-                ax.fill_between(t,self.data_bnds[:,0],self.data_bnds[:,1],
+                db = self.data_bnds
+                if db.ndim == 3 and db.shape[-2] == 1: db = db[:,0,:]
+                ax.fill_between(t,db[:,0],db[:,1],
                                 lw = 0,
                                 color = color,
                                 alpha = 0.25*alpha)
