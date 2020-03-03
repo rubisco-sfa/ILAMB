@@ -128,6 +128,7 @@ def AnalysisUncertaintySpatial(ref,com,**keywords):
                     time = REF.time, time_bnds = REF.time_bnds, ndata = REF.ndata,
                     lat  = lat, lat_bnds = lat_bnds, lon = lon, lon_bnds = lon_bnds, area = REF.area).convert(plot_unit)
     REF_std = cREF.rms()
+    
     bias_score_map = il.Score(bias,REF_std if REF.time.size > 1 else REF_timeint)
     bias_score_map.data.mask = (ref_and_com==False) # for some reason I need to explicitly force the mask
     if dataset is not None:
@@ -142,7 +143,31 @@ def AnalysisUncertaintySpatial(ref,com,**keywords):
             bias_score = bias_score_map.integrateInSpace(region=region,mean=True,weight=normalizer)
             bias_score.name = "Bias Score %s" % region
             bias_score.toNetCDF4(dataset,group="MeanState")
-    del bias,bias_score,cREF
+    del bias,bias_score
+
+    # RMSE: maps, scalars, and scores
+    rmse = REF.rmse(COM).convert(plot_unit)
+    cCOM = Variable(name = "centralized %s" % name, unit = unit,
+                    data = np.ma.masked_array(COM.data-COM_timeint.data[np.newaxis,...],mask=COM.data.mask),
+                    time = COM.time, time_bnds = COM.time_bnds,
+                    lat  = lat, lat_bnds = lat_bnds, lon = lon, lon_bnds = lon_bnds,
+                    area = COM.area, ndata = COM.ndata).convert(plot_unit)        
+    del COM
+    crmse = cREF.rmse(cCOM).convert(plot_unit)
+    rmse_score_map = il.Score(crmse,REF_std)
+    if dataset is not None:
+        rmse.name = "rmse_map_of_%s" % name
+        rmse.toNetCDF4(dataset,group="MeanState")
+        rmse_score_map.name = "rmsescore_map_of_%s" % name
+        rmse_score_map.toNetCDF4(dataset,group="MeanState")
+        for region in regions:
+            rmse_val = rmse.integrateInSpace(region=region,mean=True).convert(plot_unit)
+            rmse_val.name = "RMSE %s" % region
+            rmse_val.toNetCDF4(dataset,group="MeanState")
+            rmse_score = rmse_score_map.integrateInSpace(region=region,mean=True,weight=normalizer)
+            rmse_score.name = "RMSE Score %s" % region
+            rmse_score.toNetCDF4(dataset,group="MeanState")
+    del rmse,crmse,rmse_score_map
     
     # Changes with uncertainty ----------------------------------------------------------------
     
@@ -170,31 +195,52 @@ def AnalysisUncertaintySpatial(ref,com,**keywords):
             Dref = expert_uncertainty
         else:
             Dref = np.abs(REF.data_bnds[...,0]-REF.data)
-
+            Dref_timeint = np.abs(REF_timeint.data_bnds[...,0]-REF_timeint.data)
+                
     with np.errstate(under='ignore',over='ignore'):
-        bias_uscore_map = np.exp(-(np.abs( REF.data-COM.data)-Dref).clip(0) / REF_std.data[np.newaxis,...])
+        bias_uscore_map = np.exp(-np.abs( (np.abs(REF_timeint.data-COM_timeint.data)-Dref_timeint).clip(0) / REF_std.data[np.newaxis,...] ) )
     bias_uscore_map = Variable(name = "biasuscore_map_of_u%s" % name,
                                unit = "1",
-                               data = bias_uscore_map,
-                               time = REF.time, time_bnds = REF.time_bnds,
+                               data = bias_uscore_map[0,...],
                                lat  = REF.lat, lat_bnds = REF.lat_bnds,
                                lon  = REF.lon, lon_bnds = REF.lon_bnds,
-                               area = REF.area, ndata = REF.ndata).integrateInTime(mean=True)
+                               area = REF.area, ndata = REF.ndata)
+    with np.errstate(under='ignore'):
+        eps = (np.abs(cCOM.data-cREF.data)-Dref).clip(0)**2
+        eps = Variable(data = eps,
+                       unit = "1",
+                       time = REF.time, time_bnds = REF.time_bnds,
+                       lat  = REF.lat, lat_bnds = REF.lat_bnds,
+                       lon  = REF.lon, lon_bnds = REF.lon_bnds,
+                       area = REF.area, ndata = REF.ndata).integrateInTime(mean=True).data
+        eps = np.sqrt(eps)
+        std = REF_std.data.clip(1e-12)
+        # note: this is weird but for some reason the __idiv__
+        # operator of masked arrays sometimes reports underflow errors
+        # when there aren't any, even if the errstate is changed to
+        # ignore. So the following works, but 'eps = eps / std' does not.
+        eps = np.ma.masked_array(eps.data/std.data,mask=REF.data.mask[0,...])
+        rmse_uscore_map = Variable(name = "rmseuscore_map_of_u%s" % name,
+                                   unit = "1",
+                                   data = np.exp(-eps),
+                                   lat  = REF.lat, lat_bnds = REF.lat_bnds,
+                                   lon  = REF.lon, lon_bnds = REF.lon_bnds,
+                                   area = REF.area, ndata = REF.ndata)
+    
     if benchmark_dataset is not None:
         if Dref.size == 1:
             Variable(name = "Expert Uncertainty",
                      unit = REF.unit,
                      data = Dref).toNetCDF4(benchmark_dataset,group="MeanState")
         else:
-            Dref = Variable(name = "uncertain",
-                            unit = ref.unit,
-                            data = Dref,
-                            time = REF.time, time_bnds = REF.time_bnds,
-                            lat  = REF.lat, lat_bnds = REF.lat_bnds,
-                            lon  = REF.lon, lon_bnds = REF.lon_bnds,
-                            area = REF.area, ndata = REF.ndata).integrateInTime(mean=True)
-            Dref.name = "uncertain"
-            Dref.toNetCDF4(benchmark_dataset,group="MeanState")
+            D = Variable(name = "uncertain",
+                         unit = ref.unit,
+                         data = Dref_timeint,
+                         lat  = REF.lat, lat_bnds = REF.lat_bnds,
+                         lon  = REF.lon, lon_bnds = REF.lon_bnds,
+                         area = REF.area, ndata = REF.ndata)
+            D.name = "uncertain"
+            D.toNetCDF4(benchmark_dataset,group="MeanState")
 
     if dataset is not None:
         bias_uscore_map.name = "biasuscore_map_of_%s" % name
@@ -203,6 +249,12 @@ def AnalysisUncertaintySpatial(ref,com,**keywords):
             bias_uscore = bias_uscore_map.integrateInSpace(region=region,mean=True,weight=normalizer)
             bias_uscore.name = "Uncertainty Bias Score %s" % region
             bias_uscore.toNetCDF4(dataset,group="MeanState")
+        rmse_uscore_map.name = "rmseuscore_map_of_%s" % name
+        rmse_uscore_map.toNetCDF4(dataset,group="MeanState")
+        for region in regions:
+            rmse_uscore = rmse_uscore_map.integrateInSpace(region=region,mean=True,weight=normalizer)
+            rmse_uscore.name = "Uncertainty RMSE Score %s" % region
+            rmse_uscore.toNetCDF4(dataset,group="MeanState")
             
 class ConfUncertainty(Confrontation):
 
@@ -244,6 +296,7 @@ class ConfUncertainty(Confrontation):
             for sec in page.figures.keys():
                 for fig in page.figures[sec]:
                     if fig.side == "BIAS SCORE": fig.side = "ORIGINAL BIAS SCORE"
+                    if fig.side == "RMSE SCORE": fig.side = "ORIGINAL RMSE SCORE"
         bname = os.path.join(self.output_path,"%s_Benchmark.nc" % (self.name       ))
         fname = os.path.join(self.output_path,"%s_%s.nc"        % (self.name,m.name))
         page = [page for page in self.layout.pages if "MeanState" in page.name][0]
@@ -295,6 +348,38 @@ class ConfUncertainty(Confrontation):
                            "MNAME_RNAME_%s.png" % pname,
                            side = "UNCERTAINTY BIAS SCORE",
                            longname = "Temporally integrated period mean uncertainty bias score",
+                           legend = True)          
+            fig,ax = plt.subplots(figsize=(6.8,1.0),tight_layout=True)
+            post.ColorBar(ax,
+                          vmin = 0,
+                          vmax = 1,
+                          cmap = "RdYlGn",
+                          label = "1")
+            fig.savefig(os.path.join(self.output_path,"legend_%s.png" % (pname)))
+            plt.close()
+            
+            for region in self.regions:
+                ax = v.plot(None,
+                            region = region,
+                            vmin   = 0,
+                            vmax   = 1,
+                            cmap   = "RdYlGn")
+                fig = ax.get_figure()
+                fig.savefig(os.path.join(self.output_path,"%s_%s_%s.png" % (m.name,region,pname)))
+                plt.close()
+                
+        v = None
+        try:
+            v = Variable(filename = fname, variable_name = "rmseuscore_map_of_%s" % self.variable, groupname = "MeanState")
+        except:
+            pass
+        if v is not None:
+            pname = "rmseuscore"
+            page.addFigure("Temporally integrated period mean",
+                           pname,
+                           "MNAME_RNAME_%s.png" % pname,
+                           side = "UNCERTAINTY RMSE SCORE",
+                           longname = "Temporally integrated period mean uncertainty rmse score",
                            legend = True)          
             fig,ax = plt.subplots(figsize=(6.8,1.0),tight_layout=True)
             post.ColorBar(ax,
