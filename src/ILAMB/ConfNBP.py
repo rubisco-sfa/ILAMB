@@ -274,7 +274,7 @@ def NBPplot(V,vmin,vmax,colors,fname):
     fig_height = fig.get_figheight()
     font_size  = 10
     dy = 0.05*data_range
-    y = SpaceLabels(Y.copy(),data_range/fig_height*font_size/62.3)
+    y = SpaceLabels(Y.copy(),data_range/fig_height*font_size/50.)
     v = V["Benchmark"]
     for i in range(L.size):
         key = L[i]
