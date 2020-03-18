@@ -8,6 +8,19 @@ from . import Post as post
 import numpy as np
 import os,glob
 
+def SpaceLabels(y,ymin,maxit=1000):    
+    for j in range(maxit):
+        dy = np.diff(y)
+        for i in range(1,y.size-1):
+            if dy[i-1] < ymin:
+                y[i] += ymin*0.1
+                dy = np.diff(y)            
+            if dy[i]   < ymin:
+                y[i] -= ymin*0.1
+                dy = np.diff(y)
+        if dy.min() > ymin: return y
+    return y
+
 class ConfNBP(Confrontation):
     """A confrontation for examining the global net ecosystem carbon balance.
 
@@ -97,6 +110,18 @@ class ConfNBP(Confrontation):
         mod.trim(t=[t0,tf])
         obs_sum = obs.accumulateInTime().convert("Pg")
         mod_sum = mod.accumulateInTime().convert("Pg")
+
+        # Score by the trajectory
+        traj_score = None
+        if obs_sum.data_bnds is not None:
+            dV  = obs_sum.data_bnds[:,0]-obs_sum.data
+            eps = (np.abs(mod_sum.data-obs_sum.data)-dV).clip(0) # only count error outside uncertainty
+            with np.errstate(under='ignore'):
+                eps = eps / dV # normalize by the magnitude of the uncertainty
+            s = np.exp(-eps)
+            traj_score = Variable(name = "Trajectory Score global",
+                                  unit = "1",
+                                  data = s[1:].mean())
         
         # End of period information        
         yf = np.round(mod.time_bnds[-1,1])/365.+1850.
@@ -145,6 +170,7 @@ class ConfNBP(Confrontation):
         mod_end   .toNetCDF4(results,group="MeanState")
         mod_diff  .toNetCDF4(results,group="MeanState")
         dscore    .toNetCDF4(results,group="MeanState")
+        if traj_score is not None: traj_score.toNetCDF4(results,group="MeanState")
         if not skip_taylor:
             score .toNetCDF4(results,group="MeanState",attributes={"std":std,"R":R.data})
         results.setncattr("complete",1)
@@ -174,10 +200,11 @@ class ConfNBP(Confrontation):
                 corr[mname] = sds.R
                 std [mname] = sds.std
             if "accumulate_of_nbp_over_global" in dset.variables.keys():
-                accum[mname] = Variable(filename      = fname,
-                                        variable_name = "accumulate_of_nbp_over_global",
-                                        groupname     = "MeanState")
-
+                v = Variable(filename      = fname,
+                             variable_name = "accumulate_of_nbp_over_global",
+                             groupname     = "MeanState")
+                accum[mname] = v
+                
         # temporal distribution Taylor plot
         if len(corr) > 0:
             page.addFigure("Spatially integrated regional mean",
@@ -194,19 +221,72 @@ class ConfNBP(Confrontation):
             fig.savefig(os.path.join(self.output_path,"temporal_variance.png"))
             plt.close()
 
-
-        # composite annual cycle plot
+        # composite accumulation plots
         if len(accum) > 1:
+
+            # play with the limits
+            bnd = accum["Benchmark"].data_bnds if accum["Benchmark"].data_bnds is not None else accum["Benchmark"].data
+            bmin = bnd.min()
+            bmax = bnd.max()
+            brange = bmax - bmin
+            vmin = min(self.limits["accumulate"]["global"]["min"],bmin)
+            vmax = max(self.limits["accumulate"]["global"]["max"],bmax)
+            vrange = vmax - vmin
+            if bmax/brange < 0.25: bmax = 0.25*brange
+            if vmax/vrange < 0.25: vmax = 0.25*vrange
+            skip_detail = False
+            if abs((vmax-bmax)/vrange) < 0.1 and abs((vmin-bmin)/vrange) < 0.1: skip_detail = True
+            
             page.addFigure("Spatially integrated regional mean",
                            "compaccumulation",
                            "RNAME_compaccumulation.png",
                            side   = "ACCUMULATION",
                            legend = False)
-            fig,ax = plt.subplots(figsize=(6.8,2.8),tight_layout=True)
-            dy = 0.05*(self.limits["accumulate"]["global"]["max"]-self.limits["accumulate"]["global"]["min"])
-            for key in accum:
-                accum[key].plot(ax,lw=2,color=colors[key],label=key,
-                                vmin=self.limits["accumulate"]["global"]["min"]-dy,
-                                vmax=self.limits["accumulate"]["global"]["max"]+dy)
-            fig.savefig(os.path.join(self.output_path,"global_compaccumulation.png" ))
-            plt.close()
+            NBPplot(accum,vmin,vmax,colors,
+                    os.path.join(self.output_path,"global_compaccumulation.png"))
+
+            if not skip_detail:
+                page.addFigure("Spatially integrated regional mean",
+                               "compdaccumulation",
+                               "RNAME_compdaccumulation.png",
+                               side   = "ACCUMULATION DETAIL",
+                               legend = False)
+                NBPplot(accum,bmin,bmax,colors,
+                        os.path.join(self.output_path,"global_compdaccumulation.png"))
+            
+            
+def NBPplot(V,vmin,vmax,colors,fname):
+
+    keys = V.keys()
+    Y = []; L = []
+    for key in V:
+        if key == "Benchmark": continue
+        if V[key].time[0] > V["Benchmark"].time[0]+10: continue
+        L.append(key)
+        Y.append(V[key].data[-1])
+    Y = np.asarray(Y); L = np.asarray(L)
+    ind = np.argsort(Y)
+    Y = Y[ind]; L = L[ind]
+            
+    fig = plt.figure(figsize=(11.8,5.8))
+    ax  = fig.add_subplot(1,1,1,position=[0.06,0.06,0.8,0.92])
+    data_range = vmax-vmin
+    fig_height = fig.get_figheight()
+    font_size  = 10
+    dy = 0.05*data_range
+    y = SpaceLabels(Y.copy(),data_range/fig_height*font_size/50.)
+    v = V["Benchmark"]
+    for i in range(L.size):
+        key = L[i]
+        V[key].plot(ax,lw=2,color=colors[key],label=key,vmin=vmin-dy,vmax=vmax+dy)
+        ax.text(v.time[-1]/365+1850+2,y[i],key,color=colors[key],va="center",size=font_size)
+
+    v.plot(ax,lw=2,color='k',label="Benchmark",vmin=vmin-dy,vmax=vmax+dy)
+    if v is None: v = V[keys[0]]
+    ax.text(0.02,0.95,"Land Source",transform=ax.transAxes,size=20,alpha=0.5,va='top')
+    ax.text(0.02,0.05,"Land Sink",transform=ax.transAxes,size=20,alpha=0.5)
+    #ax.set_xticks(range(int(v.time[0]/365+1850),int(v.time[-1]/365+1850),25))
+    ax.set_xlim(v.time[0]/365+1850,v.time[-1]/365+1850)
+    ax.set_ylabel("[Pg]")
+    fig.savefig(os.path.join(fname))
+    plt.close()

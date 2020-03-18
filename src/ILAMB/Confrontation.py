@@ -868,7 +868,7 @@ class Confrontation(object):
                         if not found:
                             var = grp.variables[vname]
                             if "global" not in metrics[mname]:
-                                logger.debug("[%s][%s] 'global' not in region list = [%s]" % (self.longname,m.name,",".join(self.regions)))
+                                logger.debug("[%s][%s] 'global' not in region list = [%s]" % (self.longname,mname,",".join(self.regions)))
                                 raise ValueError()
                             metrics[mname]["global"][vname] = Variable(name = vname,
                                                                        unit = var.units,

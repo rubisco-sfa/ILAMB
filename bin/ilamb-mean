@@ -11,6 +11,7 @@ from sympy import sympify
 import ILAMB.run as r
 import numpy as np
 import argparse
+import pickle
 import sys
 import os
 
@@ -22,8 +23,14 @@ def Interpolate(v,t,d,lat,lon):
     if lon is not None: args.append((np.abs(lon[:,np.newaxis]-v.lon  )).argmin(axis=1))
     return v.data[np.ix_(*args)]
 
-def MultiModelMean(M,vname,maxV=20):
+def MultiModelMean(M,vname,wgt_file=None,maxV=20):
 
+    wgts = None
+    if wgt_file is not None:
+        with open(wgt_file[0],"rb") as f:
+            wgts = pickle.load(f)
+            print("Loaded weights:",wgts)
+            
     sys.stdout.write(('{0:>%d} ' % maxV).format(vname)); sys.stdout.flush()
 
     # Based on the variable, we need to set up a space-time grid. So
@@ -86,8 +93,15 @@ def MultiModelMean(M,vname,maxV=20):
     # Let's start summing it up
     data  = np.zeros(shp)
     count = np.zeros(shp,dtype=int)
+    sumw  = 0.
     for m in M:
         sys.stdout.write('.'); sys.stdout.flush()
+        w = wgts[m.name] if wgts is not None else 1.
+        
+        vname0 = vname
+        if vname == "cSoil" and "cSoilAbove1m" in m.variables: vname = "cSoilAbove1m"
+        if vname == "burntArea" and "burntFractionAll" in m.variables: vname = "burntFractionAll"
+        
         try:
             if vname == "sftlf":
                 v = Variable(filename = m.variables['sftlf'][0],variable_name = 'sftlf').convert("1")
@@ -96,12 +110,14 @@ def MultiModelMean(M,vname,maxV=20):
         except:
             continue
         v = Interpolate(v,t,d,lat,lon)
-        data  += v
-        count += (v.mask==False)
+        data  += v.data*(v.mask==False)*w
+        count +=        (v.mask==False)
+        sumw  += w
+        vname = vname0
 
     # Take the mean and write it out
     with np.errstate(all='ignore'):
-        data = np.ma.masked_array(data=(data/count.clip(1)),mask=(count==0))
+        data = np.ma.masked_array(data=(data/sumw),mask=(count==0))
     with Dataset(os.path.join(args.build_dir[0],"%s.nc" % vname),mode="w") as dset:
         Variable(data       = data,
                  unit       = unit,
@@ -124,8 +140,12 @@ parser.add_argument('--build_dir', dest="build_dir", metavar='build_dir', type=s
                     help='path of where to save the output')
 parser.add_argument('--config', dest="config", metavar='config', type=str, nargs=1,
                     help='path to configuration file to use')
+parser.add_argument('--wgt', dest="wgt", metavar='wgt', type=str, nargs=1,
+                    help='path to weight file to use')
 parser.add_argument('--models', dest="models", metavar='m', type=str, nargs='+',default=[],
                     help='specify which models to run, list model names with no quotes and only separated by a space.')
+parser.add_argument('--vars', dest="vars", metavar='v', type=str, nargs='+',default=[],
+                    help='list of the variables to take the mean of')
 parser.add_argument('-q','--quiet', dest="quiet", action="store_true",
                     help='enable to silence screen output')
 parser.add_argument('--filter', dest="filter", metavar='filter', type=str, nargs=1, default=[""],
@@ -145,12 +165,16 @@ if not os.path.isdir(args.build_dir[0]): os.makedirs(args.build_dir[0])
 if args.model_setup is None:
     M = r.InitializeModels(args.model_root[0],
                            args.models,
-                           not args.quiet,
+                           False,
                            filter=args.filter[0],
                            regex=args.regex[0],
                            models_path=args.build_dir[0])
 else:
-    M = r.ParseModelSetup(args.model_setup[0],args.models,not args.quiet,filter=args.filter[0],models_path=args.build_dir[0])
+    M = r.ParseModelSetup(args.model_setup[0],args.models,False,filter=args.filter[0],models_path=args.build_dir[0])
+M = [m for m in M if "Mean" not in m.name]
+if not args.quiet:
+    print("\nTaking mean of the following models:\n")
+    for m in M: print("{0:>20}".format(m.name))
 
 # What variables do we need the means of?
 Vs = []
@@ -167,10 +191,13 @@ else:
         vs +=  c.alternate_vars
         if c.derived is not None: vs += [str(s) for s in sympify(c.derived).free_symbols]
         Vs += [v for v in vs if v not in Vs]
-
+    if "co2" in Vs: Vs.pop(Vs.index("co2"))
+    if "cSoilAbove1m" in Vs: Vs.pop(Vs.index("cSoilAbove1m"))
+    if "burntFractionAll" in Vs: Vs.pop(Vs.index("burntFractionAll"))
+if len(args.vars) > 0: Vs = args.vars
 Vs = ['sftlf',] + Vs
 if not args.quiet: print("\nTaking the mean of [%s]...\n" % (", ".join(Vs)))
 
 for vname in Vs:
-    MultiModelMean(M,vname)
+    MultiModelMean(M,vname,args.wgt)
 
