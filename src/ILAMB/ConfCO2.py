@@ -17,8 +17,6 @@ import scipy
 import dateutil
 import csv
 
-yrLongTerm = 10
-flag_OCNFFonly= False
 
 
 def _phaseWellDefined(t,v):
@@ -183,28 +181,11 @@ class ConfCO2(Confrontation):
         Ninf   = 60
         ilev   = 1
 
-        initial_time = obs.time_bnds[ 0,0]-float(Ninf)/12*365+29.
-        print("initial_time:obs.time_bnds[0,0]")
-        print(initial_time)
-
-        final_time = obs.time_bnds[-1,1]
-        print("final time:")
-        print(final_time)
-
-        print("mod before extractTimeSeries:")
-        print(m)
-
-        print("emulated_flux:")
-        print(emulated_flux)
-
-
-
         # Get the model result
         mod = m.extractTimeSeries(emulated_flux,
                                   initial_time = obs.time_bnds[ 0,0]-float(Ninf)/12*365+29.,
                                   final_time   = obs.time_bnds[-1,1])
-        print("mod after extractTimeSeries:")
-        print(mod)
+       
 
         # What if I don't have Ninf leadtime?
         tf = min(obs.time_bnds[-1,1],mod.time_bnds[-1,1])
@@ -263,11 +244,6 @@ class ConfCO2(Confrontation):
 
     def stageData(self,m):
 
-        print("self.source")
-        print(self.source)
-        print("self.variable")
-        print(self.variable)
-
         # Get the observational data
         obs = Variable(filename       = self.source,
                        variable_name  = self.variable,
@@ -291,14 +267,6 @@ class ConfCO2(Confrontation):
         mod             = None
 
 
-        print("force_emulation:")
-        print(force_emulation)
-        print("never_emulation:")
-        print(never_emulation)
-
-
-
-
         if not force_emulation:
             try:
                 mod = m.extractTimeSeries(self.variable,
@@ -308,9 +276,6 @@ class ConfCO2(Confrontation):
                                           lats         = None if obs.spatial else obs.lat,
                                           lons         = None if obs.spatial else obs.lon)
 
-
-                print("mod after reading in:")
-                print(mod)
 
             except il.VarNotInModel:
                 no_co2 = True
@@ -341,21 +306,11 @@ class ConfCO2(Confrontation):
             mod.data.mask += obs.data.mask
 
 
-        print("mod after mod.layered:")
-        print(mod)
 
+        # if emulated_co2 is true, subtract mod by TakahashiFFco2 and FFco2
+        emulated_co2 = True
 
-
-
-        # if flag_emulation_co2 is true, add TakahashiFFco2 and FFco2 to mod OR subtract mod by OCNFF
-        flag_emulation_co2 = True
-
-
-        OCNFFonly = flag_OCNFFonly
-        if OCNFFonly:
-            flag_emulation_co2 = True
-
-        if flag_emulation_co2:
+        if emulated_co2:
            #Read in Fosil fuel CO2 concentration from GEOSChem output
            filename = os.path.join(self.pulse_dir,"GEOSChemOcnFfCo2_32yr_360daytime.nc") #"GEOSChemOcnFfCo2_32yr_360daytime.nc"
 
@@ -391,10 +346,6 @@ class ConfCO2(Confrontation):
               FFco2Emu.layered = False
               FFco2Emu.unit = "mol mol-1"
 
-           print("obs before subtracting OCNFF:")
-           print(obs)
-
-
 
            # actual processing to add/substract OCNco2 and FFco2 to mod terrestrial CO2
            flagMinus = True
@@ -417,52 +368,35 @@ class ConfCO2(Confrontation):
                    FFco2Emu.trim(t=[tmin, tmax])
                    obs.trim(t=[tmin, tmax])
                    obs.data = obs.data - OCNco2Emu.data - FFco2Emu.data
-                   if OCNFFonly:
-                       obs.data = OCNco2Emu.data + FFco2Emu.data
                    mod.trim(t=[tmin, tmax])
 
+               '''
                print("obs after subtracting OCN/FF: ")
                print(obs)
-
-           else:
-               mod, OCNco2Emu = il.MakeComparable(mod, OCNco2Emu,
-                                                   mask_ref = True,
-                                                   clip_ref = True)
-
-               mod, FFco2Emu = il.MakeComparable(mod, FFco2Emu,
-                                                  mask_ref = True,
-                                                  clip_ref = True)
+               '''
 
 
-               #trim data in time domain
-               tmin = max(OCNco2Emu.time_bnds[0,0],mod.time_bnds[0,0])
-               tmax = min(OCNco2Emu.time_bnds[-1,1],mod.time_bnds[-1,1])
-
-               if tmax >= tmin:
-                    OCNco2Emu.trim(t=[tmin, tmax])
-                    FFco2Emu.trim(t=[tmin, tmax])
-                    mod.trim(t=[tmin, tmax])
-                    mod.data = OCNco2Emu.data + FFco2Emu.data + mod.data
-                    if OCNFFonly:
-                       mod.data = OCNco2Emu.data + FFco2Emu.data
-                    obs.trim(t=[tmin, tmax])
-
-           print(mod)
-
-        '''
+        
         # Remove the trend via quadradic polynomial
+        obs_bftDtr = copy.deepcopy(obs)
         obs = _detrend(obs)
         mod_bftDtr = copy.deepcopy(mod)
+        mod = _detrend(mod)
+        
+        
         print("mod_bftDtr:")
         print(mod_bftDtr)
-        mod = _detrend(mod)
-        '''
+        
+        
         return obs,mod
+        
 
     def confront(self,m):
 
         # Grab the data
         obs,mod= self.stageData(m)
+        
+        '''
         # Remove the trend via quadradic polynomial
         obs_bftDtr = copy.deepcopy(obs)
         obs = _detrend(obs)
@@ -473,6 +407,7 @@ class ConfCO2(Confrontation):
         mod = _detrend(mod)
         print("mod.data:")
         print(mod.data)
+        '''
 
         # Compute amplitude, min and max phase, and annual cycle as numpy data arrays
         ocyc,ot,otb = _cycleShape(obs)
@@ -506,8 +441,11 @@ class ConfCO2(Confrontation):
                                 lat   = obs.lat,
                                 lon   = obs.lon,
                                 time_bnds = obs.time_bnds)
+            '''
             print("oiav:")
             print(oiav)
+            '''
+            
             ocycf    = Variable(name  = "cycle_fine", # finely sampled cycle from cubic interpolation
                                 unit  = obs.unit,
                                 data  = obs_cyc,
@@ -551,8 +489,10 @@ class ConfCO2(Confrontation):
                                 lat   = mod.lat,
                                 lon   = mod.lon,
                                 time_bnds = mod.time_bnds)
+            '''
             print("miav.data:")
             print(miav.data)
+            '''
             mcycf    = Variable(name  = "cycle_fine", # finely sampled cycle from cubic interpolation
                                 unit  = mod.unit,
                                 data  = mod_cyc,
@@ -585,34 +525,33 @@ class ConfCO2(Confrontation):
 
 
         #ccgcrv trend, longtime scale, seasonal (harmonics), smooth data for obs
-        ccgObsTrend = copy.deepcopy(obs_bftDtr)
+        ccgObsTrend = copy.deepcopy(obs)
         ccgObsTrend.name = "ccgTrend"
 
-        ccgObsPoly = copy.deepcopy(obs_bftDtr)
+        ccgObsPoly = copy.deepcopy(obs)
         ccgObsPoly.name = "ccgPoly"
 
-        ccgObsIav = copy.deepcopy(obs_bftDtr)
+        ccgObsIav = copy.deepcopy(obs)
         ccgObsIav.name = "ccgIav"
 
-        ccgObsFun = copy.deepcopy(obs_bftDtr)
+        ccgObsFun = copy.deepcopy(obs)
         ccgObsFun.name = "ccgFun"
 
-        ccgObsHarmo = copy.deepcopy(obs_bftDtr)
+        ccgObsHarmo = copy.deepcopy(obs)
         ccgObsHarmo.name = "ccgHarmo"
 
-        ccgObsSmooth = copy.deepcopy(obs_bftDtr)
+        ccgObsSmooth = copy.deepcopy(obs)
         ccgObsSmooth.name = "ccgSmooth"
+        
+        
 
-        for ss in range(0, obs_bftDtr.ndata):
-            whrData = np.where(obs_bftDtr.data[:,ss].mask==False)
-
-            OCNFFonly = flag_OCNFFonly
-            if OCNFFonly:
-                whrData = range(0,359)
-
-            xp=(obs_bftDtr.time/365)[whrData]
-            yp=obs_bftDtr.data[:,ss][whrData]
-
+        for ss in range(0, obs.ndata):
+            whrData = np.where(obs.data[:,ss].mask==False)
+            xp=(obs.time/365)[whrData]
+            yp=obs.data[:,ss][whrData]
+            
+            #long term filter is 10 yrs
+            yrLongTerm = 10
             filt = ccgfilt.ccgFilter(xp=xp,
                                      yp=yp,
                                      longterm = (yrLongTerm*365),
@@ -628,88 +567,74 @@ class ConfCO2(Confrontation):
 
             ccgCrossDates = filt.getTrendCrossingDates()
             print(ccgCrossDates)
-            np.savetxt(os.path.join(self.output_path,"ccgCrossDates_%s_benchmark_site_%s.csv" % (self.name, ss)), ccgCrossDates, delimiter= ",", fmt= '%s')
+            
+            
+            if not os.path.exists((os.path.join(self.output_path, "ccg/"))):
+                os.mkdir((os.path.join(self.output_path, "ccg/")))
+            
+            if not os.path.exists((os.path.join(self.output_path, "ccg/CrossingDates/"))):
+                os.mkdir((os.path.join(self.output_path, "ccg/CrossingDates/")))
+                
+              
+            np.savetxt(os.path.join(self.output_path,"ccg/CrossingDates/ccgCrossDates_%s_benchmark_site_%s.csv" % (self.name, ss)), ccgCrossDates, delimiter= ",", fmt= '%s')
 
-
+            #write out BRW amplitude:
             if ss == 5:
                 ccgAmplitude = filt.getAmplitudes()
-                np.savetxt(os.path.join(self.output_path,"ccgAmplitude_%s_benchmark_lat%s.csv" % (self.name, obs_bftDtr.lat[ss])), ccgAmplitude, delimiter= ",", header="year, total_amplitude, max_date, max_value, min_date, min_value")
+                if not os.path.exists((os.path.join(self.output_path, "ccg/seaCyleAmplitudeTrend/"))):
+                      os.mkdir((os.path.join(self.output_path, "ccg/seaCyleAmplitudeTrend/")))
+                
+                np.savetxt(os.path.join(self.output_path,"ccg/seaCyleAmplitudeTrend/ccgAmplitude_%s_benchmark_lat%s.csv" % (self.name, obs.lat[ss])), ccgAmplitude, delimiter= ",", header="year, total_amplitude, max_date, max_value, min_date, min_value")
 
-
+        '''
             #print("obs site", ss,"is finished!")
         print("ccgObsIav:")
         print(ccgObsIav)
         print("ccgObsIav.data:")
         print(ccgObsIav.data)
+        '''
 
 
 
         #ccgcrv trend, longtime scale, seasonal (harmonics), smooth data for mod
-        ccgModTrend = copy.deepcopy(mod_bftDtr)
+        ccgModTrend = copy.deepcopy(mod)
         ccgModTrend.name = "ccgTrend"
 
-        ccgModPoly = copy.deepcopy(mod_bftDtr)
+        ccgModPoly = copy.deepcopy(mod)
         ccgModPoly.name = "ccgPoly"
 
-        ccgModIav = copy.deepcopy(mod_bftDtr)
+        ccgModIav = copy.deepcopy(mod)
         ccgModIav.name = "ccgIav"
 
-        ccgModFun = copy.deepcopy(mod_bftDtr)
+        ccgModFun = copy.deepcopy(mod)
         ccgModFun.name = "ccgFun"
 
-        ccgModHarmo = copy.deepcopy(mod_bftDtr)
+        ccgModHarmo = copy.deepcopy(mod)
         ccgModHarmo.name = "ccgHarmo"
 
-        ccgModSmooth = copy.deepcopy(mod_bftDtr)
+        ccgModSmooth = copy.deepcopy(mod)
         ccgModSmooth.name = "ccgSmooth"
 
         print("siteNum:")
-        print(mod_bftDtr.ndata)
+        print(mod.ndata)
 
 
 
-        for ss in range(0, mod_bftDtr.ndata):
-            #print("mod", ss, "starts!")
-
-            #print("mod_bftDtr.data[:,ss]:")
-            #print(mod_bftDtr.data[:,ss])
-            #print("mod_bftDtr.data[:,ss].mask:")
-            #print(mod_bftDtr.data[:,ss].mask)
-
-            whrData = np.where(mod_bftDtr.data[:,ss].mask==False)
-            #print("whrData:")
-            #print(whrData)
-            #print("len(whrData):")
-            #print(len(whrData))
-
-            '''
-            print(np.where(mod_bftDtr.data[:,ss] > 1000))
-            whrData.remove(np.where(mod_bftDtr.data > 1000))
-            print("whrData:")
-            print(whrData)
-            print("len(whrData):")
-            print(len(whrData))
-            '''
-
-            '''
-            OCNFFonly = flag_OCNFFonly
-            if OCNFFonly:
-                whrData = range(0,359)
-            print("whrData:")
-            '''
-
-            #print(whrData)
-            #print("len(whrData):")
-            #print(len(whrData))
+        for ss in range(0, mod.ndata):
+            
+            whrData = np.where(mod.data[:,ss].mask==False)
+            
             if len(whrData) > 0:
                 #print("mod", ss, "has real data instead of NaNs")
-                xp=(mod_bftDtr.time/365)[whrData]
-                #print("whrData")
-                #print(whrData)
-                #print("xp")
-                #print(xp)
-                yp=mod_bftDtr.data[:,ss][whrData]
-
+                xp=(mod.time/365)[whrData]
+                print("whrData")
+                print(whrData)
+                print("xp")
+                print(xp)
+                yp=mod.data[:,ss][whrData]
+                print(yp)
+                #long term filter is 10 yrs
+                yrLongTerm = 10
                 filt = ccgfilt.ccgFilter(xp=xp,
                                          yp=yp,
                                          longterm = (yrLongTerm*365),
@@ -725,11 +650,11 @@ class ConfCO2(Confrontation):
 
 
                 ccgCrossDates = filt.getTrendCrossingDates()
-                np.savetxt(os.path.join(self.output_path,"ccgCrossDates_%s_%s_site_%s.csv" % (self.name, m.name, ss)), ccgCrossDates, delimiter= ",", fmt= '%s')
+                np.savetxt(os.path.join(self.output_path,"ccg/CrossingDates/ccgCrossDates_%s_%s_site_%s.csv" % (self.name, m.name, ss)), ccgCrossDates, delimiter= ",", fmt= '%s')
 
                 if ss == 5:
                     ccgAmplitude = filt.getAmplitudes()
-                    np.savetxt(os.path.join(self.output_path,"ccgAmplitude_%s_%s_lat%s.csv" % (self.name,m.name, mod_bftDtr.lat[ss])), ccgAmplitude, delimiter= ",", header="year, total_amplitude, max_date, max_value, min_date, min_value")
+                    np.savetxt(os.path.join(self.output_path,"ccg/seaCyleAmplitudeTrend/ccgAmplitude_%s_%s_lat%s.csv" % (self.name,m.name, mod.lat[ss])), ccgAmplitude, delimiter= ",", header="year, total_amplitude, max_date, max_value, min_date, min_value")
                 #print("mod site", ss,"is finished!")
 
         print("miav.data:")
@@ -742,8 +667,7 @@ class ConfCO2(Confrontation):
         #Dump all ccg data into nc files
         print((os.path.join(self.output_path,"%s_%s.nc" % (self.name,m.name))))
 
-        if not os.path.exists((os.path.join(self.output_path, "ccg/"))):
-            os.mkdir((os.path.join(self.output_path, "ccg/")))
+        
 
         results = Dataset(os.path.join(self.output_path,"ccg/ccg_%s_%s.nc" % (self.name,m.name)), mode="w")
         for v in [ccgModTrend, ccgModPoly, ccgModIav, ccgModFun, ccgModHarmo, ccgModSmooth]:
@@ -756,26 +680,6 @@ class ConfCO2(Confrontation):
             v.toNetCDF4(results)
         results.close()
 
-
-
-        """
-        # Write out before detrending
-        results = Dataset("%s/%s_%s_bfrDtr.nc" % (self.output_path,self.name,m.name),mode="w")
-        results.setncatts({"name" :m.name, "color":m.color})
-        mod_bfrDtr.toNetCDF4(results)
-        results.close()
-
-        # Write out before detrending
-        results = Dataset("%s/%s_%s_Benchmark_bfrDtr.nc" % (self.output_path,self.name),mode="w")
-        obs_bfrDtr.toNetCDF4(results)
-        results.close()
-
-
-        # Write out the intermediate variables
-        with Dataset(os.path.join(self.output_path,"%s_ostd_mstd_%s.nc" % (self.name,m.name)),mode="w") as results:
-             for v in [ostd, mstd]:
-                 v.toNetCDF4(results)
-        """
 
         #replace ILAMB iav with ccg IAV:
         oiav.data = ccgObsIav.data
@@ -1173,6 +1077,7 @@ class ConfCO2(Confrontation):
 
     def compositePlots(self):
         pass
+
 
 
 
