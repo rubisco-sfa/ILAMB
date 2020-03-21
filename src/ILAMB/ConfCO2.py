@@ -308,8 +308,6 @@ class ConfCO2(Confrontation):
 
 
         # if emulated_co2 is true, subtract mod by TakahashiFFco2 and FFco2
-        emulated_co2 = True
-
         if emulated_co2:
            #Read in Fosil fuel CO2 concentration from GEOSChem output
            filename = os.path.join(self.pulse_dir,"GEOSChemOcnFfCo2_32yr_360daytime.nc")
