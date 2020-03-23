@@ -346,38 +346,29 @@ class ConfCO2(Confrontation):
 
 
            # actual processing substract OCNco2 and FFco2 from mod CO2
-           flagMinus = True
+           obs, OCNco2Emu = il.MakeComparable(obs, OCNco2Emu,
+                                              mask_ref = True,
+                                              clip_ref = True)
 
-           if flagMinus:
-               obs, OCNco2Emu = il.MakeComparable(obs, OCNco2Emu,
-                                                  mask_ref = True,
-                                                  clip_ref = True)
+           obs, FFco2Emu = il.MakeComparable(obs, FFco2Emu,
+                                             mask_ref = True,
+                                             clip_ref = True)
 
-               obs, FFco2Emu = il.MakeComparable(obs, FFco2Emu,
-                                                 mask_ref = True,
-                                                 clip_ref = True)
+           #trim data in time domain
+           tmin = max(OCNco2Emu.time_bnds[0,0],obs.time_bnds[0,0])
+           tmax = min(OCNco2Emu.time_bnds[-1,1],obs.time_bnds[-1,1])
 
-               #trim data in time domain
-               tmin = max(OCNco2Emu.time_bnds[0,0],obs.time_bnds[0,0])
-               tmax = min(OCNco2Emu.time_bnds[-1,1],obs.time_bnds[-1,1])
+           if tmax >= tmin:
+               OCNco2Emu.trim(t=[tmin, tmax])
+               FFco2Emu.trim(t=[tmin, tmax])
+               obs.trim(t=[tmin, tmax])
+               obs.data = obs.data - OCNco2Emu.data - FFco2Emu.data
+               mod.trim(t=[tmin, tmax])
 
-               if tmax >= tmin:
-                   OCNco2Emu.trim(t=[tmin, tmax])
-                   FFco2Emu.trim(t=[tmin, tmax])
-                   obs.trim(t=[tmin, tmax])
-                   obs.data = obs.data - OCNco2Emu.data - FFco2Emu.data
-                   mod.trim(t=[tmin, tmax])
-
-               
-
-
-        
+     
         # Remove the trend via quadradic polynomial
-       
         obs = _detrend(obs)
         mod = _detrend(mod)
-        
-        
         
         
         return obs,mod
@@ -521,26 +512,24 @@ class ConfCO2(Confrontation):
 
         # Write out the intermediate variables
         #write out independent variable, here is tas iav
-        if not os.path.exists((os.path.join(self.output_path, "tas/"))):
-            os.mkdir((os.path.join(self.output_path, "tas/")))
-        with Dataset(os.path.join(self.output_path,"tas/%s_%s.nc" % ("tas",m.name)),mode="w") as results:
-            results.setncatts({"name" :m.name, "color":m.color})
-            for v in [mod,mcyc,miav]:
-                v.toNetCDF4(results,group="MeanState")
+        flag_write = False
+        if flag_write:
+            if not os.path.exists((os.path.join(self.output_path, "tas/"))):
+                os.mkdir((os.path.join(self.output_path, "tas/")))
+            with Dataset(os.path.join(self.output_path,"tas/%s_%s.nc" % ("tas",m.name)),mode="w") as results:
+                results.setncatts({"name" :m.name, "color":m.color})
+                for v in [mod,mcyc,miav]:
+                    v.toNetCDF4(results,group="MeanState")
 
-        with Dataset(os.path.join(self.output_path,"tas/tas_CRU_Benchmark.nc"),mode="w") as results:
-            results.setncatts({"name" :"Benchmark", "color":np.asarray([0.5,0.5,0.5])})
-            for v in [obs,ocyc,oiav]:
-                v.toNetCDF4(results,group="MeanState")
+            with Dataset(os.path.join(self.output_path,"tas/tas_CRU_Benchmark.nc"),mode="w") as results:
+                results.setncatts({"name" :"Benchmark", "color":np.asarray([0.5,0.5,0.5])})
+                for v in [obs,ocyc,oiav]:
+                    v.toNetCDF4(results,group="MeanState")
                 
-                
+        return oiav,miav
+    
     
     def confront(self,m):
-        
-        # calculate relationship or not?
-        flagRelationshipInd = False
-        if flagRelationshipInd:
-            self.relationshipInd(m)
             
             
         # Grab the data
@@ -800,7 +789,7 @@ class ConfCO2(Confrontation):
         with np.errstate(under='ignore'):
             Samp = Variable(name  = "Amplitude Score global",
                             unit  = "1",
-                            data  = np.exp(-np.abs(mod_amp.data-obs_amp.data)/obs_amp.data).mean()))
+                            data  = np.exp(-np.abs(mod_amp.data-obs_amp.data)/obs_amp.data).mean())
             
             
 
