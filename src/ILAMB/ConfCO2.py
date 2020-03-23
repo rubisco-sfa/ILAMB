@@ -797,36 +797,36 @@ class ConfCO2(Confrontation):
         #SampTmp = -np.clip(np.abs(mod_amp.data-obs_amp.data)/obs_amp.data, 0, 6)
        
         
-        
-        Samp = Variable(name  = "Amplitude Score global",
-                        unit  = "1",
-                        #avoid underflow error
-                        data  = np.exp(-np.abs(np.array(mod_amp.data, dtype = np.float)/np.array(obs_amp.data, dtype = np.float) - 1)).mean())
-        
-        
+        with np.errstate(under='ignore'):
+            Samp = Variable(name  = "Amplitude Score global",
+                            unit  = "1",
+                            #avoid underflow error
+                            data  = np.exp(-np.abs(mod_amp.data/obs_amp.data - 1)).mean())
+            
+            
 
-        # Interannual variability score: similar to the amplitude
-        # score, we also score the relative error in the stdev(iav)
-        # and report a mean across sites.
-        ostd = oiav.data.std(axis=0)
-        mstd = miav.data.std(axis=0)
-        Siav = Variable(name  = "Interannual Variability Score global",
-                        unit  = "1",
-                        #avoid underflow error
-                        data  = np.exp(-np.abs(np.array(mstd, dtype = np.float)/np.array(ostd, dtype = np.float) - 1)).mean())
+            # Interannual variability score: similar to the amplitude
+            # score, we also score the relative error in the stdev(iav)
+            # and report a mean across sites.
+            ostd = oiav.data.std(axis=0)
+            mstd = miav.data.std(axis=0)
+            Siav = Variable(name  = "Interannual Variability Score global",
+                            unit  = "1",
+                            #avoid underflow error
+                            data  = np.exp(-np.abs(mstd/ostd - 1)).mean())
 
 
-        # Min/Max Phase score: for each site we compute the phase
-        # shift and normalize it linearly where a 0 day shift gets a
-        # score of 1 and a 365/2 day shift is zero. We then compute a
-        # weighted mean across sites where sites without a well
-        # defined annual cycle are discarded.
-        Smax = Variable(name = "Max Phase Score global",
-                        unit = "1",
-                        data = np.average(_computeShift(obs_maxp,mod_maxp),weights=well_define))
-        Smin = Variable(name = "Min Phase Score global",
-                        unit = "1",
-                        data = np.average(_computeShift(obs_minp,mod_minp),weights=well_define))
+            # Min/Max Phase score: for each site we compute the phase
+            # shift and normalize it linearly where a 0 day shift gets a
+            # score of 1 and a 365/2 day shift is zero. We then compute a
+            # weighted mean across sites where sites without a well
+            # defined annual cycle are discarded.
+            Smax = Variable(name = "Max Phase Score global",
+                            unit = "1",
+                            data = np.average(_computeShift(obs_maxp,mod_maxp),weights=well_define))
+            Smin = Variable(name = "Min Phase Score global",
+                            unit = "1",
+                            data = np.average(_computeShift(obs_minp,mod_minp),weights=well_define))
 
 
 
