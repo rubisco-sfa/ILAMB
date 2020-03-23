@@ -796,12 +796,11 @@ class ConfCO2(Confrontation):
         # mean across sites.
         #SampTmp = -np.clip(np.abs(mod_amp.data-obs_amp.data)/obs_amp.data, 0, 6)
        
-        
+        #avoid underflow error
         with np.errstate(under='ignore'):
             Samp = Variable(name  = "Amplitude Score global",
                             unit  = "1",
-                            #avoid underflow error
-                            data  = np.exp(-np.abs(mod_amp.data/obs_amp.data - 1)).mean())
+                            data  = np.exp(-np.abs(mod_amp.data-obs_amp.data)/obs_amp.data).mean()))
             
             
 
@@ -812,8 +811,7 @@ class ConfCO2(Confrontation):
             mstd = miav.data.std(axis=0)
             Siav = Variable(name  = "Interannual Variability Score global",
                             unit  = "1",
-                            #avoid underflow error
-                            data  = np.exp(-np.abs(mstd/ostd - 1)).mean())
+                            data  = np.exp(-np.abs(mstd-ostd)/ostd).mean())
 
 
             # Min/Max Phase score: for each site we compute the phase
@@ -830,7 +828,7 @@ class ConfCO2(Confrontation):
 
 
 
-        #Dump into nc files
+        # Write out the intermediate variables
         with Dataset(os.path.join(self.output_path,"%s_%s.nc" % (self.name,m.name)),mode="w") as results:
             results.setncatts({"name" :m.name, "color":m.color})
             for v in [mod,mcyc,miav,mcycf,mod_maxp,mod_minp,mod_amp,Samp,Siav,Smax,Smin]:
@@ -1006,9 +1004,6 @@ class ConfCO2(Confrontation):
                 m_band_iav[i] =           miav.data.std(axis=0)[ind].mean()
 
 
-
-
-      
 
         # To plot the mean values over latitude bands superimposed on
         # the globe, we have to transform the phase and amplitude
