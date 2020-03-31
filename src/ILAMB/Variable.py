@@ -589,9 +589,17 @@ class Variable:
 
         # approximate the integral
         integral = _integrate(self.data,measure)
+        i_bnds = None
+        if self.data_bnds is not None:
+            U = np.sqrt((((self.data-self.data_bnds[...,0])*measure)**2).sum(axis=-1).sum(axis=-1))
+            i_bnds = np.zeros(integral.shape + (2,))
+            i_bnds[...,0] = integral - U
+            i_bnds[...,1] = integral + U            
+            
         if mean:
             np.seterr(under='ignore',invalid='ignore')
             integral = integral / measure.sum()
+            if self.data_bnds is not None: i_bnds /= measure.sum()
             np.seterr(under='raise',invalid='warn')
 
         # handle the name and unit
@@ -609,6 +617,7 @@ class Variable:
             unit *= Unit("m2")
 
         return Variable(data       = np.ma.masked_array(integral),
+                        data_bnds  = i_bnds,
                         unit       = "%s" % unit,
                         time       = self.time,
                         time_bnds  = self.time_bnds,
