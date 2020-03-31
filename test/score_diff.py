@@ -14,5 +14,7 @@ for model in gold.dtype.names[1:]:
         for i in range(diff.size):
             if diff[i] > 1e-12:
                 print("%s | %s | %.6f%% " % (gold['variables'][i],model,diff[i]*100.))
-if not ok: sys.exit(1)
+if not ok:
+    print("Test failed")
+    sys.exit(1)
 print("Test passed")
