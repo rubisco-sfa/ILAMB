@@ -54,11 +54,13 @@ class ConfAlbedo(Confrontation):
 
         # Handle model data
         dn_mod = m.extractTimeSeries("rsds",
+                                     alternate_vars = ["FSDS"],
                                      initial_time = obs.time_bnds[ 0,0],
                                      final_time   = obs.time_bnds[-1,1],
                                      lats         = None if obs.spatial else obs.lat,
                                      lons         = None if obs.spatial else obs.lon)
         up_mod = m.extractTimeSeries("rsus",
+                                     alternate_vars = ["FSR"],
                                      initial_time = obs.time_bnds[ 0,0],
                                      final_time   = obs.time_bnds[-1,1],
                                      lats         = None if obs.spatial else obs.lat,
