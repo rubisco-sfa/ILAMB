@@ -168,9 +168,12 @@ class ModelResult():
             return (lon<=180)*lon + (lon>180)*(lon-360) + (lon<-180)*360
         
         # Are there cell areas associated with this model?
-        if "areacella" in self.variables.keys():
-            with Dataset(self.variables["areacella"][0]) as f:
-                self.cell_areas = f.variables["areacella"][...]
+        area_name = None
+        area_name = "area"      if "area"      in self.variables.keys() else area_name
+        area_name = "areacella" if "areacella" in self.variables.keys() else area_name
+        if area_name is not None:
+            with Dataset(self.variables[area_name][0]) as f:
+                self.cell_areas = f.variables[area_name][...]
         else:
             if not ("lat_bnds" in self.variables.keys() and
                     "lon_bnds" in self.variables.keys()): return
@@ -185,11 +188,14 @@ class ModelResult():
             self.cell_areas = il.CellAreas(None,None,lat_bnds=x,lon_bnds=y)
             
         # Now we do the same for land fractions
-        if "sftlf" not in self.variables.keys():
+        frac_name = None
+        frac_name = "landfrac" if "landfrac" in self.variables.keys() else frac_name
+        frac_name = "sftlf"    if "sftlf"    in self.variables.keys() else frac_name
+        if frac_name is None:
             self.land_areas = self.cell_areas
         else:
-            with Dataset(self.variables["sftlf"][0]) as f:
-                self.land_fraction = f.variables["sftlf"][...]                
+            with Dataset(self.variables[frac_name][0]) as f:
+                self.land_fraction = f.variables[frac_name][...]                
             # some models represent the fraction as a percent
             if np.ma.max(self.land_fraction) > 10: self.land_fraction *= 0.01
             with np.errstate(over='ignore',under='ignore'):
