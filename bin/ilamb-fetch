@@ -65,6 +65,8 @@ parser.add_argument('-c', '--create', dest="create", action="store_true",
                     help='Enable to create a sha1sum check file of the contents of the local root')
 parser.add_argument('--no-check-certificate', dest="check", action="store_true",
                     help='Enable to skip checking authenticity of the downloaded certificate')
+parser.add_argument('-y', dest="auto_accept", action="store_true",
+                    help='Enable to automatically accept the query to download files')
 args = parser.parse_args()
 
 # use create mode if you want to make a checksum file of a directory
@@ -102,8 +104,11 @@ if len(needs_updating) == 0:
 print("\nI found the following files which are missing, out of date, or corrupt:\n")
 for key in needs_updating:
     print("\t%s/%s" % (args.local_root,key))
-    
-reply = str(input('\nDownload replacements? [y/n] ')).lower().strip()
+
+if args.auto_accept:
+    reply = 'y'
+else:
+    reply = str(input('\nDownload replacements? [y/n] ')).lower().strip()
 if reply[0] == 'y':
     print(" ")
     for key in needs_updating:
