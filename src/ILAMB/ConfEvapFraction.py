@@ -56,13 +56,13 @@ class ConfEvapFraction(Confrontation):
 
         # Handle model data
         sh_mod = m.extractTimeSeries("hfss",
-                                     alternate_vars = ["FSH"],
+                                     alt_vars = ["FSH"],
                                      initial_time = obs.time_bnds[ 0,0],
                                      final_time   = obs.time_bnds[-1,1],
                                      lats         = None if obs.spatial else obs.lat,
                                      lons         = None if obs.spatial else obs.lon)
         le_mod = m.extractTimeSeries("hfls",
-                                     alternate_vars = ["EFLX_LH_TOT"],
+                                     alt_vars = ["EFLX_LH_TOT"],
                                      initial_time = obs.time_bnds[ 0,0],
                                      final_time   = obs.time_bnds[-1,1],
                                      lats         = None if obs.spatial else obs.lat,
