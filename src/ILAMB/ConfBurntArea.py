@@ -24,7 +24,9 @@ class ConfBurntArea(Confrontation):
             mod.convert(obs.unit)
         except:
             mod.convert("d-1")
-            mod.data *= np.diff(mod.time_bnds,axis=1)
+            dt = mod.time_bnds[:,1]-mod.time_bnds[:,0]
+            for i in range(mod.data.ndim-1): dt = np.expand_dims(dt,axis=-1)
+            mod.data *= dt
             mod.unit  = "1"
         obs,mod = il.MakeComparable(obs,mod,
                                     mask_ref  = True,
