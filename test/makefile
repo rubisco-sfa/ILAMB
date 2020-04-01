@@ -2,7 +2,7 @@ NP = 1
 OPTS =
 
 all:
-	@ilamb-fetch --remote_root https://www.ilamb.org/Test-Data --no-check-certificate
+	@ilamb-fetch --remote_root https://www.ilamb.org/Test-Data --no-check-certificate -y
 	@mpirun -n ${NP} ilamb-run  \
 	--config test.cfg           \
 	--model_root ./MODELS/      \
