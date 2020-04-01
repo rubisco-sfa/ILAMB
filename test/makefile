@@ -2,10 +2,11 @@ NP = 1
 OPTS =
 
 all:
-	@mpirun -n ${NP} ilamb-run                \
-	--config test.cfg                         \
-	--model_root ${ILAMB_ROOT}/MODELS/TestModels \
-	--regions global shsa \
+	@ilamb-fetch --remote_root https://www.ilamb.org/Test-Data --no-check-certificate
+	@mpirun -n ${NP} ilamb-run  \
+	--config test.cfg           \
+	--model_root ./MODELS/      \
+	--regions global shsa       \
 	--title "ILAMB Benchmark: test runs" ${OPTS}
 	@python score_diff.py scores_test.csv.gold _build/scores.csv 
 

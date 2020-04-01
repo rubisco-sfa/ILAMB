@@ -25,7 +25,5 @@ steps:
 - script: |
     cd test
     export ILAMB_ROOT=./
-    ilamb-fetch --remote_root https://www.ilamb.org/Test-Data --no-check-certificate -y
-    ilamb-run --config test.cfg --model_root MODELS --regions global shsa
-    python score_diff.py scores_test.csv.gold _build/scores.csv
+    make 
   displayName: 'Run tests'
