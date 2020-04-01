@@ -1,6 +1,7 @@
 from .Variable import Variable
 from netCDF4 import Dataset
 from . import ilamblib as il
+from cf_units import Unit
 import numpy as np
 import glob,os,re
 from mpi4py import MPI
@@ -173,7 +174,9 @@ class ModelResult():
         area_name = "areacella" if "areacella" in self.variables.keys() else area_name
         if area_name is not None:
             with Dataset(self.variables[area_name][0]) as f:
-                self.cell_areas = f.variables[area_name][...]
+                A = f.variables[area_name]
+                unit = Unit(A.units) if "units" in A.ncattrs() else Unit("m2")
+                self.cell_areas = unit.convert(A[...],"m2",inplace=True)
         else:
             if not ("lat_bnds" in self.variables.keys() and
                     "lon_bnds" in self.variables.keys()): return
@@ -195,7 +198,7 @@ class ModelResult():
             self.land_areas = self.cell_areas
         else:
             with Dataset(self.variables[frac_name][0]) as f:
-                self.land_fraction = f.variables[frac_name][...]                
+                self.land_fraction = f.variables[frac_name][...]
             # some models represent the fraction as a percent
             if np.ma.max(self.land_fraction) > 10: self.land_fraction *= 0.01
             with np.errstate(over='ignore',under='ignore'):
