@@ -13,3 +13,4 @@ RDict.log
 dist
 *_generated*
 src/ILAMB/generated_version.py
+*.nc
