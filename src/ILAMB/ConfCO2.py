@@ -13,9 +13,6 @@ import numpy as np
 import os
 import copy
 from . import ccgfilt
-#import scipy
-#import dateutil
-#import csv
 
 
 
@@ -185,7 +182,7 @@ class ConfCO2(Confrontation):
         mod = m.extractTimeSeries(emulated_flux,
                                   initial_time = obs.time_bnds[ 0,0]-float(Ninf)/12*365+29.,
                                   final_time   = obs.time_bnds[-1,1])
-       
+
 
         # What if I don't have Ninf leadtime?
         tf = min(obs.time_bnds[-1,1],mod.time_bnds[-1,1])
@@ -306,7 +303,7 @@ class ConfCO2(Confrontation):
             mod.data.mask += obs.data.mask
 
 
-		
+
         # if emulated_co2 is true, subtract mod by TakahashiFFco2 and FFco2
         if emulated_co2:
            #Read in Fosil fuel CO2 concentration from GEOSChem output
@@ -365,31 +362,31 @@ class ConfCO2(Confrontation):
                obs.data = obs.data - OCNco2Emu.data - FFco2Emu.data
                mod.trim(t=[tmin, tmax])
 
-     
+
         # Remove the trend via quadradic polynomial
         obs = _detrend(obs)
         mod = _detrend(mod)
-        
-        
+
+
         return obs,mod
-        
+
     def relationshipInd(self,m):
         #Before plotting relationship between iav of co2 or co2 growth rate and iav of other variables, e.g. tas in this case, prepare the iav of independent variable at the same time.
-        
+
         #get obs of independent variable
         indObs = Variable(filename       = os.path.join(self.pulse_dir, "/DATA/tas/CRU/tas_0.5x0.5.nc"),
                           variable_name  = "tas",
                           #alternate_vars = self.alternate_vars,
                           t0 = None ,
                           tf = None)
-        
+
         #grab tropical area
         latTro = indObs.lat[(indObs.lat > -23) * (indObs.lat < 23)]
         maskLat = np.repeat(latTro, len(indObs.lon))
         maskLon = np.tile(indObs.lon, len(latTro))
         indObs =  indObs.extractDatasites(lat = maskLat,
                                           lon = maskLon)
-      
+
         #grab tropical land area
         whrLand = np.where(indObs.data[1,:].mask==False)
         indObsLand = copy.deepcopy(indObs)
@@ -407,13 +404,13 @@ class ConfCO2(Confrontation):
         p = np.polyfit(t,x,2)
         bb = np.polyval(p,var.time)
         var.data[j,0] -= bb
-        
+
         indObsLandDtr = copy.deepcopy(var)
-        
+
 
 
         #-------model output tas ---------------------
-        
+
         #get reference co2 obs to grab the time
         co2Obs = Variable(filename       = self.source,
                        variable_name  = self.variable,
@@ -429,7 +426,7 @@ class ConfCO2(Confrontation):
                                          final_time   = co2Obs.time_bnds[-1,1],
                                          lats         = indObs.lat[whrLand],
                                          lons         = indObs.lon[whrLand])
-      
+
 
         #detrending for mod independent-----------
         cc = copy.deepcopy(indModLand)
@@ -444,7 +441,7 @@ class ConfCO2(Confrontation):
         bb = np.polyval(p,var.time)
         var.data[j,0] -= bb
         indModLandDtr = copy.deepcopy(var)
-        
+
 
 
 
@@ -459,12 +456,12 @@ class ConfCO2(Confrontation):
         mod_amp     = np.zeros(n); mod_maxp = np.zeros(n); mod_minp = np.zeros(n)
         obs_cyc     = np.zeros((366,n)); mod_cyc = np.zeros((366,n));
         well_define = np.zeros(n)
-      
+
 
         for i in range(1,n):
             obs_amp[i],obs_maxp[i],obs_minp[i],obs_cyc[:,i] = _siteCharacteristics(ot,ocyc[...,i])
             mod_amp[i],mod_maxp[i],mod_minp[i],mod_cyc[:,i] = _siteCharacteristics(mt,mcyc[...,i])
-       
+
         obs = copy.deepcopy(indObsLandDtr)
         mod = copy.deepcopy(indModLandDtr)
 
@@ -478,7 +475,7 @@ class ConfCO2(Confrontation):
                                 lon   = obs.lon,
                                 time  = ot,
                                 time_bnds = otb)
-           
+
             oiav     = Variable(name  = "iav", # deseasonalized interannual variability
                                 unit  = obs.unit,
                                 data  = obs.data-il.ExtendAnnualCycle(obs.time,ocyc.data,ocyc.time),
@@ -487,8 +484,8 @@ class ConfCO2(Confrontation):
                                 lat   = obs.lat,
                                 lon   = obs.lon,
                                 time_bnds = obs.time_bnds)
-        
-        
+
+
         # Write out ILAMB variables for modeled quantities
         mcyc     = Variable(name  = "cycle", # mean annual cycle
                             unit  = mod.unit,
@@ -506,9 +503,9 @@ class ConfCO2(Confrontation):
                             lat   = mod.lat,
                             lon   = mod.lon,
                             time_bnds = mod.time_bnds)
-       
 
-        
+
+
 
         # Write out the intermediate variables
         #write out independent variable, here is tas iav
@@ -525,13 +522,13 @@ class ConfCO2(Confrontation):
                 results.setncatts({"name" :"Benchmark", "color":np.asarray([0.5,0.5,0.5])})
                 for v in [obs,ocyc,oiav]:
                     v.toNetCDF4(results,group="MeanState")
-                
+
         return oiav,miav
-    
-    
+
+
     def confront(self,m):
-            
-            
+
+
         # Grab the data
         obs,mod= self.stageData(m)
 
@@ -567,8 +564,8 @@ class ConfCO2(Confrontation):
                                 lat   = obs.lat,
                                 lon   = obs.lon,
                                 time_bnds = obs.time_bnds)
-            
-            
+
+
             ocycf    = Variable(name  = "cycle_fine", # finely sampled cycle from cubic interpolation
                                 unit  = obs.unit,
                                 data  = obs_cyc,
@@ -612,7 +609,7 @@ class ConfCO2(Confrontation):
                                 lat   = mod.lat,
                                 lon   = mod.lon,
                                 time_bnds = mod.time_bnds)
-            
+
             mcycf    = Variable(name  = "cycle_fine", # finely sampled cycle from cubic interpolation
                                 unit  = mod.unit,
                                 data  = mod_cyc,
@@ -638,7 +635,7 @@ class ConfCO2(Confrontation):
                                 ndata = mod.ndata,
                                 lat   = mod.lat,
                                 lon   = mod.lon)
-        
+
 
         #ccgcrv trend, longtime scale, seasonal (harmonics), smooth data for obs
         #placeholder for ccgObsTrend, ccgObsPoly, ccgObsIav, ccgObsFun, ccgObsHarmo, ccgObsSmooth
@@ -659,14 +656,14 @@ class ConfCO2(Confrontation):
 
         ccgObsSmooth = copy.deepcopy(obs)
         ccgObsSmooth.name = "ccgSmooth"
-        
-        
+
+
 
         for ss in range(0, obs.ndata):
             whrData = np.where(obs.data[:,ss].mask==False)
             xp=(obs.time/365)[whrData]
             yp=obs.data[:,ss][whrData]
-            
+
             #long term filter is 10 yrs
             yrLongTerm = 10
             filt = ccgfilt.ccgFilter(xp=xp,
@@ -681,18 +678,18 @@ class ConfCO2(Confrontation):
             ccgObsSmooth.data[whrData,ss] = filt.getSmoothValue(xp)
             ccgObsIav.data[whrData,ss] = ccgObsSmooth.data[whrData,ss] - ccgObsTrend.data[whrData,ss] - ccgObsHarmo.data[whrData,ss]
             ccgCrossDates = filt.getTrendCrossingDates()
-            
+
             #write out crossingdates and BRW amplitude or not?
             flag_write = False
             if flag_write:
                 #write out Crossingdates
                 if not os.path.exists((os.path.join(self.output_path, "ccg/"))):
                     os.mkdir((os.path.join(self.output_path, "ccg/")))
-                
+
                 if not os.path.exists((os.path.join(self.output_path, "ccg/CrossingDates/"))):
                     os.mkdir((os.path.join(self.output_path, "ccg/CrossingDates/")))
-                    
-                  
+
+
                 np.savetxt(os.path.join(self.output_path,"ccg/CrossingDates/ccgCrossDates_%s_benchmark_site_%s.csv" % (self.name, ss)), ccgCrossDates, delimiter= ",", fmt= '%s')
 
                 #write out BRW amplitude:
@@ -702,7 +699,7 @@ class ConfCO2(Confrontation):
                           os.mkdir((os.path.join(self.output_path, "ccg/seaCyleAmplitudeTrend/")))
                     np.savetxt(os.path.join(self.output_path,"ccg/seaCyleAmplitudeTrend/ccgAmplitude_%s_benchmark_lat%s.csv" % (self.name, obs.lat[ss])), ccgAmplitude, delimiter= ",", header="year, total_amplitude, max_date, max_value, min_date, min_value")
 
-       
+
 
 
         #ccgcrv trend, longtime scale, seasonal (harmonics), smooth data for mod
@@ -727,9 +724,9 @@ class ConfCO2(Confrontation):
 
 
         for ss in range(0, mod.ndata):
-            
+
             whrData = np.where(mod.data[:,ss].mask==False)
-            
+
             if len(whrData) > 0:
                 xp=(mod.time/365)[whrData]
                 yp=mod.data[:,ss][whrData]
@@ -757,8 +754,8 @@ class ConfCO2(Confrontation):
                     if ss == 5:
                         ccgAmplitude = filt.getAmplitudes()
                         np.savetxt(os.path.join(self.output_path,"ccg/seaCyleAmplitudeTrend/ccgAmplitude_%s_%s_lat%s.csv" % (self.name,m.name, mod.lat[ss])), ccgAmplitude, delimiter= ",", header="year, total_amplitude, max_date, max_value, min_date, min_value")
-                
-        
+
+
         if flag_write:
             results = Dataset(os.path.join(self.output_path,"ccg/ccg_%s_%s.nc" % (self.name,m.name)), mode="w")
             for v in [ccgModTrend, ccgModPoly, ccgModIav, ccgModFun, ccgModHarmo, ccgModSmooth]:
@@ -784,14 +781,14 @@ class ConfCO2(Confrontation):
         # exponential. The score for the model is then the arithmetic
         # mean across sites.
         #SampTmp = -np.clip(np.abs(mod_amp.data-obs_amp.data)/obs_amp.data, 0, 6)
-       
+
         #avoid underflow error
         with np.errstate(under='ignore'):
             Samp = Variable(name  = "Amplitude Score global",
                             unit  = "1",
                             data  = np.exp(-np.abs(mod_amp.data-obs_amp.data)/obs_amp.data).mean())
-            
-            
+
+
 
             # Interannual variability score: similar to the amplitude
             # score, we also score the relative error in the stdev(iav)
