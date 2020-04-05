@@ -12,10 +12,10 @@ import pylab as plt
 import numpy as np
 import os
 import copy
-from ILAMB import ccgfilt
-import scipy
-import dateutil
-import csv
+from . import ccgfilt
+#import scipy
+#import dateutil
+#import csv
 
 
 
@@ -306,7 +306,7 @@ class ConfCO2(Confrontation):
             mod.data.mask += obs.data.mask
 
 
-
+		
         # if emulated_co2 is true, subtract mod by TakahashiFFco2 and FFco2
         if emulated_co2:
            #Read in Fosil fuel CO2 concentration from GEOSChem output
@@ -377,7 +377,7 @@ class ConfCO2(Confrontation):
         #Before plotting relationship between iav of co2 or co2 growth rate and iav of other variables, e.g. tas in this case, prepare the iav of independent variable at the same time.
         
         #get obs of independent variable
-        indObs = Variable(filename       = "/no_backup/GroupData/kxu/DATA/tas/CRU/tas_0.5x0.5.nc",
+        indObs = Variable(filename       = os.path.join(self.pulse_dir, "/DATA/tas/CRU/tas_0.5x0.5.nc"),
                           variable_name  = "tas",
                           #alternate_vars = self.alternate_vars,
                           t0 = None ,
