@@ -330,7 +330,6 @@ class HtmlPage(object):
         for section in sections: self.figures[section] = []
 
     def addFigure(self,section,name,pattern,side=None,legend=False,benchmark=False,longname=None,width=None,br=False):
-
         assert section in self.sections
         for fig in self.figures[section]:
             if fig.name == name: return
@@ -613,7 +612,7 @@ class HtmlAllModelsPage(HtmlPage):
                         if figure not in self.plots: self.plots.append(figure)
                         if not figure.legend: self.nolegend.append(figure.name)
         self.nobench = [plot.name for plot in self.plots if "benchmark_%s" % (plot.name) not in bench]
-
+        
     def __str__(self):
 
         if self.plots is None: self._populatePlots()
@@ -684,6 +683,8 @@ class HtmlAllModelsPage(HtmlPage):
             img        = img.replace('"leg"','"MNAME_legend"').replace("%s" % fig.name,"MNAME")
             fig.side   = rem_side
             fig.legend = rem_leg
+            if "Benchmark" not in self.pages[0].models:
+                code += '<div id="Benchmark_div"></div>'
             for model in self.pages[0].models:
                 code += img.replace("MNAME",model)
 
