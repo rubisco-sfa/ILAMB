@@ -668,6 +668,9 @@ def FromNetCDF4(filename,variable_name,alternate_vars=[],t0=None,tf=None,group=N
         alternate_vars.insert(0,variable_name)
         raise RuntimeError("Unable to find [%s] in the file: %s" % (",".join(alternate_vars),filename))
 
+    # Copy attributes into a dictionary
+    attr = { attr: var.getncattr(attr) for attr in var.ncattrs() }
+    
     # Check on dimensions
     time_name  = [name for name in var.dimensions if "time" in name.lower()]
     lat_name   = [name for name in var.dimensions if "lat"  in name.lower()]
@@ -872,7 +875,7 @@ def FromNetCDF4(filename,variable_name,alternate_vars=[],t0=None,tf=None,group=N
         units = "1"
     dset.close()
 
-    return v,v_bnd,units,variable_name,t,t_bnd,lat,lat_bnd,lon,lon_bnd,depth,depth_bnd,cbounds,data,calendar
+    return v,v_bnd,units,variable_name,t,t_bnd,lat,lat_bnd,lon,lon_bnd,depth,depth_bnd,cbounds,data,calendar,attr
 
 def Score(var,normalizer):
     """Remaps a normalized variable to the interval [0,1].
@@ -1924,8 +1927,8 @@ def CombineVariables(V):
 
     # checks on data
     assert type(V) == type([])
-    for v in V: assert v.temporal
     if len(V) == 1: return V[0]
+    for v in V: assert v.temporal
 
     # Put list in order by initial time
     V.sort(key=lambda v: v.time[0])
@@ -1978,19 +1981,21 @@ def CombineVariables(V):
     if np.any((time_bnds[:,1]-time_bnds[:,0])<1e-12): time_bnds = None
 
     v = V[0]
-    return Variable(data       = np.ma.masked_array(data,mask=mask),
-                    unit       = v.unit,
-                    name       = v.name,
-                    time       = time,
-                    time_bnds  = time_bnds,
-                    depth      = v.depth,
-                    depth_bnds = v.depth_bnds,
-                    lat        = v.lat,
-                    lat_bnds   = v.lat_bnds,
-                    lon        = v.lon,
-                    lon_bnds   = v.lon_bnds,
-                    area       = v.area,
-                    ndata      = v.ndata)
+    v = Variable(data       = np.ma.masked_array(data,mask=mask),
+                 unit       = v.unit,
+                 name       = v.name,
+                 time       = time,
+                 time_bnds  = time_bnds,
+                 depth      = v.depth,
+                 depth_bnds = v.depth_bnds,
+                 lat        = v.lat,
+                 lat_bnds   = v.lat_bnds,
+                 lon        = v.lon,
+                 lon_bnds   = v.lon_bnds,
+                 area       = v.area,
+                 ndata      = v.ndata)
+    v.attr = V[0].attr
+    return v
 
 def ConvertBoundsTypes(x):
     y = None

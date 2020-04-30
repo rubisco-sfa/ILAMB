@@ -118,6 +118,7 @@ class Variable:
             depth      = keywords.get("depth"      ,None)
             depth_bnds = keywords.get("depth_bnds" ,None)
             ndata      = keywords.get("ndata"      ,None)
+            attr       = None
             assert data is not None
             assert unit is not None
             cbounds    = None
@@ -129,7 +130,7 @@ class Variable:
             tf = keywords.get("tf",None)
             convert_calendar = keywords.get("convert_calendar",True)
             out = il.FromNetCDF4(filename,variable_name,alternate_vars,t0,tf,group=groupname,convert_calendar=convert_calendar)
-            data,data_bnds,unit,name,time,time_bnds,lat,lat_bnds,lon,lon_bnds,depth,depth_bnds,cbounds,ndata,calendar = out
+            data,data_bnds,unit,name,time,time_bnds,lat,lat_bnds,lon,lon_bnds,depth,depth_bnds,cbounds,ndata,calendar,attr = out
 
         # Add handling for some units which cf_units does not support
         unit = unit.replace("psu","1e-3")
@@ -142,7 +143,8 @@ class Variable:
         self.name  = name
         self.cbounds = cbounds
         self.calendar = calendar
-
+        self.attr = attr
+        
         # Handle time data
         self.time      = time      # time data
         self.time_bnds = time_bnds # bounds on time
