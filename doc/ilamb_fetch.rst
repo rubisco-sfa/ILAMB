@@ -9,7 +9,7 @@ to the following::
 
   Comparing remote location:
  
-  	http://ilamb.ornl.gov/ILAMB-Data/
+  	https://www.ilamb.org/ILAMB-Data/
 
   To local location:
 
@@ -33,5 +33,5 @@ This tool can be used to download other data collections as well. If
 you need the ocean IOMB data, then you can change the remote location
 by running::
 
-  ilamb-fetch --remote_root http://ilamb.ornl.gov/IOMB-Data/
+  ilamb-fetch --remote_root https://www.ilamb.org/IOMB-Data/
 
