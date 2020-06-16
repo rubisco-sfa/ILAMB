@@ -858,10 +858,10 @@ class Confrontation(object):
                     for vname in grp.variables.keys():
                         found = False
                         for region in self.regions:
-                            if region in vname:
+                            if vname.endswith(" %s" % region):
                                 found = True
                                 var   = grp.variables[vname]
-                                name  = vname.replace(region,"")
+                                name  = ''.join(vname.rsplit(" %s" % region,1))
                                 metrics[mname][region][name] = Variable(name = name,
                                                                         unit = var.units,
                                                                         data = var[...])
