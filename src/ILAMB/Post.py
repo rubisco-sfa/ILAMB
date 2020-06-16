@@ -215,7 +215,20 @@ class HtmlFigure():
         </div>"""
         return code
 
-
+def SortRegions(regions):
+    if len(regions) == 0: return []
+    rnames = []
+    r = Regions()
+    for region in regions:
+        try:
+            n = r.getRegionName(region)
+            rnames.append(n)
+        except:
+            rnames.append(region)
+    sorts = sorted(zip(rnames,regions))
+    rnames,regions = [list(t) for t in zip(*sorts)]
+    return regions
+    
 class HtmlPage(object):
 
     def __init__(self,name,title):
@@ -324,7 +337,6 @@ class HtmlPage(object):
         self.header = header
 
     def setSections(self,sections):
-
         assert type(sections) == type([])
         self.sections = sections
         for section in sections: self.figures[section] = []
@@ -544,7 +556,7 @@ class HtmlPage(object):
 
     def setRegions(self,regions):
         assert type(regions) == type([])
-        self.regions = regions
+        self.regions = SortRegions(regions)
 
     def setMetrics(self,metric_dict):
 
@@ -571,7 +583,7 @@ class HtmlPage(object):
                     if metric not in metrics: metrics.append(metric)
         models.sort(key=lambda key: key.lower())
         if "Benchmark" in models: models.insert(0,models.pop(models.index("Benchmark")))
-        regions.sort()
+        regions = SortRegions(regions)
         metrics.sort(key=_sortMetrics)
         self.models  = models
         if self.regions is None: self.regions = regions
