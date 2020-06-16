@@ -17,7 +17,8 @@ steps:
 
 - script: |
     sudo apt-get -y install libgeos-dev proj-bin libproj-dev libudunits2-dev libmpich-dev libnetcdf-dev
-    pip install cython requests
+    pip install cython requests wheel
+    pip install numpy matplotlib
     pip install shapely --no-binary shapely
     pip install ./
     python -c "import ILAMB; print('ILAMB v%s successfully installed' % (ILAMB.__version__))"
