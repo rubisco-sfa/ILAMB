@@ -675,8 +675,7 @@ def FromNetCDF4(filename,variable_name,alternate_vars=[],t0=None,tf=None,group=N
     time_name  = [name for name in var.dimensions if "time" in name.lower()]
     lat_name   = [name for name in var.dimensions if "lat"  in name.lower()]
     lon_name   = [name for name in var.dimensions if "lon"  in name.lower()]
-    data_name  = [name for name in var.dimensions if "data" in name.lower()]
-    data_name += [name for name in var.dimensions if name.lower() in ["lndgrid"]]
+    data_name  = [name for name in var.dimensions if name.lower() in ["data","lndgrid","gridcell"]]
     missed     = [name for name in var.dimensions if name not in (time_name +
                                                                   lat_name  +
                                                                   lon_name  +
@@ -817,20 +816,25 @@ def FromNetCDF4(filename,variable_name,alternate_vars=[],t0=None,tf=None,group=N
                 if depth_bnd is not None:
                     depth_bnd = Unit(dunit).convert(depth_bnd,Unit("Pa"),inplace=True)
                     depth_bnd = -np.log(depth_bnd/Pb)*R*Tb/M/g
-    if data_name      is not None:
+    if data_name is not None:
         data = len(grp.dimensions[data_name])
         # if we have data sites, there may be lat/lon/depth data to
         # come along with them although not a dimension of the
         # variable
+        lat_name = []; lon_name = []
         for key in grp.variables.keys():
-            if "lat" in key: lat_name = key
-            if "lon" in key: lon_name = key
+            if "lat" in key: lat_name.append(key)
+            if "lon" in key: lon_name.append(key)
             if "altitude" in key: depth_name = key
-        if lat_name   is not None: lat   = grp.variables[lat_name  ][...]
-        if lon_name   is not None: lon   = grp.variables[lon_name  ][...]
+        if len(lat_name) > 1: lat_name = [n for n in lat_name if grp.variables[n].dimensions[0] in var.dimensions]
+        if len(lon_name) > 1: lon_name = [n for n in lon_name if grp.variables[n].dimensions[0] in var.dimensions]        
+        if len(lat_name) > 0: lat   = grp.variables[lat_name[0]][...]
+        if len(lon_name) > 0: lon   = grp.variables[lon_name[0]][...]
         if depth_name is not None: depth = grp.variables[depth_name][...]
-        if lat  .size != data: lat   = None
-        if lon  .size != data: lon   = None
+        if lat is not None:
+            if lat.size != data: lat = None
+        if lon is not None:
+            if lon.size != data: lon = None
         if depth is not None:
             if depth.size != data: depth = None
 
