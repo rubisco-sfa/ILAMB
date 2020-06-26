@@ -148,8 +148,7 @@ type in the ``derived`` tag. It will then combined them automatically
 and resolve unit differences.
 
 The configuration language is small, but allows you to change a lot of
-the behavior of the system. The full functionality is documented `here
-<nope_not_yet>`_. Non-algebraic manipulations are also possible, but
+the behavior of the system. Non-algebraic manipulations are also possible, but
 will be covered in a more advanced tutorial.
 
 Running the Study
