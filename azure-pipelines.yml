@@ -6,8 +6,8 @@ pool:
   vmImage: 'ubuntu-latest'
 strategy:
   matrix:
-    Python35:
-      python.version: '3.5'
+    Python36:
+      python.version: '3.6'
 
 steps:
 - task: UsePythonVersion@0
@@ -15,16 +15,20 @@ steps:
     versionSpec: '$(python.version)'
   displayName: 'Use Python $(python.version)'
 
+- bash: echo "##vso[task.prependpath]$CONDA/bin"
+  displayName: Add conda to PATH
+
+- script: conda env create --quiet --file ilamb.yml
+  displayName: Create Anaconda environment
+  
 - script: |
-    sudo apt-get -y install libgeos-dev proj-bin libproj-dev libudunits2-dev libmpich-dev libnetcdf-dev
-    pip install cython requests wheel
-    pip install numpy matplotlib
-    pip install shapely --no-binary shapely
+    source activate ilamb
     pip install ./
     python -c "import ILAMB; print('ILAMB v%s successfully installed' % (ILAMB.__version__))"
-  displayName: 'Install dependencies'
+  displayName: 'Install ILAMB'
 
 - script: |
+    source activate ilamb
     cd test
     export ILAMB_ROOT=./
     make 
