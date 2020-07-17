@@ -819,7 +819,7 @@ class Variable:
                             name      = "%s_minus_%s" % (var.name,self.name))
         return diff
 
-    def convert(self,unit,density=998.2,mol_mass=12.0107):
+    def convert(self,unit,density=998.2,molar_mass=12.0107):
         """Convert the variable to a given unit.
 
         We use the UDUNITS library via the cf_units python interface to
@@ -851,69 +851,32 @@ class Variable:
 
         """
         if unit is None: return self
-
-        # replace some units that cfunits handled but cf_units does not
-        u0 = self.unit.replace("psu","1e-3")
-        u  =      unit.replace("psu","1e-3")
-
-        src_unit  = Unit(u0)
-        tar_unit  = Unit( u)
-        mask      = self.data.mask
-
-        # Define some generic quantities
-        linear            = Unit("m")
-        linear_rate       = Unit("m s-1")
-        area_density      = Unit("kg m-2")
-        area_density_rate = Unit("kg m-2 s-1")
-        mass_density      = Unit("kg m-3")
-        volume_conc       = Unit("mol m-3")
-        mass_conc         = Unit("mol kg-1")
-        molar_mass        = Unit("g mol-1")
-        
-        # UDUNITS doesn't handle frequently found temperature expressions
-        synonyms = {"K":"degK",
-                    "R":"degR",
-                    "C":"degC",
-                    "F":"degF"}
-        for syn in synonyms.keys():
-            if src_unit.format() == syn: src_unit = Unit(synonyms[syn])
-            if tar_unit.format() == syn: tar_unit = Unit(synonyms[syn])
-
-        # Do we need to multiply by density?
-        if ( (src_unit.is_convertible(linear_rate) and tar_unit.is_convertible(area_density_rate)) or
-             (src_unit.is_convertible(linear     ) and tar_unit.is_convertible(area_density     )) or
-             (src_unit.is_convertible(mass_conc  ) and tar_unit.is_convertible(volume_conc      )) ):
-            np.seterr(over='ignore',under='ignore')
-            self.data *= density
-            if self.data_bnds is not None: self.data_bnds *= density
-            np.seterr(over='raise',under='raise')
+        src_unit = Unit(self.unit)
+        tar_unit = Unit(     unit)
+        mask = self.data.mask        
+        mass_density = Unit("kg m-3")
+        molar_density = Unit("g mol-1")
+        if ((src_unit/tar_unit)/mass_density).is_dimensionless():
+            with np.errstate(all='ignore'):
+                self.data /= density
+            src_unit /= mass_density
+        elif ((tar_unit/src_unit)/mass_density).is_dimensionless():
+            with np.errstate(all='ignore'):
+                self.data *= density
             src_unit *= mass_density
-
-        # Do we need to divide by density?
-        if ( (tar_unit.is_convertible(linear_rate) and src_unit.is_convertible(area_density_rate)) or
-             (tar_unit.is_convertible(linear     ) and src_unit.is_convertible(area_density     )) or
-             (tar_unit.is_convertible(mass_conc  ) and src_unit.is_convertible(volume_conc      )) ):
-            np.seterr(over='ignore',under='ignore')
-            self.data = self.data / density
-            if self.data_bnds is not None: self.data_bnds = self.data_bnds / density
-            np.seterr(over='raise',under='raise')
-            src_unit = src_unit / mass_density
-
-        # Do we need to multiply or divide by molar mass? 
-        if (tar_unit / src_unit).is_convertible(molar_mass):
-             with np.errstate(over='ignore',under='ignore'):
-                self.data /= mol_mass
-                src_unit = src_unit / molar_mass
-        elif (src_unit / tar_unit).is_convertible(molar_mass):
-             with np.errstate(over='ignore',under='ignore'):
-                self.data *= mol_mass
-                src_unit = src_unit * molar_mass
-        
-        # Convert units
+        if ((src_unit/tar_unit)/molar_density).is_dimensionless():
+            with np.errstate(all='ignore'):
+                self.data /= molar_mass
+            src_unit /= molar_density
+        elif ((tar_unit/src_unit)/molar_density).is_dimensionless():
+            with np.errstate(all='ignore'):
+                self.data *= molar_mass
+            src_unit *= molar_density
         try:
-            src_unit.convert(self.data,tar_unit,inplace=True)
-            if self.data_bnds is not None:
-                src_unit.convert(self.data_bnds.data,tar_unit,inplace=True)
+            with np.errstate(all='ignore'):
+                src_unit.convert(self.data,tar_unit,inplace=True)
+                if self.data_bnds is not None:
+                    src_unit.convert(self.data_bnds.data,tar_unit,inplace=True)
             self.unit = unit
         except:
             raise il.UnitConversionError()
