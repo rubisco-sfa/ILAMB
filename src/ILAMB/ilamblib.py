@@ -1154,12 +1154,9 @@ def AnalysisMeanStateSites(ref,com,**keywords):
     # Unit conversions
     def _convert(var,unit):
         if type(var) == type({}):
-            for key in var.keys(): var[key].convert(unit)
+            for key in var.keys(): var[key].convert(unit)                
         else:
-            print(var)
             var.convert(unit)
-            print(var)
-            print("---------------------")
             
     if table_unit is not None:
         for var in [ref_period_mean,com_period_mean,ref_union_mean,com_union_mean,ref_comp_mean,com_comp_mean]:
