@@ -79,7 +79,7 @@ setup(
     version=VERSION,
     description='The International Land Model Benchmarking Package',
     long_description=long_description,
-    url='https://bitbucket.org/ncollier/ilamb',
+    url='https://github.com/rubisco-sfa/ILAMB.git',
     author='Nathan Collier',
     author_email='nathaniel.collier@gmail.com',
     #license='MIT',

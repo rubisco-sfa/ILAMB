@@ -106,7 +106,7 @@ listed in the PyPI. If you are involved in developing features or
 needing bleeding edge developments, this is the method of installation
 you will need. First, clone the git repository::
 
-  git clone https://bitbucket.org/ncollier/ilamb.git
+  git clone https://github.com/rubisco-sfa/ILAMB.git
 
 and then navigate into the newly created directory. Then type::
 
@@ -139,7 +139,7 @@ would need to type::
 Once conda is properly installed/loaded, then clone the ILAMB
 repository and enter the directory::
 
-  git clone https://bitbucket.org/ncollier/ilamb.git  
+  git clone https://github.com/rubisco-sfa/ILAMB.git
   cd ilamb
 
 There are two files in this directory with the ``.yml`` suffix. These
@@ -291,7 +291,7 @@ ensure that matplotlib toolkits find the basemap extension.
 
 .. _pypi:       https://pypi.python.org/pypi
 .. _pip:        https://pip.pypa.io/en/stable/
-.. _repository: https://bitbucket.org/ncollier/ilamb
+.. _repository: https://github.com/rubisco-sfa/ILAMB.git
 .. _numpy:      https://www.numpy.org/
 .. _matplotlib: https://matplotlib.org/
 .. _netCDF4:    https://github.com/Unidata/netcdf4-python

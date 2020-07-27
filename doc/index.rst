@@ -20,7 +20,7 @@ the goals of ILAMB are to:
 
 It is the last of these goals to which this page is concerned. We have
 developed a python-based generic benchmarking system, for which the
-source code may be found on bitbucket_. The development is open and
+source code may be found on github_. The development is open and
 patches are welcome. The main output of our package comes in the form
 of a HTML site_ which can be navigated to explore and understand the
 results.
@@ -35,5 +35,5 @@ Documentation
    packageapi
    
 .. _ILAMB:     http://www.ilamb.org/
-.. _bitbucket: https://bitbucket.org/ncollier/ilamb
+.. _github:    https://github.com/rubisco-sfa/ILAMB.git
 .. _site:      https://www.ilamb.org/CMIP5/esmHistorical/

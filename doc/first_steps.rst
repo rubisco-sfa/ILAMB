@@ -50,8 +50,10 @@ Configure Files
 Now that we have data, we need to setup a file which the ILAMB package
 will use to initiate a benchmark study. There is such a file which
 comes with the software package in the ``demo`` directory called
-``sample.cfg``. Navigate to the demo directory and open this file or view it `online
-<https://bitbucket.org/ncollier/ilamb/src/79a261c2fc832dbe9b736cf8edcf8b941bea341b/demo/sample.cfg?at=master&fileviewer=file-view-default>`_. We also reproduce it here for the purpose of this tutorial::
+``sample.cfg``. Navigate to the demo directory and open this file or
+view it `online
+<https://github.com/rubisco-sfa/ILAMB/blob/master/src/ILAMB/data/sample.cfg>`_. We
+also reproduce it here for the purpose of this tutorial::
 
   # This configure file specifies the variables 
 
