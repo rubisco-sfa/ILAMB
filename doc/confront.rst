@@ -26,8 +26,7 @@ So we have some special-purpose code to write. We will present here
 the implementation bit by bit and explain each function and
 section. However, if you are following along and implementing the
 class as you read, we recommend you look at the original source which
-may be found on our `bitbucket
-<https://bitbucket.org/ncollier/ilamb/src/6616b026a2ce743dcd819a7a61f3f6b2275541d7/src/ILAMB/ConfNBP.py?at=master&fileviewer=file-view-default>`_
+may be found on our `github <https://github.com/rubisco-sfa/ILAMB/blob/master/src/ILAMB/ConfNBP.py>`_
 site. This is because the amount of tab space gets shifted in the
 generation of this document. I will also omit the documentation
 strings and imports here to keep the code short.
