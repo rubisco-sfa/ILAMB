@@ -1286,7 +1286,7 @@ def AnalysisMeanStateSpace(ref,com,**keywords):
     plot_unit         = keywords.get("plot_unit"        ,None)
     mass_weighting    = keywords.get("mass_weighting"   ,False)
     skip_rmse         = keywords.get("skip_rmse"        ,False)
-    skip_iav          = keywords.get("skip_iav"         ,False)
+    skip_iav          = keywords.get("skip_iav"         ,True)
     skip_cycle        = keywords.get("skip_cycle"       ,False)
     ref_timeint       = keywords.get("ref_timeint"      ,None)
     com_timeint       = keywords.get("com_timeint"      ,None)
