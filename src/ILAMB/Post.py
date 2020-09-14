@@ -400,6 +400,7 @@ class HtmlPage(object):
                             add = ""
                         else:
                             add = ("%#." + "%d" % sig + "g") % tmp
+                            add = add.replace("nan","")
                     except:
                         pass
                     html += """
