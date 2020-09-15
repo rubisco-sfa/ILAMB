@@ -414,7 +414,8 @@ class Confrontation(object):
             with Dataset(fname) as dataset:
                 if "MeanState" not in dataset.groups: continue
                 group     = dataset.groups["MeanState"]
-                variables = [v for v in group.variables.keys() if v not in group.dimensions.keys()]
+                variables = [v for v in group.variables.keys() if (v not in group.dimensions.keys() and
+                                                                   "_bnds" not in v)]
                 for vname in variables:
                     var    = group.variables[vname]
                     pname  = vname.split("_")[0]
