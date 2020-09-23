@@ -349,14 +349,21 @@ class ModelResult():
         depth = None
         dbnds = None
 
-        for arg in sympify(expression).free_symbols:
+        # first pass to make sure all variables are defined in the interval
+        free_symbols = sympify(expression).free_symbols
+        Vs = {}; t0 = initial_time; tf = final_time
+        for arg in free_symbols:
+            Vs[arg] = self.extractTimeSeries(arg.name,
+                                             lats = lats,
+                                             lons = lons,
+                                             convert_calendar = convert_calendar,
+                                             initial_time = initial_time,
+                                             final_time   = final_time)
+            t0 = max(Vs[arg].time_bnds[ 0,0],t0)
+            tf = min(Vs[arg].time_bnds[-1,1],tf)
 
-            var  = self.extractTimeSeries(arg.name,
-                                          lats = lats,
-                                          lons = lons,
-                                          convert_calendar = convert_calendar,
-                                          initial_time = initial_time,
-                                          final_time   = final_time)
+        for arg in free_symbols:
+            var = Vs[arg].trim(t=[t0,tf])
             units[arg.name] = var.unit
             args [arg.name] = var.data.data
 
