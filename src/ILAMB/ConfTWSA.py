@@ -78,7 +78,8 @@ class ConfTWSA(Confrontation):
                                   expression   = self.derived,
                                   initial_time = obs.time_bnds[ 0,0],
                                   final_time   = obs.time_bnds[-1,1])
-
+        obs.trim(t=[mod.time_bnds[0,0],mod.time_bnds[-1,1]])
+ 
         # if the derived expression is used, then we get a mass flux
         # rate and need to accumulate
         try:
