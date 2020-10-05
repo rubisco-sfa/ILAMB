@@ -16,7 +16,7 @@ from .Regions import Regions
 import os,re
 from netCDF4 import Dataset
 import numpy as np
-from .Post import BenchmarkSummaryFigure
+from .Post import BenchmarkSummaryFigure,HarvestScalarDatabase
 from .ilamblib import MisplacedData
 import glob,json
 
@@ -749,7 +749,9 @@ class Scoreboard():
                     except:
                         out.write("%s,%s\n" % (v.name,','.join(["~"]*len(M))))
 
-
+    def harvestInformation(self):
+        HarvestScalarDatabase(self.build_dir)
+        
 def GenerateRelationshipTree(S,M):
 
     # Create a tree which mimics the scoreboard for relationships, but
