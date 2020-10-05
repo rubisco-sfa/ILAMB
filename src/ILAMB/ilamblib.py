@@ -1292,7 +1292,8 @@ def AnalysisMeanStateSpace(ref,com,**keywords):
     com_timeint       = keywords.get("com_timeint"      ,None)
     ILAMBregions      = Regions()
     spatial           = ref.spatial
-
+    skip_iav = True
+    
     # Convert str types to booleans
     if type(skip_rmse) == type(""):
         skip_rmse = (skip_rmse.lower() == "true")
@@ -1523,7 +1524,7 @@ def AnalysisMeanStateSpace(ref,com,**keywords):
                 com_spaceint.toNetCDF4(dataset,group="MeanState")
 
     # RMSE: maps, scalars, and scores
-    if not skip_rmse:
+    if not skip_rmse and False:
         rmse = REF.rmse(COM).convert(plot_unit)
         del REF
         cCOM = Variable(name = "centralized %s" % name, unit = unit,
@@ -1547,6 +1548,33 @@ def AnalysisMeanStateSpace(ref,com,**keywords):
         del COM
         crmse = cREF.rmse(cCOM).convert(plot_unit)
         del cREF,cCOM
+        rmse_score_map = Score(crmse,REF_std)
+        if dataset is not None:
+            rmse.name = "rmse_map_of_%s" % name
+            rmse.toNetCDF4(dataset,group="MeanState")
+            rmse_score_map.name = "rmsescore_map_of_%s" % name
+            rmse_score_map.toNetCDF4(dataset,group="MeanState")
+            for region in regions:
+                rmse_val = rmse.integrateInSpace(region=region,mean=True).convert(plot_unit)
+                rmse_val.name = "RMSE %s" % region
+                rmse_val.toNetCDF4(dataset,group="MeanState")
+                rmse_score = rmse_score_map.integrateInSpace(region=region,mean=True,weight=normalizer)
+                rmse_score.name = "RMSE Score %s" % region
+                rmse_score.toNetCDF4(dataset,group="MeanState")
+        del rmse,crmse,rmse_score_map
+
+    # RMSE based on annual cycle
+    if not skip_rmse and True:
+        ref_cycle = REF.annualCycle()
+        ref_dtcycle = deepcopy(ref_cycle)
+        com_cycle = COM.annualCycle()
+        com_dtcycle = deepcopy(com_cycle)
+        with np.errstate(under='ignore'):
+            ref_dtcycle.data -= ref_cycle.data.mean(axis=0)
+            com_dtcycle.data -= com_cycle.data.mean(axis=0)
+        del REF,COM,cREF
+        rmse = ref_cycle.rmse(com_cycle).convert(plot_unit)
+        crmse = ref_dtcycle.rmse(com_dtcycle).convert(plot_unit)
         rmse_score_map = Score(crmse,REF_std)
         if dataset is not None:
             rmse.name = "rmse_map_of_%s" % name

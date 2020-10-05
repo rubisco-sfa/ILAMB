@@ -6,8 +6,7 @@ from netCDF4 import Dataset
 import numpy as np
 import os
 
-def getSource(filename,unit):
-    vname = filename.split("/")[-1].split("_")[0]
+def getSource(vname,filename,unit):
     if vname == "soilc": vname = "cSoilAbove1m"
     files = filename.split(",") if "," in filename else [filename]
     data,lat,lon = None,None,None
@@ -59,16 +58,16 @@ class ConfSoilCarbon(Confrontation):
         T10 = np.asarray([-10,+10,25]) # temperatures at which to report Q10
         
         # Get the source datafiles
-        lat,lon,soilc = getSource(self.keywords.get("soilc_source"),"kg m-2")
-        LAT,LON,npp = getSource(self.keywords.get("npp_source"),"kg m-2 yr-1")
+        lat,lon,soilc = getSource("soilc",self.keywords.get("soilc_source"),"kg m-2")
+        LAT,LON,npp = getSource("npp",self.keywords.get("npp_source"),"kg m-2 yr-1")
         assert np.allclose(LAT,lat)*np.allclose(LON,lon)
-        LAT,LON,tas = getSource(self.keywords.get("tas_source"),"degC")
+        LAT,LON,tas = getSource("tas",self.keywords.get("tas_source"),"degC")
         assert np.allclose(LAT,lat)*np.allclose(LON,lon)
-        LAT,LON,pr = getSource(self.keywords.get("pr_source"),"mm yr-1")
+        LAT,LON,pr = getSource("pr",self.keywords.get("pr_source"),"mm yr-1")
         assert np.allclose(LAT,lat)*np.allclose(LON,lon)
-        LAT,LON,pet = getSource(self.keywords.get("pet_source"),"mm yr-1")
+        LAT,LON,pet = getSource("pet",self.keywords.get("pet_source"),"mm yr-1")
         assert np.allclose(LAT,lat)*np.allclose(LON,lon)
-        LAT,LON,fracpeat = getSource(self.keywords.get("fracpeat_source"),"1")
+        LAT,LON,fracpeat = getSource("fracpeat",self.keywords.get("fracpeat_source"),"1")
         assert np.allclose(LAT,lat)*np.allclose(LON,lon)
 
         # Determine what will be masked

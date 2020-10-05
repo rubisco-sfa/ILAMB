@@ -1223,7 +1223,7 @@ class Variable:
                 if np.allclose(extents[2],-90) and extents[3] <= 0:
                     proj = ccrs.Orthographic(central_latitude=-90,central_longitude=0)
                     aspect_ratio = 1.
-                elif np.allclose(extents[3],+90) and extents[2] >= 0:
+                elif extents[3]>75 and extents[2] >= 0:
                     proj = ccrs.Orthographic(central_latitude=+90,central_longitude=0)
                     aspect_ratio = 1.
                 elif (extents[3]-extents[2]) > 140:

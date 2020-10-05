@@ -4,6 +4,8 @@ from .constants import space_opts,time_opts
 from .Regions import Regions
 import re
 from matplotlib.colors import LinearSegmentedColormap
+import os
+from netCDF4 import Dataset
 
 def UseLatexPltOptions(fsize=18):
     params = {'axes.titlesize':fsize,
@@ -400,6 +402,7 @@ class HtmlPage(object):
                             add = ""
                         else:
                             add = ("%#." + "%d" % sig + "g") % tmp
+                            add = add.replace("nan","")
                     except:
                         pass
                     html += """
@@ -1335,3 +1338,29 @@ def WhittakerDiagram(X,Y,Z,**keywords):
     #ax.grid()
     fig.savefig(keywords.get("filename","whittaker.png"))
     plt.close()
+
+
+def HarvestScalarDatabase(build_dir,filename="scalar_database.csv"):
+    csv = "Section,Variable,Source,Model,ScalarName,AnalysisType,Region,ScalarType,Units,Data"
+    for root,subdirs,files in os.walk(build_dir):
+        for fname in files:
+            if not fname.endswith(".nc"): continue
+            if "Benchmark" in fname: continue
+            info = root.replace(build_dir,"")
+            if info.startswith("/"): info = info[1:].split("/")
+            category = info[0]
+            varname  = info[1]
+            provider = info[2]
+            with Dataset(os.path.join(root,fname)) as dset:
+                if dset.complete != 1: continue
+                model = dset.getncattr("name")
+                for g1 in dset.groups:
+                    for g2 in dset.groups[g1].groups:
+                        grp = dset.groups[g1].groups[g2]
+                        for vname in grp.variables:
+                            stype = "score" if "Score" in vname else "scalar"
+                            region = vname.split()[-1]
+                            var = vname.replace(" %s" % region,"")
+                            v = grp.variables[vname]
+                            csv += "\n%s,%s,%s,%s,%s,%s,%s,%s,%s,%g" % (category,varname,provider,model,var,g1,region,stype,v.units,v[...])
+    with open(os.path.join(build_dir,filename),mode="w") as f: f.write(csv)

@@ -672,7 +672,7 @@ if not args.skip_plots:
     WorkPost(M,C,W,S,not args.quiet)
 
     if rank==0: S.createHtml(M)
-    
+
 sys.stdout.flush(); comm.Barrier()
 
 # Runtime information
@@ -690,8 +690,10 @@ if rank==0:
             logger.info("[process balance] nan")
         logger.info("[parallel efficiency] %.0f%%" % (100.*proc_reduced.sum()/float(size)/(time.time()-T0)))
 
-if rank==0: S.dumpScores(M,"scores.csv")
-
+if rank==0:
+    S.dumpScores(M,"scores.csv")
+    S.harvestInformation()
+    
 if (rank == 0              and
     ierr_reduced.max() > 0 and
     args.logging           and
