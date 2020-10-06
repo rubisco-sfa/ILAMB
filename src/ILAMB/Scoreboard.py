@@ -334,7 +334,7 @@ class Scoreboard():
 
             try:
                 if node.cmap is None: node.cmap = "jet"
-                node.source = os.path.join(os.environ["ILAMB_ROOT"],node.source)
+                node.source = os.path.join(os.environ["ILAMB_ROOT"],node.source if node.source else "")
                 node.mem_slab = mem_per_pair*0.5
                 node.confrontation = Constructor(**(node.__dict__))
                 node.confrontation.extents = extents

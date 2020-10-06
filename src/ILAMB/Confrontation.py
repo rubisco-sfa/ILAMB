@@ -148,9 +148,8 @@ class Confrontation(object):
         self.study_limits   = []
         
         # Make sure the source data exists
-        try:
-            os.stat(self.source)
-        except:
+
+        if not os.path.isfile(self.source):
             msg  = "\n\nI am looking for data for the %s confrontation here\n\n" % self.name
             msg += "%s\n\nbut I cannot find it. " % self.source
             msg += "Did you download the data? Have you set the ILAMB_ROOT envronment variable?\n"
