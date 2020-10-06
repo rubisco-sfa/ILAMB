@@ -700,7 +700,8 @@ class Scoreboard():
         global global_sb
         global_sb = self
         TraversePreorder(self.tree,GenRowHTML)
-        TraversePreorder( rel_tree,GenRowHTML)
+        if rel_tree.children[0].children:
+            TraversePreorder(rel_tree,GenRowHTML)
         html += global_html
         html += """
 	  </tbody>
