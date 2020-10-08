@@ -10,6 +10,7 @@ from matplotlib.colors import LogNorm
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from mpi4py import MPI
 from sympy import sympify
+import cftime as cf
 
 import logging
 logger = logging.getLogger("%i" % MPI.COMM_WORLD.rank)
@@ -148,9 +149,8 @@ class Confrontation(object):
         self.study_limits   = []
         
         # Make sure the source data exists
-        try:
-            os.stat(self.source)
-        except:
+
+        if not os.path.isfile(self.source):
             msg  = "\n\nI am looking for data for the %s confrontation here\n\n" % self.name
             msg += "%s\n\nbut I cannot find it. " % self.source
             msg += "Did you download the data? Have you set the ILAMB_ROOT envronment variable?\n"
@@ -178,14 +178,14 @@ class Confrontation(object):
                     self.lbls = ["site%d" % s for s in range(len(dataset.dimensions["data"]))]
             if "time" in dataset.dimensions:
                 t = dataset.variables["time"]
+                tdata = t[[0,-1]]
                 if "bounds" in t.ncattrs():
-                    t  = dataset.variables[t.bounds][...]
-                    y0 = int(t[ 0,0]/365.+1850.)
-                    yf = int(t[-1,1]/365.+1850.)-1
-                else:
-                    y0 = int(round(t[ 0]/365.)+1850.)
-                    yf = int(round(t[-1]/365.)+1850.)-1
-
+                    tdata = dataset.variables[t.bounds]
+                    tdata = [tdata[0,0],tdata[-1,1]]
+                tdata = cf.num2date(tdata,units=t.units,calendar=t.calendar)
+                y0 = tdata[0].year
+                yf = tdata[1].year
+                
         if self.hasSites:
             pages.append(post.HtmlSitePlotsPage("SitePlots","Site Plots"))
             pages[-1].setHeader("CNAME / RNAME / MNAME")

@@ -334,7 +334,7 @@ class Scoreboard():
 
             try:
                 if node.cmap is None: node.cmap = "jet"
-                node.source = os.path.join(os.environ["ILAMB_ROOT"],node.source)
+                node.source = os.path.join(os.environ["ILAMB_ROOT"],node.source if node.source else "")
                 node.mem_slab = mem_per_pair*0.5
                 node.confrontation = Constructor(**(node.__dict__))
                 node.confrontation.extents = extents
@@ -700,7 +700,8 @@ class Scoreboard():
         global global_sb
         global_sb = self
         TraversePreorder(self.tree,GenRowHTML)
-        TraversePreorder( rel_tree,GenRowHTML)
+        if rel_tree.children[0].children:
+            TraversePreorder(rel_tree,GenRowHTML)
         html += global_html
         html += """
 	  </tbody>
@@ -733,12 +734,8 @@ class Scoreboard():
 
         with open("%s/%s" % (self.build_dir,filename),"w") as f:
             f.write(html)
-        
-    def createBarCharts(self,M):
-        html = GenerateBarCharts(self.tree,M)
 
     def dumpScores(self,M,filename):
-        
         CompositeScores(self.tree,M)
         with open("%s/%s" % (self.build_dir,filename),"w") as out:
             out.write("Variables,%s\n" % (",".join([m.name for m in M])))
