@@ -734,12 +734,8 @@ class Scoreboard():
 
         with open("%s/%s" % (self.build_dir,filename),"w") as f:
             f.write(html)
-        
-    def createBarCharts(self,M):
-        html = GenerateBarCharts(self.tree,M)
 
     def dumpScores(self,M,filename):
-        
         CompositeScores(self.tree,M)
         with open("%s/%s" % (self.build_dir,filename),"w") as out:
             out.write("Variables,%s\n" % (",".join([m.name for m in M])))
