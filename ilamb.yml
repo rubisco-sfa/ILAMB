@@ -18,3 +18,4 @@ dependencies:
   - cf_units
   - cython
   - psutil
+  - requests
