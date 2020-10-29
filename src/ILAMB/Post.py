@@ -243,7 +243,7 @@ class HtmlPage(object):
         self.regions     = None
         self.metrics     = None
         self.units       = None
-        self.priority    = ["original","Model","intersection","complement","Benchmark","Bias","RMSE","Phase","Seasonal","Spatial","Interannual","Score","Overall"]
+        self.priority    = ["original","Model","intersection","Benchmark","complement","Bias","RMSE","Phase","Seasonal","Spatial","Interannual","Score","Overall"]
         self.header      = "CNAME"
         self.sections    = []
         self.figures     = {}
