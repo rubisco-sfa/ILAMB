@@ -1042,14 +1042,15 @@ class ConfCO2(Confrontation):
         ax.set_xticks(amp_ticks)
         ax.set_xticklabels(amp_ticklabels)
         ax.set_yticks(lat_bnds)
-        fig.savefig(os.path.join(self.output_path,"%s_amp.png" % m.name))
+        fig.savefig(os.path.join(self.output_path,"%s_global_amp.png" % m.name))
         plt.close()
         page.addFigure("Summary",
                        "amp",
-                       "MNAME_amp.png",
+                       "MNAME_RNAME_amp.png",
                        side   = "AMPLITUDE",
                        width  = fig.get_size_inches()[0]*fig.dpi*0.75,
-                       legend = False)
+                       legend = False,
+                       longname = "Amplitude")
 
         # Plot mean latitude band iav where iav is on the longitude axis
 
@@ -1073,11 +1074,11 @@ class ConfCO2(Confrontation):
         ax.set_xticks(iav_ticks)
         ax.set_xticklabels(iav_ticklabels)
         ax.set_yticks(lat_bnds)
-        fig.savefig(os.path.join(self.output_path,"%s_iav.png" % m.name))
+        fig.savefig(os.path.join(self.output_path,"%s_global_iav.png" % m.name))
         plt.close()
         page.addFigure("Summary",
                        "iav",
-                       "MNAME_iav.png",
+                       "MNAME_RNAME_iav.png",
                        side   = "INTERANNUAL VARIABILITY",
                        width  = fig.get_size_inches()[0]*fig.dpi*0.75,
                        legend = False)
@@ -1102,14 +1103,15 @@ class ConfCO2(Confrontation):
         ax.set_xticks(mid_months/365.*360.-180)
         ax.set_xticklabels(lbl_months)
         ax.set_yticks(lat_bnds)
-        fig.savefig(os.path.join(self.output_path,"%s_maxphase.png" % m.name))
+        fig.savefig(os.path.join(self.output_path,"%s_global_maxphase.png" % m.name))
         plt.close()
         page.addFigure("Summary",
                        "maxphase",
-                       "MNAME_maxphase.png",
+                       "MNAME_RNAME_maxphase.png",
                        side   = "TIMING OF MAXIMUM",
                        width  = fig.get_size_inches()[0]*fig.dpi*0.75,
-                       legend = False)
+                       legend = False,
+                       longname = "Timing of maximum phase")
 
         # Plot mean latitude band min phase where the phase is on the longitude axis
         fig,ax = plt.subplots(figsize=(8,4.5),tight_layout=True,subplot_kw={'projection':ccrs.PlateCarree()})
@@ -1131,14 +1133,15 @@ class ConfCO2(Confrontation):
         ax.set_xticks(mid_months/365.*360.-180)
         ax.set_xticklabels(lbl_months)
         ax.set_yticks(lat_bnds)
-        fig.savefig(os.path.join(self.output_path,"%s_minphase.png" % m.name))
+        fig.savefig(os.path.join(self.output_path,"%s_global_minphase.png" % m.name))
         plt.close()
         page.addFigure("Summary",
                        "minphase",
-                       "MNAME_minphase.png",
+                       "MNAME_RNAME_minphase.png",
                        side   = "TIMING OF MINIMUM",
                        width  = fig.get_size_inches()[0]*fig.dpi*0.75,
-                       legend = False)
+                       legend = False,
+                       longname = "Timing of minimum phase")
 
     def compositePlots(self):
         pass
