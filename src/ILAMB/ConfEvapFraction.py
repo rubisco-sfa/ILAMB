@@ -32,22 +32,29 @@ def _evapfrac(sh,le,vname,energy_threshold):
 class ConfEvapFraction(Confrontation):
 
     def __init__(self,**keywords):
+        if not ('hfss_source' in keywords and 'hfls_source' in keywords):
+            msg = "This confrontation requires two data sources 'hfss_source' and 'hfls_source'"
+            raise il.MisplacedData(msg)
+        for key in ['hfss_source','hfls_source']:
+            keywords[key] = os.path.join(os.environ["ILAMB_ROOT"],keywords[key])
+        keywords['source'] = keywords['hfss_source']
+        self.source = keywords['source']
         super(ConfEvapFraction,self).__init__(**keywords)
         self.derived = "hfss + hfls" # just for ilamb-doctor to detect required symbols
         
     def stageData(self,m):
 
-        energy_threshold = float(self.keywords.get("energy_threshold",20.))
-
+        energy_threshold = float(self.keywords.get("energy_threshold",20.)) # W m-2
+        
         # Handle obs data
-        sh_obs = Variable(filename      = os.path.join(os.environ["ILAMB_ROOT"],"DATA/sh/GBAF/sh_0.5x0.5.nc"),
-                          variable_name = "sh",
+        sh_obs = Variable(filename = self.keywords["hfss_source"],
+                          variable_name = "hfss",alternate_vars=['sh'],
                           t0 = None if len(self.study_limits) != 2 else self.study_limits[0],
-                          tf = None if len(self.study_limits) != 2 else self.study_limits[1])
-        le_obs = Variable(filename      = os.path.join(os.environ["ILAMB_ROOT"],"DATA/le/GBAF/le_0.5x0.5.nc"),
-                          variable_name = "le",
+                          tf = None if len(self.study_limits) != 2 else self.study_limits[1]).convert("W m-2")
+        le_obs = Variable(filename = self.keywords["hfls_source"],
+                          variable_name = "hfls",alternate_vars=['le'],
                           t0 = None if len(self.study_limits) != 2 else self.study_limits[0],
-                          tf = None if len(self.study_limits) != 2 else self.study_limits[1])
+                          tf = None if len(self.study_limits) != 2 else self.study_limits[1]).convert("W m-2")
         sh_obs,le_obs,obs = _evapfrac(sh_obs,le_obs,self.variable,energy_threshold)
 
         # Prune out uncovered regions
