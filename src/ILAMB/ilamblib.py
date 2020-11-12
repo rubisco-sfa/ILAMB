@@ -1035,11 +1035,19 @@ def AnalysisMeanStateSites(ref,com,**keywords):
     ILAMBregions      = Regions()
     normalizer        = None
 
+    # Convert str types to booleans
+    if type(skip_rmse) == type(""):
+        skip_rmse = (skip_rmse.lower() == "true")
+    if type(skip_iav ) == type(""):
+        skip_iav  = (skip_iav .lower() == "true")
+    if type(skip_cycle) == type(""):
+        skip_cycle = (skip_cycle.lower() == "true")
+        
     # Only study the annual cycle if it makes sense
     if    not ref.monthly: skip_cycle = True
     if ref.time.size < 12: skip_cycle = True
     if skip_rmse         : skip_iav   = True
-    
+
     # We find the mean values over the time period on the original
     # grid/datasites of each dataset
     ref_timeint = ref.integrateInTime(mean=True)
