@@ -365,6 +365,7 @@ class Confrontation(object):
             skip_rmse      = self.keywords.get("skip_rmse"     ,False)
             skip_iav       = self.keywords.get("skip_iav"      ,True )
             skip_cycle     = self.keywords.get("skip_cycle"    ,False)
+            rmse_score_basis = self.keywords.get("rmse_score_basis","cycle")
             if obs.spatial:
                 il.AnalysisMeanStateSpace(obs,mod,dataset   = fcm.mod_dset,
                                           regions           = self.regions,
@@ -375,7 +376,8 @@ class Confrontation(object):
                                           skip_rmse         = skip_rmse,
                                           skip_iav          = skip_iav,
                                           skip_cycle        = skip_cycle,
-                                          mass_weighting    = mass_weighting)
+                                          mass_weighting    = mass_weighting,
+                                          rmse_score_basis  = rmse_score_basis)
             else:
                 il.AnalysisMeanStateSites(obs,mod,dataset   = fcm.mod_dset,
                                           regions           = self.regions,

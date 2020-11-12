@@ -571,6 +571,8 @@ parser.add_argument('--mem_per_pair', dest="mem_per_pair", metavar='MEM', type=f
                     help='maximum memory for IOMB model-confrontation pairs')
 parser.add_argument('--title', dest="run_title", metavar='title', type=str, nargs=1,
                     help='title of the study to use in the HTML output')
+parser.add_argument('--rmse_score_basis', dest="rmse_score_basis", metavar='basis', type=str, default="cycle",
+                    help='base the RMSE score on the full time series with "series" or just the annual cycle with "cycle"')
 args = parser.parse_args()
 if args.config is None:
     if rank == 0:
@@ -584,6 +586,7 @@ for key in run_opts:
     if key in ['define_regions']:
         define_regions = [os.path.join(os.environ['ILAMB_ROOT'],r) for r in run_opts[key].split(",")]
         args.__dict__[key] += define_regions
+assert args.rmse_score_basis in ['series','cycle']
 
 # Setup regions
 r = Regions()
@@ -617,7 +620,8 @@ S = Scoreboard(args.config[0],
                extents   = RestrictiveModelExtents(M),
                rel_only  = args.rel_only,
                mem_per_pair = args.mem_per_pair,
-               run_title = args.run_title)
+               run_title = args.run_title,
+               rmse_score_basis = args.rmse_score_basis)
 C  = MatchRelationshipConfrontation(S.list())
 if len(args.study_limits) == 2:
     args.study_limits[1] += 1

@@ -304,7 +304,7 @@ class Scoreboard():
     """
     A class for managing confrontations
     """
-    def __init__(self,filename,regions=["global"],verbose=False,master=True,build_dir="./_build",extents=None,rel_only=False,mem_per_pair=100000.,run_title="ILAMB"):
+    def __init__(self,filename,regions=["global"],verbose=False,master=True,build_dir="./_build",extents=None,rel_only=False,mem_per_pair=100000.,run_title="ILAMB",rmse_score_basis="cycle"):
 
         if 'ILAMB_ROOT' not in os.environ:
             raise ValueError("You must set the environment variable 'ILAMB_ROOT'")
@@ -312,6 +312,7 @@ class Scoreboard():
         self.rel_only  = rel_only
         self.run_title = run_title
         self.regions = regions
+        self.rmse_score_basis = rmse_score_basis
         
         if (master and not os.path.isdir(self.build_dir)): os.mkdir(self.build_dir)
 
@@ -320,7 +321,9 @@ class Scoreboard():
 
         def _initConfrontation(node):
             if not node.isLeaf(): return
-
+            
+            node.rmse_score_basis = self.rmse_score_basis
+            
             # if the user hasn't set regions, use the globally defined ones
             if node.regions is None: node.regions = regions
 

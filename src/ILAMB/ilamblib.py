@@ -1308,6 +1308,7 @@ def AnalysisMeanStateSpace(ref,com,**keywords):
     skip_cycle        = keywords.get("skip_cycle"       ,False)
     ref_timeint       = keywords.get("ref_timeint"      ,None)
     com_timeint       = keywords.get("com_timeint"      ,None)
+    rmse_score_basis  = keywords.get("rmse_score_basis" ,"cycle")
     ILAMBregions      = Regions()
     spatial           = ref.spatial
     
@@ -1541,7 +1542,7 @@ def AnalysisMeanStateSpace(ref,com,**keywords):
                 com_spaceint.toNetCDF4(dataset,group="MeanState")
 
     # RMSE: maps, scalars, and scores
-    if not skip_rmse and False:
+    if (not skip_rmse) and (rmse_score_basis == "series"):
         rmse = REF.rmse(COM).convert(plot_unit)
         del REF
         cCOM = Variable(name = "centralized %s" % name, unit = unit,
@@ -1581,7 +1582,7 @@ def AnalysisMeanStateSpace(ref,com,**keywords):
         del rmse,crmse,rmse_score_map
 
     # RMSE based on annual cycle
-    if not skip_rmse and True:
+    if (not skip_rmse) and (rmse_score_basis == "cycle"):
         ref_cycle = REF.annualCycle()
         ref_dtcycle = deepcopy(ref_cycle)
         com_cycle = COM.annualCycle()
