@@ -46,7 +46,7 @@ class Node(object):
         self.ctype               = None
         self.regions             = None
         self.skip_rmse           = False
-        self.skip_iav            = False
+        self.skip_iav            = True
         self.mass_weighting      = False
         self.weight              = 1    # if a dataset has no weight specified, it is implicitly 1
         self.sum_weight_children = 0    # what is the sum of the weights of my children?

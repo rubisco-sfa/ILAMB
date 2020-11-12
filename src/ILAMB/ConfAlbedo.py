@@ -143,7 +143,7 @@ class ConfAlbedo(Confrontation):
             # Read in some options and run the mean state analysis
             mass_weighting = self.keywords.get("mass_weighting",False)
             skip_rmse      = self.keywords.get("skip_rmse"     ,False)
-            skip_iav       = self.keywords.get("skip_iav"      ,False)
+            skip_iav       = self.keywords.get("skip_iav"      ,True )
             skip_cycle     = self.keywords.get("skip_cycle"    ,False)
             if obs.spatial:
                 il.AnalysisMeanStateSpace(obs,mod,dataset   = fcm.mod_dset,
