@@ -21,7 +21,7 @@ you need to know!
    ilamb_run
    ilamb_doctor
    custom_regions
-   
+   running_iomb
    
 Developer Level
 ---------------
