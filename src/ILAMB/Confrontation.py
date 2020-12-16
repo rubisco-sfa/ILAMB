@@ -403,35 +403,39 @@ class Confrontation(object):
         called before calling any plotting routine.
 
         """
-        max_str = "up99"
-        min_str = "dn99"
-        if self.keywords.get("limit_type","99per") == "minmax":
-            max_str = "max"
-            min_str = "min"
 
+        filelist = glob.glob(os.path.join(self.output_path,"*.nc"))
+        benchmark_file = [f for f in filelist if "Benchmark" in f]
+
+        # There may be regions in which there is no benchmark data and
+        # these should be weeded out. If the plotting phase occurs in
+        # the same run as the analysis phase, this is not needed.
+        if benchmark_file:
+            with Dataset(benchmark_file[0]) as dset: Vs = getVariableList(dset.groups["MeanState"])
+            Vs = [v for v in Vs if "timeint" in v]
+            if Vs:
+                self.pruneRegions(Variable(filename = benchmark_file[0],
+                                           variable_name = Vs[0],
+                                           groupname = "MeanState"))
+        
         # Determine the min/max of variables over all models
         limits = {}
-        prune  = False
-        for fname in glob.glob(os.path.join(self.output_path,"*.nc")):
+        for fname in filelist:
             with Dataset(fname) as dataset:
                 if "MeanState" not in dataset.groups: continue
-                group     = dataset.groups["MeanState"]
-                variables = [v for v in group.variables.keys() if (v not in group.dimensions.keys() and
-                                                                   "_bnds" not in v)]
+                variables = getVariableList(dataset.groups["MeanState"])
                 for vname in variables:
-                    var    = group.variables[vname]
-                    pname  = vname.split("_")[0]
-                    region = vname.split("_")[-1]
+                    var = dataset.groups["MeanState"].variables[vname]
                     if var[...].size <= 1: continue
-                    if pname in space_opts:
-                        if pname not in limits:
-                            limits[pname] = {}
-                            limits[pname]["min"]  = +1e20
-                            limits[pname]["max"]  = -1e20
-                            limits[pname]["unit"] = post.UnitStringToMatplotlib(var.getncattr("units"))
-                        limits[pname]["min"] = min(limits[pname]["min"],var.getncattr(min_str))
-                        limits[pname]["max"] = max(limits[pname]["max"],var.getncattr(max_str))
-                    elif pname in time_opts:
+                    pname  = vname.split("_")[0]
+
+                    """If the plot is a time series, it has been averaged over regions
+                    already and we need a separate dictionary for the
+                    region as well. These can be based on the
+                    percentiles from the attributes of the netCDF
+                    variables."""
+                    if pname in time_opts:
+                        region = vname.split("_")[-1]
                         if pname not in limits: limits[pname] = {}
                         if region not in limits[pname]:
                             limits[pname][region] = {}
@@ -440,12 +444,26 @@ class Confrontation(object):
                             limits[pname][region]["unit"] = post.UnitStringToMatplotlib(var.getncattr("units"))
                         limits[pname][region]["min"] = min(limits[pname][region]["min"],var.getncattr("min"))
                         limits[pname][region]["max"] = max(limits[pname][region]["max"],var.getncattr("max"))
-                    if not prune and "Benchmark" in fname and pname == "timeint":
-                        prune = True
-                        self.pruneRegions(Variable(filename      = fname,
-                                                   variable_name = vname,
-                                                   groupname     = "MeanState"))
 
+                    else:
+                        """If the plot is spatial, we want to set the limits as a percentile
+                        of all data across models and the
+                        benchmark. So here we load the data up and in
+                        another pass will compute the percentiles."""
+                        if pname not in limits:
+                            limits[pname] = {}
+                            limits[pname]["min"]  = +1e20
+                            limits[pname]["max"]  = -1e20
+                            limits[pname]["unit"] = post.UnitStringToMatplotlib(var.getncattr("units"))
+                            limits[pname]["data"] = var[...].compressed()
+                        else:
+                            limits[pname]["data"] = np.hstack([limits[pname]["data"],var[...].compressed()])
+
+        # For those limits which we built up data across all models, compute the percentiles
+        for pname in limits.keys():
+            if "data" in limits[pname]:
+                limits[pname]["min"],limits[pname]["max"] = np.percentile(limits[pname]["data"],[1,99])
+                
         # Second pass to plot legends (FIX: only for master?)
         for pname in limits.keys():
 
