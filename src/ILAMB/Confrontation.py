@@ -482,10 +482,12 @@ class Confrontation(object):
             if "score" in pname:
                 limits[pname]["min"] = 0
                 limits[pname]["max"] = 1
-
+                
             limits[pname]["cmap"] = opts["cmap"]
             if limits[pname]["cmap"] == "choose": limits[pname]["cmap"] = self.cmap
-            
+            if "score" in pname:
+                limits[pname]["cmap"] = plt.cm.get_cmap(limits[pname]["cmap"],3)
+
             # Plot a legend for each key
             if opts["haslegend"]:
                 fig,ax = plt.subplots(figsize=(6.8,1.0),tight_layout=True)
@@ -992,9 +994,8 @@ class Confrontation(object):
         def _plotDistribution(dist,xedges,yedges,xlabel,ylabel,filename):
             fig,ax = plt.subplots(figsize=(6,5.25),tight_layout=True)
             pc = ax.pcolormesh(xedges, yedges, dist,
-                               norm = LogNorm(),
-                               cmap = 'plasma' if 'plasma' in plt.cm.cmap_d else 'summer',
-                               vmin = 1e-4, vmax = 1e-1)
+                               norm = LogNorm(vmin = 1e-4,vmax = 1e-1),
+                               cmap = 'plasma' if 'plasma' in plt.cm.cmap_d else 'summer')
             div = make_axes_locatable(ax)
             fig.colorbar(pc,cax=div.append_axes("right",size="5%",pad=0.05),
                          orientation="vertical",label="Fraction of total datasites")

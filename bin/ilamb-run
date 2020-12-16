@@ -17,7 +17,7 @@ from netCDF4 import Dataset
 import pylab as plt
 import re
 from ILAMB.Post import RegisterCustomColormaps
-if "stoplight" not in plt.colormaps(): RegisterCustomColormaps()
+if "wetdry" not in plt.colormaps(): RegisterCustomColormaps()
 
 # MPI stuff
 comm = MPI.COMM_WORLD
