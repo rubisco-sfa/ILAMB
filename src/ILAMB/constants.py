@@ -98,7 +98,7 @@ space_opts["bias"]    = { "name"      :"Temporally integrated period mean bias",
                           "haslegend" :True }
 
 space_opts["biasscore"] = { "name"      :"Temporally integrated period mean bias score",
-                            "cmap"      :"RdYlGn",
+                            "cmap"      :"score",
                             "sym"       :False,
                             "ticks"     :None,
                             "ticklabels":None,
@@ -120,7 +120,7 @@ space_opts["rmse"]    = { "name"      :"Temporally integrated period mean rmse",
                           "haslegend" :True }
 
 space_opts["rmsescore"] = { "name"      :"Temporally integrated period mean rmse score",
-                            "cmap"      :"RdYlGn",
+                            "cmap"      :"score",
                             "sym"       :False,
                             "ticks"     :None,
                             "ticklabels":None,
@@ -142,7 +142,7 @@ space_opts["iav"]    = { "name"      :"Interannual variability",
                           "haslegend" :True }
 
 space_opts["iavscore"] = { "name"      :"Interannual variability score",
-                           "cmap"      :"RdYlGn",
+                           "cmap"      :"score",
                            "sym"       :False,
                            "ticks"     :None,
                            "ticklabels":None,
@@ -164,7 +164,7 @@ space_opts["shift"]   = { "name"      :"Temporally integrated mean phase shift",
                           "haslegend" :True }
 
 space_opts["shiftscore"] = { "name"      :"Temporally integrated mean phase shift score",
-                             "cmap"      :"RdYlGn",
+                             "cmap"      :"score",
                              "sym"       :False,
                              "ticks"     :None,
                              "ticklabels":None,

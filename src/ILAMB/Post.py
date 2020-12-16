@@ -1003,7 +1003,13 @@ def RegisterCustomColormaps():
     """Adds some new colormaps to matplotlib's database.
     """
     import colorsys as cs
-    
+
+    # score colormap
+    cm = LinearSegmentedColormap.from_list("score",[[0.12109375, 0.46875   , 0.703125  ],
+                                                    [0.6484375 , 0.8046875 , 0.88671875],
+                                                    [0.6953125 , 0.87109375, 0.5390625 ]])
+    plt.register_cmap("score",cm)
+
     # bias colormap
     val = 0.8
     per = 0.2 /2
