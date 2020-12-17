@@ -160,7 +160,6 @@ def TaylorDiagram(stddev,corrcoef,refstd,fig,colors,normalize=True):
     contours = ax.contour(ts,rs,rms,5,colors='k',alpha=0.4)
     ax.clabel(contours,fmt='%1.1f')
 
-
     return ax
 
 class HtmlFigure():
@@ -427,9 +426,6 @@ class HtmlPage(object):
             cname = cname[1].strip()
         else:
             cname = cname[-1].strip()
-
-
-
         rows = ""
         for section in self.sections:
             for figure in self.figures[section]:
@@ -1004,63 +1000,15 @@ class HtmlLayout():
         return code
 
 def RegisterCustomColormaps():
-    """Adds the 'stoplight' and 'RdGn' colormaps to matplotlib's database
-
+    """Adds some new colormaps to matplotlib's database.
     """
     import colorsys as cs
 
-    # stoplight colormap
-    Rd1    = [1.,0.,0.]; Rd2 = Rd1
-    Yl1    = [1.,1.,0.]; Yl2 = Yl1
-    Gn1    = [0.,1.,0.]; Gn2 = Gn1
-    val    = 0.65
-    Rd1    = cs.rgb_to_hsv(Rd1[0],Rd1[1],Rd1[2])
-    Rd1    = cs.hsv_to_rgb(Rd1[0],Rd1[1],val   )
-    Yl1    = cs.rgb_to_hsv(Yl1[0],Yl1[1],Yl1[2])
-    Yl1    = cs.hsv_to_rgb(Yl1[0],Yl1[1],val   )
-    Gn1    = cs.rgb_to_hsv(Gn1[0],Gn1[1],Gn1[2])
-    Gn1    = cs.hsv_to_rgb(Gn1[0],Gn1[1],val   )
-    p      = 0
-    level1 = 0.5
-    level2 = 0.75
-    RdYlGn = {'red':   ((0.0     , 0.0   ,Rd1[0]),
-                        (level1-p, Rd2[0],Rd2[0]),
-                        (level1+p, Yl1[0],Yl1[0]),
-                        (level2-p, Yl2[0],Yl2[0]),
-                        (level2+p, Gn1[0],Gn1[0]),
-                        (1.00    , Gn2[0],  0.0)),
-
-              'green': ((0.0     , 0.0   ,Rd1[1]),
-                        (level1-p, Rd2[1],Rd2[1]),
-                        (level1+p, Yl1[1],Yl1[1]),
-                        (level2-p, Yl2[1],Yl2[1]),
-                        (level2+p, Gn1[1],Gn1[1]),
-                        (1.00    , Gn2[1],  0.0)),
-
-              'blue':  ((0.0     , 0.0   ,Rd1[2]),
-                        (level1-p, Rd2[2],Rd2[2]),
-                        (level1+p, Yl1[2],Yl1[2]),
-                        (level2-p, Yl2[2],Yl2[2]),
-                        (level2+p, Gn1[2],Gn1[2]),
-                        (1.00    , Gn2[2],  0.0))}
-    plt.register_cmap(name='stoplight', data=RdYlGn)
-
-    # RdGn colormap
-    val = 0.8
-    Rd  = cs.rgb_to_hsv(1,0,0)
-    Rd  = cs.hsv_to_rgb(Rd[0],Rd[1],val)
-    Gn  = cs.rgb_to_hsv(0,1,0)
-    Gn  = cs.hsv_to_rgb(Gn[0],Gn[1],val)
-    RdGn = {'red':   ((0.0, 0.0,   Rd[0]),
-                      (0.5, 1.0  , 1.0  ),
-                      (1.0, Gn[0], 0.0  )),
-            'green': ((0.0, 0.0,   Rd[1]),
-                      (0.5, 1.0,   1.0  ),
-                      (1.0, Gn[1], 0.0  )),
-            'blue':  ((0.0, 0.0,   Rd[2]),
-                      (0.5, 1.0,   1.0  ),
-                      (1.0, Gn[2], 0.0  ))}
-    plt.register_cmap(name='RdGn', data=RdGn)
+    # score colormap
+    cm = LinearSegmentedColormap.from_list("score",[[0.12109375, 0.46875   , 0.703125  ],
+                                                    [0.6484375 , 0.8046875 , 0.88671875],
+                                                    [0.6953125 , 0.87109375, 0.5390625 ]])
+    plt.register_cmap("score",cm)
 
     # bias colormap
     val = 0.8
@@ -1081,7 +1029,7 @@ def RegisterCustomColormaps():
                       (0.5-per, 1.0  , 1.0  ),
                       (0.5+per, 1.0  , 1.0  ),
                       (1.0    , Rd[2], 0.0  ))}
-    plt.register_cmap(name='bias', data=RdBl)
+    plt.register_cmap(cmap=LinearSegmentedColormap('bias',RdBl))
 
     cm = LinearSegmentedColormap.from_list("wetdry",[[0.545882,0.400392,0.176078],
                                                      [0.586667,0.440392,0.198824],
@@ -1144,201 +1092,6 @@ def RegisterCustomColormaps():
                                                      [0.049020,0.170588,0.484314],
                                                      [0.037255,0.190196,0.456863]])
     plt.register_cmap("wetdry",cm)                                                    
-
-def BenchmarkSummaryFigure(models,variables,data,figname,vcolor=None,rel_only=False):
-    """Creates a summary figure for the benchmark results contained in the
-    data array.
-
-    Parameters
-    ----------
-    models : list
-        a list of the model names
-    variables : list
-        a list of the variable names
-    data : numpy.ndarray or numpy.ma.ndarray
-        data scores whose shape is ( len(variables), len(models) )
-    figname : str
-        the full path of the output file to write
-    vcolor : list, optional
-        an array parallel to the variables array containing background
-        colors for the labels to be displayed on the y-axis.
-    """
-    from mpl_toolkits.axes_grid1 import make_axes_locatable
-
-    # data checks
-    assert  type(models)    is type(list())
-    assert  type(variables) is type(list())
-    assert (type(data)      is type(np   .empty(1)) or
-            type(data)      is type(np.ma.empty(1)))
-    assert data.shape[0] == len(variables)
-    assert data.shape[1] == len(models   )
-    assert  type(figname)   is type("")
-    if vcolor is not None:
-        assert type(vcolor) is type(list())
-        assert len(vcolor) == len(variables)
-    rel_cmap = "PuOr"
-        
-    # define some parameters
-    nmodels    = len(models)
-    nvariables = len(variables)
-    maxV       = max([len(v) for v in variables])
-    maxM       = max([len(m) for m in models])
-    wpchar     = 0.15
-    wpcell     = 0.19
-    hpcell     = 0.25
-    w          = maxV*wpchar + max(4,nmodels)*wpcell
-    if not rel_only: w += (max(4,nmodels)+1)*wpcell
-    h          = maxM*wpchar + nvariables*hpcell + 1.0
-
-    bad        = 0.5
-    if "stoplight" not in plt.colormaps(): RegisterCustomColormaps()
-
-    # plot the variable scores
-    if rel_only:
-        fig,ax = plt.subplots(figsize=(w,h),ncols=1,tight_layout=True)
-        ax     = [ax]
-    else:
-        fig,ax = plt.subplots(figsize=(w,h),ncols=2,tight_layout=True)
-
-    # absolute score
-    if not rel_only:
-        cmap   = plt.get_cmap('stoplight')
-        cmap.set_bad('k',bad)
-        qc     = ax[0].pcolormesh(np.ma.masked_invalid(data[::-1,:]),cmap=cmap,vmin=0,vmax=1,linewidth=0)
-        div    = make_axes_locatable(ax[0])
-        fig.colorbar(qc,
-                     ticks=(0,0.25,0.5,0.75,1.0),
-                     format="%g",
-                     cax=div.append_axes("bottom", size="5%", pad=0.05),
-                     orientation="horizontal",
-                     label="Absolute Score")
-        plt.tick_params(which='both', length=0)
-        ax[0].xaxis.tick_top()
-        ax[0].set_xticks     (np.arange(nmodels   )+0.5)
-        ax[0].set_xticklabels(models,rotation=90)
-        ax[0].set_yticks     (np.arange(nvariables)+0.5)
-        ax[0].set_yticklabels(variables[::-1])
-        ax[0].tick_params('both',length=0,width=0,which='major')
-        ax[0].tick_params(axis='y',pad=10)
-        ax[0].set_xlim(0,nmodels)
-        ax[0].set_ylim(0,nvariables)
-        if vcolor is not None:
-            for i,t in enumerate(ax[0].yaxis.get_ticklabels()):
-                t.set_backgroundcolor(vcolor[::-1][i])
-
-    # relative score
-    i = 0 if rel_only else 1
-    np.seterr(invalid='ignore',under='ignore')
-    data = np.ma.masked_invalid(data)
-    data.data[data.mask] = 1.
-    data = np.ma.masked_values(data,1.)
-    mean = data.mean(axis=1)
-    std  = data.std (axis=1).clip(0.02)
-    np.seterr(invalid='ignore',under='ignore')
-    Z    = (data-mean[:,np.newaxis])/std[:,np.newaxis]
-    Z    = np.ma.masked_invalid(Z)
-    np.seterr(invalid='warn',under='raise')
-    cmap = plt.get_cmap(rel_cmap)
-    cmap.set_bad('k',bad)
-    qc   = ax[i].pcolormesh(Z[::-1],cmap=cmap,vmin=-2,vmax=2,linewidth=0)
-    div  = make_axes_locatable(ax[i])
-    fig.colorbar(qc,
-                 ticks=(-2,-1,0,1,2),
-                 format="%+d",
-                 cax=div.append_axes("bottom", size="5%", pad=0.05),
-                 orientation="horizontal",
-                 label="Relative Score")
-    plt.tick_params(which='both', length=0)
-    ax[i].xaxis.tick_top()
-    ax[i].set_xticks(np.arange(nmodels)+0.5)
-    ax[i].set_xticklabels(models,rotation=90)
-    ax[i].tick_params('both',length=0,width=0,which='major')
-    ax[i].set_yticks([])
-    ax[i].set_xlim(0,nmodels)
-    ax[i].set_ylim(0,nvariables)
-    if rel_only:
-        ax[i].set_yticks     (np.arange(nvariables)+0.5)
-        ax[i].set_yticklabels(variables[::-1])
-        if vcolor is not None:
-            for i,t in enumerate(ax[i].yaxis.get_ticklabels()):
-                t.set_backgroundcolor(vcolor[::-1][i])
-
-    # save figure
-    fig.savefig(figname)
-
-def WhittakerDiagram(X,Y,Z,**keywords):
-    """Creates a Whittaker diagram.
-
-    Parameters
-    ----------
-    X : ILAMB.Variable.Variable
-       the first independent axis, classically representing temperature
-    Y : ILAMB.Variable.Variable
-       the second independent axis, classically representing precipitation
-    Z : ILAMB.Variable.Variable
-       the dependent axis
-    X_plot_unit,Y_plot_unit,Z_plot_unit : str, optional
-       the string representing the units of the corresponding variable
-    region : str, optional
-       the string representing the region overwhich to plot the diagram
-    X_min,Y_min,Z_min : float, optional
-       the minimum plotted value of the corresponding variable
-    X_max,Y_max,Z_max : float, optional
-       the maximum plotted value of the corresponding variable
-    X_label,Y_label,Z_label : str, optional
-       the labels of the corresponding variable
-    filename : str, optional
-       the output filename
-    """
-    from mpl_toolkits.axes_grid1 import make_axes_locatable
-
-    # possibly integrate in time
-    if X.temporal: X = X.integrateInTime(mean=True)
-    if Y.temporal: Y = Y.integrateInTime(mean=True)
-    if Z.temporal: Z = Z.integrateInTime(mean=True)
-
-    # convert to plot units
-    X_plot_unit = keywords.get("X_plot_unit",X.unit)
-    Y_plot_unit = keywords.get("Y_plot_unit",Y.unit)
-    Z_plot_unit = keywords.get("Z_plot_unit",Z.unit)
-    if X_plot_unit is not None: X.convert(X_plot_unit)
-    if Y_plot_unit is not None: Y.convert(Y_plot_unit)
-    if Z_plot_unit is not None: Z.convert(Z_plot_unit)
-
-    # flatten data, if any data is masked all the data is masked
-    mask   = (X.data.mask + Y.data.mask + Z.data.mask)==0
-
-    # mask outside region
-    from constants import regions as ILAMBregions
-    region    = keywords.get("region","global")
-    lats,lons = ILAMBregions[region]
-    mask     += (np.outer((X.lat>lats[0])*(X.lat<lats[1]),
-                          (X.lon>lons[0])*(X.lon<lons[1]))==0)
-    x    = X.data[mask].flatten()
-    y    = Y.data[mask].flatten()
-    z    = Z.data[mask].flatten()
-
-    # make plot
-    fig,ax = plt.subplots(figsize=(6,5.25),tight_layout=True)
-    sc     = ax.scatter(x,y,c=z,linewidths=0,
-                        vmin=keywords.get("Z_min",z.min()),
-                        vmax=keywords.get("Z_max",z.max()))
-    div    = make_axes_locatable(ax)
-    fig.colorbar(sc,cax=div.append_axes("right",size="5%",pad=0.05),
-                 orientation="vertical",
-                 label=keywords.get("Z_label","%s %s" % (Z.name,Z.unit)))
-    X_min = keywords.get("X_min",x.min())
-    X_max = keywords.get("X_max",x.max())
-    Y_min = keywords.get("Y_min",y.min())
-    Y_max = keywords.get("Y_max",y.max())
-    ax.set_xlim(X_min,X_max)
-    ax.set_ylim(Y_min,Y_max)
-    ax.set_xlabel(keywords.get("X_label","%s %s" % (X.name,X.unit)))
-    ax.set_ylabel(keywords.get("Y_label","%s %s" % (Y.name,Y.unit)))
-    #ax.grid()
-    fig.savefig(keywords.get("filename","whittaker.png"))
-    plt.close()
-
 
 def HarvestScalarDatabase(build_dir,filename="scalar_database.csv"):
     csv = "Section,Variable,Source,Model,ScalarName,AnalysisType,Region,ScalarType,Units,Data"

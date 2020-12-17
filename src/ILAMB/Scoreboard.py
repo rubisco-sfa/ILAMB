@@ -16,7 +16,7 @@ from .Regions import Regions
 import os,re
 from netCDF4 import Dataset
 import numpy as np
-from .Post import BenchmarkSummaryFigure,HarvestScalarDatabase
+from .Post import HarvestScalarDatabase
 from .ilamblib import MisplacedData
 import glob,json
 
