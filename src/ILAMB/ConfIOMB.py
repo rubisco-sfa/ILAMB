@@ -521,7 +521,7 @@ class ConfIOMB(Confrontation):
         # model plots
         cmap = { "timeint"    : self.cmap,
                  "bias"       : "seismic",
-                 "biasscore"  : "RdYlGn" }
+                 "biasscore"  : "score" }
         plbl = { "timeint"    : "MEAN",
                  "bias"       : "BIAS",
                  "biasscore"  : "BIAS SCORE" }
@@ -840,7 +840,7 @@ class ConfIOMB(Confrontation):
             if base_pname in cmaps:
                 cmap = cmaps[base_pname]
             elif "score" in pname:
-                cmap = "RdYlGn"
+                cmap = "score"
 
             # Need to symetrize?
             if base_pname in ["bias","timelonbias","cyclebias"]:
