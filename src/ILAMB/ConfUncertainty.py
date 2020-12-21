@@ -172,7 +172,8 @@ def AnalysisUncertaintySpatial(ref,com,**keywords):
             Dref = np.abs(REF.data_bnds[...,0]-REF.data)
 
     with np.errstate(under='ignore',over='ignore'):
-        bias_uscore_map = np.exp(-(np.abs( REF.data-COM.data)-Dref).clip(0) / REF_std.data[np.newaxis,...])
+        norm = REF_std if REF.time.size > 1 else REF_timeint
+        bias_uscore_map = np.exp(-(np.abs( REF.data-COM.data)-Dref).clip(0) / norm.data[np.newaxis,...])
     bias_uscore_map = Variable(name = "biasuscore_map_of_u%s" % name,
                                unit = "1",
                                data = bias_uscore_map,
