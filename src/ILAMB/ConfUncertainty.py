@@ -169,11 +169,13 @@ def AnalysisUncertaintySpatial(ref,com,**keywords):
                 raise ValueError(msg)
             Dref = expert_uncertainty
         else:
-            Dref = np.abs(REF.data_bnds[...,0]-REF.data)
+            Dref = np.sqrt((REF.data-REF.data_bnds[...,0])**2 + (REF.data_bnds[...,1]-REF.data)**2)
 
     with np.errstate(under='ignore',over='ignore'):
         norm = REF_std if REF.time.size > 1 else REF_timeint
-        bias_uscore_map = np.exp(-(np.abs( REF.data-COM.data)-Dref).clip(0) / norm.data[np.newaxis,...])
+        diff = (COM.data-REF.data_bnds[...,1]).clip(min=0) - (COM.data-REF.data_bnds[...,0]).clip(max=0)
+        assert diff.min() >= 0
+        bias_uscore_map = np.exp(-diff/norm.data[np.newaxis,...])
     bias_uscore_map = Variable(name = "biasuscore_map_of_u%s" % name,
                                unit = "1",
                                data = bias_uscore_map,
