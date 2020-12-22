@@ -303,7 +303,7 @@ class ConfUncertainty(Confrontation):
             post.ColorBar(ax,
                           vmin = 0,
                           vmax = 1,
-                          cmap = "score",
+                          cmap = plt.cm.get_cmap("score",3),
                           label = "1")
             fig.savefig(os.path.join(self.output_path,"legend_%s.png" % (pname)))
             plt.close()
@@ -313,7 +313,7 @@ class ConfUncertainty(Confrontation):
                             region = region,
                             vmin   = 0,
                             vmax   = 1,
-                            cmap   = "score")
+                            cmap   = plt.cm.get_cmap("score",3))
                 fig = ax.get_figure()
                 fig.savefig(os.path.join(self.output_path,"%s_%s_%s.png" % (m.name,region,pname)))
                 plt.close()
