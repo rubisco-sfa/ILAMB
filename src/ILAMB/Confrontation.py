@@ -728,6 +728,7 @@ class Confrontation(object):
 
                         # grab plotting options
                         if pname not in self.limits.keys(): continue
+                        if pname not in space_opts: continue
                         opts = space_opts[pname]
 
                         # add to html layout
@@ -781,6 +782,7 @@ class Confrontation(object):
                             continue
 
                         # grab plotting options
+                        if pname not in time_opts: continue
                         opts = time_opts[pname]
 
                         # add to html layout
