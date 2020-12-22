@@ -58,7 +58,7 @@ class ModelResult():
         used to shift model times, all model years at model_year[0]
         are shifted to model_year[1]
     """
-    def __init__(self,path,modelname="unamed",color=(0,0,0),filter="",regex="",model_year=None):
+    def __init__(self,path,modelname="unamed",color=(0,0,0),filter="",regex="",model_year=None,paths=None):
         self.path           = path
         self.color          = color
         self.filter         = filter
@@ -74,6 +74,7 @@ class ModelResult():
         self.variables      = None
         self.names          = None
         self.extents        = np.asarray([[-90.,+90.],[-180.,+180.]])
+        self.paths          = paths
         self._findVariables()
         self._getGridInformation()
 
@@ -99,35 +100,37 @@ class ModelResult():
 
         variables = {}
         names     = {}
-        for subdir, dirs, files in os.walk(self.path,followlinks=True):
-            for fileName in files:
-                if not fileName.endswith(".nc"): continue
-                if self.filter not in fileName: continue
-                if self.regex is not "":
-                    m = re.search(self.regex,fileName)
-                    if not m: continue
-                pathName  = os.path.join(subdir,fileName)
+        paths     = self.paths if self.paths is not None else [self.path]
+        for path in paths:
+            for subdir, dirs, files in os.walk(path,followlinks=True):
+                for fileName in files:
+                    if not fileName.endswith(".nc"): continue
+                    if self.filter not in fileName: continue
+                    if self.regex is not "":
+                        m = re.search(self.regex,fileName)
+                        if not m: continue
+                    pathName  = os.path.join(subdir,fileName)
 
-                try:
-                    dataset = Dataset(pathName)
-                except:
-                    logger.debug("[%s] Error opening file %s" % (self.name,pathName))
-                    continue
+                    try:
+                        dataset = Dataset(pathName)
+                    except:
+                        logger.debug("[%s] Error opening file %s" % (self.name,pathName))
+                        continue
 
-                # populate dictionary for which variables are in which files
-                for key in dataset.variables.keys():
-                    if key not in variables:
-                        variables[key] = []
-                    variables[key].append(pathName)
+                    # populate dictionary for which variables are in which files
+                    for key in dataset.variables.keys():
+                        if key not in variables:
+                            variables[key] = []
+                        variables[key].append(pathName)
 
-                    v = dataset.variables[key]
-                    if key not in names:
-                        if "long_name" in v.ncattrs():
-                            names[key] = v.long_name
-                            continue
-                        if "standard_name" in v.ncattrs():
-                            names[key] = v.standard_name
-                            continue
+                        v = dataset.variables[key]
+                        if key not in names:
+                            if "long_name" in v.ncattrs():
+                                names[key] = v.long_name
+                                continue
+                            if "standard_name" in v.ncattrs():
+                                names[key] = v.standard_name
+                                continue
 
         # determine spatial extents
         lats = [key for key in variables.keys() if (key.lower().startswith("lat" ) or
