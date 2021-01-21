@@ -205,7 +205,7 @@ def AnalysisUncertaintySpatial(ref,com,**keywords):
                                lat  = REF.lat, lat_bnds = REF.lat_bnds,
                                lon  = REF.lon, lon_bnds = REF.lon_bnds,
                                area = REF.area, ndata = REF.ndata)
-    with np.errstate(under='ignore'):
+    with np.errstate(all='ignore'):
         eps = (np.abs(cCOM.data-cREF.data)-Dref).clip(0)**2
         eps = Variable(data = eps,
                        unit = "1",
@@ -214,11 +214,11 @@ def AnalysisUncertaintySpatial(ref,com,**keywords):
                        lon  = REF.lon, lon_bnds = REF.lon_bnds,
                        area = REF.area, ndata = REF.ndata).integrateInTime(mean=True).data
         eps = np.sqrt(eps)
-        std = REF_std.data.clip(1e-12)
-        # note: this is weird but for some reason the __idiv__
-        # operator of masked arrays sometimes reports underflow errors
-        # when there aren't any, even if the errstate is changed to
-        # ignore. So the following works, but 'eps = eps / std' does not.
+        std = REF_std.data
+    # large or zero _FillValues in the masked arrays lead to odd behavior when computing 
+    eps.data[REF.data.mask[0,...]] = 0
+    std.data[REF.data.mask[0,...]] = 1
+    with np.errstate(all='ignore'):
         eps = np.ma.masked_array(eps.data/std.data,mask=REF.data.mask[0,...])
         rmse_uscore_map = Variable(name = "rmseuscore_map_of_u%s" % name,
                                    unit = "1",
