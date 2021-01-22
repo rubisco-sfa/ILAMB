@@ -155,7 +155,7 @@ def AnalysisUncertaintySpatial(ref,com,**keywords):
     del COM
     crmse = cREF.rmse(cCOM).convert(plot_unit)
     rmse_score_map = il.Score(crmse,REF_std)
-    if dataset is not None:
+    if dataset is not None and REF.time.size > 1:
         rmse.name = "rmse_map_of_%s" % name
         rmse.toNetCDF4(dataset,group="MeanState")
         rmse_score_map.name = "rmsescore_map_of_%s" % name
@@ -198,34 +198,36 @@ def AnalysisUncertaintySpatial(ref,com,**keywords):
             Dref_timeint = np.abs(REF_timeint.data_bnds[...,0]-REF_timeint.data)
                 
     with np.errstate(under='ignore',over='ignore'):
-        bias_uscore_map = np.exp(-np.abs( (np.abs(REF_timeint.data-COM_timeint.data)-Dref_timeint).clip(0) / REF_std.data[np.newaxis,...] ) )
+        norm = REF_std if REF.time.size > 1 else REF_timeint
+        bias_uscore_map = np.exp(-np.abs( (np.abs(REF_timeint.data-COM_timeint.data)-Dref_timeint).clip(0) / norm.data[np.newaxis,...] ) )
     bias_uscore_map = Variable(name = "biasuscore_map_of_u%s" % name,
                                unit = "1",
                                data = bias_uscore_map[0,...],
                                lat  = REF.lat, lat_bnds = REF.lat_bnds,
                                lon  = REF.lon, lon_bnds = REF.lon_bnds,
                                area = REF.area, ndata = REF.ndata)
-    with np.errstate(all='ignore'):
-        eps = (np.abs(cCOM.data-cREF.data)-Dref).clip(0)**2
-        eps = Variable(data = eps,
-                       unit = "1",
-                       time = REF.time, time_bnds = REF.time_bnds,
-                       lat  = REF.lat, lat_bnds = REF.lat_bnds,
-                       lon  = REF.lon, lon_bnds = REF.lon_bnds,
-                       area = REF.area, ndata = REF.ndata).integrateInTime(mean=True).data
-        eps = np.sqrt(eps)
-        std = REF_std.data
-    # large or zero _FillValues in the masked arrays lead to odd behavior when computing 
-    eps.data[REF.data.mask[0,...]] = 0
-    std.data[REF.data.mask[0,...]] = 1
-    with np.errstate(all='ignore'):
-        eps = np.ma.masked_array(eps.data/std.data,mask=REF.data.mask[0,...])
-        rmse_uscore_map = Variable(name = "rmseuscore_map_of_u%s" % name,
-                                   unit = "1",
-                                   data = np.exp(-eps),
-                                   lat  = REF.lat, lat_bnds = REF.lat_bnds,
-                                   lon  = REF.lon, lon_bnds = REF.lon_bnds,
-                                   area = REF.area, ndata = REF.ndata)
+
+    if REF.time.size > 1:
+        with np.errstate(all='ignore'):
+            eps = (np.abs(cCOM.data-cREF.data)-Dref).clip(0)**2
+            eps = Variable(data = eps,
+                           unit = "1",
+                           time = REF.time, time_bnds = REF.time_bnds,
+                           lat  = REF.lat, lat_bnds = REF.lat_bnds,
+                           lon  = REF.lon, lon_bnds = REF.lon_bnds,
+                           area = REF.area, ndata = REF.ndata).integrateInTime(mean=True).data
+            eps = np.sqrt(eps)
+        # large or zero _FillValues in the masked arrays lead to odd behavior when computing 
+        eps.data[REF.data.mask[0,...]] = 0
+        norm.data[REF.data.mask[0,...]] = 1
+        with np.errstate(all='ignore'):
+            eps = np.ma.masked_array(eps.data/norm.data,mask=REF.data.mask[0,...])
+            rmse_uscore_map = Variable(name = "rmseuscore_map_of_u%s" % name,
+                                       unit = "1",
+                                       data = np.exp(-np.ma.masked_invalid(eps)),
+                                       lat  = REF.lat, lat_bnds = REF.lat_bnds,
+                                       lon  = REF.lon, lon_bnds = REF.lon_bnds,
+                                       area = REF.area, ndata = REF.ndata)
     
     if benchmark_dataset is not None:
         if Dref.size == 1:
@@ -249,12 +251,13 @@ def AnalysisUncertaintySpatial(ref,com,**keywords):
             bias_uscore = bias_uscore_map.integrateInSpace(region=region,mean=True,weight=normalizer)
             bias_uscore.name = "Uncertainty Bias Score %s" % region
             bias_uscore.toNetCDF4(dataset,group="MeanState")
-        rmse_uscore_map.name = "rmseuscore_map_of_%s" % name
-        rmse_uscore_map.toNetCDF4(dataset,group="MeanState")
-        for region in regions:
-            rmse_uscore = rmse_uscore_map.integrateInSpace(region=region,mean=True,weight=normalizer)
-            rmse_uscore.name = "Uncertainty RMSE Score %s" % region
-            rmse_uscore.toNetCDF4(dataset,group="MeanState")
+        if REF.time.size > 1:
+            rmse_uscore_map.name = "rmseuscore_map_of_%s" % name
+            rmse_uscore_map.toNetCDF4(dataset,group="MeanState")
+            for region in regions:
+                rmse_uscore = rmse_uscore_map.integrateInSpace(region=region,mean=True,weight=normalizer)
+                rmse_uscore.name = "Uncertainty RMSE Score %s" % region
+                rmse_uscore.toNetCDF4(dataset,group="MeanState")
             
 class ConfUncertainty(Confrontation):
 
