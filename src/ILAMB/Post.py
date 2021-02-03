@@ -6,6 +6,8 @@ import re
 from matplotlib.colors import LinearSegmentedColormap
 import os
 from netCDF4 import Dataset
+import pandas as pd
+import json
 
 def UseLatexPltOptions(fsize=18):
     params = {'axes.titlesize':fsize,
@@ -1119,3 +1121,95 @@ def HarvestScalarDatabase(build_dir,filename="scalar_database.csv"):
                             s = "nan" if V.mask else "%g" % V
                             csv += "\n%s,%s,%s,%s,%s,%s,%s,%s,%s,%s" % (category,varname,provider,model,var,g1,region,stype,v.units,s)
     with open(os.path.join(build_dir,filename),mode="w") as f: f.write(csv)
+
+def CreateJSON(csv_file):
+    """Using the CSV scalar database, create a JSON following the CMEC standard.
+    """
+    def _unCamelCase(s): return re.sub("([a-z])([A-Z])","\g<1> \g<2>",s)
+
+    def _meanScore(df_local,short,*args):
+        cols = ['Section','Variable','Source']
+        q = df_local.query(" & ".join(["(%s == '%s')" % (col,arg) for arg,col in zip(args,cols)]))
+        scores = {}
+        for s in short:
+            qs = q.query("ScalarName == '%s'" % s)
+            if qs.shape[0] > 0: scores[_unCamelCase(s)] = qs.Data.mean()
+        return scores
+
+    df = pd.read_csv(csv_file)
+    df = df.query("ScalarType=='score' & AnalysisType=='MeanState'")
+    models  = list(df.Model.unique())
+    r = Regions()
+    regions = [n for n in df.Region.unique() if n in r.regions]
+
+    out = {}
+    # meta-data for which scheme and package have been used
+    out["SCHEMA"] = {"name": "CMEC","version": "v1","package": "ILAMB"}
+
+    # what dimensions should we find?
+    out["DIMENSIONS"] = {"json_structure": ["region","model","metric","statistic"]}
+    out["DIMENSIONS"]["dimensions"] = {}
+
+    # populate the regions
+    nest = {}
+    for region in regions:
+        name = r.getRegionName(region)
+        nest[region] = {"LongName":name,"Description":name,"Generator":""}
+    out["DIMENSIONS"]["dimensions"]["region"] = nest
+
+    # populate the models
+    nest = {}
+    for model in models:
+        nest[model] = {"Description":"","Source":""}
+    out["DIMENSIONS"]["dimensions"]["model"] = nest
+
+    # populate the list of metrics
+    nest = {}
+    base = {"URI":["https://www.osti.gov/biblio/1330803","https://doi.org/10.1029/2018MS001354"],"Contact": "forrest AT climatemodeling.org"}
+    S = df.Section.unique()
+    for s in S:
+        ss = _unCamelCase(s)
+        nest[ss] = {"Name":ss,"Abstract":"composite score"}
+        nest[ss].update(base)
+        V = df.query("Section=='%s'" % s).Variable.unique()
+        for v in V:
+            vv = "%s::%s" % (ss,_unCamelCase(v))
+            nest[vv] = {"Name":vv,"Abstract":"composite score"}
+            nest[vv].update(base)
+            D = df.query("Section=='%s' & Variable=='%s'" % (s,v)).Source.unique()
+            for d in D:
+                dd = "%s!!%s" % (vv,_unCamelCase(d))
+                nest[dd] = {"Name":dd,"Abstract":"benchmark score"}
+                nest[dd].update(base)
+    out["DIMENSIONS"]["dimensions"]["metric"] = nest
+
+    # populate list of statistics
+    short = list(df.query("ScalarType=='score'").ScalarName.unique())
+    index = [_unCamelCase(n) for n in short]
+    out["DIMENSIONS"]["dimensions"]["statistic"] = {"indices":index,"short_names":short}
+
+    # populate the statistics and their means
+    nest = {}
+    for region in regions:
+        nest[region] = {}
+        for m in models:
+            nest[region][m] = {}
+            df_m = df.query("Region=='%s' & Model=='%s'" % (region,m))
+            for s in S:
+                ss = _unCamelCase(s)
+                t = _meanScore(df_m,short,s)
+                if t: nest[region][m][ss] = t
+                V = df_m.query("Section=='%s'" % s).Variable.unique()
+                for v in V:
+                    vv = "%s::%s" % (ss,_unCamelCase(v))
+                    t = _meanScore(df_m,short,s,v)
+                    if t: nest[region][m][vv] = t
+                    D = df_m.query("Section=='%s' & Variable=='%s'" % (s,v)).Source.unique()
+                    for d in D:
+                        dd = "%s!!%s" % (vv,_unCamelCase(d))
+                        t = _meanScore(df_m,short,s,v,d)
+                        if t: nest[region][m][dd] = t
+    out["RESULTS"] = nest
+
+    with open(csv_file.replace(".csv",".json"), 'w') as outfile:
+        json.dump(out,outfile)
