@@ -1137,8 +1137,8 @@ def CreateJSON(csv_file):
         return scores
 
     df = pd.read_csv(csv_file)
-    df = df.query("ScalarType=='score' & AnalysisType=='MeanState'")
-    models  = list(df.Model.unique())
+    df = df.query("ScalarType=='score'")
+    models = list(df.Model.unique())
     r = Regions()
     regions = [n for n in df.Region.unique() if n in r.regions]
 
@@ -1165,7 +1165,9 @@ def CreateJSON(csv_file):
 
     # populate the list of metrics
     nest = {}
-    base = {"URI":["https://www.osti.gov/biblio/1330803","https://doi.org/10.1029/2018MS001354"],"Contact": "forrest AT climatemodeling.org"}
+    base = {"URI":["https://www.osti.gov/biblio/1330803",
+                   "https://doi.org/10.1029/2018MS001354"],
+            "Contact": "forrest AT climatemodeling.org"}
     S = df.Section.unique()
     for s in S:
         ss = _unCamelCase(s)
@@ -1181,10 +1183,25 @@ def CreateJSON(csv_file):
                 dd = "%s!!%s" % (vv,_unCamelCase(d))
                 nest[dd] = {"Name":dd,"Abstract":"benchmark score"}
                 nest[dd].update(base)
+    if "Relationships" in df.AnalysisType.unique(): # relationships are different
+        ss = "Relationships"
+        nest[ss] = {"Name":ss,"Abstract":"composite score"}
+        nest[ss].update(base)
+        V = df.query("AnalysisType=='Relationships'").Variable.unique()
+        for v in V:
+            vv = "%s::%s" % (ss,_unCamelCase(v))
+            nest[vv] = {"Name":vv,"Abstract":"composite score"}
+            nest[vv].update(base)
+            D = df.query("AnalysisType=='Relationships' & Variable=='%s'" % v).ScalarName.unique()
+            D = [d.split()[0] for d in D if "RMSE Score" in d]
+            for d in D:
+                dd = "%s!!%s" % (vv,_unCamelCase(d))
+                nest[dd] = {"Name":dd,"Abstract":"benchmark score"}
+                nest[dd].update(base)            
     out["DIMENSIONS"]["dimensions"]["metric"] = nest
 
     # populate list of statistics
-    short = list(df.query("ScalarType=='score'").ScalarName.unique())
+    short = list(df.query("AnalysisType=='MeanState' & ScalarType=='score'").ScalarName.unique())
     index = [_unCamelCase(n) for n in short]
     out["DIMENSIONS"]["dimensions"]["statistic"] = {"indices":index,"short_names":short}
 
@@ -1194,7 +1211,7 @@ def CreateJSON(csv_file):
         nest[region] = {}
         for m in models:
             nest[region][m] = {}
-            df_m = df.query("Region=='%s' & Model=='%s'" % (region,m))
+            df_m = df.query("AnalysisType=='MeanState' & Region=='%s' & Model=='%s'" % (region,m))
             for s in S:
                 ss = _unCamelCase(s)
                 t = _meanScore(df_m,short,s)
@@ -1209,6 +1226,21 @@ def CreateJSON(csv_file):
                         dd = "%s!!%s" % (vv,_unCamelCase(d))
                         t = _meanScore(df_m,short,s,v,d)
                         if t: nest[region][m][dd] = t
+            ss = "Relationships"
+            if ss in df.AnalysisType.unique(): # relationships are different
+                df_m = df.query("AnalysisType=='Relationships' & Region=='%s' & Model=='%s'" % (region,m))
+                nest[region][m][ss] = {'Overall Score':df_m.query("ScalarName=='Overall Score'").Data.mean()}
+                V = df_m.Variable.unique()
+                for v in V:
+                    vv = "%s::%s" % (ss,_unCamelCase(v))
+                    nest[region][m][vv] = {'Overall Score':df_m.query("ScalarName=='Overall Score' & Variable=='%s'" % v).Data.mean()}
+                    D = df.query("AnalysisType=='Relationships' & Variable=='%s'" % v).ScalarName.unique()
+                    D = [d.split()[0] for d in D if "RMSE Score" in d]
+                    for d in D:
+                        dd = "%s!!%s" % (vv,_unCamelCase(d))
+                        q = df_m.query("Variable=='%s' & ScalarName=='%s RMSE Score'" % (v,d))
+                        assert len(q)==1
+                        nest[region][m][dd] = {"Overall Score":q.Data.mean()}                     
     out["RESULTS"] = nest
 
     with open(csv_file.replace(".csv",".json"), 'w') as outfile:
