@@ -1096,7 +1096,7 @@ def RegisterCustomColormaps():
     plt.register_cmap("wetdry",cm)                                                    
 
 def HarvestScalarDatabase(build_dir,filename="scalar_database.csv"):
-    csv = "Section,Variable,Source,Model,ScalarName,AnalysisType,Region,ScalarType,Units,Data"
+    csv = "Section,Variable,Source,Model,ScalarName,AnalysisType,Region,ScalarType,Units,Data,Weight"
     for root,subdirs,files in os.walk(build_dir):
         for fname in files:
             if not fname.endswith(".nc"): continue
@@ -1109,6 +1109,7 @@ def HarvestScalarDatabase(build_dir,filename="scalar_database.csv"):
             with Dataset(os.path.join(root,fname)) as dset:
                 if dset.complete != 1: continue
                 model = dset.getncattr("name")
+                weight = dset.getncattr("weight")
                 for g1 in dset.groups:
                     for g2 in dset.groups[g1].groups:
                         grp = dset.groups[g1].groups[g2]
@@ -1119,21 +1120,21 @@ def HarvestScalarDatabase(build_dir,filename="scalar_database.csv"):
                             v = grp.variables[vname]
                             V = v[...]
                             s = "nan" if V.mask else "%g" % V
-                            csv += "\n%s,%s,%s,%s,%s,%s,%s,%s,%s,%s" % (category,varname,provider,model,var,g1,region,stype,v.units,s)
+                            csv += "\n%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s" % (category,varname,provider,model,var,g1,region,stype,v.units,s,weight)
     with open(os.path.join(build_dir,filename),mode="w") as f: f.write(csv)
 
 def CreateJSON(csv_file):
     """Using the CSV scalar database, create a JSON following the CMEC standard.
     """
     def _unCamelCase(s): return re.sub("([a-z])([A-Z])","\g<1> \g<2>",s)
-
+    def _weightedMean(x): return (x.Data*x.Weight/x.Weight.sum()).sum()
     def _meanScore(df_local,short,*args):
         cols = ['Section','Variable','Source']
         q = df_local.query(" & ".join(["(%s == '%s')" % (col,arg) for arg,col in zip(args,cols)]))
         scores = {}
         for s in short:
             qs = q.query("ScalarName == '%s'" % s)
-            if qs.shape[0] > 0: scores[_unCamelCase(s)] = qs.Data.mean()
+            if qs.shape[0] > 0: scores[_unCamelCase(s)] = _weightedMean(qs)
         return scores
 
     df = pd.read_csv(csv_file)
@@ -1229,11 +1230,11 @@ def CreateJSON(csv_file):
             ss = "Relationships"
             if ss in df.AnalysisType.unique(): # relationships are different
                 df_m = df.query("AnalysisType=='Relationships' & Region=='%s' & Model=='%s'" % (region,m))
-                nest[region][m][ss] = {'Overall Score':df_m.query("ScalarName=='Overall Score'").Data.mean()}
+                nest[region][m][ss] = {'Overall Score':_weightedMean(df_m.query("ScalarName=='Overall Score'"))}
                 V = df_m.Variable.unique()
                 for v in V:
                     vv = "%s::%s" % (ss,_unCamelCase(v))
-                    nest[region][m][vv] = {'Overall Score':df_m.query("ScalarName=='Overall Score' & Variable=='%s'" % v).Data.mean()}
+                    nest[region][m][vv] = {'Overall Score':_weightedMean(df_m.query("ScalarName=='Overall Score' & Variable=='%s'" % v))}
                     D = df.query("AnalysisType=='Relationships' & Variable=='%s'" % v).ScalarName.unique()
                     D = [d.split()[0] for d in D if "RMSE Score" in d]
                     for d in D:
