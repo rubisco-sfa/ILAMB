@@ -147,6 +147,7 @@ class Confrontation(object):
         self.keywords       = keywords
         self.extents        = np.asarray([[-90.,+90.],[-180.,+180.]])
         self.study_limits   = []
+        self.cweight         = 1
         
         # Make sure the source data exists
 
@@ -354,10 +355,12 @@ class Confrontation(object):
             # Encode some names and colors
             fcm.mod_dset.setncatts({"name" :m.name,
                                     "color":m.color,
+                                    "weight":self.cweight,
                                     "complete":0})
             if self.master:
                 fcm.obs_dset.setncatts({"name" :"Benchmark",
                                         "color":np.asarray([0.5,0.5,0.5]),
+                                        "weight":self.cweight,
                                         "complete":0})
 
             # Read in some options and run the mean state analysis

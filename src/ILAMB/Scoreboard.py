@@ -340,6 +340,7 @@ class Scoreboard():
                 node.source = os.path.join(os.environ["ILAMB_ROOT"],node.source if node.source else "")
                 node.mem_slab = mem_per_pair*0.5
                 node.confrontation = Constructor(**(node.__dict__))
+                node.confrontation.cweight = node.weight*node.parent.weight
                 node.confrontation.extents = extents
 
                 if verbose and master: print(("    {0:>%d}\033[92m Initialized\033[0m" % max_name_len).format(node.confrontation.longname))
