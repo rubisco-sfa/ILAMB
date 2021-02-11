@@ -1096,7 +1096,7 @@ def RegisterCustomColormaps():
     plt.register_cmap("wetdry",cm)                                                    
 
 def HarvestScalarDatabase(build_dir,filename="scalar_database.csv"):
-    csv = "Section,Variable,Source,Model,ScalarName,AnalysisType,Region,ScalarType,Units,Data,Weight"
+    csv = '"Section","Variable","Source","Model","ScalarName","AnalysisType","Region","ScalarType","Units","Data","Weight"'
     for root,subdirs,files in os.walk(build_dir):
         for fname in files:
             if not fname.endswith(".nc"): continue
@@ -1120,7 +1120,7 @@ def HarvestScalarDatabase(build_dir,filename="scalar_database.csv"):
                             v = grp.variables[vname]
                             V = v[...]
                             s = "nan" if V.mask else "%g" % V
-                            csv += "\n%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s" % (category,varname,provider,model,var,g1,region,stype,v.units,s,weight)
+                            csv += "\n" + ",".join(['"%s"' % v for v in (category,varname,provider,model,var,g1,region,stype,v.units,s,weight)])
     with open(os.path.join(build_dir,filename),mode="w") as f: f.write(csv)
 
 def CreateJSON(csv_file):
