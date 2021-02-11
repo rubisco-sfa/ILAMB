@@ -1155,7 +1155,8 @@ def CreateJSON(csv_file):
     nest = {}
     for region in regions:
         name = r.getRegionName(region)
-        nest[region] = {"LongName":name,"Description":name,"Generator":""}
+        source = r.getRegionSource(region)
+        nest[region] = {"LongName":name,"Description":name,"Generator":source}
     out["DIMENSIONS"]["dimensions"]["region"] = nest
 
     # populate the models
