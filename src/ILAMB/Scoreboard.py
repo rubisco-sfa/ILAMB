@@ -750,9 +750,9 @@ class Scoreboard():
                     except:
                         out.write("%s,%s\n" % (v.name,','.join(["~"]*len(M))))
 
-    def harvestInformation(self):
+    def harvestInformation(self,M):
         HarvestScalarDatabase(self.build_dir)
-        CreateJSON(os.path.join(self.build_dir,"scalar_database.csv"))
+        CreateJSON(os.path.join(self.build_dir,"scalar_database.csv"),M)
 
 def GenerateRelationshipTree(S,M):
 

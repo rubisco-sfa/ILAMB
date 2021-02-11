@@ -1123,7 +1123,7 @@ def HarvestScalarDatabase(build_dir,filename="scalar_database.csv"):
                             csv += "\n" + ",".join(['"%s"' % v for v in (category,varname,provider,model,var,g1,region,stype,v.units,s,weight)])
     with open(os.path.join(build_dir,filename),mode="w") as f: f.write(csv)
 
-def CreateJSON(csv_file):
+def CreateJSON(csv_file,M):
     """Using the CSV scalar database, create a JSON following the CMEC standard.
     """
     def _unCamelCase(s): return re.sub("([a-z])([A-Z])","\g<1> \g<2>",s)
@@ -1162,7 +1162,10 @@ def CreateJSON(csv_file):
     # populate the models
     nest = {}
     for model in models:
-        nest[model] = {"Description":"","Source":""}
+        m = [m for m in M if m.name == model]
+        assert len(m) == 1
+        m = m[0]
+        nest[model] = {"Description":m.description,"Source":m.group}
     out["DIMENSIONS"]["dimensions"]["model"] = nest
 
     # populate the list of metrics
