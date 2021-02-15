@@ -8,6 +8,8 @@ import os
 from netCDF4 import Dataset
 import pandas as pd
 import json
+import glob
+import pickle
 
 def UseLatexPltOptions(fsize=18):
     params = {'axes.titlesize':fsize,
@@ -1123,8 +1125,18 @@ def HarvestScalarDatabase(build_dir,filename="scalar_database.csv"):
                             csv += "\n" + ",".join(['"%s"' % v for v in (category,varname,provider,model,var,g1,region,stype,v.units,s,weight)])
     with open(os.path.join(build_dir,filename),mode="w") as f: f.write(csv)
 
-def CreateJSON(csv_file,M):
+def CreateJSON(csv_file,M=None):
     """Using the CSV scalar database, create a JSON following the CMEC standard.
+
+    Parameters
+    ----------
+    csv_file : str
+        the full path to the scalar database CSV file
+    M : list of ILAMB.ModelResult, optional
+        if not given, then the routine will attempt to load pickle
+        files. If no models are given and they cannot be found in
+        pickle files, then no description or source will be provided.
+
     """
     def _unCamelCase(s): return re.sub("([a-z])([A-Z])","\g<1> \g<2>",s)
     def _weightedMean(x): return (x.Data*x.Weight/x.Weight.sum()).sum()
@@ -1160,12 +1172,18 @@ def CreateJSON(csv_file,M):
     out["DIMENSIONS"]["dimensions"]["region"] = nest
 
     # populate the models
+    if M is None:
+        M = []
+        for pkl_file in glob.glob(os.path.join(os.path.dirname(csv_file),"*.pkl")):
+            with open(pkl_file,'rb') as infile:
+                M.append(pickle.load(infile))
     nest = {}
     for model in models:
         m = [m for m in M if m.name == model]
-        assert len(m) == 1
-        m = m[0]
-        nest[model] = {"Description":m.description,"Source":m.group}
+        if len(m) > 0:
+            nest[model] = {"Description":m[0].description,"Source":m[0].group}
+        else:
+            nest[model] = {"Description":"","Source":""}
     out["DIMENSIONS"]["dimensions"]["model"] = nest
 
     # populate the list of metrics
