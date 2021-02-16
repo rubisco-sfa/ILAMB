@@ -220,7 +220,7 @@ def BuildScalars(node):
         files = [f for f in glob.glob(os.path.join(node.output_path,"*.nc")) if "Benchmark" not in f]
         for fname in files:
             with Dataset(fname) as dset:
-                if dset.name not in models: continue
+                if dset.getncattr("name") not in models: continue
                 if section not in dset.groups: continue
                 grp = dset.groups[section]["scalars"]
                 scores = [c for c in grp.variables.keys() if "Score" in c]
@@ -228,7 +228,7 @@ def BuildScalars(node):
                 for c in scores:
                     if c not in s.keys():
                         s[c] = np.ma.masked_array(np.zeros(len(models)),mask=np.ones(len(models),dtype=bool))
-                    s[c][models.index(dset.name)] = grp[c][...]
+                    s[c][models.index(dset.getncattr("name"))] = grp[c][...]
     else:
         scores = None
         for child in node.children:
