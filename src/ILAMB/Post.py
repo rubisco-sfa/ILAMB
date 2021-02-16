@@ -1149,8 +1149,8 @@ def CreateJSON(csv_file,M=None):
             if qs.shape[0] > 0: scores[_unCamelCase(s)] = _weightedMean(qs)
         return scores
 
-    df = pd.read_csv(csv_file)
-    df = df.query("ScalarType=='score'")
+    # Drop nan's and we only need the scores from the database
+    df = pd.read_csv(csv_file).dropna().query("ScalarType=='score'")
     models = list(df.Model.unique())
     r = Regions()
     regions = [n for n in df.Region.unique() if n in r.regions]
@@ -1262,8 +1262,7 @@ def CreateJSON(csv_file,M=None):
                     for d in D:
                         dd = "%s!!%s" % (vv,_unCamelCase(d))
                         q = df_m.query("Variable=='%s' & ScalarName=='%s RMSE Score'" % (v,d))
-                        assert len(q)==1
-                        nest[region][m][dd] = {"Overall Score":q.Data.mean()}                     
+                        nest[region][m][dd] = {"Overall Score":_weightedMean(q)}                     
     out["RESULTS"] = nest
 
     with open(csv_file.replace(".csv",".json"), 'w') as outfile:
