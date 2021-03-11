@@ -677,7 +677,9 @@ if not args.skip_plots:
     W = BuildLocalWorkList(M,C,skip_cache=False)
     WorkPost(M,C,W,S,not args.quiet)
 
-    if rank==0: S.createHtml(M)
+if rank==0:
+    S.createHtml(M)
+    S.createUDDashboard()
 
 sys.stdout.flush(); comm.Barrier()
 
