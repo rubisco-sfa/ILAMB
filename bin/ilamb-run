@@ -589,7 +589,6 @@ for key in run_opts:
         define_regions = [os.path.join(os.environ['ILAMB_ROOT'],r) for r in run_opts[key].split(",")]
         args.__dict__[key] += define_regions
 assert args.rmse_score_basis in ['series','cycle']
-if rank == 0: os.system("cp %s %s" % (args.config[0],os.path.join(args.build_dir[0],"ilamb.cfg")))
 
 # Setup regions
 r = Regions()
@@ -630,6 +629,7 @@ if len(args.study_limits) == 2:
     args.study_limits[1] += 1
     for c in C: c.study_limits = (np.asarray(args.study_limits)-1850)*365.
 Cf = FilterConfrontationList(C,args.confront)
+if rank == 0: os.system("cp %s %s" % (args.config[0],os.path.join(args.build_dir[0],"ilamb.cfg")))
 
 # Setup logging
 logger    = logging.getLogger("%i" % comm.rank)
