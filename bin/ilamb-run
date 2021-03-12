@@ -589,6 +589,7 @@ for key in run_opts:
         define_regions = [os.path.join(os.environ['ILAMB_ROOT'],r) for r in run_opts[key].split(",")]
         args.__dict__[key] += define_regions
 assert args.rmse_score_basis in ['series','cycle']
+if rank == 0: os.system("cp %s %s" % (args.config[0],os.path.join(args.build_dir[0],"ilamb.cfg")))
 
 # Setup regions
 r = Regions()
