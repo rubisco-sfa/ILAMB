@@ -1144,7 +1144,7 @@ class Confrontation(object):
                 # Analysis over regions
                 lim_dep  = [dep_min,dep_max]
                 lim_ind  = [ind_min,ind_max]
-                longname = c.longname.split('/')[0]
+                longname = c.longname.replace("/","|") # we want the source too, but netCDF doesn't like the '/'
                 for region in self.regions:
                     ref_dist = _buildDistributionResponse(ref_ind,ref_dep,ind_lim=lim_ind,dep_lim=lim_dep,region=region)
                     com_dist = _buildDistributionResponse(com_ind,com_dep,ind_lim=lim_ind,dep_lim=lim_dep,region=region)
@@ -1180,7 +1180,7 @@ class Confrontation(object):
 
                     # Score the functional response
                     score = _scoreFunction(ref_dist[3],com_dist[3])
-                    sname = "%s RMSE Score %s" % (longname,region)
+                    sname = "%s Score %s" % (longname,region)
                     if sname in scalars.variables:
                         scalars.variables[sname][0] = score
                     else:

@@ -1148,10 +1148,45 @@ def CreateJSON(csv_file,M=None):
             qs = q.query("ScalarName == '%s'" % s)
             if qs.shape[0] > 0: scores[_unCamelCase(s)] = _weightedMean(qs)
         return scores
-
+    def _parseConfig(f):
+        lines = open(f).readlines()
+        cfg = {}
+        rel = {}
+        h1 = h2 = v = None
+        for line in lines:
+            line = line.strip()
+            if line.startswith("[h1:"):
+                h1 = line.strip("[h1:").strip("]").strip()
+            elif line.startswith("[h2:"):
+                h2 = line.strip("[h2:").strip("]").strip()
+            elif line.startswith("["):
+                v = line.strip("[").strip("]").strip()
+                if h1 not in cfg    : cfg[h1]     = {}
+                if h2 not in cfg[h1]: cfg[h1][h2] = []
+                cfg[h1][h2].append(v)
+            elif line.startswith("relationships"):
+                line = line.replace('"','').replace("'","")
+                line = (line.split("=")[1]).strip()
+                line = line.split(",")
+                r2 = "%s/%s" % (h2,v)
+                if h2 not in rel: rel[r2] = []
+                for ind in line:
+                    ind = ind.strip()
+                    rel[r2].append(_unCamelCase(ind))
+        if rel: cfg["Relationships"] = rel
+        return cfg
+    
     # Drop nan's and we only need the scores from the database
     df = pd.read_csv(csv_file).dropna().query("ScalarType=='score'")
-    models = list(df.Model.unique())
+    
+    # Also drop 'Overall Score' for relationships, these mess up our
+    # aggregation in this routine
+    q = df.query("AnalysisType=='Relationships' & ScalarName=='Overall Score'")
+    df = df.drop(q.index)
+    if M is None:
+        models = list(df.Model.unique())
+    else:
+        models = [m.name for m in M]
     r = Regions()
     regions = [n for n in df.Region.unique() if n in r.regions]
 
@@ -1187,44 +1222,43 @@ def CreateJSON(csv_file,M=None):
     out["DIMENSIONS"]["dimensions"]["model"] = nest
 
     # populate the list of metrics
+    cfg = _parseConfig(os.path.join(os.path.dirname(csv_file),"ilamb.cfg"))
     nest = {}
     base = {"URI":["https://www.osti.gov/biblio/1330803",
                    "https://doi.org/10.1029/2018MS001354"],
             "Contact": "forrest AT climatemodeling.org"}
-    S = df.Section.unique()
+    S = list(cfg.keys())
     for s in S:
-        ss = _unCamelCase(s)
-        nest[ss] = {"Name":ss,"Abstract":"composite score"}
-        nest[ss].update(base)
-        V = df.query("Section=='%s'" % s).Variable.unique()
+        s_json = s
+        s_csv  = s.replace(" ","")
+        nest[s_json] = {"Name":s_json,"Abstract":"composite score"}
+        nest[s_json].update(base)
+        V = list(cfg[s].keys())
         for v in V:
-            vv = "%s::%s" % (ss,_unCamelCase(v))
-            nest[vv] = {"Name":vv,"Abstract":"composite score"}
-            nest[vv].update(base)
-            D = df.query("Section=='%s' & Variable=='%s'" % (s,v)).Source.unique()
+            v_json = "%s::%s" % (s_json,v)
+            v_csv  = v.replace(" ","")
+            nest[v_json] = {"Name":v_json,"Abstract":"composite score"}
+            nest[v_json].update(base)
+            D = cfg[s][v]
             for d in D:
-                dd = "%s!!%s" % (vv,_unCamelCase(d))
-                nest[dd] = {"Name":dd,"Abstract":"benchmark score"}
-                nest[dd].update(base)
-    if "Relationships" in df.AnalysisType.unique(): # relationships are different
-        ss = "Relationships"
-        nest[ss] = {"Name":ss,"Abstract":"composite score"}
-        nest[ss].update(base)
-        V = df.query("AnalysisType=='Relationships'").Variable.unique()
-        for v in V:
-            vv = "%s::%s" % (ss,_unCamelCase(v))
-            nest[vv] = {"Name":vv,"Abstract":"composite score"}
-            nest[vv].update(base)
-            D = df.query("AnalysisType=='Relationships' & Variable=='%s'" % v).ScalarName.unique()
-            D = [d.split()[0] for d in D if "RMSE Score" in d]
-            for d in D:
-                dd = "%s!!%s" % (vv,_unCamelCase(d))
-                nest[dd] = {"Name":dd,"Abstract":"benchmark score"}
-                nest[dd].update(base)            
+                d_json = "%s!!%s" % (v_json,d)
+                d_csv  = d.replace(" ","")
+                nest[d_json] = {"Name":d_json,"Abstract":"benchmark score"}
+                nest[d_json].update(base)                
     out["DIMENSIONS"]["dimensions"]["metric"] = nest
 
-    # populate list of statistics
+    # populate list of statistics, sorted so the common ones appear first
+    def _priority(key):
+        val = 1
+        found = False
+        for i,word in enumerate(['overall','bias','rmse','cycle','interannual','spatial']):
+            if word in key.lower():
+                val *= 2**i
+                found = True
+        if not found: val = 2**6
+        return val
     short = list(df.query("AnalysisType=='MeanState' & ScalarType=='score'").ScalarName.unique())
+    short = sorted(short,key=_priority)
     index = [_unCamelCase(n) for n in short]
     out["DIMENSIONS"]["dimensions"]["statistic"] = {"indices":index,"short_names":short}
 
@@ -1236,33 +1270,39 @@ def CreateJSON(csv_file,M=None):
             nest[region][m] = {}
             df_m = df.query("AnalysisType=='MeanState' & Region=='%s' & Model=='%s'" % (region,m))
             for s in S:
-                ss = _unCamelCase(s)
-                t = _meanScore(df_m,short,s)
-                if t: nest[region][m][ss] = t
-                V = df_m.query("Section=='%s'" % s).Variable.unique()
+                s_json = s
+                s_csv  = s.replace(" ","")
+                t = _meanScore(df_m,short,s_csv)
+                if t: nest[region][m][s_json] = t
+                V = list(cfg[s].keys())
                 for v in V:
-                    vv = "%s::%s" % (ss,_unCamelCase(v))
-                    t = _meanScore(df_m,short,s,v)
-                    if t: nest[region][m][vv] = t
-                    D = df_m.query("Section=='%s' & Variable=='%s'" % (s,v)).Source.unique()
+                    v_json = "%s::%s" % (s_json,v)
+                    v_csv  = v.replace(" ","")
+                    t = _meanScore(df_m,short,s_csv,v_csv)
+                    if t: nest[region][m][v_json] = t
+                    D = cfg[s][v]
                     for d in D:
-                        dd = "%s!!%s" % (vv,_unCamelCase(d))
-                        t = _meanScore(df_m,short,s,v,d)
-                        if t: nest[region][m][dd] = t
-            ss = "Relationships"
-            if ss in df.AnalysisType.unique(): # relationships are different
-                df_m = df.query("AnalysisType=='Relationships' & Region=='%s' & Model=='%s'" % (region,m))
-                nest[region][m][ss] = {'Overall Score':_weightedMean(df_m.query("ScalarName=='Overall Score'"))}
-                V = df_m.Variable.unique()
+                        d_json = "%s!!%s" % (v_json,d)
+                        d_csv  = d.replace(" ","")
+                        t = _meanScore(df_m,short,s_csv,v_csv,d_csv)
+                        if t: nest[region][m][d_json] = t
+                        
+            df_m = df.query("AnalysisType=='Relationships' & Region=='%s' & Model=='%s'" % (region,m))
+            s_json = s_csv = "Relationships"
+            if len(df_m):
+                nest[region][m][s_json] = {'Overall Score':_weightedMean(df_m)}
+                V = list(cfg[s].keys())
                 for v in V:
-                    vv = "%s::%s" % (ss,_unCamelCase(v))
-                    nest[region][m][vv] = {'Overall Score':_weightedMean(df_m.query("ScalarName=='Overall Score' & Variable=='%s'" % v))}
-                    D = df.query("AnalysisType=='Relationships' & Variable=='%s'" % v).ScalarName.unique()
-                    D = [d.split()[0] for d in D if "RMSE Score" in d]
+                    v_json = "%s::%s" % (s_json,v)
+                    v_csv  = v.replace(" ","").split("/")
+                    q = df_m.query("Variable=='%s' & Source=='%s'" % (v_csv[0],v_csv[1]))
+                    nest[region][m][v_json] = {'Overall Score':_weightedMean(q)}
+                    D = cfg[s][v]
                     for d in D:
-                        dd = "%s!!%s" % (vv,_unCamelCase(d))
-                        q = df_m.query("Variable=='%s' & ScalarName=='%s RMSE Score'" % (v,d))
-                        nest[region][m][dd] = {"Overall Score":_weightedMean(q)}                     
+                        d_json = "%s!!%s" % (v_json,d)
+                        d_csv  = d.replace(" ","").replace("/","|")
+                        q = df_m.query("Variable=='%s' & Source=='%s' & ScalarName=='%s Score'" % (v_csv[0],v_csv[1],d_csv))
+                        nest[region][m][d_json] = {'Overall Score':_weightedMean(q)}
     out["RESULTS"] = nest
 
     with open(csv_file.replace(".csv",".json"), 'w') as outfile:
