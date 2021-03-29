@@ -833,6 +833,10 @@ class Variable:
         can be changed by specifying the density when calling the
         function.
 
+        For soil moisture, there is often requirement to convert 
+        between kg m-2 and m3 m-3. This conversion is achieved here using
+        the depth property.
+
         Parameters
         ----------
         unit : str
@@ -850,12 +854,27 @@ class Variable:
             this object with its unit converted
 
         """
+        def _tellAxis(indx):
+            args = []
+            axis = 0
+            if self.temporal:
+                axis += 1
+                args.append(range(self.time.size))
+            if self.layered: args.append(indx)
+            if self.ndata:
+                args.append(range(self.ndata))
+            if self.spatial:
+                args.append(range(self.lat.size))
+                args.append(range(self.lon.size))
+            return np.ix_(*args)
+
         if unit is None: return self
         src_unit = Unit(self.unit)
         tar_unit = Unit(     unit)
         mask = self.data.mask        
         mass_density = Unit("kg m-3")
         molar_density = Unit("g mol-1")
+        area_sm = Unit("kg m-2")
         if ((src_unit/tar_unit)/mass_density).is_dimensionless():
             with np.errstate(all='ignore'):
                 self.data /= density
@@ -872,6 +891,32 @@ class Variable:
             with np.errstate(all='ignore'):
                 self.data *= molar_mass
             src_unit *= molar_density
+        if ((src_unit/tar_unit)/area_sm).is_dimensionless():
+            with np.errstate(all='ignore'):
+                if (self.depth is None) or (self.depth_bnds is None):
+                    print('Missing depth or depth_bnds.')
+                    raise il.UnitConversionError()
+
+                self.data = src_unit.convert(self.data, 'kg m-2')
+                for ind in range(len(self.depth)):
+                    ind2 = _tellAxis([ind])
+                    dz = self.depth_bnds[ind,1] - self.depth_bnds[ind,0]
+                    self.data[ind2] = self.data[ind2] / dz * 0.001
+                src_unit = Unit('m3 m-3')
+                self.unit = 'm3 m-3'
+        elif ((tar_unit/src_unit)/area_sm).is_dimensionless():
+            with np.errstate(all='ignore'):
+                if (self.depth is None) or (self.depth_bnds is None):
+                    print('Missing depth or depth_bnds.')
+                    raise il.UnitConversionError()
+
+                self.data = src_unit.convert(self.data, 'm3 m-3')
+                for ind in range(len(self.depth)):
+                    ind2 = _tellAxis([ind])
+                    dz = self.depth_bnds[ind,1] - self.depth_bnds[ind,0]
+                    self.data[ind2] = self.data[ind2] * dz / 0.001
+                src_unit = Unit('kg m-2')
+                self.unit = 'kg m-2'
         try:
             with np.errstate(all='ignore'):
                 src_unit.convert(self.data,tar_unit,inplace=True)

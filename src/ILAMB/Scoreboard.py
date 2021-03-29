@@ -12,6 +12,7 @@ from .ConfCO2 import ConfCO2
 from .ConfSoilCarbon import ConfSoilCarbon
 from .ConfUncertainty import ConfUncertainty
 from .ConfBurntArea import ConfBurntArea
+from .ConfSoilMoisture import ConfSoilMoisture
 from .Regions import Regions
 import os,re
 from netCDF4 import Dataset
@@ -298,7 +299,8 @@ ConfrontationTypes = { None              : Confrontation,
                        "ConfCO2"         : ConfCO2,
                        "ConfSoilCarbon"  : ConfSoilCarbon,
                        "ConfUncertainty" : ConfUncertainty,
-                       "ConfBurntArea"   : ConfBurntArea}
+                       "ConfBurntArea"   : ConfBurntArea, 
+                       "ConfSoilMoisture": ConfSoilMoisture}
 
 class Scoreboard():
     """
@@ -394,6 +396,7 @@ class Scoreboard():
         models  = [m.name for m in M]
         scalars = {}
         TraversePreorder (self.tree,BuildDictionary)
+
         section = "MeanState"    ; TraversePostorder(self.tree,BuildScalars)
         TraversePreorder (self.tree,ConvertList)
         check = rel_tree.children
