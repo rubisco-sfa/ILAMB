@@ -611,6 +611,7 @@ if args.model_setup is None:
                          models_path=args.build_dir[0])
 else:
     M = ParseModelSetup(args.model_setup[0],args.models,not args.quiet,filter=args.filter[0],models_path=args.build_dir[0])
+
 if rank == 0 and not args.quiet: print("\nParsing config file %s...\n" % args.config[0])
 S = Scoreboard(args.config[0],
                regions   = args.regions,
@@ -622,7 +623,10 @@ S = Scoreboard(args.config[0],
                mem_per_pair = args.mem_per_pair,
                run_title = args.run_title,
                rmse_score_basis = args.rmse_score_basis)
+
 C  = MatchRelationshipConfrontation(S.list())
+
+
 if len(args.study_limits) == 2:
     args.study_limits[1] += 1
     for c in C: c.study_limits = (np.asarray(args.study_limits)-1850)*365.
@@ -662,6 +666,8 @@ if rank==0 and not args.quiet: print("\nRunning model-confrontation pairs...\n")
 sys.stdout.flush(); comm.Barrier()
 
 W = BuildLocalWorkList(M,C,skip_cache=True)
+
+
 WorkConfront(W,not args.quiet,args.clean)
 
 sys.stdout.flush(); comm.Barrier()

@@ -260,10 +260,12 @@ def GetTime(var,t0=None,tf=None,convert_calendar=True,ignore_time_array=True):
     if t0 is not None:
         t0 = cf.num2date(t0,units="days since 1850-1-1 00:00:00",calendar="noleap")
         t0 = ConvertCalendar(t0,t.units,t.calendar)
+
         if (t0 > tb[-1,1]): return None,None,None,None,None,None
     if tf is not None:
         tf = cf.num2date(tf,units="days since 1850-1-1 00:00:00",calendar="noleap")
         tf = ConvertCalendar(tf,t.units,t.calendar)
+
         if (tf < tb[0,0]): return None,None,None,None,None,None
 
     # Subset by the desired initial and final times
@@ -787,6 +789,7 @@ def FromNetCDF4(filename,variable_name,alternate_vars=[],t0=None,tf=None,group=N
     depth   = None; depth_bnd = None
     data    = None;
     cbounds = None
+
     t,t_bnd,cbounds,begin,end,calendar = GetTime(var,t0=t0,tf=tf,convert_calendar=convert_calendar)
 
     # Are there uncertainties?

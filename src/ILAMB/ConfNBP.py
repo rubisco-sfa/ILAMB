@@ -8,7 +8,10 @@ from . import Post as post
 import numpy as np
 import os,glob
 
-def SpaceLabels(y,ymin,maxit=1000):    
+def SpaceLabels(y,ymin,maxit=1000):
+    if len(y) == 1:
+        return y
+
     for j in range(maxit):
         dy = np.diff(y)
         for i in range(1,y.size-1):
@@ -261,19 +264,21 @@ def NBPplot(V,vmin,vmax,colors,fname):
     Y = []; L = []
     for key in V:
         if key == "Benchmark": continue
-        if V[key].time[0] > V["Benchmark"].time[0]+10: continue
+        # 2021/04/03 YW Seems uncessary?
+        ##if V[key].time[0] > V["Benchmark"].time[0]+10: continue
         L.append(key)
         Y.append(V[key].data[-1])
     Y = np.asarray(Y); L = np.asarray(L)
     ind = np.argsort(Y)
     Y = Y[ind]; L = L[ind]
-            
+
     fig = plt.figure(figsize=(11.8,5.8))
     ax  = fig.add_subplot(1,1,1,position=[0.06,0.06,0.8,0.92])
     data_range = vmax-vmin
     fig_height = fig.get_figheight()
     font_size  = 10
     dy = 0.05*data_range
+
     y = SpaceLabels(Y.copy(),data_range/fig_height*font_size/50.)
     v = V["Benchmark"]
     for i in range(L.size):

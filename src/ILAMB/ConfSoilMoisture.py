@@ -429,14 +429,14 @@ class ConfSoilMoisture(Confrontation):
 
                 # vertical integrated analysis
                 print(obs)
-                z = obs.integrateInDepth(z0 = obs.depths[0]-1., zf = obs.depths[-1]+1., mean = True)
+                z = obs.integrateInDepth(z0 = obs.depth[0]-1., zf = obs.depth[-1]+1., mean = True)
                 obs_layerint = Variable(name = "layerint", unit = z.unit, data = z.data,
                                         time = t, time_bnds = tb, 
                                         lat = z.lat, lat_bnds  = z.lat_bnds,
                                         lon  = z.lon, lon_bnds  = z.lon_bnds)
                 obs_timeint = obs_layerint.integrateInTime(mean = True)
                 if mod.layered:
-                    z = mod.integrateInDepth(z0 = obs.depths[0]-1., zf = obs.depths[-1]+1., mean = True)
+                    z = mod.integrateInDepth(z0 = obs.depth[0]-1., zf = obs.depth[-1]+1., mean = True)
                 else:
                     z = mod
                 mod_layerint = Variable(name = "layerint", unit = z.unit, data = z.data,

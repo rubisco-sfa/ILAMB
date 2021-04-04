@@ -9,6 +9,7 @@ from . import ilamblib as il
 from . import Post as post
 import numpy as np
 import matplotlib.pyplot as plt
+import warnings
 
 def _shiftLon(lon):
     return (lon<=180)*lon + (lon>180)*(lon-360) + (lon<-180)*360
@@ -833,9 +834,13 @@ class Variable:
         can be changed by specifying the density when calling the
         function.
 
+        2021/03/21
         For soil moisture, there is often requirement to convert 
         between kg m-2 and m3 m-3. This conversion is achieved here using
         the depth property.
+        
+        2021/04/03
+        Leaf area index: if "none", treat as 1.
 
         Parameters
         ----------
@@ -867,6 +872,10 @@ class Variable:
                 args.append(range(self.lat.size))
                 args.append(range(self.lon.size))
             return np.ix_(*args)
+
+        if self.unit.lower() == "none":
+            warnings.warn('Treat ' + self.unit + ' as 1.')
+            self.unit = "1"
 
         if unit is None: return self
         src_unit = Unit(self.unit)

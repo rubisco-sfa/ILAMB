@@ -391,6 +391,7 @@ class Scoreboard():
         global models
         global global_scores
         global section
+        
         rel_tree = GenerateRelationshipTree(self,M)
         global_scores = []
         models  = [m.name for m in M]
