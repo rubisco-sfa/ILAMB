@@ -1,0 +1,55 @@
+{
+  "settings": {
+    "name": "Sample",
+    "driver": "cmec-driver/sample.sh",
+    "async": "MPI",
+    "long_name": "ILAMB sample case",
+    "description": "Sample configuration for testing ILAMB. Data available at https://www.ilamb.org/Downloads/minimal_ILAMB_data.tgz",
+    "runtime": {
+      "ILAMB": 2.5
+    }
+  },
+  "varlist": {
+    "rsus": {
+      "long_name": "Surface Upwelling Shortwave Radiation",
+      "units": "W m-2",
+      "frequency": "mon"
+    },
+    "rsds": {
+      "long_name": "Surface Downwelling Shortwave Radiation",
+      "units": "W m-2",
+      "frequency": "mon"
+    }
+  },
+  "obslist": {
+    "CERES EBAF": {
+      "version": "2014",
+      "long_name": "derived CERES EBAF Radiation",
+      "description": "This product is generated from monthly 1 degree CERES EBAF Radiation observations"
+    }
+  },
+  "coordinates": {
+    "max_time_range": "year",
+    "min_time_range": "mon"
+  },
+  "default_parameters": {
+    "cfg": {
+      "Radiation and Energy Cycle": {
+        "bgcolor": "#FFECE6",
+        "Surface Upward SW Radiation": {
+          "variable": "rsus",
+          "CERES": {
+            "source": "DATA/rsus/CERES/rsus_0.5x0.5.nc"
+          }
+        },
+        "Albedo": {
+          "variable": "albedo",
+          "derived": "rsus/rsds",
+          "CERES": {
+            "source": "DATA/albedo/CERES/albedo_0.5x0.5.nc"
+          }
+        }
+      }
+    }
+  }
+}

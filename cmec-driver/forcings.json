@@ -1,0 +1,43 @@
+{
+    "settings": {
+        "name": "forcings",
+        "driver": "cmec-driver/forcings.sh",
+        "async": null,
+        "long_name": "Forcings",
+        "description": "Main ILAMB metrics driver",
+        "runtime": {"ILAMB": 2.5}
+    },
+    "varlist": {
+        "": {
+            "long_name": "",
+            "units": "",
+            "frequency": ""
+        }
+    },
+    "obslist": {
+        "": {
+            "version": "",
+            "long_name": "",
+            "description": ""
+        }
+    },
+    "coordinates": {
+        "max_time_range": "",
+        "min_time_range": ""
+    },
+    "default_parameters": {
+        "cfg": {
+            "Forcings": {
+                "Surface Air Temperature": {
+                    "variable": "tas",
+                    "CRU": {"source": "obs/DATA/tas/CRU4.02/tas.nc"}
+                },
+                "Precipitation": {
+                    "variable": "pr",
+                    "GPCP2": {"source": "obs/DATA/pr/GPCPv2.3/pr.nc"}
+                }
+            }
+        },
+        "regions": ["global"]
+    }
+}

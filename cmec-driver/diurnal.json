@@ -1,0 +1,70 @@
+{
+  "settings": {
+    "name": "Diurnal",
+    "driver": "cmec-driver/diurnal.sh",
+    "async": null,
+    "long_name": "ILAMB Diurnal configuration",
+    "description": "Diurnal confrontations: Hydrology Cycle, Latent Heat, Sensible Heat, and Surface Air Temperature",
+    "runtime": {
+      "ILAMB": 2.5
+    }
+  },
+  "varlist": {
+    "": {
+      "long_name": "",
+      "units": "",
+      "frequency": ""
+    }
+  },
+  "obslist": {
+    "": {
+      "version": "",
+      "long_name": "",
+      "description": ""
+    }
+  },
+  "coordinates": {
+    "max_time_range": "",
+    "min_time_range": ""
+  },
+  "default_parameters": {
+    "cfg": {
+      "Hydrology Cycle": {
+        "bgcolor": "#E6F9FF",
+        "Latent Heat": {
+          "variable": "hfls",
+          "ctype": "ConfDiurnal",
+          "AmerifluxHR": {
+            "source": "DATA/Ameriflux/hfls_ameriflux_hr.nc"
+          },
+          "AmerifluxHH": {
+            "source": "DATA/Ameriflux/hfls_ameriflux_hh.nc"
+          }
+        },
+        "Sensible Heat": {
+          "variable": "hfss",
+          "ctype": "ConfDiurnal",
+          "AmerifluxHR": {
+            "source": "DATA/Ameriflux/hfss_ameriflux_hr.nc"
+          },
+          "AmerifluxHH": {
+            "source": "DATA/Ameriflux/hfss_ameriflux_hh.nc"
+          }
+        }
+      },
+      "Forcings": {
+        "bgcolor": "#EDEDED",
+        "Surface Air Temperature": {
+          "variable": "tas",
+          "ctype": "ConfDiurnal",
+          "AmerifluxHR": {
+            "source": "DATA/Ameriflux/tas_ameriflux_hr.nc"
+          },
+          "AmerifluxHH": {
+            "source": "DATA/Ameriflux/tas_ameriflux_hh.nc"
+          }
+        }
+      }
+    }
+  }
+}
