@@ -11,10 +11,17 @@ def write_ilamb_cfg(param_file,cfdict,lev=0):
     from dictionary in cmec.json.
     Each nested dictionary is treated as a new sub section (h1, h2,
     or a data source)
-    Parameters:
-    param_file: open parameter file to write to
-    cfdict: dictionary with the configuration file contents
-    lev: counter that keeps track of the heading level"""
+
+    Parameters
+    ----------
+    param_file: str
+        open parameter file to write to
+    cfdict: str
+        dictionary with the configuration file contents
+    lev: int
+        counter that keeps track of the heading level
+
+    """
     head = {0: "h1: ", 1: "h2: ", 2: ""}
     for key in cfdict:
         if isinstance(cfdict[key], str):

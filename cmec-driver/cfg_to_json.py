@@ -4,12 +4,17 @@ cfg_to_json.py
 This script writes the contents of an ILAMB configuration file
 to the default parameters section of a cmec-driver settings json.
 
-Usage:
+Usage
+-----
     python cfg_to_json.py <filename> <settings_file>
 
-Parameters:
-    filename: path to ILAMB config file to import
-    settings_file: path to cmec settings JSON to import
+Parameters
+----------
+    filename: str
+        path to ILAMB config file to import
+    settings_file: str
+        path to cmec settings JSON to write config to
+
 """
 
 import json
