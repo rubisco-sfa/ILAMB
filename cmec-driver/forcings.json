@@ -2,7 +2,7 @@
     "settings": {
         "name": "forcings",
         "driver": "cmec-driver/forcings.sh",
-        "async": null,
+        "async": "MPI",
         "long_name": "Forcings",
         "description": "Main ILAMB metrics driver",
         "runtime": {"ILAMB": 2.5}

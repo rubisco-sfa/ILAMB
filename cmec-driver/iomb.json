@@ -2,7 +2,7 @@
   "settings": {
     "name": "IOMB",
     "driver": "cmec-driver/iomb.sh",
-    "async": null,
+    "async": "MPI",
     "long_name": "IOMB configuration",
     "description": "Confrontations for the ocean benchmarking package",
     "runtime": {

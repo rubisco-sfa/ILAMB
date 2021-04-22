@@ -2,7 +2,7 @@
   "settings": {
     "name": "ILAMB",
     "driver": "cmec-driver/ilamb.sh",
-    "async": null,
+    "async": "MPI",
     "long_name": "ILAMB configuration",
     "description": "Basic ILAMB configuration",
     "runtime": {

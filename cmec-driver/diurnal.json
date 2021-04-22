@@ -2,7 +2,7 @@
   "settings": {
     "name": "Diurnal",
     "driver": "cmec-driver/diurnal.sh",
-    "async": null,
+    "async": "MPI",
     "long_name": "ILAMB Diurnal configuration",
     "description": "Diurnal confrontations: Hydrology Cycle, Latent Heat, Sensible Heat, and Surface Air Temperature",
     "runtime": {
