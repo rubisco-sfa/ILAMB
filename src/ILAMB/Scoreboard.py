@@ -760,8 +760,8 @@ class Scoreboard():
 <html lang="en">
 <head>
    <meta charset="utf-8" />
-   <script type="text/javascript" src="https://cdn.jsdelivr.net/gh/climatemodeling/unified-dashboard@lmtUDConfig/dist/js/lmtud_bundle.min.js"></script>
-   <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/climatemodeling/unified-dashboard@lmtUDConfig/dist/css/lmtud_bundle.min.css">
+   <script type="text/javascript" src="https://cdn.jsdelivr.net/gh/climatemodeling/unified-dashboard@1.0.0/dist/js/lmtud_bundle.min.js"></script>
+   <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/climatemodeling/unified-dashboard@1.0.0/dist/css/lmtud_bundle.min.css">
 </head>
 <body>
     <nav id="menu" class="menu">
