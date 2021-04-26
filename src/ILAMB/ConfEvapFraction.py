@@ -143,10 +143,12 @@ class ConfEvapFraction(Confrontation):
             # Encode some names and colors
             fcm.mod_dset.setncatts({"name" :m.name,
                                     "color":m.color,
+                                    "weight":self.cweight,                                    
                                     "complete":0})
             if self.master:
                 fcm.obs_dset.setncatts({"name" :"Benchmark",
                                         "color":np.asarray([0.5,0.5,0.5]),
+                                        "weight":self.cweight,
                                         "complete":0})
 
             # Read in some options and run the mean state analysis

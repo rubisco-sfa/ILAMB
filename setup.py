@@ -101,6 +101,7 @@ setup(
              'bin/ilamb-setup'],
     zip_safe=False,
     install_requires=['numpy>=1.11.0',
+                      'pandas>=1.0.0',
                       'matplotlib>=2.2',
                       'cartopy>=0.17.0',
                       'netCDF4>=1.1.4',

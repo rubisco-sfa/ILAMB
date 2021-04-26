@@ -137,12 +137,14 @@ def ParseModelSetup(model_setup,models=[],verbose=False,filter="",regex="",model
             mname      = None
             mdir       = None
             model_year = None
+            mgrp       = ""
             if len(line) >= 2:
                 mname  = line[0].strip()
                 mdir   = line[1].strip()
                 # if mdir not a directory, then maybe path is relative to ILAMB_ROOT
                 if not os.path.isdir(mdir):
                     mdir = os.path.join(os.environ["ILAMB_ROOT"],mdir).strip()
+                if len(line) == 3: mgrp = line[2].strip()
             if len(line) == 4:
                 model_year = [float(line[2].strip()),float(line[3].strip())]
             max_model_name_len = max(max_model_name_len,len(mname))
@@ -153,7 +155,7 @@ def ParseModelSetup(model_setup,models=[],verbose=False,filter="",regex="",model
                     m = pickle.load(infile)
             else:
                 try:
-                    m = ModelResult(mdir, modelname = mname, filter=filter, regex=regex, model_year = model_year)
+                    m = ModelResult(mdir, modelname = mname, filter=filter, regex=regex, model_year = model_year, group = mgrp)
                 except Exception as ex:
                     if log: logger.debug("[%s]" % mname,format_exc())
                     continue
@@ -627,6 +629,7 @@ if len(args.study_limits) == 2:
     args.study_limits[1] += 1
     for c in C: c.study_limits = (np.asarray(args.study_limits)-1850)*365.
 Cf = FilterConfrontationList(C,args.confront)
+if rank == 0: os.system("cp %s %s" % (args.config[0],os.path.join(args.build_dir[0],"ilamb.cfg")))
 
 # Setup logging
 logger    = logging.getLogger("%i" % comm.rank)
@@ -675,7 +678,9 @@ if not args.skip_plots:
     W = BuildLocalWorkList(M,C,skip_cache=False)
     WorkPost(M,C,W,S,not args.quiet)
 
-    if rank==0: S.createHtml(M)
+if rank==0:
+    S.createHtml(M)
+    S.createUDDashboard()
 
 sys.stdout.flush(); comm.Barrier()
 
@@ -696,7 +701,7 @@ if rank==0:
 
 if rank==0:
     S.dumpScores(M,"scores.csv")
-    S.harvestInformation()
+    S.harvestInformation(M)
     
 if (rank == 0              and
     ierr_reduced.max() > 0 and

@@ -147,6 +147,7 @@ class Confrontation(object):
         self.keywords       = keywords
         self.extents        = np.asarray([[-90.,+90.],[-180.,+180.]])
         self.study_limits   = []
+        self.cweight         = 1
         
         # Make sure the source data exists
 
@@ -354,10 +355,12 @@ class Confrontation(object):
             # Encode some names and colors
             fcm.mod_dset.setncatts({"name" :m.name,
                                     "color":m.color,
+                                    "weight":self.cweight,
                                     "complete":0})
             if self.master:
                 fcm.obs_dset.setncatts({"name" :"Benchmark",
                                         "color":np.asarray([0.5,0.5,0.5]),
+                                        "weight":self.cweight,
                                         "complete":0})
 
             # Read in some options and run the mean state analysis
@@ -1141,7 +1144,7 @@ class Confrontation(object):
                 # Analysis over regions
                 lim_dep  = [dep_min,dep_max]
                 lim_ind  = [ind_min,ind_max]
-                longname = c.longname.split('/')[0]
+                longname = c.longname.replace("/","|") # we want the source too, but netCDF doesn't like the '/'
                 for region in self.regions:
                     ref_dist = _buildDistributionResponse(ref_ind,ref_dep,ind_lim=lim_ind,dep_lim=lim_dep,region=region)
                     com_dist = _buildDistributionResponse(com_ind,com_dep,ind_lim=lim_ind,dep_lim=lim_dep,region=region)
@@ -1177,7 +1180,7 @@ class Confrontation(object):
 
                     # Score the functional response
                     score = _scoreFunction(ref_dist[3],com_dist[3])
-                    sname = "%s RMSE Score %s" % (longname,region)
+                    sname = "%s Score %s" % (longname,region)
                     if sname in scalars.variables:
                         scalars.variables[sname][0] = score
                     else:

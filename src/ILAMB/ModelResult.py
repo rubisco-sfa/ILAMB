@@ -58,7 +58,7 @@ class ModelResult():
         used to shift model times, all model years at model_year[0]
         are shifted to model_year[1]
     """
-    def __init__(self,path,modelname="unamed",color=(0,0,0),filter="",regex="",model_year=None,paths=None):
+    def __init__(self,path,modelname="unamed",color=(0,0,0),filter="",regex="",model_year=None,paths=None,description="",group=""):
         self.path           = path
         self.color          = color
         self.filter         = filter
@@ -75,6 +75,8 @@ class ModelResult():
         self.names          = None
         self.extents        = np.asarray([[-90.,+90.],[-180.,+180.]])
         self.paths          = paths
+        self.description    = description
+        self.group          = group
         self._findVariables()
         self._getGridInformation()
 
@@ -101,6 +103,8 @@ class ModelResult():
         variables = {}
         names     = {}
         paths     = self.paths if self.paths is not None else [self.path]
+        experiment_id = None
+        source_id = None
         for path in paths:
             for subdir, dirs, files in os.walk(path,followlinks=True):
                 for fileName in files:
@@ -117,6 +121,12 @@ class ModelResult():
                         logger.debug("[%s] Error opening file %s" % (self.name,pathName))
                         continue
 
+                    # harvest some model information
+                    if experiment_id is None and "experiment_id" in dataset.ncattrs():
+                        experiment_id = dataset.experiment_id
+                    if source_id is None and "source_id" in dataset.ncattrs():
+                        source_id = dataset.source_id
+                        
                     # populate dictionary for which variables are in which files
                     for key in dataset.variables.keys():
                         if key not in variables:
@@ -132,6 +142,13 @@ class ModelResult():
                                 names[key] = v.standard_name
                                 continue
 
+        # modify the description if none exists
+        if self.description == "":
+            d = []
+            if source_id is not None: d.append(source_id)
+            if experiment_id is not None: d.append(experiment_id)
+            self.description = " ".join(d)
+            
         # determine spatial extents
         lats = [key for key in variables.keys() if (key.lower().startswith("lat" ) or
                                                     key.lower().  endswith("lat" ))]

@@ -816,13 +816,13 @@ class ConfCO2(Confrontation):
 
         # Write out the intermediate variables
         with Dataset(os.path.join(self.output_path,"%s_%s.nc" % (self.name,m.name)),mode="w") as results:
-            results.setncatts({"name" :m.name, "color":m.color})
+            results.setncatts({"name" :m.name, "color":m.color, "weight":self.cweight})
             for v in [mod,mcyc,miav,mcycf,mod_maxp,mod_minp,mod_amp,Samp,Siav,Smax,Smin]:
                 v.toNetCDF4(results,group="MeanState")
             results.setncattr("complete",1)
         if not self.master: return
         with Dataset(os.path.join(self.output_path,"%s_Benchmark.nc" % self.name),mode="w") as results:
-            results.setncatts({"name" :"Benchmark", "color":np.asarray([0.5,0.5,0.5])})
+            results.setncatts({"name" :"Benchmark", "color":np.asarray([0.5,0.5,0.5]),"weight":self.cweight})
             for v in [obs,ocyc,oiav,ocycf,obs_maxp,obs_minp,obs_amp]:
                 v.toNetCDF4(results,group="MeanState")
             results.setncattr("complete",1)

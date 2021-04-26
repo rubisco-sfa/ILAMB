@@ -138,7 +138,7 @@ class ConfSoilCarbon(Confrontation):
             plt.close()
     
             with Dataset("%s/%s_Benchmark.nc" % (self.output_path,self.name),mode="w") as results:
-                results.setncatts({"name" :"Benchmark", "color":np.asarray([0.5,0.5,0.5]),"complete":0})
+                results.setncatts({"name" :"Benchmark", "color":np.asarray([0.5,0.5,0.5]),"weight":self.cweight,"complete":0})
                 p = r.dist["default"][5]
                 Q10 = 10**(-10*(np.polyval(np.polyder(p),T10)))
                 for q,t in zip(Q10,T10):
@@ -172,7 +172,7 @@ class ConfSoilCarbon(Confrontation):
         plt.close()
         
         with Dataset("%s/%s_%s.nc" % (self.output_path,self.name,m.name),mode="w") as results:
-            results.setncatts({"name" :m.name, "color":m.color,"complete":0})
+            results.setncatts({"name" :m.name, "color":m.color,"weight":self.cweight,"complete":0})
             mod_p = mod_r.dist["default"][5]
             Q10 = 10**(-10*(np.polyval(np.polyder(mod_p),T10)))
             for q,t in zip(Q10,T10):
