@@ -175,24 +175,12 @@ class ModelResult():
         area_name = None
         area_name = "area"      if "area"      in self.variables.keys() else area_name
         area_name = "areacella" if "areacella" in self.variables.keys() else area_name
-        if area_name is not None:
-            with Dataset(self.variables[area_name][0]) as f:
-                A = f.variables[area_name]
-                unit = Unit(A.units) if "units" in A.ncattrs() else Unit("m2")
-                self.cell_areas = unit.convert(A[...],"m2",inplace=True)
-        else:
-            if not ("lat_bnds" in self.variables.keys() and
-                    "lon_bnds" in self.variables.keys()): return
-            with Dataset(self.variables["lat_bnds"][0]) as f:
-                x = f.variables["lat_bnds"][...]
-            with Dataset(self.variables["lon_bnds"][0]) as f:
-                y = f.variables["lon_bnds"][...]
-                s = y.mean(axis=1).argmin()
-                y = np.roll(_shiftLon(y),-s,axis=0)
-                if y[ 0,0] > y[ 0,1]: y[ 0,0] = -180.
-                if y[-1,0] > y[-1,1]: y[-1,1] = +180.
-            self.cell_areas = il.CellAreas(None,None,lat_bnds=x,lon_bnds=y)
-            
+        if area_name is None: return
+        with Dataset(self.variables[area_name][0]) as f:
+            A = f.variables[area_name]
+            unit = Unit(A.units) if "units" in A.ncattrs() else Unit("m2")
+            self.cell_areas = unit.convert(A[...],"m2",inplace=True)
+
         # Now we do the same for land fractions
         frac_name = None
         frac_name = "landfrac" if "landfrac" in self.variables.keys() else frac_name
