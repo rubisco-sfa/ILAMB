@@ -208,6 +208,8 @@ class Variable:
             if self.lon_bnds is None: self.lon_bnds = _createBnds(self.lon)
             
             # Fix potential problems with rolling the axes of the lon_bnds
+            self.lat      = self.lat     .clip(- 90,+ 90)
+            self.lon      = self.lon     .clip(-180,+180)
             self.lat_bnds = self.lat_bnds.clip(- 90,+ 90)
             self.lon_bnds = self.lon_bnds.clip(-180,+180)
             
