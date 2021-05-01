@@ -440,6 +440,7 @@ class Variable:
 
         # find which time bounds are included even partially in the interval [z0,zf]
         depth_bnds = np.copy(self.depth_bnds)
+
         ind        = np.where((z0<depth_bnds[:,1])*(zf>depth_bnds[:,0]))[0]
         depth_bnds[(z0>depth_bnds[:,0])*(z0<depth_bnds[:,1]),0] = z0
         depth_bnds[(zf>depth_bnds[:,0])*(zf<depth_bnds[:,1]),1] = zf
@@ -480,7 +481,6 @@ class Variable:
         name = self.name + "_integrated_over_depth"
 
         if mean:
-
             # divide thru by the non-masked amount of time, the units
             # can remain as input because we integrate over time and
             # then divide by the time interval in the same units
@@ -492,9 +492,7 @@ class Variable:
             np.seterr(over='ignore',under='ignore')
             integral = integral / dz
             np.seterr(over='raise' ,under='raise' )
-
         else:
-
             # if not a mean, we need to potentially handle unit conversions
             unit0    = Unit("m")*unit
             unit     = Unit(unit0.format().split()[-1])

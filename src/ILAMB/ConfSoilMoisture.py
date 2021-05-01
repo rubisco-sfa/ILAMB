@@ -1,149 +1,67 @@
+from . import ilamblib as il
+from .Variable import *
+from .Regions import Regions
+from .constants import space_opts,time_opts,mid_months,bnd_months
+import os,glob,re
+from netCDF4 import Dataset
+from . import Post as post
+import pylab as plt
+from matplotlib.colors import LogNorm
+from mpl_toolkits.axes_grid1 import make_axes_locatable
+from mpi4py import MPI
+from sympy import sympify
+import cftime as cf
 from .Confrontation import getVariableList
 from .Confrontation import Confrontation
-from .constants import earth_rad,mid_months,lbl_months,bnd_months
-from .Variable import Variable
-from .Regions import Regions
-from . import ilamblib as il
-from . import Post as post
-from netCDF4 import Dataset
-from copy import deepcopy
-import pylab as plt
-import numpy as np
-import os,glob,re
-from sympy import sympify
-from cf_units import Unit
 
-from mpi4py import MPI
+
 import logging
 logger = logging.getLogger("%i" % MPI.COMM_WORLD.rank)
-
-def VariableReduce(var,region="global",time=None,depth=None,lat=None,lon=None):
-    ILAMBregions = Regions()
-    out = deepcopy(var)
-    out.data.mask += ILAMBregions.getMask(region,out)
-    if time  is not None:
-        out = out.integrateInTime (t0=time[0] ,tf=time[1] ,mean=True)
-    if depth is not None and var.layered:
-        out = out.integrateInDepth(z0=depth[0],zf=depth[1],mean=True)
-    if lat   is not None:
-        lat0        = np.argmin(np.abs(var.lat-lat[0]))
-        latf        = np.argmin(np.abs(var.lat-lat[1]))+1
-        wgt         = earth_rad*(np.sin(var.lat_bnds[:,1])-np.sin(var.lat_bnds[:,0]))[lat0:latf]
-        np.seterr(over='ignore',under='ignore')
-        out.data    = np.ma.average(out.data[...,lat0:latf,:],axis=-2,weights=wgt/wgt.sum())
-        np.seterr(over='raise',under='raise')
-        out.lat     = None
-        out.lat_bnd = None
-        out.spatial = False
-    if lon   is not None:
-        lon0        = np.argmin(np.abs(var.lon-lon[0]))
-        lonf        = np.argmin(np.abs(var.lon-lon[1]))+1
-        wgt         = earth_rad*(var.lon_bnds[:,1]-var.lon_bnds[:,0])[lon0:lonf]
-        np.seterr(over='ignore',under='ignore')
-        out.data    = np.ma.average(out.data[...,lon0:lonf],axis=-1,weights=wgt/wgt.sum())
-        np.seterr(over='raise',under='raise')
-        out.lon     = None
-        out.lon_bnd = None
-        out.spatial = False
-    return out
-
-def TimeLatBias(ref,com):
-    # composite depth axis
-    d0 = max(ref.depth_bnds.min(),com.depth_bnds.min())
-    df = min(ref.depth_bnds.max(),com.depth_bnds.max())
-    d  = np.unique(np.hstack([ref.depth_bnds.flatten(),com.depth_bnds.flatten()]))
-    d  = d[(d>=d0)*(d<=df)]
-    db = np.asarray([d[:-1],d[1:]]).T
-    d  = db.mean(axis=1)
-    # composite lat axis
-    l0 = max(ref.lat_bnds.min(),com.lat_bnds.min())
-    lf = min(ref.lat_bnds.max(),com.lat_bnds.max())
-    l  = np.unique(np.hstack([ref.lat_bnds.flatten(),com.lat_bnds.flatten()]))
-    l  = l[(l>=l0)*(l<=lf)]
-    lb = np.asarray([l[:-1],l[1:]]).T
-    l  = lb.mean(axis=1)
-    # interpolation / difference
-    data  = il.NearestNeighborInterpolation(com.depth,com.lat,com.data,d,l)
-    data -= il.NearestNeighborInterpolation(ref.depth,ref.lat,ref.data,d,l)
-    area  = np.diff(db)[:,np.newaxis] * (earth_rad*(np.sin(lb[:,1])-np.sin(lb[:,0])))
-    return Variable(name  = ref.name.replace("timelonint","timelonbias"),
-                    unit  = ref.unit,
-                    data  = data,
-                    area  = area,
-                    lat   = l,
-                    depth = d,
-                    lat_bnds   = lb,
-                    depth_bnds = db)
-
-def CycleBias(ref,com):
-    # composite depth axis
-    d0 = max(ref.depth_bnds.min(),com.depth_bnds.min())
-    df = min(ref.depth_bnds.max(),com.depth_bnds.max())
-    d  = np.unique(np.hstack([ref.depth_bnds.flatten(),com.depth_bnds.flatten()]))
-    d  = d[(d>=d0)*(d<=df)]
-    db = np.asarray([d[:-1],d[1:]]).T
-    d  = db.mean(axis=1)
-    # interpolation / difference
-    data  = il.NearestNeighborInterpolation(com.time,com.depth,com.data,com.time,d)
-    data -= il.NearestNeighborInterpolation(ref.time,ref.depth,ref.data,ref.time,d)
-    return Variable(name  = ref.name.replace("cycle","cyclebias"),
-                    unit  = ref.unit,
-                    data  = data,
-                    time  = mid_months,
-                    time_bnds = np.asarray([bnd_months[:-1],bnd_months[1:]]).T,
-                    depth      = d,
-                    depth_bnds = db)
-
 
 
 class ConfSoilMoisture(Confrontation):
 
     def __init__(self,**keywords):
-
         # Calls the regular constructor
         super(ConfSoilMoisture,self).__init__(**keywords)
 
         # Get/modify depths
-        self.depths = np.asarray(self.keywords.get("depths",[0,100,250]),dtype=float)
         with Dataset(self.source) as dset:
             v = dset.variables[self.variable]
             depth_name = [d for d in v.dimensions if d in ["layer","depth"]]
-
             if len(depth_name) == 0:
-                # if there is no depth dimension, we assume the data is surface
-                self.depths = np.asarray([0],dtype=float)
+                # if there is no depth dimension, we assume the data is
+                # top 10cm
+                self.depths = np.asarray([[0., .1]],dtype=float)
+                self.depths_units = 'm'
             else:
                 # if there are depths, then make sure that the depths
                 # at which we will compute are in the range of depths
                 # of the data
                 depth_name = depth_name[0]
-                data = dset.variables[dset.variables[depth_name].bounds][...] if "bounds" in dset.variables[depth_name].ncattrs() else dset.variables[depth_name][...]
-                self.depths = self.depths[(self.depths>=data.min())*(self.depths<=data.max())]
 
-        # Setup a html layout for generating web views of the results
-        pages       = []
-        sections    = ["Period Mean at %d [m]" % d for d in self.depths]
-        sections   += ["Mean regional depth profiles"]
-        sections   += ["Overlapping mean regional depth profiles"]
-        sections   += ["Mean regional annual cycle"]
-        sections   += ["Overlapping mean regional annual cycle"]
-        pages.append(post.HtmlPage("MeanState","Mean State"))
-        pages[-1].setHeader("CNAME / RNAME / MNAME")
-        pages[-1].setSections(sections)
-        pages.append(post.HtmlAllModelsPage("AllModels","All Models"))
-        pages[-1].setHeader("CNAME / RNAME")
-        pages[-1].setSections([])
-        pages[-1].setRegions(self.regions)
-        pages.append(post.HtmlPage("DataInformation","Data Information"))
-        pages[-1].setSections([])
-        pages[-1].text = "\n"
-        with Dataset(self.source) as dset:
-            for attr in dset.ncattrs():
-                pages[-1].text += "<p><b>&nbsp;&nbsp;%s:&nbsp;</b>%s</p>\n" % (attr,str(dset.getncattr(attr)).encode('ascii','ignore'))
-        self.layout = post.HtmlLayout(pages,self.longname)
+                if 'bounds' in dset.variables[depth_name].ncattrs():
+                    data = dset.variables[dset.variables[depth_name \
+                                                         ].bounds][...]
+                    self.depths = data
+                    self.depths_units = dset.variables[dset.variables[depth_name \
+                                                                      ].bounds].units
+                else:
+                    data = dset.variables[depth_name][...]
+
+                    self.depths = np.asarray(self.keywords.get("depths_bnds",
+                                                               [[0., .1],
+                                                                [.1, .3],
+                                                                [.3, .5],
+                                                                [.5, 1.]]),
+                                             dtype = float)
+                    self.depths = self.depths[(self.depths[:,1]>=data.min()
+                        )*(self.depths[:,0]<=data.max()), :]
+                    self.depths_units = dset.variables[depth_name].units
 
     def stageData(self,m):
-
+        """ Extract Model data with interpolation to the confrontation
+            depth."""
         mem_slab = self.keywords.get("mem_slab",100000.) # Mb
 
         # peak at the reference dataset without reading much into memory
@@ -227,7 +145,6 @@ class ConfSoilMoisture(Confrontation):
             data    = None
             dnum    = None
             for i in range(ns):
-
                 v = m.extractTimeSeries(self.variable,
                                         alt_vars     = self.alternate_vars,
                                         expression   = self.derived,
@@ -269,26 +186,23 @@ class ConfSoilMoisture(Confrontation):
                            lat_bnds   = v.lat_bnds,
                            lon_bnds   = v.lon_bnds,
                            depth_bnds = v.depth_bnds)
-
             yield obs,mod
 
         # if obs is historical, then we yield slabs of both
         else:
-
             obs_mem *= (mod_tf-mod_t0)/(tf-t0)
             mod_t0 = max(mod_t0,t0)
             mod_tf = min(mod_tf,tf)
             ns   = int(np.floor(max(obs_mem,mod_mem)/mem_slab))+1
             ns   = min(min(max(1,ns),mod_nt),obs_nt)
             logger.info("[%s][%s] staging data in %d slabs" % (self.name,m.name,ns))
-
+            
             # across what times?
             slab_t = (mod_tf-mod_t0)*np.linspace(0,1,ns+1)+mod_t0
             slab_t = np.floor(slab_t / 365)*365 + bnd_months[(np.abs(bnd_months[:,np.newaxis] - (slab_t % 365))).argmin(axis=0)]
-
+            
             obs_tb = None; mod_tb = None
             for i in range(ns):
-
                 # get reference variable
                 obs = Variable(filename       = self.source,
                                variable_name  = self.variable,
@@ -312,7 +226,7 @@ class ConfSoilMoisture(Confrontation):
                                           initial_time = slab_t[i],
                                           final_time   = slab_t[i+1]).trim(t=[slab_t[i],slab_t[i+1]]).convert(obs.unit)
                 if mod_tb is None:
-                    mod_tb = mod.time_bnds[...]
+                    mod_tb = mod.time_bnds
                 else:
                     if np.allclose(mod_tb[-1],mod.time_bnds[0]):
                         mod.data = mod.data[1:]
@@ -321,13 +235,15 @@ class ConfSoilMoisture(Confrontation):
                     assert np.allclose(mod.time_bnds[0,0],mod_tb[-1,1])
                     mod_tb = mod.time_bnds[...]
                 assert obs.time.size == mod.time.size
+                
                 yield obs,mod
+
 
     def confront(self,m):
 
         def _addDepth(v):
-            v.depth = np.asarray([.5])
-            v.depth_bnds = np.asarray([[0.,1.]])
+            v.depth = np.asarray([.05])
+            v.depth_bnds = np.asarray([[0.,.1]])
             shp = list(v.data.shape)
             shp.insert(1,1)
             v.data.shape = shp
@@ -347,595 +263,423 @@ class ConfSoilMoisture(Confrontation):
                                         "color":np.asarray([0.5,0.5,0.5]),
                                         "complete":0})
 
-            # Combined IOMB and one-layer analysis from "Confrontation.py"
+            # Get the depth-integrated observation and model data for each slab.
             obs_timeint = {}; mod_timeint = {}
-            obs_depth   = {}; mod_depth   = {}
-            ocyc        = {}; oN          = {}
-            mcyc        = {}; mN          = {}
-            for depth in self.depths:
-                dlbl = "%d" % depth
-                obs_timeint[dlbl] = []
-                mod_timeint[dlbl] = []
-            for region in self.regions:
-                obs_depth[region] = []
-                mod_depth[region] = []
-            unit = None
-            max_obs = -1e20
+            for dind in range(self.depths.shape[0]):
+                obs_timeint[dind] = []
+                mod_timeint[dind] = []
             for obs,mod in self.stageData(m):
-
                 # if the data has no depth, we assume it is surface
                 if not obs.layered: obs = _addDepth(obs)
                 if not mod.layered: mod = _addDepth(mod)
-                max_obs = max(max_obs,obs.data.max())
-
-                # !!! Here need to add an integration step to perform surface analysis
 
                 # time bounds for this slab
                 tb = obs.time_bnds[[0,-1],[0,1]].reshape((1,2))
                 t  = np.asarray([tb.mean()])
 
-                # mean lat/lon slices at various depths
-                for depth in self.depths:
+                #
+                for dind, z0 in enumerate(self.depths[:, 0]):
+                    zf = self.depths[dind, 1]                    
+                    z = obs.integrateInDepth(z0 = z0, zf = zf, mean = True).integrateInTime(mean = True)
 
-                    dlbl = "%d" % depth
-
-                    # !!! the +/- 1 may be incorrect
-                    z  = obs.integrateInDepth(z0=depth-1.,zf=depth+1,mean=True).integrateInTime(mean=True)
-                    unit = z.unit
-                    obs_timeint[dlbl].append(Variable(name = "timeint%s" % dlbl,
+                    #YW
+                    print('Staging data ... %.2f-%.2f' % (z0, zf))
+                    
+                    obs_timeint[dind].append(Variable(name = "sm%.2f-%.2f" % (z0, zf),
+                                                      unit = z.unit,
+                                                      data = z.data.reshape((1,) +z.data.shape),
+                                                      time = t, time_bnds = tb,
+                                                      lat = z.lat, lat_bnds = z.lat_bnds,
+                                                      lon = z.lon, lon_bnds = z.lon_bnds))
+                    z = mod.integrateInDepth(z0 = z0, zf = zf, mean = True).integrateInTime(mean = True)
+                    mod_timeint[dind].append(Variable(name = "sm%.2f-%.2f" % (z0, zf),
                                                       unit = z.unit,
                                                       data = z.data.reshape((1,)+z.data.shape),
                                                       time = t,     time_bnds = tb,
                                                       lat  = z.lat, lat_bnds  = z.lat_bnds,
                                                       lon  = z.lon, lon_bnds  = z.lon_bnds))
-                    z = mod
-                    if mod.layered: z = z.integrateInDepth(z0=depth-1.,zf=depth+1,mean=True)
-                    z = z.integrateInTime(mean=True)
-                    mod_timeint[dlbl].append(Variable(name = "timeint%s" % dlbl,
-                                                      unit = z.unit,
-                                                      data = z.data.reshape((1,)+z.data.shape),
-                                                      time = t,     time_bnds = tb,
-                                                      lat  = z.lat, lat_bnds  = z.lat_bnds,
-                                                      lon  = z.lon, lon_bnds  = z.lon_bnds))
 
-                # mean
-                for region in self.regions:
-                    z = VariableReduce(obs,region=region,time=tb[0],lon=[-180.,+180.])
-                    z.time = t; z.time_bnds  = tb; z.temporal = True; z.data.shape = (1,)+z.data.shape
-                    obs_depth[region].append(z)
+            # Read in some options and run the mean state analysis
+            mass_weighting = self.keywords.get("mass_weighting",False)
+            skip_rmse      = self.keywords.get("skip_rmse"     ,False)
+            skip_iav       = self.keywords.get("skip_iav"      ,True )
+            skip_cycle     = self.keywords.get("skip_cycle"    ,False)
+            rmse_score_basis = self.keywords.get("rmse_score_basis","cycle")
 
-                    z = VariableReduce(mod,region=region,time=tb[0],lon=[-180.,+180.])
-                    z.time = t; z.time_bnds  = tb; z.temporal = True; z.data.shape = (1,)+z.data.shape
-                    mod_depth[region].append(z)
-
-                # annual cycle in slabs
-                for region in self.regions:
-                    z = obs.integrateInSpace(region=region,mean=True)
-                    if region not in ocyc:
-                        ocyc[region] = np.ma.zeros((12,)+z.data.shape[1:])
-                        oN  [region] = np.ma.zeros((12,)+z.data.shape[1:],dtype=int)
-                    i = (np.abs(mid_months[:,np.newaxis]-(z.time % 365))).argmin(axis=0)
-                    (ocyc[region])[i,...] += z.data
-                    (oN  [region])[i,...] += 1
-
-                    z = mod.integrateInSpace(region=region,mean=True)
-                    if region not in mcyc:
-                        mcyc[region] = np.ma.zeros((12,)+z.data.shape[1:])
-                        mN  [region] = np.ma.zeros((12,)+z.data.shape[1:],dtype=int)
-                    i = (np.abs(mid_months[:,np.newaxis]-(z.time % 365))).argmin(axis=0)
-                    (mcyc[region])[i,...] += z.data
-                    (mN  [region])[i,...] += 1
-
-
-                # vertical integrated analysis
-                print(obs)
-                z = obs.integrateInDepth(z0 = obs.depth[0]-1., zf = obs.depth[-1]+1., mean = True)
-                obs_layerint = Variable(name = "layerint", unit = z.unit, data = z.data,
-                                        time = t, time_bnds = tb, 
-                                        lat = z.lat, lat_bnds  = z.lat_bnds,
-                                        lon  = z.lon, lon_bnds  = z.lon_bnds)
-                obs_timeint = obs_layerint.integrateInTime(mean = True)
-                if mod.layered:
-                    z = mod.integrateInDepth(z0 = obs.depth[0]-1., zf = obs.depth[-1]+1., mean = True)
-                else:
-                    z = mod
-                mod_layerint = Variable(name = "layerint", unit = z.unit, data = z.data,
-                                             time = t, time_bnds = tb,
-                                             lat = z.lat, lat_bnds  = z.lat_bnds,
-                                             lon  = z.lon, lon_bnds  = z.lon_bnds)
-                mod_timeint = mod_layerint.integrateInTime(mean = True)
-
-                # Read in some options and run the mean state analysis
-                mass_weighting = self.keywords.get("mass_weighting",False)
-                skip_rmse      = self.keywords.get("skip_rmse"     ,False)
-                skip_iav       = self.keywords.get("skip_iav"      ,True )
-                skip_cycle     = self.keywords.get("skip_cycle"    ,False)
-                if obs_layerint.spatial:
-                    print(m)
-                    il.AnalysisMeanStateSpace(obs_layerint,mod_layerint,dataset   = fcm.mod_dset,
-                                              regions           = self.regions,
-                                              benchmark_dataset = fcm.obs_dset,
-                                              table_unit        = self.table_unit,
-                                              plot_unit         = self.plot_unit,
-                                              space_mean        = self.space_mean,
-                                              skip_rmse         = skip_rmse,
-                                              skip_iav          = skip_iav,
-                                              skip_cycle        = skip_cycle,
-                                              mass_weighting    = mass_weighting,
-                                              ref_timeint       = obs_timeint,
-                                              com_timeint       = mod_timeint)
-                else:
-                    il.AnalysisMeanStateSites(obs_layerint,mod_layerint,dataset   = fcm.mod_dset,
-                                              regions           = self.regions,
-                                              benchmark_dataset = fcm.obs_dset,
-                                              table_unit        = self.table_unit,
-                                              plot_unit         = self.plot_unit,
-                                              space_mean        = self.space_mean,
-                                              skip_rmse         = skip_rmse,
-                                              skip_iav          = skip_iav,
-                                              skip_cycle        = skip_cycle,
-                                              mass_weighting    = mass_weighting)
-
-            # combine time slabs from the different depths
-            large_bias = float(self.keywords.get("large_bias",0.1*max_obs))
-
-            for dlbl in obs_timeint.keys():
-
-                # period means and bias
-                obs_tmp = il.CombineVariables(obs_timeint[dlbl]).integrateInTime(mean=True)
-                mod_tmp = il.CombineVariables(mod_timeint[dlbl]).integrateInTime(mean=True)
+            for dind in range(self.depths.shape[0]):
+                obs_tmp = il.CombineVariables(obs_timeint[dind])
+                mod_tmp = il.CombineVariables(mod_timeint[dind])
+                print(obs_tmp.name)
+                print(mod_tmp.name)
                 obs_tmp.name = obs_tmp.name.split("_")[0]
                 mod_tmp.name = mod_tmp.name.split("_")[0]
-                bias = obs_tmp.spatialDifference(mod_tmp)
-                bias.name = mod_tmp.name.replace("timeint","bias")
-                mod_tmp.toNetCDF4(fcm.mod_dset,group="MeanState")
-                bias.toNetCDF4(fcm.mod_dset,group="MeanState")
-                bias_score = None
-                if dlbl == "0":
-                    with np.errstate(all="ignore"):
-                        bias_score = Variable(name  = bias.name.replace("bias","biasscore"),
-                                              data  = np.exp(-np.abs(bias.data)/large_bias),
-                                              unit  = "1",
-                                              ndata = bias.ndata,
-                                              lat   = bias.lat, lat_bnds = bias.lat_bnds,
-                                              lon   = bias.lon, lon_bnds = bias.lon_bnds,
-                                              area  = bias.area)
-                        bias_score.toNetCDF4(fcm.mod_dset,group="MeanState")
 
-                for region in self.regions:
-
-                    sval = mod_tmp.integrateInSpace(region=region,mean=True)
-                    sval.name = "Period Mean at %s %s" % (dlbl,region)
-                    sval.toNetCDF4(fcm.mod_dset,group="MeanState")
-
-                    sval = bias.integrateInSpace(region=region,mean=True)
-                    sval.name = "Bias at %s %s" % (dlbl,region)
-                    sval.toNetCDF4(fcm.mod_dset,group="MeanState")
-
-                    if bias_score is not None:
-                        sval = bias_score.integrateInSpace(region=region,mean=True)
-                        sval.name = "Bias Score at %s %s" % (dlbl,region)
-                        sval.toNetCDF4(fcm.mod_dset,group="MeanState")
-
-                if self.master:
-                    obs_tmp.toNetCDF4(fcm.obs_dset,group="MeanState")
-                    for region in self.regions:
-                        sval = obs_tmp.integrateInSpace(region=region,mean=True)
-                        sval.name = "Period Mean at %s %s" % (dlbl,region)
-                        sval.toNetCDF4(fcm.obs_dset,group="MeanState")
-
-            # combine depth/lat slabs for different regions
-            for region in self.regions:
-                mod_tmp = il.CombineVariables(mod_depth[region]).integrateInTime(mean=True)
-                mod_tmp.name = "timelonint_of_%s_over_%s" % (self.variable,region)
-                mod_tmp.toNetCDF4(fcm.mod_dset,group="MeanState")
-                obs_tmp = il.CombineVariables(obs_depth[region]).integrateInTime(mean=True)
-                obs_tmp.name = "timelonint_of_%s_over_%s" % (self.variable,region)
-                mod_bias = TimeLatBias(obs_tmp,mod_tmp)
-                mod_bias.toNetCDF4(fcm.mod_dset,group="MeanState")
-                np.seterr(over='ignore',under='ignore')
-                ocyc[region] = ocyc[region]/(oN[region].clip(1))
-                mcyc[region] = mcyc[region]/(mN[region].clip(1))
-
-                np.seterr(over='raise',under='raise')
-                mcyc[region] = Variable(name = "cycle_of_%s_over_%s" % (self.variable,region),
-                                        unit = mod.unit,
-                                        data = mcyc[region],
-                                        depth = mod.depth,
-                                        depth_bnds = mod.depth_bnds,
-                                        time = mid_months)
-                ocyc[region] = Variable(name = "cycle_of_%s_over_%s" % (self.variable,region),
-                                        unit = obs.unit,
-                                        data = ocyc[region],
-                                        depth = obs.depth,
-                                        depth_bnds = obs.depth_bnds,
-                                        time = mid_months)
-                cyc_bias = CycleBias(ocyc[region],mcyc[region])
-                cyc_bias    .toNetCDF4(fcm.mod_dset,group="MeanState")
-                mcyc[region].toNetCDF4(fcm.mod_dset,group="MeanState")
-                if self.master:
-                    obs_tmp     .toNetCDF4(fcm.obs_dset,group="MeanState")
-                    ocyc[region].toNetCDF4(fcm.obs_dset,group="MeanState")
-
+                if obs_tmp.spatial:
+                    il.AnalysisMeanStateSpace(obs_tmp,mod_tmp,dataset   = fcm.mod_dset,
+                                           regions           = self.regions,
+                                           benchmark_dataset = fcm.obs_dset,
+                                           table_unit        = self.table_unit,
+                                           plot_unit         = self.plot_unit,
+                                           space_mean        = self.space_mean,
+                                           skip_rmse         = skip_rmse,
+                                           skip_iav          = skip_iav,
+                                           skip_cycle        = skip_cycle,
+                                           mass_weighting    = mass_weighting,
+                                           rmse_score_basis  = rmse_score_basis)
+                else:
+                    il.AnalysisMeanStateSites(obs_tmp,mod_tmp,dataset   = fcm.mod_dset,
+                                           regions           = self.regions,
+                                           benchmark_dataset = fcm.obs_dset,
+                                           table_unit        = self.table_unit,
+                                           plot_unit         = self.plot_unit,
+                                           space_mean        = self.space_mean,
+                                           skip_rmse         = skip_rmse,
+                                           skip_iav          = skip_iav,
+                                           skip_cycle        = skip_cycle,
+                                           mass_weighting    = mass_weighting)
             fcm.mod_dset.setncattr("complete",1)
             if self.master: fcm.obs_dset.setncattr("complete",1)
+        logger.info("[%s][%s] Success" % (self.longname,m.name))
+
+
+    def computeOverallScore(self,m):
+        """Computes the overall composite score for a given model.
+
+        This routine opens the netCDF results file associated with
+        this confrontation-model pair, and then looks for a "scalars"
+        group in the dataset as well as any subgroups that may be
+        present. For each grouping of scalars, it will blend any value
+        with the word "Score" in the name to render an overall score,
+        overwriting the existing value if present.
+
+        Parameters
+        ----------
+        m : ILAMB.ModelResult.ModelResult
+            the model results
+
+        """
+
+        def _computeOverallScore(scalars):
+            """Given a netCDF4 group of scalars, blend them into an overall score"""
+            scores     = {}
+            variables = [v for v in scalars.variables.keys() if "Score" in v and "Overall" not in v]
+            for region in self.regions:
+                overall_score  = 0.
+                sum_of_weights = 0.
+                for v in variables:
+                    if region not in v: continue
+                    score = v.replace(region,"").strip()
+                    weight = 1.
+                    if score in self.weight: weight = self.weight[score]
+                    overall_score  += weight*scalars.variables[v][...]
+                    sum_of_weights += weight
+                overall_score /= max(sum_of_weights,1e-12)
+                scores["Overall Score %s" % region] = overall_score
+            return scores
+
+        fname = os.path.join(self.output_path,"%s_%s.nc" % (self.name,m.name))
+        if not os.path.isfile(fname): return
+        with Dataset(fname,mode="r+") as dataset:
+            datasets = [dataset.groups[grp] for grp in dataset.groups if "scalars" not in grp]
+            groups   = [grp                 for grp in dataset.groups if "scalars" not in grp]
+            datasets.append(dataset)
+            groups  .append(None)
+            for dset,grp in zip(datasets,groups):
+                if "scalars" in dset.groups:
+                    scalars = dset.groups["scalars"]
+                    score = _computeOverallScore(scalars)
+                    for key in score.keys():
+                        if key in scalars.variables:
+                            scalars.variables[key][0] = score[key]
+                        else:
+                            Variable(data=score[key],name=key,unit="1").toNetCDF4(dataset,group=grp)
+
+
+    def compositePlots(self):
+        """Renders plots which display information of all models.
+
+        This routine renders plots which contain information from all
+        models. Thus only the master process will run this routine,
+        and only after all analysis has finished.
+
+        """
+        if not self.master: return
+
+        # get the HTML page
+        page = [page for page in self.layout.pages if "MeanState" in page.name][0]
+
+        models = []
+        colors = []
+        corr   = {}
+        std    = {}
+        cycle  = {}
+        has_cycle = False
+        has_std   = False
+        for fname in glob.glob(os.path.join(self.output_path,"*.nc")):
+            dataset = Dataset(fname)
+            if "MeanState" not in dataset.groups: continue
+            dset    = dataset.groups["MeanState"]
+            models.append(dataset.getncattr("name"))
+            colors.append(dataset.getncattr("color"))
+            for region in self.regions:
+                if region not in cycle: cycle[region] = {}
+                if region not in std: std[region] = {}
+                if region not in corr: corr[region] = {}
+
+                for dind, z0 in enumerate(self.depths[:,0]):
+                    zf = self.depths[dind,1]
+                    zstr = '%.2f-%.2f' % (z0, zf)
+
+                    if zstr not in cycle[region]: cycle[region][zstr] = []
+
+                    key = [v for v in dset.variables.keys() if ("cycle_"  in v and zstr in v and region in v)]
+                    if len(key)>0:
+                        has_cycle = True
+                        cycle[region][zstr].append(Variable(filename=fname,groupname="MeanState",
+                                                             variable_name=key[0]))
+
+                    if zstr not in std[region]: std[region][zstr] = []
+                    if zstr not in corr[region]: corr[region][zstr] = []
+
+                    key = []
+                    if "scalars" in dset.groups:
+                        key = [v for v in dset.groups["scalars"].variables.keys() \
+                               if ("Spatial Distribution Score" in v and zstr in v and region in v)]
+                        if len(key) > 0:
+                            has_std = True
+                            sds     = dset.groups["scalars"].variables[key[0]]
+                            corr[region][zstr].append(sds.getncattr("R"  ))
+                            std [region][zstr].append(sds.getncattr("std"))
+
+        # composite annual cycle plot
+        if has_cycle and len(models) > 2:
+            page.addFigure("Spatially integrated regional mean",
+                           "compcycle",
+                           "RNAME_compcycle.png",
+                           side   = "ANNUAL CYCLE",
+                           legend = False)
+
+        for region in self.regions:
+            if region not in cycle: continue
+            fig, axes = plt.subplots(self.depths.shape[0], 1,
+                                     figsize=(6.8,2.8 * self.depths.shape[0]),
+                                     tight_layout=True)
+            for dind, z0 in enumerate(self.depths[:,0]):
+                zf = self.depths[dind, 1]
+                zstr = '%.2f-%.2f' % (z0, zf)
+
+                ax = axes[dind]
+                for name,color,var in zip(models,colors,cycle[region][zstr]):
+                    dy = 0.05*(self.limits["cycle"][region]["max"]-self.limits["cycle"][region]["min"])
+                    var.plot(ax, lw=2, color=color, label=name,
+                             ticks      = time_opts["cycle"]["ticks"],
+                             ticklabels = time_opts["cycle"]["ticklabels"],
+                             vmin       = self.limits["cycle"][region]["min"]-dy,
+                             vmax       = self.limits["cycle"][region]["max"]+dy)
+                    ylbl = time_opts["cycle"]["ylabel"]
+                    if ylbl == "unit": ylbl = post.UnitStringToMatplotlib(var.unit)
+                    ylbl = ylbl + ' ' + zstr + self.depths_units
+                    ax.set_ylabel(ylbl)
+            fig.savefig(os.path.join(self.output_path,"%s_compcycle.png" % (region)))
+            plt.close()
+
+        # plot legends with model colors (sorted with Benchmark data on top)
+        page.addFigure("Spatially integrated regional mean",
+                       "legend_compcycle",
+                       "legend_compcycle.png",
+                       side   = "MODEL COLORS",
+                       legend = False)
+        def _alphabeticalBenchmarkFirst(key):
+            key = key[0].lower()
+            if key == "BENCHMARK": return "A"
+            return key
+        tmp = sorted(zip(models,colors),key=_alphabeticalBenchmarkFirst)
+        fig,ax = plt.subplots()
+        for model,color in tmp:
+            ax.plot(0,0,'o',mew=0,ms=8,color=color,label=model)
+        handles,labels = ax.get_legend_handles_labels()
+        plt.close()
+
+        ncol = np.ceil(float(len(models))/11.).astype(int)
+        if ncol > 0:
+            fig,ax = plt.subplots(figsize=(3.*ncol,2.8),tight_layout=True)
+            ax.legend(handles,labels,loc="upper right",ncol=ncol,fontsize=10,numpoints=1)
+            ax.axis(False)
+            fig.savefig(os.path.join(self.output_path,"legend_compcycle.png"))
+            fig.savefig(os.path.join(self.output_path,"legend_spatial_variance.png"))
+            fig.savefig(os.path.join(self.output_path,"legend_temporal_variance.png"))
+            plt.close()
+
+        # spatial distribution Taylor plot
+        if has_std:
+            for dind, z0 in enumerate(self.depths[:,0]):
+                zf = self.depths[dind, 1]
+                zstr = '%.2f-%.2f' % (z0, zf)
+                page.addFigure("Temporally integrated period mean",
+                               "spatial_variance",
+                               "RNAME_spatial_variance_" + zstr + ".png",
+                               side   = "SPATIAL TAYLOR DIAGRAM",
+                               legend = False)
+            page.addFigure("Temporally integrated period mean",
+                           "legend_spatial_variance",
+                           "legend_spatial_variance.png",
+                           side   = "MODEL COLORS",
+                           legend = False)
+        if "Benchmark" in models: colors.pop(models.index("Benchmark"))
+        for region in self.regions:
+            if not (region in std and region in corr): continue
+
+            for dind, z0 in enumerate(self.depths[:,0]):
+                zf = self.depths[dind, 1]
+                zstr = '%.2f-%.2f' % (z0, zf)
+
+                if not (zstr in std[region] and zstr in corr[region]): continue
+                if len(std[region][zstr]) != len(corr[region][zstr]): continue
+                if len(std[region][zstr]) == 0: continue
+
+                fig = plt.figure(figsize=(6.0,6.0))
+                post.TaylorDiagram(np.asarray(std[region][zstr]),
+                                   np.asarray(corr[region][zstr]),
+                                   1.0,fig,colors)
+                fig.savefig(os.path.join(self.output_path,
+                                         "%s_spatial_variance_%s.png" % (region, zstr)))
+                plt.close()
 
     def modelPlots(self,m):
+        """For a given model, create the plots of the analysis results.
 
-        def _fheight(region):
-            if region in ["arctic","southern"]: return 6.8
-            return 2.8
+        This routine will extract plotting information out of the
+        netCDF file which results from the analysis and create
+        plots. Note that determinePlotLimits should be called before
+        this routine.
 
-        bname  = "%s/%s_Benchmark.nc" % (self.output_path,self.name)
-        fname  = "%s/%s_%s.nc" % (self.output_path,self.name,m.name)
+        """
+        bname     = os.path.join(self.output_path,"%s_Benchmark.nc" % (self.name       ))
+        fname     = os.path.join(self.output_path,"%s_%s.nc"        % (self.name,m.name))
         if not os.path.isfile(bname): return
         if not os.path.isfile(fname): return
 
-        # get the HTML page and set table priorities
+        # get the HTML page
         page = [page for page in self.layout.pages if "MeanState" in page.name][0]
-        page.priority  = [" %d " % d for d in self.depths]
-        page.priority += ["Period","Bias"]
-        page.priority += ["Score","Overall"]
 
-        # model plots
-        cmap = { "timeint"    : self.cmap,
-                 "bias"       : "seismic",
-                 "biasscore"  : "score" }
-        plbl = { "timeint"    : "MEAN",
-                 "bias"       : "BIAS",
-                 "biasscore"  : "BIAS SCORE" }
         with Dataset(fname) as dataset:
             group     = dataset.groups["MeanState"]
             variables = getVariableList(group)
             color     = dataset.getncattr("color")
-            for ptype in ["timeint","bias","biasscore"]:
-                for vname in [v for v in variables if ptype in v]:
-                    var = Variable(filename=fname,variable_name=vname,groupname="MeanState")
-                    try:
-                        z = int(vname.replace(ptype,""))
-                    except:
-                        continue
-                    page.addFigure("Period Mean at %d [m]" % z,
-                                   vname,
-                                   "MNAME_RNAME_%s.png" % vname,
-                                   side   = "MODEL %s AT %d [m]" % (plbl[ptype],z),
-                                   legend = True)
+            for vname in variables:
+                # The other depths will be handled in plotting
+                zstr_0 = '%.2f-%.2f' % (self.depths[0,0], self.depths[0,1])
+                if not zstr_0 in vname: continue
+                
+                # is this a variable we need to plot?
+                pname = vname.split("_")[0]
+                if group.variables[vname][...].size <= 1: continue
+                var = Variable(filename=fname,groupname="MeanState",variable_name=vname)
+
+                if (var.spatial or (var.ndata is not None)) and not var.temporal:
+
+                    # grab plotting options
+                    if pname not in self.limits.keys(): continue
+                    if pname not in space_opts: continue
+                    opts = space_opts[pname]
+
+                    # add to html layout
+                    page.addFigure(opts["section"],
+                                   pname,
+                                   opts["pattern"],
+                                   side   = opts["sidelbl"],
+                                   legend = opts["haslegend"])
+
+                    # plot variable
                     for region in self.regions:
-                        ax = var.plot(None,
-                                      region = region,
-                                      vmin   = self.limits[vname]["min"],
-                                      vmax   = self.limits[vname]["max"],
-                                      cmap   = cmap[ptype],
-                                      land   = 0.750,
-                                      water  = 0.875)
-                        fig = ax.get_figure()
-                        fig.savefig("%s/%s_%s_%s.png" % (self.output_path,m.name,region,vname))
+                        fig, axes = plt.subplots(self.depths.shape[0], 1,
+                                                 figsize = (6.5, 2.8*self.depths.shape[0]))
+
+                        for dind, z0 in enumerate(self.depths[:,0]):
+                            zf = self.depths[dind,1]
+                            zstr = '%.2f-%.2f' % (z0, zf)
+                            ax = axes.flat[dind]
+                            var2 = Variable(filename=fname, groupname = "MeanState",
+                                            variable_name=vname.replace(zstr_0, zstr))
+                            var2.plot(ax, region = region,
+                                      vmin   = self.limits[pname]["min"],
+                                      vmax   = self.limits[pname]["max"],
+                                      cmap   = self.limits[pname]["cmap"])
+                        fig.savefig(os.path.join(self.output_path,"%s_%s_%s.png" % (m.name,region,pname)))
                         plt.close()
 
-        for region in self.regions:
+                    # Jumping through hoops to get the benchmark plotted and in the html output
+                    if self.master and (pname == "timeint" or pname == "phase" or pname == "iav"):
+                        opts = space_opts[pname]
 
-            vname = "timelonint_of_%s_over_%s" % (self.variable,region)
-            if vname in variables:
-                var0 = Variable(filename=bname,variable_name=vname,groupname="MeanState")
-                var  = Variable(filename=fname,variable_name=vname,groupname="MeanState")
-                bias = Variable(filename=fname,variable_name=vname.replace("timelonint","timelonbias"),groupname="MeanState")
-                if region == "global":
-                    page.addFigure("Mean regional depth profiles",
-                                   "timelonint",
-                                   "MNAME_RNAME_timelonint.png",
-                                   side     = "MODEL DEPTH PROFILE",
-                                   legend   = True,
-                                   longname = "Time/longitude averaged profile")
-                    page.addFigure("Overlapping mean regional depth profiles",
-                                   "timelonints",
-                                   "MNAME_RNAME_timelonints.png",
-                                   side     = "MODEL DEPTH PROFILE",
-                                   legend   = True,
-                                   longname = "Overlapping Time/longitude averaged profile")
-                    page.addFigure("Overlapping mean regional depth profiles",
-                                   "timelonbias",
-                                   "MNAME_RNAME_timelonbias.png",
-                                   side     = "MODEL DEPTH PROFILE BIAS",
-                                   legend   = True,
-                                   longname = "Overlapping Time/longitude averaged profile bias")
-                fig,ax = plt.subplots(figsize=(6.8,2.8),tight_layout=True)
-                l   = np.hstack([var .lat_bnds  [:,0],var .lat_bnds  [-1,1]])
-                d0  = np.hstack([var0.depth_bnds[:,0],var0.depth_bnds[-1,1]])
-                d   = np.hstack([var .depth_bnds[:,0],var .depth_bnds[-1,1]])
-                ind = np.all(var.data.mask,axis=0)
-                ind = np.ma.masked_array(range(ind.size),mask=ind,dtype=int)
-                b   = ind.min()
-                e   = ind.max()+1
-                ax.pcolormesh(l[b:(e+1)],d,var.data[:,b:e],
-                              vmin = self.limits["timelonint"]["global"]["min"],
-                              vmax = self.limits["timelonint"]["global"]["max"],
-                              cmap = self.cmap)
-                ax.set_xlabel("latitude")
-                ax.set_ylim((d.max(),d.min()))
-                ax.set_ylabel("depth [m]")
-                fig.savefig("%s/%s_%s_timelonint.png" % (self.output_path,m.name,region))
-                ax.set_ylim((min(d0.max(),d.max()),max(d0.min(),d.min())))
-                fig.savefig("%s/%s_%s_timelonints.png" % (self.output_path,m.name,region))
-                plt.close()
-                fig,ax = plt.subplots(figsize=(6.8,2.8),tight_layout=True)
-                l   = np.hstack([bias.lat_bnds  [:,0],bias.lat_bnds  [-1,1]])
-                d0  = np.hstack([var0.depth_bnds[:,0],var0.depth_bnds[-1,1]])
-                d   = np.hstack([bias.depth_bnds[:,0],bias.depth_bnds[-1,1]])
-                ind = np.all(bias.data.mask,axis=0)
-                ind = np.ma.masked_array(range(ind.size),mask=ind,dtype=int)
-                b   = ind.min()
-                e   = ind.max()+1
-                ax.pcolormesh(l[b:(e+1)],d,bias.data[:,b:e],
-                              vmin = self.limits["timelonbias"]["global"]["min"],
-                              vmax = self.limits["timelonbias"]["global"]["max"],
-                              cmap = "seismic")
-                ax.set_xlabel("latitude")
-                ax.set_ylim((d.max(),d.min()))
-                ax.set_ylabel("depth [m]")
-                ax.set_ylim((min(d0.max(),d.max()),max(d0.min(),d.min())))
-                fig.savefig("%s/%s_%s_timelonbias.png" % (self.output_path,m.name,region))
-                plt.close()
+                        # add to html layout
+                        page.addFigure(opts["section"],
+                                       "benchmark_%s" % pname,
+                                       opts["pattern"].replace("MNAME","Benchmark"),
+                                       side   = opts["sidelbl"].replace("MODEL","BENCHMARK"),
+                                       legend = True)
 
+                        # plot variable
+                        for region in self.regions:
+                            fig, axes = plt.subplots(self.depths.shape[0], 1,
+                                                     figsize = (6.5, 2.8*self.depths.shape[0]))
+                            for dind, z0 in enumerate(self.depths[:,0]):
+                                zf = self.depths[dind,1]
+                                zstr = '%.2f-%.2f' % (z0, zf)
+                                ax = axes.flat[dind]
+                                obs = Variable(filename=bname,groupname="MeanState",
+                                               variable_name=vname.replace(zstr_0, zstr))
+                                obs.plot(ax, region = region,
+                                         vmin   = self.limits[pname]["min"],
+                                         vmax   = self.limits[pname]["max"],
+                                         cmap   = self.limits[pname]["cmap"])
+                            fig.savefig(os.path.join(self.output_path,"Benchmark_%s_%s.png" % (region,pname)))
+                            plt.close()
 
-            vname = "cycle_of_%s_over_%s" % (self.variable,region)
-            if vname in variables:
-                var0 = Variable(filename=bname,variable_name=vname,groupname="MeanState")
-                var  = Variable(filename=fname,variable_name=vname,groupname="MeanState")
-                bias = Variable(filename=fname,variable_name=vname.replace("cycle","cyclebias"),groupname="MeanState")
-                if region == "global":
-                    page.addFigure("Mean regional annual cycle",
-                                   "cycle",
-                                   "MNAME_RNAME_cycle.png",
-                                   side     = "MODEL ANNUAL CYCLE",
-                                   legend   = True,
-                                   longname = "Annual cycle")
-                    page.addFigure("Overlapping mean regional annual cycle",
-                                   "cycles",
-                                   "MNAME_RNAME_cycles.png",
-                                   side     = "MODEL ANNUAL CYCLE",
-                                   legend   = True,
-                                   longname = "Overlapping annual cycle")
-                    page.addFigure("Overlapping mean regional annual cycle",
-                                   "cyclebias",
-                                   "MNAME_RNAME_cyclebias.png",
-                                   side     = "MODEL ANNUAL CYCLE BIAS",
-                                   legend   = True,
-                                   longname = "Overlapping annual cycle bias")
-                fig,ax = plt.subplots(figsize=(6.8,2.8),tight_layout=True)
-                d0  = np.hstack([var0.depth_bnds[:,0],var0.depth_bnds[-1,1]])
-                d   = np.hstack([var .depth_bnds[:,0],var .depth_bnds[-1,1]])
-                ax.pcolormesh(bnd_months,d,var.data.T,
-                              vmin = self.limits["cycle"]["global"]["min"],
-                              vmax = self.limits["cycle"]["global"]["max"],
-                              cmap = self.cmap)
-                ax.set_xticks     (mid_months)
-                ax.set_xticklabels(lbl_months)
-                ax.set_ylim((d.max(),d.min()))
-                ax.set_ylabel("depth [m]")
-                fig.savefig("%s/%s_%s_cycle.png" % (self.output_path,m.name,region))
-                ax.set_ylim((min(d0.max(),d.max()),max(d0.min(),d.min())))
-                fig.savefig("%s/%s_%s_cycles.png" % (self.output_path,m.name,region))
-                plt.close()
-                fig,ax = plt.subplots(figsize=(6.8,2.8),tight_layout=True)
-                ax.pcolormesh(bnd_months,
-                              np.hstack([bias.depth_bnds[:,0],bias.depth_bnds[-1,1]]),
-                              bias.data.T,
-                              vmin = self.limits["cyclebias"]["global"]["min"],
-                              vmax = self.limits["cyclebias"]["global"]["max"],
-                              cmap = "seismic")
-                ax.set_xticks     (mid_months)
-                ax.set_xticklabels(lbl_months)
-                ax.set_ylim((d.max(),d.min()))
-                ax.set_ylabel("depth [m]")
-                ax.set_ylim((min(d0.max(),d.max()),max(d0.min(),d.min())))
-                fig.savefig("%s/%s_%s_cyclebias.png" % (self.output_path,m.name,region))
-                plt.close()
+                    if not (var.spatial or (var.ndata is not None)) and var.temporal:
+                        # grab the benchmark dataset to plot along with
+                        try:
+                            obs = Variable(filename=bname,groupname="MeanState",
+                                           variable_name=vname).convert(var.unit)
+                        except:
+                            continue
 
+                        # grab plotting options
+                        if pname not in time_opts: continue
+                        opts = time_opts[pname]
 
-        # benchmark plots
-        if not self.master: return
-        with Dataset(bname) as dataset:
-            group     = dataset.groups["MeanState"]
-            variables = getVariableList(group)
-            color     = dataset.getncattr("color")
-            for ptype in ["timeint"]:
-                for vname in [v for v in variables if ptype in v]:
-                    var = Variable(filename=bname,variable_name=vname,groupname="MeanState")
-                    z   = int(vname.replace(ptype,""))
-                    page.addFigure("Period Mean at %d [m]" % z,
-                                   "benchmark_%s" % vname,
-                                   "Benchmark_RNAME_%s.png" % vname,
-                                   side   = "BENCHMARK %s AT %d [m]" % (plbl[ptype],z),
-                                   legend = True)
-                    for region in self.regions:
-                        ax = var.plot(None,
-                                      region = region,
-                                      vmin   = self.limits[vname]["min"],
-                                      vmax   = self.limits[vname]["max"],
-                                      cmap   = cmap[ptype],
-                                      land   = 0.750,
-                                      water  = 0.875)
-                        fig = ax.get_figure()
-                        fig.savefig("%s/Benchmark_%s_%s.png" % (self.output_path,region,vname))
-                        plt.close()
+                        # add to html layout
+                        page.addFigure(opts["section"],
+                                       pname,
+                                       opts["pattern"],
+                                       side   = opts["sidelbl"],
+                                       legend = opts["haslegend"])
 
-        for region in self.regions:
+                        # plot variable
+                        for region in self.regions:
+                            if region not in vname: continue
+                            fig, axes = plt.subplots(self.depths.shape[0], 1,
+                                                     figsize = (6.5, 2.8*self.depths.shape[0]))
+                            for dind, z0 in enumerate(self.depths[:,0]):
+                                zf = self.depths[dind,1]
+                                zstr = '%.2f-%.2f' % (z0, zf)
+                                ax = axes.flat[dind]
 
-            vname = "timelonint_of_%s_over_%s" % (self.variable,region)
-            if vname in variables:
-                var0 = Variable(filename=fname,variable_name=vname,groupname="MeanState")
-                var  = Variable(filename=bname,variable_name=vname,groupname="MeanState")
-                if region == "global":
-                    page.addFigure("Mean regional depth profiles",
-                                   "benchmark_timelonint",
-                                   "Benchmark_RNAME_timelonint.png",
-                                   side   = "BENCHMARK DEPTH PROFILE",
-                                   legend = True,
-                                   longname = "Time/longitude averaged profile")
-                    page.addFigure("Overlapping mean regional depth profiles",
-                                   "benchmark_timelonints",
-                                   "Benchmark_RNAME_timelonints.png",
-                                   side   = "BENCHMARK DEPTH PROFILE",
-                                   legend = True,
-                                   longname = "Overlapping Time/longitude averaged profile")
-                fig,ax = plt.subplots(figsize=(6.8,2.8),tight_layout=True)
-                l   = np.hstack([var .lat_bnds  [:,0],var .lat_bnds  [-1,1]])
-                d0  = np.hstack([var0.depth_bnds[:,0],var0.depth_bnds[-1,1]])
-                d   = np.hstack([var .depth_bnds[:,0],var .depth_bnds[-1,1]])
-                ind = np.all(var.data.mask,axis=0)
-                ind = np.ma.masked_array(range(ind.size),mask=ind,dtype=int)
-                b   = ind.min()
-                e   = ind.max()+1
-                ax.pcolormesh(l[b:(e+1)],d,var.data[:,b:e],
-                              vmin = self.limits["timelonint"]["global"]["min"],
-                              vmax = self.limits["timelonint"]["global"]["max"],
-                              cmap = self.cmap)
-                ax.set_xlabel("latitude")
-                ax.set_ylim((d.max(),d.min()))
-                ax.set_ylabel("depth [m]")
-                fig.savefig("%s/Benchmark_%s_timelonint.png" % (self.output_path,region))
-                ax.set_ylim((min(d0.max(),d.max()),max(d0.min(),d.min())))
-                fig.savefig("%s/Benchmark_%s_timelonints.png" % (self.output_path,region))
-                plt.close()
+                                var2 = Variable(filename=fname, groupname = "MeanState",
+                                                variable_name=vname.replace(zstr_0, zstr))
+                                obs = Variable(filename=bname,groupname="MeanState",
+                                               variable_name=vname.replace(zstr_0, zstr)).convert(var2.unit)
+                                obs.plot(ax, lw = 2, color = 'k', alpha = 0.5)
+                                var2.plot(ax, lw = 2, color = color, label = m.name,
+                                          ticks     =opts["ticks"],
+                                          ticklabels=opts["ticklabels"])
+                                dy = 0.05*(self.limits[pname][region]["max"]-self.limits[pname][region]["min"])
+                                ax.set_ylim(self.limits[pname][region]["min"]-dy,
+                                            self.limits[pname][region]["max"]+dy)
+                                ylbl = opts["ylabel"]
+                                if ylbl == "unit": ylbl = post.UnitStringToMatplotlib(var.unit)
+                                ax.set_ylabel(ylbl)
+                            fig.savefig(os.path.join(self.output_path,"%s_%s_%s.png" % (m.name,region,pname)))
+                            plt.close()
 
-            vname = "cycle_of_%s_over_%s" % (self.variable,region)
-            if vname in variables:
-                var0 = Variable(filename=bname,variable_name=vname,groupname="MeanState")
-                var  = Variable(filename=fname,variable_name=vname,groupname="MeanState")
-                if region == "global":
-                    page.addFigure("Mean regional annual cycle",
-                                   "benchmark_cycle",
-                                   "Benchmark_RNAME_cycle.png",
-                                   side     = "BENCHMARK ANNUAL CYCLE",
-                                   legend   = True,
-                                   longname = "Annual cycle")
-                    page.addFigure("Overlapping mean regional annual cycle",
-                                   "benchmark_cycles",
-                                   "Benchmark_RNAME_cycles.png",
-                                   side     = "BENCHMARK ANNUAL CYCLE",
-                                   legend   = True,
-                                   longname = "Overlapping annual cycle")
-                fig,ax = plt.subplots(figsize=(6.8,2.8),tight_layout=True)
-                d  = np.hstack([var0.depth_bnds[:,0],var0.depth_bnds[-1,1]])
-                d0 = np.hstack([var .depth_bnds[:,0],var .depth_bnds[-1,1]])
-                ax.pcolormesh(bnd_months,d,var0.data.T,
-                              vmin = self.limits["cycle"]["global"]["min"],
-                              vmax = self.limits["cycle"]["global"]["max"],
-                              cmap = self.cmap)
-                ax.set_xticks     (mid_months)
-                ax.set_xticklabels(lbl_months)
-                ax.set_ylim((d.max(),d.min()))
-                ax.set_ylabel("depth [m]")
-                fig.savefig("%s/%s_%s_cycle.png" % (self.output_path,"Benchmark",region))
-                ax.set_ylim((min(d0.max(),d.max()),max(d0.min(),d.min())))
-                fig.savefig("%s/%s_%s_cycles.png" % (self.output_path,"Benchmark",region))
-                plt.close()
-
-    def determinePlotLimits(self):
-
-        # Pick limit type
-        max_str = "up99"; min_str = "dn99"
-        if self.keywords.get("limit_type","99per") == "minmax":
-            max_str = "max"; min_str = "min"
-
-        # Determine the min/max of variables over all models
-        limits = {}
-        for fname in glob.glob("%s/*.nc" % self.output_path):
-            with Dataset(fname) as dataset:
-                if "MeanState" not in dataset.groups: continue
-                group     = dataset.groups["MeanState"]
-                variables = [v for v in group.variables.keys() if (v not in group.dimensions.keys() and
-                                                                   "_bnds" not in v                 and
-                                                                   group.variables[v][...].size > 1)]
-                for vname in variables:
-                    var    = group.variables[vname]
-                    pname  = vname.split("_")[ 0]
-                    if "_score" in vname:
-                        pname = "_".join(vname.split("_")[:2])
-                    if "_over_" in vname:
-                        region = vname.split("_over_")[-1]
-                        if pname not in limits: limits[pname] = {}
-                        if region not in limits[pname]:
-                            limits[pname][region] = {}
-                            limits[pname][region]["min"]  = +1e20
-                            limits[pname][region]["max"]  = -1e20
-                            limits[pname][region]["unit"] = post.UnitStringToMatplotlib(var.getncattr("units"))
-                        limits[pname][region]["min"] = min(limits[pname][region]["min"],var.getncattr("min"))
-                        limits[pname][region]["max"] = max(limits[pname][region]["max"],var.getncattr("max"))
-                    else:
-                        if pname not in limits:
-                            limits[pname] = {}
-                            limits[pname]["min"]  = +1e20
-                            limits[pname]["max"]  = -1e20
-                            limits[pname]["unit"] = post.UnitStringToMatplotlib(var.getncattr("units"))
-                        limits[pname]["min"] = min(limits[pname]["min"],var.getncattr(min_str))
-                        limits[pname]["max"] = max(limits[pname]["max"],var.getncattr(max_str))
-
-        # Another pass to fix score limits
-        for pname in limits.keys():
-            if "score" in pname:
-                if "min" in limits[pname].keys():
-                    limits[pname]["min"] = 0.
-                    limits[pname]["max"] = 1.
-                else:
-                    for region in limits[pname].keys():
-                        limits[pname][region]["min"] = 0.
-                        limits[pname][region]["max"] = 1.
-        self.limits = limits
-
-        # Second pass to plot legends
-        cmaps = {"bias"       :"seismic",
-                 "timelonbias":"seismic",
-                 "cyclebias"  :"seismic",
-                 "rmse"       :"YlOrRd"}
-        for pname in limits.keys():
-
-            base_pname = pname
-            m = re.search("(\D+)\d+",pname)
-            if m: base_pname = m.group(1)
-
-            # Pick colormap
-            cmap = self.cmap
-            if base_pname in cmaps:
-                cmap = cmaps[base_pname]
-            elif "score" in pname:
-                cmap = "score"
-
-            # Need to symetrize?
-            if base_pname in ["bias","timelonbias","cyclebias"]:
-                if "min" in limits[pname]:
-                    vabs =  max(abs(limits[pname]["max"]),abs(limits[pname]["min"]))
-                    limits[pname]["min"] = -vabs
-                    limits[pname]["max"] =  vabs
-                else:
-                    vabs =  max(abs(limits[pname]["global"]["max"]),abs(limits[pname]["global"]["min"]))
-                    limits[pname]["global"]["min"] = -vabs
-                    limits[pname]["global"]["max"] =  vabs
-
-            # Some plots need legends
-            if base_pname in ["timeint","bias","biasscore","rmse","rmsescore","timelonint","timelonbias","cycle","cyclebias"]:
-                if "min" in limits[pname]:
-                    fig,ax = plt.subplots(figsize=(6.8,1.0),tight_layout=True)
-                    post.ColorBar(ax,
-                                  vmin  = limits[pname]["min" ],
-                                  vmax  = limits[pname]["max" ],
-                                  label = limits[pname]["unit"],
-                                  cmap  = cmap)
-                    fig.savefig("%s/legend_%s.png" % (self.output_path,pname))
-                    if base_pname == "timelonint" or base_pname == "cycle":
-                        fig.savefig("%s/legend_%ss.png" % (self.output_path,pname))
-                    plt.close()
-                else:
-                    fig,ax = plt.subplots(figsize=(6.8,1.0),tight_layout=True)
-                    post.ColorBar(ax,
-                                  vmin  = limits[pname]["global"]["min" ],
-                                  vmax  = limits[pname]["global"]["max" ],
-                                  label = limits[pname]["global"]["unit"],
-                                  cmap  = cmap)
-                    fig.savefig("%s/legend_%s.png" % (self.output_path,pname))
-                    if base_pname == "timelonint" or base_pname == "cycle":
-                        fig.savefig("%s/legend_%ss.png" % (self.output_path,pname))
-                    plt.close()
-
-    def compositePlots(self):
-        pass
+        logger.info("[%s][%s] Success" % (self.longname,m.name))

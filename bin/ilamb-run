@@ -378,7 +378,26 @@ def WorkConfront(W,verbose=False,clean=False):
 
         # try to run the confrontation
         try:
-            t0 = time.time()            
+            t0 = time.time()
+
+            # YW
+            print(m)
+            print(m.path)
+            print(m.color)
+            print(m.filter)
+            print(m.regex)
+            print(m.shift)
+            print(m.name)
+            print(m.confrontations)
+            print(m.cell_areas)
+            print(m.land_fraction)
+            print(m.land_areas)
+            print(m.land_area)
+            print(m.variables)
+            print(m.names)
+            print(m.extents)
+            print(m.paths)
+            
             c.confront(m)
             dt = time.time()-t0
             proc[rank] += dt

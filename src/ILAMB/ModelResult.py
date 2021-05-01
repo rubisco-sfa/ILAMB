@@ -269,6 +269,7 @@ class ModelResult():
                                convert_calendar = convert_calendar,
                                t0             = initial_time - self.shift,
                                tf             = final_time   - self.shift)
+                
                 if var.time is None: continue
                 tmin = min(tmin,var.time_bnds.min())
                 tmax = max(tmax,var.time_bnds.max())
