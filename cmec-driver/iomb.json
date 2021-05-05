@@ -1,0 +1,316 @@
+{
+  "settings": {
+    "name": "IOMB",
+    "driver": "cmec-driver/iomb.sh",
+    "async": "MPI",
+    "long_name": "IOMB configuration",
+    "description": "Confrontations for the ocean benchmarking package",
+    "runtime": {
+      "ILAMB": 2.5
+    }
+  },
+  "varlist": {
+    "chl": {
+      "long_name": "chlorophyll",
+      "units": "mg m-3",
+      "frequency": "mon"
+    },
+    "detoc": {
+      "long_name": "detritalorganiccarbon",
+      "units": "1e-6 mol L-1",
+      "frequency": "mon"
+    },
+    "dms": {
+      "long_name": "dimethylsulfide",
+      "units": "1e-9 mol L-1",
+      "frequency": "monC"
+    },
+    "dissic": {
+      "long_name": "dissolvedinorganiccarbon",
+      "units": "1e-6 mol kg-1",
+      "frequency": "mon"
+    },
+    "omlmax": {
+      "long_name": "mixedlayerdepth",
+      "units": "m",
+      "frequency": "monC"
+    },
+    "intpp": {
+      "long_name": "netprimaryproductivity",
+      "units": "mol m-2 s-1",
+      "frequency": "mon"
+    },
+    "no3": {
+      "long_name": "nitrate",
+      "units": "1e-6 mol L-1",
+      "frequency": "mon"
+    },
+    "o2": {
+      "long_name": "oxygen",
+      "units": "1e-6 mol kg-1",
+      "frequency": "monC"
+    },
+    "po4": {
+      "long_name": "phosphate",
+      "units": "1e-6 mol L-1",
+      "frequency": "monC"
+    },
+    "phyc": {
+      "long_name": "phytoplankton",
+      "units": "mol m-3",
+      "frequency": "mon"
+    },
+    "so": {
+      "long_name": "salinity",
+      "units": "psu",
+      "frequency": "mon"
+    },
+    "rsntds": {
+      "long_name": "shortwaveradiation",
+      "units": "W m-2",
+      "frequency": "monC"
+    },
+    "si": {
+      "long_name": "silicate",
+      "units": "1e-6 mol L-1",
+      "frequency": "monC"
+    },
+    "thetao": {
+      "long_name": "temperature",
+      "units": "C",
+      "frequency": "mon"
+    },
+    "ws": {
+      "long_name": "windspeed",
+      "units": "m s-1",
+      "frequency": "monC"
+    },
+    "zooc": {
+      "long_name": "zooplankton",
+      "units": "mol m-3",
+      "frequency": "mon"
+    }
+  },
+  "obslist": {
+    "JAMSTEC": {
+      "version": "02c",
+      "long_name": "Japan Agency for Marine-Earth Science and Technology",
+      "description": "Japan Agency for Marine-Earth Science and Technology (JAMSTEC)-Kyoto University collaborative program (known as the K7 consortium)."
+    },
+    "SOLAS Project Integration": {
+      "version": "2010",
+      "long_name": "The Surface Ocean - Lower Atmosphere Study",
+      "description": "SOLAS Integration DMS concentration climatology product 1.00 degree"
+    },
+    "Ogunro": {
+      "version": "latest",
+      "long_name": "Climatology sea-air DMS flux 2.5 degree",
+      "description": "The global DMS sea-air flux calculated from Lana DMS dataset, World Ocean Atlas SST and NCEP/NCAR wind speed"
+    },
+    "SeaWIFS": {
+      "version": "latest",
+      "long_name": "SeaWIFS",
+      "description": "chlorophyll data"
+    },
+    "Boyer.Montegut": {
+      "version": "2015",
+      "long_name": "Mixed Layer Depth",
+      "description": "Temperature-Mixed Layer Depth, or Isothermal Layer Depth, from C. de Boyer Montegut"
+    },
+    "OSU": {
+      "version": "1997a",
+      "long_name": "Oregon State University",
+      "description": "Monthly ocean net primary production (NPP) on 1 lat and lon"
+    },
+    "WOA": {
+      "version": "2013",
+      "long_name": "World Ocean Atlas 2013",
+      "description": "global climatology as part of the World Ocean Atlas project"
+    },
+    "RDA.UCAR": {
+      "version": "2008",
+      "long_name": "WHOI OAFlux Project",
+      "description": "Objectively Analyzed Air-Sea Fluxes (OAFlux) For Global Oceans"
+    },
+    "NCEP": {
+      "version": "1",
+      "long_name": "NCEP/NCAR Reanalysis 1",
+      "description": "Monthly Composite Value of scalar wind speed on 2.5 lat and lon from NCEP reanalysis datasets"
+    }
+  },
+  "coordinates": {
+    "max_time_range": "",
+    "min_time_range": ""
+  },
+  "default_parameters": {
+    "cfg": {
+      "Chemical Oceanography": {
+        "bgcolor": "#D1F2EB",
+        "DetritalOrganicCarbon": {
+          "variable": "detoc",
+          "cmap": "viridis",
+          "ctype": "ConfIOMB",
+          "JAMSTEC": {
+            "source": "DATA/detritalorganiccarbon/JAMSTEC/detoc.nc"
+          }
+        },
+        "Dimethylsulfide": {
+          "variable": "dms",
+          "alternate_vars": "DMS,dmssurf",
+          "cmap": "viridis",
+          "ctype": "ConfIOMB",
+          "LANA": {
+            "source": "DATA/dimethylsulfide/Lana/dms.nc",
+            "table_unit": "1e-9 mol L-1",
+            "plot_unit": "1e-9 mol L-1"
+          }
+        },
+        "DissolvedInorganicCarbon": {
+          "variable": "dissic",
+          "cmap": "viridis",
+          "ctype": "ConfIOMB",
+          "JAMSTEC": {
+            "source": "DATA/dissolvedinorganiccarbon/JAMSTEC/dissic.nc"
+          }
+        },
+        "NetPrimaryProduction": {
+          "variable": "intpp",
+          "alternate_vars": "NPP",
+          "derived": "(photoC_diat + photoC_diaz + photoC_sp) * 10",
+          "cmap": "viridis",
+          "ctype": "ConfIOMB",
+          "OSU": {
+            "source": "DATA/netprimaryproductivity/OSU/npp.nc",
+            "table_unit": "1e-6 mol m-2 s-1",
+            "plot_unit": "1e-6 mol m-2 s-1"
+          }
+        },
+        "Nitrate": {
+          "variable": "no3",
+          "alternate_vars": "NO3",
+          "cmap": "viridis",
+          "ctype": "ConfIOMB",
+          "large_bias": 5.0,
+          "WOA": {
+            "source": "DATA/nitrate/WOA/nitrate.nc"
+          },
+          "JAMSTEC": {
+            "source": "DATA/nitrate/JAMSTEC/no3.nc"
+          }
+        },
+        "Oxygen": {
+          "variable": "o2",
+          "alternate_vars": "O2",
+          "cmap": "viridis",
+          "ctype": "ConfIOMB",
+          "WOA": {
+            "source": "DATA/oxygen/WOA/oxygen.nc"
+          },
+          "JAMSTEC": {
+            "source": "DATA/oxygen/JAMSTEC/o2.nc"
+          }
+        },
+        "Phosphate": {
+          "variable": "po4",
+          "alternate_vars": "PO4",
+          "cmap": "viridis",
+          "ctype": "ConfIOMB",
+          "WOA": {
+            "source": "DATA/phosphate/WOA/phosphate.nc"
+          }
+        },
+        "Phytoplankton": {
+          "variable": "phyc",
+          "cmap": "viridis",
+          "ctype": "ConfIOMB",
+          "JAMSTEC": {
+            "source": "DATA/phytoplankton/JAMSTEC/phyc.nc"
+          }
+        },
+        "Silicate": {
+          "variable": "si",
+          "alternate_vars": "SiO3",
+          "cmap": "viridis",
+          "ctype": "ConfIOMB",
+          "WOA": {
+            "source": "DATA/silicate/WOA/silicate.nc"
+          }
+        },
+        "Zooplankton": {
+          "variable": "zooc",
+          "alternate_vars": "zooC",
+          "cmap": "viridis",
+          "ctype": "ConfIOMB",
+          "JAMSTEC": {
+            "source": "DATA/zooplankton/JAMSTEC/zooc.nc"
+          }
+        }
+      },
+      "Physical Oceanography": {
+        "bgcolor": "#D6EAF8",
+        "Salinity": {
+          "variable": "so",
+          "alternate_vars": "SALT,sos",
+          "cmap": "viridis",
+          "ctype": "ConfIOMB",
+          "WOA": {
+            "source": "DATA/salinity/WOA/salinity.nc"
+          },
+          "JAMSTEC": {
+            "source": "DATA/salinity/JAMSTEC/so.nc"
+          }
+        },
+        "Temperature": {
+          "variable": "thetao",
+          "alternate_vars": "TEMP,tos",
+          "cmap": "viridis",
+          "ctype": "ConfIOMB",
+          "WOA": {
+            "source": "DATA/temperature/WOA/temperature.nc"
+          },
+          "JAMSTEC": {
+            "source": "DATA/temperature/JAMSTEC/thetao.nc"
+          }
+        },
+        "SurfaceWindSpeed": {
+          "variable": "ws",
+          "alternate_vars": "DMS_WS,sfcWind,dmswind",
+          "cmap": "viridis",
+          "ctype": "ConfIOMB",
+          "NCEP": {
+            "source": "DATA/windspeed/NCEP/ws.nc"
+          }
+        },
+        "MixedLayerDepth": {
+          "variable": "omlmax",
+          "alternate_vars": "HMXL,mld,MLD",
+          "cmap": "viridis",
+          "ctype": "ConfIOMB",
+          "Boyer-Montegut": {
+            "source": "DATA/mixedlayerdepth/Boyer.Montegut/omlmax.nc"
+          }
+        },
+        "ShortWaveRadiation": {
+          "variable": "rsntds",
+          "alternate_vars": "SHF_QSW",
+          "cmap": "viridis",
+          "ctype": "ConfIOMB",
+          "NCEP": {
+            "source": "DATA/shortwaveradiation/RDA.UCAR/rsntds.nc"
+          }
+        }
+      },
+      "SeaAirFluxes": {
+        "bgcolor": "#FDEBD0",
+        "DMSModelFlux": {
+          "variable": "fgdms",
+          "cmap": "viridis",
+          "ctype": "ConfIOMB",
+          "Ogunro": {
+            "source": "DATA/dimethylsulfide/Ogunro/fgdms.nc"
+          }
+        }
+      }
+    }
+  }
+}

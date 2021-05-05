@@ -1,0 +1,33 @@
+{
+  "settings": {
+    "name": "Custom",
+    "driver": "cmec-driver/custom_config.sh",
+    "async": "MPI",
+    "long_name": "ILAMB custom configuration",
+    "description": "Runs selected confrontations from CMIP configurations based on H1 or H2 heading provided in config",
+    "runtime": {
+      "ILAMB": 2.5
+    }
+  },
+  "varlist": {
+    "any": {
+      "long_name": "any variable",
+      "units": "any",
+      "frequency": "mon"
+    }
+  },
+  "obslist": {
+    "any": {
+      "version": "any",
+      "long_name": "any observation",
+      "description": "Any obs avialable in CMIP configuration"
+    }
+  },
+  "coordinates": {
+    "max_time_range": "year",
+    "min_time_range": "mon"
+  },
+  "default_parameters": {
+    "confrontations": ["Surface Upward SW Radiation","Albedo"]
+  }
+}

@@ -1,0 +1,879 @@
+{
+  "settings": {
+    "name": "CMIP",
+    "driver": "cmec-driver/cmip.sh",
+    "async": "MPI",
+    "long_name": "CMIP configuration",
+    "description": "Configuration for complete model intercomparison",
+    "runtime": {
+      "ILAMB": 2.5
+    }
+  },
+  "varlist": {
+    "biomass": {
+      "long_name": "Biomass",
+      "units": "kg m-2",
+      "frequency": "mon"
+    },
+    "co2": {
+      "long_name": "Carbon Dioxide",
+      "units": "1e-6",
+      "frequency": "mon"
+    },
+    "gpp": {
+      "long_name": "Gross Primary Productivity",
+      "units": "kg m-2 s-1",
+      "frequency": "mon"
+    },
+    "lai": {
+      "long_name": "Leaf Area Index",
+      "units": "1",
+      "frequency": "mon"
+    },
+    "nbp": {
+      "long_name": "Global Net Ecosystem Carbon Balance",
+      "units": "Pg yr-1",
+      "frequency": "mon"
+    },
+    "nee": {
+      "long_name": "Net Ecosystem Exchange",
+      "units": "g m-2 d-1",
+      "frequency": "mon",
+      "derived": "ra+rh-gpp"
+    },
+    "reco": {
+      "long_name": "Ecosystem Respiration",
+      "units": "g m-2 d-1",
+      "frequency": "mon",
+      "derived": "ra+rh"
+    },
+    "cSoilAbove1m": {
+      "long_name": "Soil Carbon",
+      "units": "kg m-2",
+      "frequency": "mon"
+    },
+    "et": {
+      "long_name": "Evapotranspiration",
+      "units": "kg m-2 s-1",
+      "frequency": "mon"
+    },
+    "EvapFrac": {
+      "long_name": "Evaporative Fraction",
+      "units": "",
+      "frequency": "mon"
+    },
+    "hfls": {
+      "long_name": "Latent Heat",
+      "units": "W m-2",
+      "frequency": "mon",
+      "alternate_vars": "le"
+    },
+    "runoff": {
+      "long_name": "Runoff",
+      "units": "kg m-2 s-1",
+      "frequency": "mon",
+      "alternate_vars": "mrro"
+    },
+    "hfss": {
+      "long_name": "Sensible Heat",
+      "units": "W m-2",
+      "frequency": "mon",
+      "alternate_vars": "sh"
+    },
+    "twsa": {
+      "long_name": "Terrestrial Water Storage Anomaly",
+      "alternate_vars": "tws",
+      "units": "kg m-2",
+      "frequency": "mon"
+    },
+    "permafrost_extent": {
+      "long_name": "Permafrost",
+      "units": "1",
+      "frequency": "mon"
+    },
+    "albedo": {
+      "long_name": "Albedo",
+      "units": "W m-2",
+      "frequency": "mon"
+    },
+    "rsus": {
+      "long_name": "Surface Upward SW Radiation",
+      "units": "W m-2",
+      "frequency": "mon"
+    },
+    "rsns": {
+      "long_name": "Surface Net SW Radiation",
+      "units": "W m-2",
+      "frequency": "mon",
+      "derived": "rsds-rsus"
+    },
+    "rlus": {
+      "long_name": "Surface Upward LW Radiation",
+      "units": "W m-2",
+      "frequency": "mon"
+    },
+    "rlns": {
+      "long_name": "Surface Net LW Radiation",
+      "units": "W m-2",
+      "frequency": "mon",
+      "derived": "rlds-rlus"
+    },
+    "rns": {
+      "long_name": "Surface Net Radiation",
+      "units": "W m-2",
+      "frequency": "mon",
+      "derived": "rlds-rlus+rsds-rsus"
+    },
+    "tas": {
+      "long_name": "Surface Air Temperature",
+      "units": "K",
+      "frequency": "mon"
+    },
+    "tasmax": {
+      "long_name": "Diurnal Max Temperature",
+      "units": "K",
+      "frequency": "mon"
+    },
+    "tasmin": {
+      "long_name": "Diurnal Min Temperature",
+      "units": "K",
+      "frequency": "mon"
+    },
+    "dtr": {
+      "long_name": "Diurnal Temperature Range",
+      "units": "K",
+      "frequency": "mon"
+    },
+    "pr": {
+      "long_name": "Precipitation",
+      "units": "kg m-2 s-1",
+      "frequency": "mon"
+    },
+    "rhums": {
+      "long_name": "Surface Relative Humidity",
+      "units": "%",
+      "frequency": "mon",
+      "alternate_vars": "hurs"
+    },
+    "rsds": {
+      "long_name": "Surface Downward SW Radiation",
+      "units": "W m-2",
+      "frequency": "mon"
+    },
+    "rlds": {
+      "long_name": "Surface Downward LW Radiation",
+      "units": "W m-2",
+      "frequency": "mon"
+    }
+  },
+  "obslist": {
+    "Tropical": {
+      "version": "NASA-JPL",
+      "long_name": "Global Tropical Forest Biomass",
+      "description": "4079 in situ inventory plots, satellite light detection and ranging (LiDAR) samples of forest structure, and optical and microwave imagery (1-km resolution) to extrapolate estimatesNASA-JPL"
+    },
+    "GlobalCarbon": {
+      "version": "5.1",
+      "long_name": "Global forest live biomass carbon",
+      "description": "A combination of data in situ inventory plots and satellite light detection and ranging (Lidar) samples"
+    },
+    "NBCD2000": {
+      "version": "2000",
+      "long_name": "National Biomass and Carbon Dataset",
+      "description": "This product was derived from National Biomass and Carbon Dataset for the year 2000 originally in a raster format at 250m."
+    },
+    "USForest": {
+      "version": "Randerson and Mu 2016",
+      "long_name": "Forest Biomass",
+      "description": "This product was derived from Forest Biomass across the Lower 48 States and Alaska originally in a raster format at 250m."
+    },
+    "Thurner": {
+      "version": "2010",
+      "long_name": "Max Planck Institute regridded 30N-80N forest biomass",
+      "description": "Retrievals from synthetic aperture radar data using existing databases of wood density and allometric relationships between biomass compartments"
+    },
+    "NOAA.Emulated": {
+      "version": "Randerson and Mu 2016",
+      "long_name": "derived NOAA GMD Site Observations",
+      "description": "This product is generated from monthly NOAA GMD observations"
+    },
+    "FLUXNET2015": {
+      "version": "2015",
+      "long_name": "FluxNet Tower",
+      "description": "FluxNet Tower eddy covariance measurements (Tier 1)"
+    },
+    "FLUXCOM": {
+      "version": "1",
+      "long_name": "Global Land Carbon Fluxes",
+      "description": "FLUXCOM (RS+METEO) Global Land Carbon Fluxes using CRUNCEP climate data"
+    },
+    "AVHRR": {
+      "version": "Randerson and Mu 2016",
+      "long_name": "derived AVHRR BU leaf area index in 0.5x0.5",
+      "description": "This product was derived from half monthly AVHRR BU leaf area index from Boston University."
+    },
+    "AVH15C1": {
+      "version": "5",
+      "long_name": "NOAA Climate Data Record (CDR) of AVHRR Leaf Area Index (LAI) and Fraction of Absorbed Photosynthetically Active Radiation (FAPAR)",
+      "description": "This daily gridded Leaf Area Index (LAI) derived from the NOAA Climate Data Record (CDR) of Advanced Very High Resolution Radiometer (AVHRR) Surface Reflectance."
+    },
+    "MODIS": {
+      "version": "Randerson and Mu 2016",
+      "long_name": "derived MODIS total leaf area index in 0.5x0.5",
+      "description": "This product was derived from MODIS Climatology Leaf Area Index (LAI) from NCAR group."
+    },
+    "GCP": {
+      "version": "2016",
+      "long_name": "Land anthropogenic carbon flux estimates",
+      "description": "Land anthropogenic carbon flux estimates from the Global Carbon Project"
+    },
+    "Hoffman": {
+      "version": "2016",
+      "long_name": "Land and ocean anthropogenic carbon flux estimates",
+      "description": "Land and ocean anthropogenic carbon flux estimates from University of California at Irvine and Oak Ridge National Laboratory"
+    },
+    "HWSD": {
+      "version": "v1.2",
+      "long_name": "Harmonized World Soil Database",
+      "description": "This product was derived from Harmonized World Soil Database (HWSD) v1.2 dataset."
+    },
+    "NCSCDV22": {
+      "version": "V2.2",
+      "long_name": "Northern Circumpolar Soil Carbon Database",
+      "description": "This product was derived from Northern Circumpolar Soil Carbon Database V2.2 (NCSCDv22) in top 1m."
+    },
+    "GLEAMv3.3a": {
+      "version": "3.3a",
+      "long_name": "Global Land Evaporation Amsterdam Model",
+      "description": "Model Product with satellite observations of climatic and environmental variables"
+    },
+    "MOD16A2": {
+      "version": "MOD16A2",
+      "long_name": "MODIS Global Terrestrial Evaportranspiration",
+      "description": "MODIS (MOD16A2 level 4) global terrestrial evapotranspiration (ET) based on the Penman-Monteith (P-M) algorithm with MERRA meteorological forcings"
+    },
+    "DOLCE": {
+      "version": "v1.0",
+      "long_name": "Derived Optimal Linear Combination Evapotranspiration",
+      "description": "Monthly evapotranspiration and its associated uncertainty on a global scale for 2000"
+    },
+    "Dai": {
+      "version": "Randerson and Mu 2016",
+      "long_name": "derived GRDC Aiguo Runoff Dataset",
+      "description": "This product was derived from global 925 rivers gauge observations from Dai and Trenberth (2002)."
+    },
+    "LORA": {
+      "version": "v1.0",
+      "long_name": "Linear Optimal Runoff Aggregate",
+      "description": "LORA monthly runoff estimates with associated uncertainties derived by optimally combining 11 state-of-the-art gridded runoff products from the eartH2Observe project"
+    },
+    "GRACE": {
+      "version": "Randerson and Mu 2016",
+      "long_name": "derived GRACE terrestrial water storage anomaly",
+      "description": "This product is generated from monthly 1 degree GRACE Tellus CSR observations"
+    },
+    "NSIDC": {
+      "version": "",
+      "long_name": "National Snow and Ice Data Center permafrost extent",
+      "description": "Permafrost extent"
+    },
+    "CERESed4.1": {
+      "version": "Ed4.1",
+      "long_name": "CERES EBAF TOA and Surface Fluxes",
+      "description": "Monthly mean surface fluxes calculated by a radiative transfer model and constrained by the combined Terra and Aqua SSF1deg measurements"
+    },
+    "GEWEX.SRB": {
+      "version": "Randerson and Mu 2016",
+      "long_name": "derived GEWEX SRB Radiation",
+      "description": "This product is generated from monthly 1 degree GEWEX SRB Radiation observations"
+    },
+    "WRMC.BSRN": {
+      "version": "Randerson and Mu 2016",
+      "long_name": "derived WRMC BSRN",
+      "description": "This product is generated from monthly WRMC.BSRN observations"
+    },
+    "CRU4.02": {
+      "version": "4.02",
+      "long_name": "CRU time series (TS) high-resolution gridded datasets",
+      "description": "monthly observations at meteorological stations across the world land areas"
+    },
+    "CMAPv1904": {
+      "version": "1904",
+      "long_name": "CPC Merged Analysis of Precipitation (excludes NCEP Reanalysis)",
+      "description": "Merged Precipitation with gauge observations, a variety of satellite observations and the NCEP–NCAR reanalysis"
+    },
+    "GPCCv2018": {
+      "version": "2018",
+      "long_name": "GPCC Full Data Reanalysis Version 2018 0.5x0.5 Monthly TotalGPCC Precipitation 0.5 degree V2018 Full Reanalysis",
+      "description": "GPCC Precipitation 0.5 degree V2018 Full Reanalysis"
+    },
+    "GPCPv2.3": {
+      "version": "2.3",
+      "long_name": "GPCP Version 2.3 Combined Precipitation Dataset (Final)",
+      "description": "GPCC gauge analysis to bias correct satellite estimates over land and merge with satellite based on sampling"
+    },
+    "CRU4.03": {
+      "version": "4.03",
+      "long_name": "CRU time series (TS) high-resolution gridded datasets",
+      "description": "monthly observations at meteorological stations across the world land areas"
+    }
+  },
+  "coordinates": {
+    "max_time_range": "year",
+    "min_time_range": "mon"
+  },
+  "default_parameters": {
+    "define_regions": "DATA/regions/GlobalLand.nc",
+    "cfg": {
+      "Ecosystem and Carbon Cycle": {
+        "bgcolor": "#ECFFE6",
+        "Biomass": {
+          "variable": "biomass",
+          "alternate_vars": "cVeg",
+          "weight": 5.0,
+          "skip_rmse": true,
+          "mass_weighting": true,
+          "Tropical": {
+            "source": "DATA/biomass/Tropical/biomass_0.5x0.5.nc",
+            "weight": 20.0,
+            "table_unit": "Pg",
+            "plot_unit": "kg m-2",
+            "space_mean": true
+          },
+          "GlobalCarbon": {
+            "source": "DATA/biomass/GLOBAL.CARBON/biomass_0.5x0.5.nc",
+            "weight": 16.0,
+            "table_unit": "Pg",
+            "plot_unit": "kg m-2",
+            "space_mean": true
+          },
+          "NBCD2000": {
+            "source": "DATA/biomass/NBCD2000/biomass_0.5x0.5.nc",
+            "weight": 8.0,
+            "table_unit": "Pg",
+            "plot_unit": "kg m-2",
+            "space_mean": true
+          },
+          "USForest": {
+            "source": "DATA/biomass/US.FOREST/biomass_0.5x0.5.nc",
+            "weight": 8.0,
+            "table_unit": "Pg",
+            "plot_unit": "kg m-2",
+            "space_mean": true
+          },
+          "Thurner": {
+            "source": "DATA/biomass/Thurner/biomass_0.5x0.5.nc",
+            "weight": 15.0,
+            "table_unit": "Pg",
+            "plot_unit": "kg m-2",
+            "space_mean": true
+          }
+        },
+        "Carbon Dioxide": {
+          "variable": "co2",
+          "ctype": "ConfCO2",
+          "weight": 5.0,
+          "NOAA.Emulated": {
+            "source": "DATA/co2/NOAA.GMD/co2.nc",
+            "emulated_flux": "nbp",
+            "sites": "alt,asc,azr,bhd,bmw,brw,cba,cgo,chr,crz,gmi,hba,ice,key,kum,mhd,mid,pocs35,pocs30,pocs25,pocs20,pocs15,pocs10,pocs05,poc000,pocn05,pocn10,pocn15,pocn20,pocn25,psa,rpb,sey,shm,smo,spo,syo,zep",
+            "lat_bands": "-90,-60,-23,0,+23,+60,+90",
+            "force_emulation": true
+          }
+        },
+        "Gross Primary Productivity": {
+          "variable": "gpp",
+          "cmap": "Greens",
+          "weight": 5.0,
+          "mass_weighting": true,
+          "FLUXNET2015": {
+            "source": "DATA/gpp/FLUXNET2015/gpp.nc",
+            "weight": 9.0,
+            "table_unit": "g m-2 d-1",
+            "plot_unit": "g m-2 d-1"
+          },
+          "FLUXCOM": {
+            "source": "DATA/gpp/FLUXCOM/gpp.nc",
+            "weight": 15.0,
+            "table_unit": "Pg yr-1",
+            "plot_unit": "g m-2 d-1",
+            "space_mean": true,
+            "skip_iav": true,
+            "relationships": "Evapotranspiration/GLEAMv3.3a,Precipitation/GPCPv2.3,SurfaceDownwardSWRadiation/CERESed4.1,SurfaceNetSWRadiation/CERESed4.1,SurfaceAirTemperature/CRU4.02"
+          }
+        },
+        "Leaf Area Index": {
+          "variable": "lai",
+          "cmap": "Greens",
+          "weight": 3.0,
+          "mass_weighting": true,
+          "AVHRR": {
+            "source": "DATA/lai/AVHRR/lai_0.5x0.5.nc",
+            "weight": 15.0,
+            "relationships": "Precipitation/GPCPv2.3"
+          },
+          "AVH15C1": {
+            "source": "DATA/lai/AVH15C1/lai.nc",
+            "weight": 15.0,
+            "relationships": "Precipitation/GPCPv2.3"
+          },
+          "MODIS": {
+            "source": "DATA/lai/MODIS/lai_0.5x0.5.nc",
+            "weight": 15.0,
+            "relationships": "Precipitation/GPCPv2.3",
+            "skip_iav": true
+          }
+        },
+        "Global Net Ecosystem Carbon Balance": {
+          "variable": "nbp",
+          "weight": 5.0,
+          "ctype": "ConfNBP",
+          "GCP": {
+            "source": "DATA/nbp/GCP/nbp_1959-2016.nc",
+            "weight": 20.0
+          },
+          "Hoffman": {
+            "source": "DATA/nbp/HOFFMAN/nbp_1850-2010.nc",
+            "weight": 20.0,
+            "skip_taylor": true
+          }
+        },
+        "Net Ecosystem Exchange": {
+          "variable": "nee",
+          "derived": "ra+rh-gpp",
+          "weight": 5.0,
+          "mass_weighting": true,
+          "FLUXNET2015": {
+            "source": "DATA/nee/FLUXNET2015/nee.nc",
+            "weight": 9.0,
+            "table_unit": "g m-2 d-1",
+            "plot_unit": "g m-2 d-1"
+          }
+        },
+        "Ecosystem Respiration": {
+          "variable": "reco",
+          "derived": "ra+rh",
+          "weight": 4.0,
+          "mass_weighting": true,
+          "FLUXNET2015": {
+            "source": "DATA/reco/FLUXNET2015/reco.nc",
+            "weight": 6.0,
+            "table_unit": "g m-2 d-1",
+            "plot_unit": "g m-2 d-1"
+          },
+          "FLUXCOM": {
+            "source": "DATA/reco/FLUXCOM/reco.nc",
+            "weight": 4.0,
+            "table_unit": "Pg yr-1",
+            "plot_unit": "g m-2 d-1",
+            "space_mean": true,
+            "skip_iav": true
+          }
+        },
+        "Soil Carbon": {
+          "variable": "cSoilAbove1m",
+          "alternate_vars": "cSoil",
+          "weight": 5.0,
+          "mass_weighting": true,
+          "HWSD": {
+            "source": "DATA/soilc/HWSD/soilc_0.5x0.5.nc",
+            "weight": 15.0,
+            "table_unit": "Pg",
+            "plot_unit": "kg m-2",
+            "space_mean": true,
+            "skip_rmse": true
+          },
+          "NCSCDV22": {
+            "source": "DATA/soilc/NCSCDV22/soilc_0.5x0.5.nc",
+            "weight": 12.0,
+            "table_unit": "Pg",
+            "plot_unit": "kg m-2",
+            "space_mean": true,
+            "skip_rmse": true
+          },
+          "Koven": {
+            "ctype": "ConfSoilCarbon",
+            "source": "DATA/soilc/NCSCDV22/soilc_0.5x0.5.nc",
+            "weight": 15.0,
+            "soilc_source": "DATA/soilc/NCSCDV22/soilc_0.5x0.5.nc, DATA/soilc/HWSD/soilc_0.5x0.5.nc",
+            "tas_source": "DATA/tas/CRU4.02/tas.nc",
+            "pr_source": "DATA/pr/GPCCv2018/pr.nc",
+            "npp_source": "DATA/soilc/Koven/npp_0.5x0.5.nc",
+            "pet_source": "DATA/soilc/Koven/pet_0.5x0.5.nc",
+            "fracpeat_source": "DATA/soilc/Koven/fracpeat_0.5x0.5.nc"
+          }
+        }
+      },
+      "Hydrology Cycle": {
+        "bgcolor": "#E6F9FF",
+        "Evapotranspiration": {
+          "variable": "et",
+          "alternate_vars": "evspsbl",
+          "cmap": "Blues",
+          "weight": 5.0,
+          "mass_weighting": true,
+          "GLEAMv3.3a": {
+            "source": "DATA/et/GLEAMv3.3a/et.nc",
+            "weight": 15.0,
+            "table_unit": "mm d-1",
+            "plot_unit": "mm d-1",
+            "relationships": "Precipitation/GPCPv2.3,SurfaceAirTemperature/CRU4.02"
+          },
+          "MODIS": {
+            "source": "DATA/et/MODIS/et_0.5x0.5.nc",
+            "weight": 15.0,
+            "table_unit": "mm d-1",
+            "plot_unit": "mm d-1",
+            "relationships": "Precipitation/GPCPv2.3,SurfaceAirTemperature/CRU4.02"
+          },
+          "MOD16A2": {
+            "source": "DATA/et/MOD16A2/et.nc",
+            "weight": 15.0,
+            "table_unit": "mm d-1",
+            "plot_unit": "mm d-1",
+            "relationships": "Precipitation/GPCPv2.3,SurfaceAirTemperature/CRU4.02"
+          }
+        },
+        "Evaporative Fraction": {
+          "variable": "EvapFrac",
+          "weight": 5.0,
+          "mass_weighting": true,
+          "ctype": "ConfEvapFraction",
+          "FLUXCOM": {
+            "source": "DATA/EvapFrac/FLUXCOM/EvapFrac.nc",
+            "weight": 9.0,
+            "skip_rmse": true
+          }
+        },
+        "Latent Heat": {
+          "variable": "hfls",
+          "alternate_vars": "le",
+          "cmap": "Oranges",
+          "weight": 5.0,
+          "mass_weighting": true,
+          "FLUXNET2015": {
+            "source": "DATA/le/FLUXNET2015/hfls.nc",
+            "weight": 3.0
+          },
+          "FLUXCOM": {
+            "source": "DATA/le/FLUXCOM/le.nc",
+            "land": true,
+            "weight": 9.0,
+            "skip_iav": true
+          },
+          "DOLCE": {
+            "source": "DATA/et/DOLCE/DOLCE.nc",
+            "weight": 15.0,
+            "land": true
+          }
+        },
+        "Runoff": {
+          "variable": "runoff",
+          "alternate_vars": "mrro",
+          "weight": 5.0,
+          "mass_weighting": true,
+          "Dai": {
+            "ctype": "ConfRunoff",
+            "source": "DATA/runoff/Dai/runoff.nc",
+            "weight": 15.0
+          },
+          "LORA": {
+            "source": "DATA/runoff/LORA/LORA.nc",
+            "table_unit": "mm d-1",
+            "plot_unit": "mm d-1",
+            "weight": 15.0
+          }
+        },
+        "Sensible Heat": {
+          "variable": "hfss",
+          "alternate_vars": "sh",
+          "weight": 2.0,
+          "mass_weighting": true,
+          "FLUXNET2015": {
+            "source": "DATA/sh/FLUXNET2015/hfss.nc",
+            "weight": 9.0
+          },
+          "FLUXCOM": {
+            "source": "DATA/sh/FLUXCOM/sh.nc",
+            "weight": 15.0,
+            "skip_iav": true
+          }
+        },
+        "Terrestrial Water Storage Anomaly": {
+          "variable": "twsa",
+          "alternate_vars": "tws",
+          "derived": "pr-evspsbl-mrro",
+          "cmap": "Blues",
+          "weight": 5.0,
+          "ctype": "ConfTWSA",
+          "GRACE": {
+            "source": "DATA/twsa/GRACE/twsa_0.5x0.5.nc",
+            "weight": 25.0
+          }
+        },
+        "Permafrost": {
+          "variable": "tsl",
+          "NSIDC": {
+            "ctype": "ConfPermafrost",
+            "source": "DATA/permafrost/NSIDC/NSIDC_0.5x0.5.nc",
+            "y0": 1970.0,
+            "yf": 2000.0,
+            "Teps": 273.15,
+            "dmax": 3.5
+          }
+        }
+      },
+      "Radiation and Energy Cycle": {
+        "bgcolor": "#FFECE6",
+        "Albedo": {
+          "variable": "albedo",
+          "weight": 1.0,
+          "ctype": "ConfAlbedo",
+          "CERESed4.1": {
+            "source": "DATA/albedo/CERESed4.1/albedo.nc",
+            "weight": 20.0
+          },
+          "GEWEX.SRB": {
+            "source": "DATA/albedo/GEWEX.SRB/albedo_0.5x0.5.nc",
+            "weight": 20.0
+          }
+        },
+        "Surface Upward SW Radiation": {
+          "variable": "rsus",
+          "weight": 1.0,
+          "CERESed4.1": {
+            "source": "DATA/rsus/CERESed4.1/rsus.nc",
+            "weight": 15.0
+          },
+          "FLUXNET2015": {
+            "source": "DATA/rsus/FLUXNET2015/rsus.nc",
+            "weight": 12.0
+          },
+          "GEWEX.SRB": {
+            "source": "DATA/rsus/GEWEX.SRB/rsus_0.5x0.5.nc",
+            "weight": 15.0
+          },
+          "WRMC.BSRN": {
+            "source": "DATA/rsus/WRMC.BSRN/rsus.nc",
+            "weight": 12.0
+          }
+        },
+        "Surface Net SW Radiation": {
+          "variable": "rsns",
+          "derived": "rsds-rsus",
+          "weight": 1.0,
+          "CERESed4.1": {
+            "source": "DATA/rsns/CERESed4.1/rsns.nc",
+            "weight": 15.0
+          },
+          "FLUXNET2015": {
+            "source": "DATA/rsns/FLUXNET2015/rsns.nc",
+            "weight": 12.0
+          },
+          "GEWEX.SRB": {
+            "source": "DATA/rsns/GEWEX.SRB/rsns_0.5x0.5.nc",
+            "weight": 15.0
+          },
+          "WRMC.BSRN": {
+            "source": "DATA/rsns/WRMC.BSRN/rsns.nc",
+            "weight": 12.0
+          }
+        },
+        "Surface Upward LW Radiation": {
+          "variable": "rlus",
+          "weight": 1.0,
+          "CERESed4.1": {
+            "source": "DATA/rlus/CERESed4.1/rlus.nc",
+            "weight": 15.0
+          },
+          "FLUXNET2015": {
+            "source": "DATA/rlus/FLUXNET2015/rlus.nc",
+            "weight": 12.0
+          },
+          "GEWEX.SRB": {
+            "source": "DATA/rlus/GEWEX.SRB/rlus_0.5x0.5.nc",
+            "weight": 15.0
+          },
+          "WRMC.BSRN": {
+            "source": "DATA/rlus/WRMC.BSRN/rlus.nc",
+            "weight": 12.0
+          }
+        },
+        "Surface Net LW Radiation": {
+          "variable": "rlns",
+          "derived": "rlds-rlus",
+          "weight": 1.0,
+          "CERESed4.1": {
+            "source": "DATA/rlns/CERESed4.1/rlns.nc",
+            "weight": 15.0
+          },
+          "FLUXNET2015": {
+            "source": "DATA/rlns/FLUXNET2015/rlns.nc",
+            "weight": 12.0
+          },
+          "GEWEX.SRB": {
+            "source": "DATA/rlns/GEWEX.SRB/rlns_0.5x0.5.nc",
+            "weight": 15.0
+          },
+          "WRMC.BSRN": {
+            "source": "DATA/rlns/WRMC.BSRN/rlns.nc",
+            "weight": 12.0
+          }
+        },
+        "Surface Net Radiation": {
+          "variable": "rns",
+          "derived": "rlds-rlus+rsds-rsus",
+          "weight": 2.0,
+          "CERESed4.1": {
+            "source": "DATA/rns/CERESed4.1/rns.nc",
+            "weight": 15.0
+          },
+          "FLUXNET2015": {
+            "source": "DATA/rns/FLUXNET2015/rns.nc",
+            "weight": 12.0
+          },
+          "GEWEX.SRB": {
+            "source": "DATA/rns/GEWEX.SRB/rns_0.5x0.5.nc",
+            "weight": 15.0
+          },
+          "WRMC.BSRN": {
+            "source": "DATA/rns/WRMC.BSRN/rns.nc",
+            "weight": 12.0
+          }
+        }
+      },
+      "Forcings": {
+        "bgcolor": "#EDEDED",
+        "Surface Air Temperature": {
+          "variable": "tas",
+          "weight": 2.0,
+          "CRU4.02": {
+            "source": "DATA/tas/CRU4.02/tas.nc",
+            "weight": 25.0
+          },
+          "FLUXNET2015": {
+            "source": "DATA/tas/FLUXNET2015/tas.nc",
+            "weight": 9.0
+          }
+        },
+        "Diurnal Max Temperature": {
+          "variable": "tasmax",
+          "weight": 2.0,
+          "CRU4.02": {
+            "source": "DATA/tasmax/CRU4.02/tasmax.nc",
+            "weight": 25.0
+          }
+        },
+        "Diurnal Min Temperature": {
+          "variable": "tasmin",
+          "weight": 2.0,
+          "CRU4.02": {
+            "source": "DATA/tasmin/CRU4.02/tasmin.nc",
+            "weight": 25.0
+          }
+        },
+        "Diurnal Temperature Range": {
+          "variable": "dtr",
+          "weight": 2.0,
+          "derived": "tasmax-tasmin",
+          "CRU4.02": {
+            "source": "DATA/dtr/CRU4.02/dtr.nc",
+            "weight": 25.0
+          }
+        },
+        "Precipitation": {
+          "variable": "pr",
+          "cmap": "Blues",
+          "weight": 2.0,
+          "mass_weighting": true,
+          "CMAPv1904": {
+            "source": "DATA/pr/CMAPv1904/pr.nc",
+            "land": true,
+            "weight": 20.0,
+            "table_unit": "mm d-1",
+            "plot_unit": "mm d-1",
+            "space_mean": true
+          },
+          "FLUXNET2015": {
+            "source": "DATA/pr/FLUXNET2015/pr.nc",
+            "land": true,
+            "weight": 9.0,
+            "table_unit": "mm d-1",
+            "plot_unit": "mm d-1"
+          },
+          "GPCCv2018": {
+            "source": "DATA/pr/GPCCv2018/pr.nc",
+            "land": true,
+            "weight": 20.0,
+            "table_unit": "mm d-1",
+            "plot_unit": "mm d-1",
+            "space_mean": true
+          },
+          "GPCPv2.3": {
+            "source": "DATA/pr/GPCPv2.3/pr.nc",
+            "land": true,
+            "weight": 20.0,
+            "table_unit": "mm d-1",
+            "plot_unit": "mm d-1",
+            "space_mean": true
+          }
+        },
+        "Surface Relative Humidity": {
+          "variable": "rhums",
+          "alternate_vars": "hurs",
+          "cmap": "Blues",
+          "weight": 3.0,
+          "mass_weighting": true,
+          "ERA5": {
+            "source": "DATA/rhums/ERA5/rhums.nc",
+            "weight": 10.0
+          },
+          "CRU4.02": {
+            "source": "DATA/rhums/CRU4.02/rhums.nc",
+            "weight": 10.0
+          }
+        },
+        "Surface Downward SW Radiation": {
+          "variable": "rsds",
+          "weight": 2.0,
+          "CERESed4.1": {
+            "source": "DATA/rsds/CERESed4.1/rsds.nc",
+            "weight": 15.0
+          },
+          "FLUXNET2015": {
+            "source": "DATA/rsds/FLUXNET2015/rsds.nc",
+            "weight": 12.0
+          },
+          "GEWEX.SRB": {
+            "source": "DATA/rsds/GEWEX.SRB/rsds_0.5x0.5.nc",
+            "weight": 15.0
+          },
+          "WRMC.BSRN": {
+            "source": "DATA/rsds/WRMC.BSRN/rsds.nc",
+            "weight": 12.0
+          }
+        },
+        "Surface Downward LW Radiation": {
+          "variable": "rlds",
+          "weight": 1.0,
+          "CERESed4.1": {
+            "source": "DATA/rlds/CERESed4.1/rlds.nc",
+            "weight": 15.0
+          },
+          "FLUXNET2015": {
+            "source": "DATA/rlds/FLUXNET2015/rlds.nc",
+            "weight": 12.0
+          },
+          "GEWEX.SRB": {
+            "source": "DATA/rlds/GEWEX.SRB/rlds_0.5x0.5.nc",
+            "weight": 15.0
+          },
+          "WRMC.BSRN": {
+            "source": "DATA/rlds/WRMC.BSRN/rlds.nc",
+            "weight": 12.0
+          }
+        }
+      }
+    }
+  }
+}
