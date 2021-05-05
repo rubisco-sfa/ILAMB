@@ -6,6 +6,10 @@ import re
 from matplotlib.colors import LinearSegmentedColormap
 import os
 from netCDF4 import Dataset
+import pandas as pd
+import json
+import glob
+import pickle
 
 def UseLatexPltOptions(fsize=18):
     params = {'axes.titlesize':fsize,
@@ -1094,7 +1098,7 @@ def RegisterCustomColormaps():
     plt.register_cmap("wetdry",cm)                                                    
 
 def HarvestScalarDatabase(build_dir,filename="scalar_database.csv"):
-    csv = "Section,Variable,Source,Model,ScalarName,AnalysisType,Region,ScalarType,Units,Data"
+    csv = '"Section","Variable","Source","Model","ScalarName","AnalysisType","Region","ScalarType","Units","Data","Weight"'
     for root,subdirs,files in os.walk(build_dir):
         for fname in files:
             if not fname.endswith(".nc"): continue
@@ -1107,6 +1111,7 @@ def HarvestScalarDatabase(build_dir,filename="scalar_database.csv"):
             with Dataset(os.path.join(root,fname)) as dset:
                 if dset.complete != 1: continue
                 model = dset.getncattr("name")
+                weight = dset.getncattr("weight")
                 for g1 in dset.groups:
                     for g2 in dset.groups[g1].groups:
                         grp = dset.groups[g1].groups[g2]
@@ -1117,5 +1122,188 @@ def HarvestScalarDatabase(build_dir,filename="scalar_database.csv"):
                             v = grp.variables[vname]
                             V = v[...]
                             s = "nan" if V.mask else "%g" % V
-                            csv += "\n%s,%s,%s,%s,%s,%s,%s,%s,%s,%s" % (category,varname,provider,model,var,g1,region,stype,v.units,s)
+                            csv += "\n" + ",".join(['"%s"' % v for v in (category,varname,provider,model,var,g1,region,stype,v.units,s,weight)])
     with open(os.path.join(build_dir,filename),mode="w") as f: f.write(csv)
+
+def CreateJSON(csv_file,M=None):
+    """Using the CSV scalar database, create a JSON following the CMEC standard.
+
+    Parameters
+    ----------
+    csv_file : str
+        the full path to the scalar database CSV file
+    M : list of ILAMB.ModelResult, optional
+        if not given, then the routine will attempt to load pickle
+        files. If no models are given and they cannot be found in
+        pickle files, then no description or source will be provided.
+
+    """
+    def _unCamelCase(s): return re.sub("([a-z])([A-Z])","\g<1> \g<2>",s)
+    def _weightedMean(x): return (x.Data*x.Weight/x.Weight.sum()).sum()
+    def _meanScore(df_local,short,*args):
+        cols = ['Section','Variable','Source']
+        q = df_local.query(" & ".join(["(%s == '%s')" % (col,arg) for arg,col in zip(args,cols)]))
+        scores = {}
+        for s in short:
+            qs = q.query("ScalarName == '%s'" % s)
+            if qs.shape[0] > 0: scores[_unCamelCase(s)] = _weightedMean(qs)
+        return scores
+    def _parseConfig(f):
+        lines = open(f).readlines()
+        cfg = {}
+        rel = {}
+        h1 = h2 = v = None
+        for line in lines:
+            line = line.strip()
+            if line.startswith("[h1:"):
+                h1 = line.strip("[h1:").strip("]").strip()
+            elif line.startswith("[h2:"):
+                h2 = line.strip("[h2:").strip("]").strip()
+            elif line.startswith("["):
+                v = line.strip("[").strip("]").strip()
+                if h1 not in cfg    : cfg[h1]     = {}
+                if h2 not in cfg[h1]: cfg[h1][h2] = []
+                cfg[h1][h2].append(v)
+            elif line.startswith("relationships"):
+                line = line.replace('"','').replace("'","")
+                line = (line.split("=")[1]).strip()
+                line = line.split(",")
+                r2 = "%s/%s" % (h2,v)
+                if h2 not in rel: rel[r2] = []
+                for ind in line:
+                    ind = ind.strip()
+                    rel[r2].append(_unCamelCase(ind))
+        if rel: cfg["Relationships"] = rel
+        return cfg
+    
+    # Drop nan's and we only need the scores from the database
+    df = pd.read_csv(csv_file).dropna().query("ScalarType=='score'")
+    
+    # Also drop 'Overall Score' for relationships, these mess up our
+    # aggregation in this routine
+    q = df.query("AnalysisType=='Relationships' & ScalarName=='Overall Score'")
+    df = df.drop(q.index)
+    if M is None:
+        models = list(df.Model.unique())
+    else:
+        models = [m.name for m in M]
+    r = Regions()
+    regions = [n for n in df.Region.unique() if n in r.regions]
+
+    out = {}
+    # meta-data for which scheme and package have been used
+    out["SCHEMA"] = {"name": "CMEC","version": "v1","package": "ILAMB"}
+
+    # what dimensions should we find?
+    out["DIMENSIONS"] = {"json_structure": ["region","model","metric","statistic"]}
+    out["DIMENSIONS"]["dimensions"] = {}
+
+    # populate the regions
+    nest = {}
+    for region in regions:
+        name = r.getRegionName(region)
+        source = r.getRegionSource(region)
+        nest[region] = {"LongName":name,"Description":name,"Generator":source}
+    out["DIMENSIONS"]["dimensions"]["region"] = nest
+
+    # populate the models
+    if M is None:
+        M = []
+        for pkl_file in glob.glob(os.path.join(os.path.dirname(csv_file),"*.pkl")):
+            with open(pkl_file,'rb') as infile:
+                M.append(pickle.load(infile))
+    nest = {}
+    for model in models:
+        m = [m for m in M if m.name == model]
+        if len(m) > 0:
+            nest[model] = {"Description":m[0].description,"Source":m[0].group}
+        else:
+            nest[model] = {"Description":"","Source":""}
+    out["DIMENSIONS"]["dimensions"]["model"] = nest
+
+    # populate the list of metrics
+    cfg = _parseConfig(os.path.join(os.path.dirname(csv_file),"ilamb.cfg"))
+    nest = {}
+    base = {"URI":["https://www.osti.gov/biblio/1330803",
+                   "https://doi.org/10.1029/2018MS001354"],
+            "Contact": "forrest AT climatemodeling.org"}
+    S = list(cfg.keys())
+    for s in S:
+        s_json = s
+        s_csv  = s.replace(" ","")
+        nest[s_json] = {"Name":s_json,"Abstract":"composite score"}
+        nest[s_json].update(base)
+        V = list(cfg[s].keys())
+        for v in V:
+            v_json = "%s::%s" % (s_json,v)
+            v_csv  = v.replace(" ","")
+            nest[v_json] = {"Name":v_json,"Abstract":"composite score"}
+            nest[v_json].update(base)
+            D = cfg[s][v]
+            for d in D:
+                d_json = "%s!!%s" % (v_json,d)
+                d_csv  = d.replace(" ","")
+                nest[d_json] = {"Name":d_json,"Abstract":"benchmark score"}
+                nest[d_json].update(base)                
+    out["DIMENSIONS"]["dimensions"]["metric"] = nest
+
+    # populate list of statistics, sorted so the common ones appear first
+    def _priority(key):
+        val = 1
+        found = False
+        for i,word in enumerate(['overall','bias','rmse','cycle','interannual','spatial']):
+            if word in key.lower():
+                val *= 2**i
+                found = True
+        if not found: val = 2**6
+        return val
+    short = list(df.query("AnalysisType=='MeanState' & ScalarType=='score'").ScalarName.unique())
+    short = sorted(short,key=_priority)
+    index = [_unCamelCase(n) for n in short]
+    out["DIMENSIONS"]["dimensions"]["statistic"] = {"indices":index,"short_names":short}
+
+    # populate the statistics and their means
+    nest = {}
+    for region in regions:
+        nest[region] = {}
+        for m in models:
+            nest[region][m] = {}
+            df_m = df.query("AnalysisType=='MeanState' & Region=='%s' & Model=='%s'" % (region,m))
+            for s in S:
+                s_json = s
+                s_csv  = s.replace(" ","")
+                t = _meanScore(df_m,short,s_csv)
+                if t: nest[region][m][s_json] = t
+                V = list(cfg[s].keys())
+                for v in V:
+                    v_json = "%s::%s" % (s_json,v)
+                    v_csv  = v.replace(" ","")
+                    t = _meanScore(df_m,short,s_csv,v_csv)
+                    if t: nest[region][m][v_json] = t
+                    D = cfg[s][v]
+                    for d in D:
+                        d_json = "%s!!%s" % (v_json,d)
+                        d_csv  = d.replace(" ","")
+                        t = _meanScore(df_m,short,s_csv,v_csv,d_csv)
+                        if t: nest[region][m][d_json] = t
+                        
+            df_m = df.query("AnalysisType=='Relationships' & Region=='%s' & Model=='%s'" % (region,m))
+            s_json = s_csv = "Relationships"
+            if len(df_m):
+                nest[region][m][s_json] = {'Overall Score':_weightedMean(df_m)}
+                V = list(cfg[s].keys())
+                for v in V:
+                    v_json = "%s::%s" % (s_json,v)
+                    v_csv  = v.replace(" ","").split("/")
+                    q = df_m.query("Variable=='%s' & Source=='%s'" % (v_csv[0],v_csv[1]))
+                    nest[region][m][v_json] = {'Overall Score':_weightedMean(q)}
+                    D = cfg[s][v]
+                    for d in D:
+                        d_json = "%s!!%s" % (v_json,d)
+                        d_csv  = d.replace(" ","").replace("/","|")
+                        q = df_m.query("Variable=='%s' & Source=='%s' & ScalarName=='%s Score'" % (v_csv[0],v_csv[1],d_csv))
+                        nest[region][m][d_json] = {'Overall Score':_weightedMean(q)}
+    out["RESULTS"] = nest
+
+    with open(csv_file.replace(".csv",".json"), 'w') as outfile:
+        json.dump(out,outfile)

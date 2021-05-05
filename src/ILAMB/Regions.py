@@ -1,3 +1,4 @@
+import os
 from netCDF4 import Dataset
 import numpy as np
 
@@ -12,13 +13,14 @@ class Regions(object):
 
     """
     _regions = {}
-
+    _sources = {}
+    
     @property
     def regions(self):
         """Returns a list of region identifiers."""
         return Regions._regions.keys()
-
-    def addRegionLatLonBounds(self,label,name,lats,lons):
+    
+    def addRegionLatLonBounds(self,label,name,lats,lons,source="user-provided latlon bounds"):
         """Add a region by lat/lon bounds.
 
         Parameters
@@ -31,7 +33,8 @@ class Regions(object):
             the minimum and maximum latitudes defining the region on the interval (-90,90)
         lons : array-like of size 2
             the minimum and maximum longitudes defining the region on the interval (-180,180)
-
+        source : str, optional
+            a string representing the source of the region, purely cosmetic
         """
         lat  = np.hstack([[- 90.],np.asarray(lats),[ 90.]])
         lon  = np.hstack([[-180.],np.asarray(lons),[180.]])
@@ -39,7 +42,8 @@ class Regions(object):
                            [1,0,1],
                            [1,1,1]],dtype=bool)
         Regions._regions[label] = [name,lat,lon,mask]
-
+        Regions._sources[label] = source
+        
     def addRegionNetCDF4(self,filename):
         """Add regions found in a netCDF4 file.
 
@@ -103,6 +107,7 @@ class Regions(object):
                     name  = nam[i]
                     mask  = v[...].data != i
                     Regions._regions[label] = [name,lat,lon,mask]
+                    Regions._sources[label] = os.path.basename(filename)
                     labels.append(label)
         return labels
 
@@ -120,6 +125,21 @@ class Regions(object):
             the long name of the region
         """
         return Regions._regions[label][0]
+    
+    def getRegionSource(self,label):
+        """Given the region label, return the source.
+
+        Parameters
+        ----------
+        label : str
+            the unique region identifier
+
+        Returns
+        -------
+        name : str
+            the source of the region
+        """
+        return Regions._sources[label]
 
     def getMask(self,label,var):
         """Given the region label and a ILAMB.Variable, return a mask appropriate for that variable.
@@ -178,23 +198,25 @@ if "global" not in Regions().regions:
 
     # Populate some regions
     r = Regions()
-    r.addRegionLatLonBounds("global","Globe",(-89.999, 89.999),(-179.999, 179.999))
+    src = "ILAMB internal"
+    r.addRegionLatLonBounds("global","Globe",(-89.999, 89.999),(-179.999, 179.999),src)
     Regions._regions["global"][3][...] = 0. # ensure global mask is null
-    r.addRegionLatLonBounds("globe","Global - All",(-89.999, 89.999),(-179.999, 179.999))
+    r.addRegionLatLonBounds("globe","Global - All",(-89.999, 89.999),(-179.999, 179.999),src)
     Regions._regions["globe"][3][...] = 0. # ensure global mask is null
 
     # GFED regions
-    r.addRegionLatLonBounds("bona","Boreal North America",             ( 49.75, 79.75),(-170.25,- 60.25))
-    r.addRegionLatLonBounds("tena","Temperate North America",          ( 30.25, 49.75),(-125.25,- 66.25))
-    r.addRegionLatLonBounds("ceam","Central America",                  (  9.75, 30.25),(-115.25,- 80.25))
-    r.addRegionLatLonBounds("nhsa","Northern Hemisphere South America",(  0.25, 12.75),(- 80.25,- 50.25))
-    r.addRegionLatLonBounds("shsa","Southern Hemisphere South America",(-59.75,  0.25),(- 80.25,- 33.25))
-    r.addRegionLatLonBounds("euro","Europe",                           ( 35.25, 70.25),(- 10.25,  30.25))
-    r.addRegionLatLonBounds("mide","Middle East",                      ( 20.25, 40.25),(- 10.25,  60.25))
-    r.addRegionLatLonBounds("nhaf","Northern Hemisphere Africa",       (  0.25, 20.25),(- 20.25,  45.25))
-    r.addRegionLatLonBounds("shaf","Southern Hemisphere Africa",       (-34.75,  0.25),(  10.25,  45.25))
-    r.addRegionLatLonBounds("boas","Boreal Asia",                      ( 54.75, 70.25),(  30.25, 179.75))
-    r.addRegionLatLonBounds("ceas","Central Asia",                     ( 30.25, 54.75),(  30.25, 142.58))
-    r.addRegionLatLonBounds("seas","Southeast Asia",                   (  5.25, 30.25),(  65.25, 120.25))
-    r.addRegionLatLonBounds("eqas","Equatorial Asia",                  (-10.25, 10.25),(  99.75, 150.25))
-    r.addRegionLatLonBounds("aust","Australia",                        (-41.25,-10.50),( 112.00, 154.00))
+    src = "Global Fire Emissions Database (GFED)"
+    r.addRegionLatLonBounds("bona","Boreal North America",             ( 49.75, 79.75),(-170.25,- 60.25),src)
+    r.addRegionLatLonBounds("tena","Temperate North America",          ( 30.25, 49.75),(-125.25,- 66.25),src)
+    r.addRegionLatLonBounds("ceam","Central America",                  (  9.75, 30.25),(-115.25,- 80.25),src)
+    r.addRegionLatLonBounds("nhsa","Northern Hemisphere South America",(  0.25, 12.75),(- 80.25,- 50.25),src)
+    r.addRegionLatLonBounds("shsa","Southern Hemisphere South America",(-59.75,  0.25),(- 80.25,- 33.25),src)
+    r.addRegionLatLonBounds("euro","Europe",                           ( 35.25, 70.25),(- 10.25,  30.25),src)
+    r.addRegionLatLonBounds("mide","Middle East",                      ( 20.25, 40.25),(- 10.25,  60.25),src)
+    r.addRegionLatLonBounds("nhaf","Northern Hemisphere Africa",       (  0.25, 20.25),(- 20.25,  45.25),src)
+    r.addRegionLatLonBounds("shaf","Southern Hemisphere Africa",       (-34.75,  0.25),(  10.25,  45.25),src)
+    r.addRegionLatLonBounds("boas","Boreal Asia",                      ( 54.75, 70.25),(  30.25, 179.75),src)
+    r.addRegionLatLonBounds("ceas","Central Asia",                     ( 30.25, 54.75),(  30.25, 142.58),src)
+    r.addRegionLatLonBounds("seas","Southeast Asia",                   (  5.25, 30.25),(  65.25, 120.25),src)
+    r.addRegionLatLonBounds("eqas","Equatorial Asia",                  (-10.25, 10.25),(  99.75, 150.25),src)
+    r.addRegionLatLonBounds("aust","Australia",                        (-41.25,-10.50),( 112.00, 154.00),src)

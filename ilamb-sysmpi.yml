@@ -9,6 +9,7 @@ channels:
 dependencies:
   - python=3
   - numpy
+  - pandas
   - matplotlib
   - cartopy
   - netCDF4

@@ -252,7 +252,7 @@ class ConfDiurnal(Confrontation):
         Lmod = np.asarray(Lmod).mean()
 
         with Dataset(os.path.join(self.output_path,"%s_%s.nc" % (self.name,m.name)),mode="w") as results:
-            results.setncatts({"name" :m.name, "color":m.color})
+            results.setncatts({"name" :m.name, "color":m.color,"weight":self.cweight})
             Variable(name = "Season Length global",
                      unit = "d",
                      data = Lmod).toNetCDF4(results,group="MeanState")
@@ -293,7 +293,7 @@ class ConfDiurnal(Confrontation):
             results.setncattr("complete",1)
         if not self.master: return
         with Dataset(os.path.join(self.output_path,"%s_Benchmark.nc" % self.name),mode="w") as results:
-            results.setncatts({"name" :"Benchmark", "color":np.asarray([0.5,0.5,0.5])})
+            results.setncatts({"name" :"Benchmark", "color":np.asarray([0.5,0.5,0.5]), "weight":self.cweight})
             Variable(name = "Season Length global",
                      unit = "d",
                      data = Lobs).toNetCDF4(results,group="MeanState")

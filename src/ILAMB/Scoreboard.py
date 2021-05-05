@@ -16,7 +16,7 @@ from .Regions import Regions
 import os,re
 from netCDF4 import Dataset
 import numpy as np
-from .Post import HarvestScalarDatabase
+from .Post import HarvestScalarDatabase,CreateJSON
 from .ilamblib import MisplacedData
 import glob,json
 
@@ -340,6 +340,7 @@ class Scoreboard():
                 node.source = os.path.join(os.environ["ILAMB_ROOT"],node.source if node.source else "")
                 node.mem_slab = mem_per_pair*0.5
                 node.confrontation = Constructor(**(node.__dict__))
+                node.confrontation.cweight = node.weight*node.parent.weight
                 node.confrontation.extents = extents
 
                 if verbose and master: print(("    {0:>%d}\033[92m Initialized\033[0m" % max_name_len).format(node.confrontation.longname))
@@ -538,7 +539,7 @@ class Scoreboard():
 		  for(let v in H2){
 	              var s_name = scalar_name;
                       if(h1 == "Relationships") {
-                        s_name = v.substring(0,v.indexOf("/")) + " RMSE Score " + region_option.options[region_option.selectedIndex].value;
+                        s_name = v.substring(0,v.indexOf("/")) + " Score " + region_option.options[region_option.selectedIndex].value;
                       }else{
                       }
 		      printRow(table,row,H2[v][s_name],cmap);
@@ -749,8 +750,183 @@ class Scoreboard():
                     except:
                         out.write("%s,%s\n" % (v.name,','.join(["~"]*len(M))))
 
-    def harvestInformation(self):
+    def harvestInformation(self,M):
         HarvestScalarDatabase(self.build_dir)
+        CreateJSON(os.path.join(self.build_dir,"scalar_database.csv"),M)
+
+    def createUDDashboard(self,filename="dashboard.html"):
+        html = """
+<!DOCTYPE html>
+<html lang="en">
+<head>
+   <meta charset="utf-8" />
+   <script type="text/javascript" src="https://cdn.jsdelivr.net/gh/climatemodeling/unified-dashboard@1.0.0/dist/js/lmtud_bundle.min.js"></script>
+   <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/climatemodeling/unified-dashboard@1.0.0/dist/css/lmtud_bundle.min.css">
+</head>
+<body>
+    <nav id="menu" class="menu">
+      <a href="https://www.bgc-feedbacks.org" target="_blank">
+        <header class="menu-header">
+          <span class="menu-header-title">Settings</span>
+        </header>
+      </a>
+      <section class="menu-section">
+         <div id="ck-button">
+             <label>
+                <input type="checkbox" name="colorblind" id="colorblind" class="mybtn" onchange="tableColor()" checked="true"><span>Colorblind colors</span>
+             </label>
+         </div>
+      </section>
+      <section class="menu-section">
+          <select class="hide-list" id="hlist" name="states[]" multiple="multiple" style="width:75%"> </select>
+      </section>
+      <section class="menu-section">
+          <select class="select-choice-x" id="select-choice-mini-x" style="width:75%"> <option></option></select>
+          <select class="select-choice-y" id="select-choice-mini-y" style="width:75%"> <option></option></select>
+      </section>
+      <section class="menu-section">
+          <select class="select-choice-1" id="select-choice-mini-0" style="width:75%; display:none"> <option></option></select>
+          <select class="select-choice-2" id="select-choice-mini-1" style="width:75%; display:none"> <option></option></select>
+          <select class="select-choice-3" id="select-choice-mini-2" style="width:75%; display:none"> <option></option></select>
+          <select class="select-choice-4" id="select-choice-mini-3" style="width:75%; display:none"> <option></option></select>
+          <select class="select-choice-5" id="select-choice-mini-4" style="width:75%; display:none"> <option></option></select>
+          <select class="select-choice-6" id="select-choice-mini-5" style="width:75%; display:none"> <option></option></select>
+          <select class="select-choice-7" id="select-choice-mini-6" style="width:75%; display:none"> <option></option></select>
+          <select class="select-choice-8" id="select-choice-mini-7" style="width:75%; display:none"> <option></option></select>
+          <select class="select-choice-9" id="select-choice-mini-8" style="width:75%; display:none"> <option></option></select>
+          <select class="select-choice-9" id="select-choice-mini-9" style="width:75%; display:none"> <option></option></select>
+      </section>
+      <section class="menu-section">
+          <h3 class="menu-section-title">Scaling</h3>
+          <label class="el-checkbox el-checkbox-sm">
+             <span class="margin-r">Row</span>
+             <input type="checkbox" class="scarow" value='scarow' id="checkboxsca" checked>
+             <span class="el-checkbox-style  pull-right"></span>
+          </label>
+          <label class="el-checkbox el-checkbox-sm">
+             <span class="margin-r">Column</span>
+             <input type="checkbox" class="scacol" value='scacol' id="checkboxsca">
+             <span class="el-checkbox-style  pull-right"></span>
+          </label>
+          <select class="select-choice-sca" id="select-choice-mini-sca" style="width:75%"> 
+             <option value="0" selected> Not normalized </option>
+             <option value="1"> Normalized [x-mean(x)]/sigma(x) </option>
+             <option value="2"> Normalized [-1:1] </option>
+             <option value="3"> Normalized [ 0:1] </option>
+          </select>
+          <select class="select-choice-map" id="select-choice-mini-map" style="width:75%"> 
+             <option value="0" selected> ILAMB color mapping </option>
+             <option value="1"> Linear color mapping </option>
+             <option value="2"> Linear color mapping reverse </option>
+          </select>
+      </section>
+      <hr>
+      <section class="menu-section">
+          <h3 class="menu-section-title">Examples</h3>
+          <select class="select-choice-ex" id="select-choice-mini-ex" style="width:75%"> 
+             <option value="cmec_ilamb_example_addsource.json"> CMEC ILAMB</option>
+             <option value="pmp_enso_tel.json"> CMEC PMP</option>
+          </select>
+          <h3 class="menu-section-title">Logo</h3>
+          <select class="select-choice-logo" id="select-choice-mini-logo" style="width:75%"> 
+             <option value="rubisco_logo.png"> RUBISCO</option>
+             <option value="cmec_logo.png"> CMEC</option>
+             <option value="pmp_logo.png"> PMP</option>
+             <option value="lmt-logo.png"> LMT</option>
+          </select>
+      </section>
+      <section class="menu-section">
+          <h3 class="menu-section-title">Switch</h3>
+          <label class="el-switch el-switch-sm">
+              <input type="checkbox" name="switch" id="tooltips" onchange="toggleTooltips(true)" checked hidden>
+              <span class="el-switch-style"></span>
+              <span class="margin-r">Tooltips</span>
+          </label>
+          <label class="el-switch el-switch-sm">
+              <input type="checkbox" name="switch" id="cellvalue" onchange="toggleCellValue(true)" hidden>
+              <span class="el-switch-style"></span>
+              <span class="margin-r">Cell Value</span>
+          </label>
+          <label class="el-switch el-switch-sm">
+              <input type="checkbox" name="switch" id="bottomtitle" onchange="toggleBottomTitle(true)" hidden>
+              <span class="el-switch-style"></span>
+              <span class="margin-r">Bottom Title</span>
+          </label>
+          <label class="el-switch el-switch-sm">
+              <input type="checkbox" name="switch" id="toptitle" onchange="toggleTopTitle(true)" checked hidden>
+              <span class="el-switch-style"></span>
+              <span class="margin-r">Top Title</span>
+          </label>
+          <label class="el-switch el-switch-sm">
+              <input type="checkbox" name="switch" class="screenheight" id="screenheight" onchange="toggleScreenHeight(true)" checked hidden>
+              <span class="el-switch-style"></span>
+              <span class="margin-r">Screen Height</span>
+          </label>
+      </section>
+      <hr>
+      <section class="menu-section">
+          <button type="button" onclick="expandCollapse('expand');" class="togglebutton">Row Expand/Collapse</button>
+      </section>
+      <hr>
+      <section class="menu-section">
+          <button type="button" onclick="savetoHtml();" class="togglebutton">Save to Html</button>
+      </section>
+    </nav>
+    <main id="panel" class="panel">
+      <header class="panel-header">
+        <!--button class="btn-hamburger js-slideout-toggle"></button-->
+        <span id="sidemenuicon" class="js-slideout-toggle">&#9776&nbsp;Menu</span>
+        <h1 class="title">LMT Unified Dashboard</h1>
+      </header>
+      <section style="text-align:center">
+        <input name="file" id="file" type="file" onchange="loadlocJson()"/> 
+      </section>
+      <section>
+        <div class="tabDiv" id="mytab">
+          <div id="dashboard-table"></div>
+        </div>
+        <center>
+            <div class="legDiv">
+            <p>Relative Scale
+            <table class="table-header-rotated" id="scoresLegend">
+              <tbody>
+                <tr>
+                  <td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td>
+                </tr>
+              </tbody>
+            </table>
+            Worse Value&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Better Value
+            <table class="table-header-rotated" id="missingLegend">
+              <tbody>
+                <tr>
+                  <td bgcolor="#808080"></td>
+                </tr>
+              </tbody>
+            </table>Missing Data or Error
+            </div>
+        </center>
+      </section>
+    </main>
+</body>
+</html>"""
+        with open(os.path.join(self.build_dir,filename           ),"w") as f: f.write(html)
+        with open(os.path.join(self.build_dir,"_lmtUDConfig.json"),'w') as f:
+            json.dump({
+                "udcJsonLoc": "scalar_database.json",
+                "udcDimSets": {
+                    "x_dim": "model",
+                    "y_dim": "metric",
+                    "fxdim": {
+                        "region": "global",
+                        "statistic": "Overall Score"
+                    }
+                },
+                "udcScreenHeight": 0,
+                "udcCellValue": 0,
+                "logofile": "None"
+            },f)
+        
+
         
 def GenerateRelationshipTree(S,M):
 

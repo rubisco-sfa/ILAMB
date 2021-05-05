@@ -167,7 +167,7 @@ class ConfTWSA(Confrontation):
 
         # dump results to a netCDF4 file
         results = Dataset(os.path.join(self.output_path,"%s_%s.nc" % (self.name,m.name)),mode="w")
-        results.setncatts({"name" :m.name, "color":m.color, "complete":0})
+        results.setncatts({"name" :m.name, "color":m.color, "weight":self.cweight,"complete":0})
         mod         .toNetCDF4(results,group="MeanState")
         mod_anom_val.toNetCDF4(results,group="MeanState")
         mod_anom_map.toNetCDF4(results,group="MeanState")
@@ -180,7 +180,7 @@ class ConfTWSA(Confrontation):
         results.close()
         if self.master:
             results = Dataset(os.path.join(self.output_path,"%s_Benchmark.nc" % (self.name)),mode="w")
-            results.setncatts({"name" :"Benchmark", "color":np.asarray([0.5,0.5,0.5]),"complete":0})
+            results.setncatts({"name" :"Benchmark", "color":np.asarray([0.5,0.5,0.5]),"weight":self.cweight,"complete":0})
             obs.toNetCDF4(results,group="MeanState")
             obs_anom_val.toNetCDF4(results,group="MeanState")
             obs_anom_map.toNetCDF4(results,group="MeanState")
