@@ -10,17 +10,132 @@
     }
   },
   "varlist": {
-    "": {
-      "long_name": "",
-      "units": "",
-      "frequency": ""
+    "chl": {
+      "long_name": "chlorophyll",
+      "units": "mg m-3",
+      "frequency": "mon"
+    },
+    "detoc": {
+      "long_name": "detritalorganiccarbon",
+      "units": "1e-6 mol L-1",
+      "frequency": "mon"
+    },
+    "dms": {
+      "long_name": "dimethylsulfide",
+      "units": "1e-9 mol L-1",
+      "frequency": "monC"
+    },
+    "dissic": {
+      "long_name": "dissolvedinorganiccarbon",
+      "units": "1e-6 mol kg-1",
+      "frequency": "mon"
+    },
+    "omlmax": {
+      "long_name": "mixedlayerdepth",
+      "units": "m",
+      "frequency": "monC"
+    },
+    "intpp": {
+      "long_name": "netprimaryproductivity",
+      "units": "mol m-2 s-1",
+      "frequency": "mon"
+    },
+    "no3": {
+      "long_name": "nitrate",
+      "units": "1e-6 mol L-1",
+      "frequency": "mon"
+    },
+    "o2": {
+      "long_name": "oxygen",
+      "units": "1e-6 mol kg-1",
+      "frequency": "monC"
+    },
+    "po4": {
+      "long_name": "phosphate",
+      "units": "1e-6 mol L-1",
+      "frequency": "monC"
+    },
+    "phyc": {
+      "long_name": "phytoplankton",
+      "units": "mol m-3",
+      "frequency": "mon"
+    },
+    "so": {
+      "long_name": "salinity",
+      "units": "psu",
+      "frequency": "mon"
+    },
+    "rsntds": {
+      "long_name": "shortwaveradiation",
+      "units": "W m-2",
+      "frequency": "monC"
+    },
+    "si": {
+      "long_name": "silicate",
+      "units": "1e-6 mol L-1",
+      "frequency": "monC"
+    },
+    "thetao": {
+      "long_name": "temperature",
+      "units": "C",
+      "frequency": "mon"
+    },
+    "ws": {
+      "long_name": "windspeed",
+      "units": "m s-1",
+      "frequency": "monC"
+    },
+    "zooc": {
+      "long_name": "zooplankton",
+      "units": "mol m-3",
+      "frequency": "mon"
     }
   },
   "obslist": {
-    "": {
-      "version": "",
-      "long_name": "",
-      "description": ""
+    "JAMSTEC": {
+      "version": "02c",
+      "long_name": "Japan Agency for Marine-Earth Science and Technology",
+      "description": "Japan Agency for Marine-Earth Science and Technology (JAMSTEC)-Kyoto University collaborative program (known as the K7 consortium)."
+    },
+    "SOLAS Project Integration": {
+      "version": "2010",
+      "long_name": "The Surface Ocean - Lower Atmosphere Study",
+      "description": "SOLAS Integration DMS concentration climatology product 1.00 degree"
+    },
+    "Ogunro": {
+      "version": "latest",
+      "long_name": "Climatology sea-air DMS flux 2.5 degree",
+      "description": "The global DMS sea-air flux calculated from Lana DMS dataset, World Ocean Atlas SST and NCEP/NCAR wind speed"
+    },
+    "SeaWIFS": {
+      "version": "latest",
+      "long_name": "SeaWIFS",
+      "description": "chlorophyll data"
+    },
+    "Boyer.Montegut": {
+      "version": "2015",
+      "long_name": "Mixed Layer Depth",
+      "description": "Temperature-Mixed Layer Depth, or Isothermal Layer Depth, from C. de Boyer Montegut"
+    },
+    "OSU": {
+      "version": "1997a",
+      "long_name": "Oregon State University",
+      "description": "Monthly ocean net primary production (NPP) on 1 lat and lon"
+    },
+    "WOA": {
+      "version": "2013",
+      "long_name": "World Ocean Atlas 2013",
+      "description": "global climatology as part of the World Ocean Atlas project"
+    },
+    "RDA.UCAR": {
+      "version": "2008",
+      "long_name": "WHOI OAFlux Project",
+      "description": "Objectively Analyzed Air-Sea Fluxes (OAFlux) For Global Oceans"
+    },
+    "NCEP": {
+      "version": "1",
+      "long_name": "NCEP/NCAR Reanalysis 1",
+      "description": "Monthly Composite Value of scalar wind speed on 2.5 lat and lon from NCEP reanalysis datasets"
     }
   },
   "coordinates": {
