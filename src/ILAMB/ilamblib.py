@@ -876,6 +876,10 @@ def FromNetCDF4(filename,variable_name,alternate_vars=[],t0=None,tf=None,group=N
             lon_bnd[:,0] = lon_bnds[:-1]
             lon_bnd[:,1] = lon_bnds[+1:]
 
+    # handle data that is the wrong order of axes (could be much better)
+    if t is not None and lat is not None and lon is not None and data is None:
+        if t.size != v.shape[0] and t.size == v.shape[-1]: v = np.rollaxis(v,-1,0)
+        
     # handle incorrect or absent masking of arrays
     if type(v) != type(np.ma.empty(1)):
         mask = np.zeros(v.shape,dtype=int)
