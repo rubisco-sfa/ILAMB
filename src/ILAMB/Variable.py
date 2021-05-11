@@ -165,11 +165,15 @@ class Variable:
         self.lat_bnds = lat_bnds
         self.lon_bnds = lon_bnds
         self.area     = keywords.get("area",None)
-
+                
         # If the last dimensions are lat and lon, this is spatial data
         if lat is not None and lon is not None and data.ndim >= 2:
             if (data.shape[-2] == lat.size and data.shape[-1] == lon.size): self.spatial = True
 
+        # Did we pass in bad areas?
+        if spatial and self.area is not None:
+            if not np.allclose(self.area.shape,[lat.size,lon.size]): self.area = None
+            
         # Exception for PEcAn
         if self.spatial is True:
             if data.shape[-2:] == (1,1):
