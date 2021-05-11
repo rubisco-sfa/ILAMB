@@ -171,7 +171,7 @@ class Variable:
             if (data.shape[-2] == lat.size and data.shape[-1] == lon.size): self.spatial = True
 
         # Did we pass in bad areas?
-        if spatial and self.area is not None:
+        if self.spatial and self.area is not None:
             if not np.allclose(self.area.shape,[lat.size,lon.size]): self.area = None
             
         # Exception for PEcAn
