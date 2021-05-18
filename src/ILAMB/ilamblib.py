@@ -240,8 +240,10 @@ def GetTime(var,t0=None,tf=None,convert_calendar=True,ignore_time_array=True):
     if time_bnds_name is not None:
         if time_bnds_name not in dset.variables.keys():
             msg = "Time bounds specified in %s as %s, but not a variable in the dataset, found these [%s]" % (time_name,time_bnds_name,dset.variables.keys())
-            raise IOError(msg)
-        tb = dset.variables[time_bnds_name][...]
+            #raise IOError(msg)
+            tb = CreateTimeBounds(t,alpha=GuessAlpha(t))            
+        else:
+            tb = dset.variables[time_bnds_name][...]
     else:
         tb = CreateTimeBounds(t,alpha=GuessAlpha(t))
 
@@ -788,16 +790,22 @@ def FromNetCDF4(filename,variable_name,alternate_vars=[],t0=None,tf=None,group=N
     data    = None;
     cbounds = None
     t,t_bnd,cbounds,begin,end,calendar = GetTime(var,t0=t0,tf=tf,convert_calendar=convert_calendar)
-
+    
     # Are there uncertainties?
     v_bnd = None
     if "bounds" in var.ncattrs(): v_bnd = var.bounds
     v_bnd = grp.variables[v_bnd] if v_bnd in grp.variables.keys() else None
-    if begin is None:
+    if begin is None:        
+        # handle data that is the wrong order of axes (could be much better)
+        if var.ndim > 1 and var.dimensions[-1] == time_name[0]:
+            v = np.rollaxis(var[...],-1,0)
         v = var[...]
         if v_bnd: v_bnd = v_bnd[...]
     else:
-        v = var[begin:(end+1),...]
+        if var.ndim > 1 and var.dimensions[-1] == time_name[0]:
+            v = np.rollaxis(var[...,begin:(end+1)],-1,0)
+        else:
+            v = var[begin:(end+1),...]
         if v_bnd: v_bnd = v_bnd[begin:(end+1),...]
     if lat_name       is not None: lat       = grp.variables[lat_name]      [...]
     if lat_bnd_name   is not None: lat_bnd   = grp.variables[lat_bnd_name]  [...]
@@ -875,10 +883,6 @@ def FromNetCDF4(filename,variable_name,alternate_vars=[],t0=None,tf=None,group=N
             lon_bnd      = np.zeros((lon.size,2))
             lon_bnd[:,0] = lon_bnds[:-1]
             lon_bnd[:,1] = lon_bnds[+1:]
-
-    # handle data that is the wrong order of axes (could be much better)
-    if t is not None and lat is not None and lon is not None and data is None:
-        if t.size != v.shape[0] and t.size == v.shape[-1]: v = np.rollaxis(v,-1,0)
         
     # handle incorrect or absent masking of arrays
     if type(v) != type(np.ma.empty(1)):
