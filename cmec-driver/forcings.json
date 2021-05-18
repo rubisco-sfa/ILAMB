@@ -5,7 +5,7 @@
         "async": "MPI",
         "long_name": "Forcings",
         "description": "Main ILAMB metrics driver",
-        "runtime": {"ILAMB": 2.5}
+        "runtime": {"ILAMB": 2.6}
     },
     "varlist": {
         "": {

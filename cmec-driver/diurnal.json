@@ -6,7 +6,7 @@
     "long_name": "ILAMB Diurnal configuration",
     "description": "Diurnal confrontations: Hydrology Cycle, Latent Heat, Sensible Heat, and Surface Air Temperature",
     "runtime": {
-      "ILAMB": 2.5
+      "ILAMB": 2.6
     }
   },
   "varlist": {

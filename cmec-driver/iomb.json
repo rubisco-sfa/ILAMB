@@ -6,7 +6,7 @@
     "long_name": "IOMB configuration",
     "description": "Confrontations for the ocean benchmarking package",
     "runtime": {
-      "ILAMB": 2.5
+      "ILAMB": 2.6
     }
   },
   "varlist": {

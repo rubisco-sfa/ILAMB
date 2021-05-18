@@ -6,7 +6,7 @@
     "long_name": "ILAMB sample case",
     "description": "Sample configuration for testing ILAMB. Data available at https://www.ilamb.org/Downloads/minimal_ILAMB_data.tgz",
     "runtime": {
-      "ILAMB": 2.5
+      "ILAMB": 2.6
     }
   },
   "varlist": {

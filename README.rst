@@ -1,76 +1,67 @@
-ILAMB 2.5 Release
+ILAMB 2.6 Release
 =================
 
-We are pleased to announce a new version of the ILAMB package. In
-addition to a new version, the ILAMB repository is now hosted at:
+It has been a while since our last release, but ILAMB continues to
+evolve. Many of the changes are 'under the hood' or bugfixes that are
+not readily seen. In the following, we present a few key changes and
+draw attention in particular to those that will change scores. We also
+have worked to make ILAMB ready to integrate with tools being
+developed as part of the Coordinated Model Evaluation Capabilities (`CMEC
+<https://cmec.llnl.gov/>`_).
 
-  `https://github.com/rubisco-sfa/ILAMB <https://github.com/rubisco-sfa/ILAMB>`_
+Changes - May 2021
+------------------
 
-This release includes some interface improvements as well as core
-technology enhancements increasing speed and reliability. See the
-following list for major changes:
+CMEC
+~~~~
 
-* The landing `page <http://www.ilamb.org/CMIP6/historical/>`_
-  generated from `ilamb-run` has received an overhaul. We have merged
-  the two tabs with the image and data into one dynamic table which
-  can be clicked. Clicking on a row header will either expand the row
-  or take you to the dataset page. Clicking on a particular model's
-  square will take you to the dataset page with that particular model
-  highlighted. In addition to this, you can now select which scalar
-  you wish to plot in the table (i.e. Overall Score, Bias Score) over
-  any region included in the study.
-* The appearance of the `Data Information` tabs on the dataset pages
-  has been greatly enhanced. References can be included in the netCDF
-  files in Bibtex format and will be rendered inside of
-  ILAMB. Hyperlinks also will be detected and rendered as clickable
-  links in the output pages. Thanks to Mingquan Mu for this addition.
-* Added a soil carbon temperature sensitivity metric from Charlie
-  Koven, added this to our curated configure file `cmip.cfg`.
-* The CO2 emulation code will now account for ocean and fossil fuel
-  fluxes when emulating the land model's `nbp`. Thanks to Ke Xu for this
-  contribution.
-* We have added new datasets `LORA
-  <http://dx.doi.org/10.25914/5b612e993d8ea>`_ for runoff and `DOLCE
-  <http://dx.doi.org/10.4225/41/58980b55b0495>`_ for latent
-  heat. While these datasets include uncertainty estimates, we are
-  currently not making use of them in our analysis.
-* We have replaced `basemap <https://github.com/matplotlib/basemap>`_
-  in favor of `cartopy <https://github.com/SciTools/cartopy>`_ as the
-  tool for plotting on maps. Not only is this needed as basemap is
-  being deprecated, but plotting is now approximately 10x faster. For
-  the most part, this change will be invisible to the user.
-* Added options and structure to `ilamb-run` to improve runtimes. If
-  running a large set of models on a cluster, we recommend first
-  running with the `--skip_plots` option and using a low number of
-  processes per node. This is because memory utilization tends to
-  dominate the analysis phase and you do not want to run out. Then you
-  can submit a second job without `--skip_plots` and using a large
-  number of processes per node.
-* Intermediate files generated during `ilamb-run` will now include a
-  `complete` flag, initialized to `False` and only flagged true if the
-  file closed at the end of the analysis phase without error. This
-  helps us reinitialize `ilamb-run` when a parallel run crashes and
-  leaves file present and not corrupted, but neither complete.
-* If the `psutil` python package is installed, `ilamb-run` will now
-  log the peak memory being used during the analysis phase in the
-  logfiles along with the node name and process rank. This is to help
-  in memory debugging for when high resolution models are being run.
-* In addition to this, `ilamb-run` now caches the model initialization
-  process which should speed up re-initialization for when multiple
-  jobs must be submitted.
-* Added initial support for uncertainty bounds in the
-  ILAMB.Variable. If uncertainty is included in the observations, such
-  as in the Hoffman `nbp` dataset, then ILAMB will automatically
-  operate of it and show it as a shading in plots without changes to
-  your scripts.
-* `ilamb-fetch` now will correctly try to decode server SSL
-  certificates before downloading files. However, the authority that
-  `www.ilamb.org` uses to create its certificates is not in the list
-  that python supports. Your browser maintains a different list of
-  authorities, which is why you can navigate to sites like `this
-  <http://www.ilamb.org/CMIP6/historical/>`_. You will likely need to
-  run with the `--no-check-certificate` option which implies that you
-  trust that we are who we say we are.
+* Added CMEC-compliant JSON output to the standard outputs
+* Added an alternative landing page for ILAMB results which uses the
+  `LMT Unified Dashboard
+  <https://github.com/climatemodeling/unified-dashboard>`_
+* Added support files for using `cmec-driver
+  <https://github.com/cmecmetrics/cmec-driver>`_ as an alternative run
+  environment
+
+Quality of Life
+~~~~~~~~~~~~~~~
+
+* Top page overhaul moving to a single result panel with a colorblind
+  friendly palette
+* Shifted score colormaps to be more qualitative and colorblind
+  friendly
+* ILAMB now has continuous integration testing using Azure Pipelines
+  on each commit or pull request
+* ModelResults can be passed a list of paths to search for results,
+  objects are cached as pickle files
+* Plotting limits are now based on the middle 98% across all models to
+  help reduce the effect of a single model with extreme values washing
+  out all the map plots
+* The configure file used to generate a run is now copied into the
+  output directory as `ilamb.cfg`
+* ILAMB logfiles will now provide an estimate for peak memory usage in
+  each confrontation which can be used in debugging and when running
+  on large clusters with limited memory
+
+Scoring
+~~~~~~~
+
+* For scoring coupled models, we find that scoring the RMSE of the
+  annual cycle is more reasonable. While the default is still set to
+  score the full time series, this may be changed at runtime with
+  `--rmse_score_basis {series|cycle}`
+* We have found that when comparing a set of models which contain a
+  multimodel mean, the mean model's interannual variability is
+  typically lower which serendipitously better matches that of our
+  reference data products. This makes the multimodel mean look even
+  better relative to individual models but not for good reasons. We
+  have disabled the interannual variability in our scoring.
+* We have updated a number of reference datasets to their most current
+  version as well as many new datasets and comparions, run
+  `ilamb-fetch` to update
+* Support for using observational uncertainty in scoring, currently
+  disabled
+  
 
 Useful Information
 ------------------
@@ -79,9 +70,10 @@ Useful Information
   basic usage tutorials
 * Sample Output
   
-  * `CMIP6 <http://www.ilamb.org/CMIP6/historical/>`_ - land comparison against a collection of CMIP6 models
-  * `CMIP5 vs CMIP6 <http://www.ilamb.org/CMIP6/historical/>`_ - land comparison against a collection of CMIP5 and CMIP6 models
-  * `IOMB <http://www.ilamb.org/IOMB/>`_ - ocean comparison against a few ocean models
+  * `ILAMB <https://www.ilamb.org/CMIP5v6/historical/>`_ - land
+    comparison against a collection of CMIP5 and CMIP6 models
+  * `IOMB <https://www.ilamb.org/CMIP5v6/IOMB/>`_ - ocean comparison
+    against a collection of CMIP5 and CMIP6 models
 
 * `Paper <https://doi.org/10.1029/2018MS001354>`_ published in JAMES
   which details the design and methodology employed in the ILAMB
@@ -115,4 +107,10 @@ system, initially focused on assessing land model performance.
 Funding
 -------
 
-This research was performed for the *Reducing Uncertainties in Biogeochemical Interactions through Synthesis and Computation* (RUBISCO) Scientific Focus Area, which is sponsored by the Regional and Global Climate Modeling (RGCM) Program in the Climate and Environmental Sciences Division (CESD) of the Biological and Environmental Research (BER) Program in the U.S. Department of Energy Office of Science.
+This research was performed for the *Reducing Uncertainties in
+Biogeochemical Interactions through Synthesis and Computation*
+(RUBISCO) Scientific Focus Area, which is sponsored by the Regional
+and Global Climate Modeling (RGCM) Program in the Climate and
+Environmental Sciences Division (CESD) of the Biological and
+Environmental Research (BER) Program in the U.S. Department of Energy
+Office of Science.

@@ -3,7 +3,7 @@
         "long_name": "The International Land Model Benchmarking Project",
         "name": "ILAMB",
         "description": "A model-data intercomparison and integration project designed to improve the performance of land models and improve the design of new measurement campaigns.",
-        "runtime": {"ILAMB": 2.5}
+        "runtime": {"ILAMB": 2.6}
     },
     "contents": [
         "cmec-driver/cmip.json",
