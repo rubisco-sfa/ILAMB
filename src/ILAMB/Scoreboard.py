@@ -922,7 +922,9 @@ class Scoreboard():
                     }
                 },
                 "udcScreenHeight": 0,
-                "udcCellValue": 0,
+                "udcCellValue": 1,
+                "udcNormType": "standarized",
+                "udcNormAxis": "row",
                 "logofile": "None"
             },f)
         
