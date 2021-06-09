@@ -13,6 +13,7 @@ from sympy import sympify
 import cftime as cf
 from .Confrontation import getVariableList
 from .Confrontation import Confrontation
+import numpy as np
 
 
 import logging
@@ -39,21 +40,20 @@ class ConfSoilMoisture(Confrontation):
                 # at which we will compute are in the range of depths
                 # of the data
                 depth_name = depth_name[0]
+                depth_bnd_name = [d for d in dset.variables.keys() \
+                                  if depth_name in d and \
+                                  ("bound" in d or "bnd" in d)]
 
-                if 'bounds' in dset.variables[depth_name].ncattrs():
-                    data = dset.variables[dset.variables[depth_name \
-                                                         ].bounds][...]
+                if len(depth_bnd_name) > 0:
+                    depth_bnd_name = depth_bnd_name[0]
+                    data = dset.variables[depth_bnd_name][...].data
                     self.depths = data
-                    self.depths_units = dset.variables[dset.variables[depth_name \
-                                                                      ].bounds].units
+                    self.depths_units = dset.variables[depth_bnd_name].units
                 else:
                     data = dset.variables[depth_name][...]
 
                     self.depths = np.asarray(self.keywords.get("depths_bnds",
-                                                               [[0., .1],
-                                                                [.1, .3],
-                                                                [.3, .5],
-                                                                [.5, 1.]]),
+                                                               [[0., .1]]),
                                              dtype = float)
                     self.depths = self.depths[(self.depths[:,1]>=data.min()
                         )*(self.depths[:,0]<=data.max()), :]
@@ -80,7 +80,19 @@ class ConfSoilMoisture(Confrontation):
                 t0 = obs_cb[0]; tf = obs_cb[1]
             else:
                 t0 = obs_tb[0,0]; tf = obs_tb[-1,1]
-            info += " contents span years %.1f to %.1f, est memory %d [Mb]" % (t0/365.+1850,tf/365.+1850,obs_mem)
+
+            dname = [name for name in dset.variables.keys() \
+                     if name.lower() in ["depth_bnds", "depth_bounds"]]
+            if len(dname) == 0:
+                # if there is no depth, assume the data is surface
+                obs_z0 = 0; obs_zf = 0.1; obs_nd = 0
+            else:
+                dname = dname[0]
+                obs_z0 = np.min(dset.variables[dname])
+                obs_zf = np.max(dset.variables[dname])
+                obs_nd = dset.variables[dname].shape[0]
+
+            info += " contents span years %.1f to %.1f and depths %.1f to %.1f, est memory %d [Mb]" % (t0/365.+1850,tf/365.+1850,obs_z0,obs_zf,obs_mem)
         logger.info("[%s][%s]%s" % (self.name,self.variable,info))
 
         # to peak at the model, we need any variable that could be
@@ -97,12 +109,16 @@ class ConfSoilMoisture(Confrontation):
         # peak at the model dataset without reading much into memory
         mod_nt  =  0
         mod_mem =  0.
-        mod_t0  =  2147483647
+        mod_t0  = 2147483647
         mod_tf  = -2147483648
+        mod_z0  =  2147483647
+        mod_zf  = -2147483648
+        mod_nd = 999
         for fname in m.variables[vname]:
             with Dataset(fname) as dset:
                 var = dset.variables[vname]
-                mod_t,mod_tb,mod_cb,mod_b,mod_e,cal = il.GetTime(var,t0=t0-m.shift,tf=tf-m.shift)
+                mod_t,mod_tb,mod_cb,mod_b,mod_e,cal = il.GetTime(var,t0=t0-m.shift,
+                                                                 tf=tf-m.shift)
                 if mod_t is None:
                     info += "\n      %s does not overlap the reference" % (fname)
                     continue
@@ -116,99 +132,79 @@ class ConfSoilMoisture(Confrontation):
                 mod_tb = mod_tb[ind]
                 mod_t0 = min(mod_t0,mod_tb[ 0,0])
                 mod_tf = max(mod_tf,mod_tb[-1,1])
+
+                dname = [name for name in dset.variables.keys() \
+                         if name.lower() in ["depth_bnds", "depth_bounds"]]
+                if len(dname) == 0:
+                    # if there is no depth, assume the data is surface
+                    z0 = 0; zf = 0.1; mod_nd = 0
+                else:
+                    dname = dname[0]
+                    temp = dset.variables[dname][...]
+                    ind = (temp[:,1] > obs_z0)*(temp[:,0] < obs_zf)
+                    if sum(ind) == 0:
+                        info += "\n      %s does not overlap the reference" % (fname)
+                        continue
+                    z0 = np.min(temp[ind, :])
+                    zf = np.max(temp[ind, :])
+                    mod_nd = min(mod_nd, sum(ind))
+                mod_z0 = min(mod_z0,z0)
+                mod_zf = max(mod_zf,zf)
+
                 nt = mod_t.size
                 mod_nt += nt
                 mem = (var.size/var.shape[0]*nt)*8e-6
                 mod_mem += mem
-                info += "\n      %s spans years %.1f to %.1f, est memory in time bounds %d [Mb]" % (fname,mod_t.min()/365.+1850,mod_t.max()/365.+1850,mem)
+                info += "\n      %s spans years %.1f to %.1f and depths %.1f to %.1f, est memory in time bounds %d [Mb]" % (fname,mod_t.min()/365.+1850,mod_t.max()/365.+1850,mod_z0,mod_zf,mem)
         info += "\n      total est memory = %d [Mb]" % mod_mem
         logger.info("[%s][%s][%s] reading model data from possibly many files%s" % (self.name,m.name,vname,info))
         if mod_t0 > mod_tf:
             logger.debug("[%s] Could not find [%s] in the model results in the given time frame, tinput = [%.1f,%.1f]" % (self.name,",".join(possible),t0,tf))
             raise il.VarNotInModel()
 
-        # if the reference is a climatology, then build a model climatology in slabs
+
+        # yield the results by observational depths
+        def _addDepth(v):
+            v.depth = np.asarray([.05])
+            v.depth_bnds = np.asarray([[0.,.1]])
+            shp = list(v.data.shape)
+            shp.insert(1,1)
+            v.data.shape = shp
+            v.layered = True
+            return v
+
         info = ""
-        if climatology:
+        for i in range(self.depths.shape[0]):
+            z0 = max(self.depths[i,0], obs_z0, mod_z0)
+            zf = min(self.depths[i,1], obs_zf, mod_zf)
+            if z0 >= zf:
+                continue
 
-            # how many slabs
-            ns   = int(np.floor(mod_mem/mem_slab))+1
-            ns   = min(max(1,ns),mod_nt)
-            logger.info("[%s][%s] building climatology in %d slabs" % (self.name,m.name,ns))
-
-            # across what times?
-            slab_t = (mod_tf-mod_t0)*np.linspace(0,1,ns+1)+mod_t0
-            slab_t = np.floor(slab_t / 365)*365 + bnd_months[(np.abs(bnd_months[:,np.newaxis] - (slab_t % 365))).argmin(axis=0)]
-
-            # ready to slab
-            tb_prev = None
-            data    = None
-            dnum    = None
-            for i in range(ns):
-                v = m.extractTimeSeries(self.variable,
-                                        alt_vars     = self.alternate_vars,
-                                        expression   = self.derived,
-                                        initial_time = slab_t[i],
-                                        final_time   = slab_t[i+1]).convert(unit)
-
-                # trim does not work properly so we will add a manual check ourselves
-                if tb_prev is None:
-                    tb_prev = v.time_bnds[...]
-                else:
-                    if np.allclose(tb_prev[-1],v.time_bnds[0]):
-                        v.data = v.data[1:]
-                        v.time = v.time[1:]
-                        v.time_bnds = v.time_bnds[1:]
-                    tb_prev = v.time_bnds[...]
-                if v.time.size == 0: continue
-
-                mind = (np.abs(mid_months[:,np.newaxis]-(v.time % 365))).argmin(axis=0)
-                if data is None:
-                    data = np.ma.zeros((12,)+v.data.shape[1:])
-                    dnum = np.ma.zeros(data.shape,dtype=int)
-                data[mind,...] += v.data
-                dnum[mind,...] += 1
-            with np.errstate(over='ignore',under='ignore'):
-                data = data / dnum.clip(1)
-
-            # return variables
-            obs = Variable(filename       = self.source,
-                           variable_name  = self.variable,
-                           alternate_vars = self.alternate_vars)
-            mod = Variable(name  = obs.name,
-                           unit  = unit,
-                           data  = data,
-                           time  = obs.time,
-                           lat   = v.lat,
-                           lon   = v.lon,
-                           depth = v.depth,
-                           time_bnds  = obs.time_bnds,
-                           lat_bnds   = v.lat_bnds,
-                           lon_bnds   = v.lon_bnds,
-                           depth_bnds = v.depth_bnds)
-            yield obs,mod
-
-        # if obs is historical, then we yield slabs of both
-        else:
             obs_mem *= (mod_tf-mod_t0)/(tf-t0)
             mod_t0 = max(mod_t0,t0)
             mod_tf = min(mod_tf,tf)
             ns   = int(np.floor(max(obs_mem,mod_mem)/mem_slab))+1
-            ns   = min(min(max(1,ns),mod_nt),obs_nt)
-            logger.info("[%s][%s] staging data in %d slabs" % (self.name,m.name,ns))
-            
+            ns   = min(min(max(1,ns),mod_nt),obs_nt)            
+            logger.info("[%s][%s] building depths %.1f to %.1f in %d slabs" \
+                        % (self.name,m.name,z0,zf,ns))
+
             # across what times?
             slab_t = (mod_tf-mod_t0)*np.linspace(0,1,ns+1)+mod_t0
             slab_t = np.floor(slab_t / 365)*365 + bnd_months[(np.abs(bnd_months[:,np.newaxis] - (slab_t % 365))).argmin(axis=0)]
-            
+
             obs_tb = None; mod_tb = None
-            for i in range(ns):
+            obs_di = []; mod_di = []
+            for j in range(ns):
+                # YW
+                print(j, slab_t[j], slab_t[j+1])
+
                 # get reference variable
                 obs = Variable(filename       = self.source,
                                variable_name  = self.variable,
                                alternate_vars = self.alternate_vars,
-                               t0             = slab_t[i],
-                               tf             = slab_t[i+1]).trim(t=[slab_t[i],slab_t[i+1]])
+                               t0             = slab_t[j],
+                               tf             = slab_t[j+1] \
+                               ).trim(t = [slab_t[j],slab_t[j+1]])
                 if obs_tb is None:
                     obs_tb = obs.time_bnds[...]
                 else:
@@ -218,13 +214,29 @@ class ConfSoilMoisture(Confrontation):
                         obs.time_bnds = obs.time_bnds[1:]
                     assert np.allclose(obs.time_bnds[0,0],obs_tb[-1,1])
                     obs_tb = obs.time_bnds[...]
+                if not obs.layered:
+                    obs = _addDepth(obs)
+                else:
+                    obs = obs.trim(d = [z0, zf]).integrateInDepth(z0 = z0, zf = zf, mean = True)
+
+                # YW
+                print(obs.unit, obs.data, obs.time, obs_tb, obs.lat, obs.lat_bnds, 
+                      obs.lon, obs.lon_bnds)
+
+                obs_di.append(Variable(name = "depthint%.2f-%.2f" % (z0, zf),
+                                       unit = obs.unit, 
+                                       data = obs.data,
+                                       time = obs.time, time_bnds = obs_tb, 
+                                       lat = obs.lat, lat_bnds = obs.lat_bnds,
+                                       lon = obs.lon, lon_bnds = obs.lon_bnds))
 
                 # get model variable
                 mod = m.extractTimeSeries(self.variable,
                                           alt_vars     = self.alternate_vars,
                                           expression   = self.derived,
-                                          initial_time = slab_t[i],
-                                          final_time   = slab_t[i+1]).trim(t=[slab_t[i],slab_t[i+1]]).convert(obs.unit)
+                                          initial_time = slab_t[j],
+                                          final_time   = slab_t[j+1] \
+                                          ).trim(t=[slab_t[j],slab_t[j+1]]).convert(obs.unit)
                 if mod_tb is None:
                     mod_tb = mod.time_bnds
                 else:
@@ -235,21 +247,31 @@ class ConfSoilMoisture(Confrontation):
                     assert np.allclose(mod.time_bnds[0,0],mod_tb[-1,1])
                     mod_tb = mod.time_bnds[...]
                 assert obs.time.size == mod.time.size
-                
-                yield obs,mod
+                if not mod.layered:
+                    mod = _addDepth(mod)
+                else:
+                    mod = mod.trim(d = [z0, zf]).integrateInDepth(z0 = z0, zf = zf, mean = True)
+
+                # YW
+                print(mod.unit, mod.data, mod.time, mod_tb, mod.lat, mod.lat_bnds, 
+                      mod.lon, mod.lon_bnds)
+
+                mod_di.append(Variable(name = "depthint%.2f-%.2f" % (z0, zf),
+                                       unit = mod.unit,
+                                       data = mod.data,
+                                       time = mod.time, time_bnds = mod_tb,
+                                       lat = mod.lat, lat_bnds = mod.lat_bnds,
+                                       lon = mod.lon, lon_bnds = mod.lon_bnds))
+
+            obs_tmp = il.CombineVariables(obs_di)
+            mod_tmp = il.CombineVariables(mod_di)
+            obs_tmp.name = obs_tmp.name.split("_")[0]
+            mod_tmp.name = mod_tmp.name.split("_")[0]
+
+            yield obs_tmp, mod_tmp, z0, zf
 
 
     def confront(self,m):
-
-        def _addDepth(v):
-            v.depth = np.asarray([.05])
-            v.depth_bnds = np.asarray([[0.,.1]])
-            shp = list(v.data.shape)
-            shp.insert(1,1)
-            v.data.shape = shp
-            v.layered = True
-            return v
-
         mod_file = os.path.join(self.output_path,"%s_%s.nc"        % (self.name,m.name))
         obs_file = os.path.join(self.output_path,"%s_Benchmark.nc" % (self.name,      ))
         with il.FileContextManager(self.master,mod_file,obs_file) as fcm:
@@ -263,80 +285,43 @@ class ConfSoilMoisture(Confrontation):
                                         "color":np.asarray([0.5,0.5,0.5]),
                                         "complete":0})
 
-            # Get the depth-integrated observation and model data for each slab.
-            obs_timeint = {}; mod_timeint = {}
-            for dind in range(self.depths.shape[0]):
-                obs_timeint[dind] = []
-                mod_timeint[dind] = []
-            for obs,mod in self.stageData(m):
-                # if the data has no depth, we assume it is surface
-                if not obs.layered: obs = _addDepth(obs)
-                if not mod.layered: mod = _addDepth(mod)
-
-                # time bounds for this slab
-                tb = obs.time_bnds[[0,-1],[0,1]].reshape((1,2))
-                t  = np.asarray([tb.mean()])
-
-                #
-                for dind, z0 in enumerate(self.depths[:, 0]):
-                    zf = self.depths[dind, 1]                    
-                    z = obs.integrateInDepth(z0 = z0, zf = zf, mean = True).integrateInTime(mean = True)
-
-                    #YW
-                    print('Staging data ... %.2f-%.2f' % (z0, zf))
-                    
-                    obs_timeint[dind].append(Variable(name = "sm%.2f-%.2f" % (z0, zf),
-                                                      unit = z.unit,
-                                                      data = z.data.reshape((1,) +z.data.shape),
-                                                      time = t, time_bnds = tb,
-                                                      lat = z.lat, lat_bnds = z.lat_bnds,
-                                                      lon = z.lon, lon_bnds = z.lon_bnds))
-                    z = mod.integrateInDepth(z0 = z0, zf = zf, mean = True).integrateInTime(mean = True)
-                    mod_timeint[dind].append(Variable(name = "sm%.2f-%.2f" % (z0, zf),
-                                                      unit = z.unit,
-                                                      data = z.data.reshape((1,)+z.data.shape),
-                                                      time = t,     time_bnds = tb,
-                                                      lat  = z.lat, lat_bnds  = z.lat_bnds,
-                                                      lon  = z.lon, lon_bnds  = z.lon_bnds))
-
             # Read in some options and run the mean state analysis
             mass_weighting = self.keywords.get("mass_weighting",False)
             skip_rmse      = self.keywords.get("skip_rmse"     ,False)
-            skip_iav       = self.keywords.get("skip_iav"      ,True )
+            skip_iav       = self.keywords.get("skip_iav"      ,False)
             skip_cycle     = self.keywords.get("skip_cycle"    ,False)
             rmse_score_basis = self.keywords.get("rmse_score_basis","cycle")
 
-            for dind in range(self.depths.shape[0]):
-                obs_tmp = il.CombineVariables(obs_timeint[dind])
-                mod_tmp = il.CombineVariables(mod_timeint[dind])
-                print(obs_tmp.name)
-                print(mod_tmp.name)
-                obs_tmp.name = obs_tmp.name.split("_")[0]
-                mod_tmp.name = mod_tmp.name.split("_")[0]
+            # Get the depth-integrated observation and model data for each slab.
+            for obs,mod,z0,zf in self.stageData(m):
+                #YW
+                print('Staging data ... %.2f-%.2f' % (z0, zf))
+                print(obs.name)
+                print(mod.name)
 
-                if obs_tmp.spatial:
-                    il.AnalysisMeanStateSpace(obs_tmp,mod_tmp,dataset   = fcm.mod_dset,
-                                           regions           = self.regions,
-                                           benchmark_dataset = fcm.obs_dset,
-                                           table_unit        = self.table_unit,
-                                           plot_unit         = self.plot_unit,
-                                           space_mean        = self.space_mean,
-                                           skip_rmse         = skip_rmse,
-                                           skip_iav          = skip_iav,
-                                           skip_cycle        = skip_cycle,
-                                           mass_weighting    = mass_weighting,
-                                           rmse_score_basis  = rmse_score_basis)
+                if obs.spatial:
+                    il.AnalysisMeanStateSpace(obs, mod, dataset   = fcm.mod_dset,
+                                              regions           = self.regions,
+                                              benchmark_dataset = fcm.obs_dset,
+                                              table_unit        = self.table_unit,
+                                              plot_unit         = self.plot_unit,
+                                              space_mean        = self.space_mean,
+                                              skip_rmse         = skip_rmse,
+                                              skip_iav          = skip_iav,
+                                              skip_cycle        = skip_cycle,
+                                              mass_weighting    = mass_weighting,
+                                              rmse_score_basis  = rmse_score_basis)
                 else:
-                    il.AnalysisMeanStateSites(obs_tmp,mod_tmp,dataset   = fcm.mod_dset,
-                                           regions           = self.regions,
-                                           benchmark_dataset = fcm.obs_dset,
-                                           table_unit        = self.table_unit,
-                                           plot_unit         = self.plot_unit,
-                                           space_mean        = self.space_mean,
-                                           skip_rmse         = skip_rmse,
-                                           skip_iav          = skip_iav,
-                                           skip_cycle        = skip_cycle,
-                                           mass_weighting    = mass_weighting)
+                    il.AnalysisMeanStateSites(obs, mod, dataset   = fcm.mod_dset,
+                                              regions           = self.regions,
+                                              benchmark_dataset = fcm.obs_dset,
+                                              table_unit        = self.table_unit,
+                                              plot_unit         = self.plot_unit,
+                                              space_mean        = self.space_mean,
+                                              skip_rmse         = skip_rmse,
+                                              skip_iav          = skip_iav,
+                                              skip_cycle        = skip_cycle,
+                                              mass_weighting    = mass_weighting)
             fcm.mod_dset.setncattr("complete",1)
             if self.master: fcm.obs_dset.setncattr("complete",1)
         logger.info("[%s][%s] Success" % (self.longname,m.name))
@@ -436,7 +421,7 @@ class ConfSoilMoisture(Confrontation):
                     if len(key)>0:
                         has_cycle = True
                         cycle[region][zstr].append(Variable(filename=fname,groupname="MeanState",
-                                                             variable_name=key[0]))
+                                                            variable_name=key[0]))
 
                     if zstr not in std[region]: std[region][zstr] = []
                     if zstr not in corr[region]: corr[region][zstr] = []
@@ -452,7 +437,7 @@ class ConfSoilMoisture(Confrontation):
                             std [region][zstr].append(sds.getncattr("std"))
 
         # composite annual cycle plot
-        if has_cycle and len(models) > 2:
+        if has_cycle and len(models) > 0:
             page.addFigure("Spatially integrated regional mean",
                            "compcycle",
                            "RNAME_compcycle.png",
@@ -462,23 +447,28 @@ class ConfSoilMoisture(Confrontation):
         for region in self.regions:
             if region not in cycle: continue
             fig, axes = plt.subplots(self.depths.shape[0], 1,
-                                     figsize=(6.8,2.8 * self.depths.shape[0]),
-                                     tight_layout=True)
+                                     figsize = (6.5, 2.8*self.depths.shape[0]))
             for dind, z0 in enumerate(self.depths[:,0]):
                 zf = self.depths[dind, 1]
                 zstr = '%.2f-%.2f' % (z0, zf)
 
-                ax = axes[dind]
+                if self.depths.shape[0] == 1:
+                    ax = axes
+                else:
+                    ax = axes.flat[dind]
+
                 for name,color,var in zip(models,colors,cycle[region][zstr]):
-                    dy = 0.05*(self.limits["cycle"][region]["max"]-self.limits["cycle"][region]["min"])
+                    dy = 0.05*(self.limits["cycle"][region]["max"] - \
+                               self.limits["cycle"][region]["min"])
+
                     var.plot(ax, lw=2, color=color, label=name,
                              ticks      = time_opts["cycle"]["ticks"],
                              ticklabels = time_opts["cycle"]["ticklabels"],
                              vmin       = self.limits["cycle"][region]["min"]-dy,
                              vmax       = self.limits["cycle"][region]["max"]+dy)
-                    ylbl = time_opts["cycle"]["ylabel"]
-                    if ylbl == "unit": ylbl = post.UnitStringToMatplotlib(var.unit)
-                    ylbl = ylbl + ' ' + zstr + self.depths_units
+                    #ylbl = time_opts["cycle"]["ylabel"]
+                    #if ylbl == "unit": ylbl = post.UnitStringToMatplotlib(var.unit)
+                    ylbl = zstr + ' '+ self.depths_units
                     ax.set_ylabel(ylbl)
             fig.savefig(os.path.join(self.output_path,"%s_compcycle.png" % (region)))
             plt.close()
@@ -512,14 +502,11 @@ class ConfSoilMoisture(Confrontation):
 
         # spatial distribution Taylor plot
         if has_std:
-            for dind, z0 in enumerate(self.depths[:,0]):
-                zf = self.depths[dind, 1]
-                zstr = '%.2f-%.2f' % (z0, zf)
-                page.addFigure("Temporally integrated period mean",
-                               "spatial_variance",
-                               "RNAME_spatial_variance_" + zstr + ".png",
-                               side   = "SPATIAL TAYLOR DIAGRAM",
-                               legend = False)
+            page.addFigure("Temporally integrated period mean",
+                           "spatial_variance",
+                           "RNAME_spatial_variance.png",
+                           side   = "SPATIAL TAYLOR DIAGRAM",
+                           legend = False)
             page.addFigure("Temporally integrated period mean",
                            "legend_spatial_variance",
                            "legend_spatial_variance.png",
@@ -529,6 +516,7 @@ class ConfSoilMoisture(Confrontation):
         for region in self.regions:
             if not (region in std and region in corr): continue
 
+            fig = plt.figure(figsize=(12.0,12.0))
             for dind, z0 in enumerate(self.depths[:,0]):
                 zf = self.depths[dind, 1]
                 zstr = '%.2f-%.2f' % (z0, zf)
@@ -536,14 +524,13 @@ class ConfSoilMoisture(Confrontation):
                 if not (zstr in std[region] and zstr in corr[region]): continue
                 if len(std[region][zstr]) != len(corr[region][zstr]): continue
                 if len(std[region][zstr]) == 0: continue
-
-                fig = plt.figure(figsize=(6.0,6.0))
-                post.TaylorDiagram(np.asarray(std[region][zstr]),
-                                   np.asarray(corr[region][zstr]),
-                                   1.0,fig,colors)
-                fig.savefig(os.path.join(self.output_path,
-                                         "%s_spatial_variance_%s.png" % (region, zstr)))
-                plt.close()
+                ax, aux = post.TaylorDiagram(np.asarray(std[region][zstr]),
+                                             np.asarray(corr[region][zstr]),
+                                             1.0,fig,colors,True,220+dind+1)
+                ax.set_title(zstr + ' ' + self.depths_units)
+            fig.savefig(os.path.join(self.output_path,
+                                     "%s_spatial_variance.png" % (region)))
+            plt.close()
 
     def modelPlots(self,m):
         """For a given model, create the plots of the analysis results.
@@ -576,12 +563,19 @@ class ConfSoilMoisture(Confrontation):
                 if group.variables[vname][...].size <= 1: continue
                 var = Variable(filename=fname,groupname="MeanState",variable_name=vname)
 
+                # YW
+                ##print(self.limits.keys())
+                ##print(pname)
+
                 if (var.spatial or (var.ndata is not None)) and not var.temporal:
 
                     # grab plotting options
                     if pname not in self.limits.keys(): continue
                     if pname not in space_opts: continue
                     opts = space_opts[pname]
+
+                    # YW
+                    ##print('... is used in space_opts')
 
                     # add to html layout
                     page.addFigure(opts["section"],
@@ -592,20 +586,20 @@ class ConfSoilMoisture(Confrontation):
 
                     # plot variable
                     for region in self.regions:
-                        fig, axes = plt.subplots(self.depths.shape[0], 1,
-                                                 figsize = (6.5, 2.8*self.depths.shape[0]))
-
+                        nax = self.depths.shape[0]
+                        fig = plt.figure()
                         for dind, z0 in enumerate(self.depths[:,0]):
                             zf = self.depths[dind,1]
                             zstr = '%.2f-%.2f' % (z0, zf)
-                            ax = axes.flat[dind]
                             var2 = Variable(filename=fname, groupname = "MeanState",
                                             variable_name=vname.replace(zstr_0, zstr))
-                            var2.plot(ax, region = region,
-                                      vmin   = self.limits[pname]["min"],
-                                      vmax   = self.limits[pname]["max"],
-                                      cmap   = self.limits[pname]["cmap"])
-                        fig.savefig(os.path.join(self.output_path,"%s_%s_%s.png" % (m.name,region,pname)))
+                            ax = var2.plot(None, fig, nax, region = region,
+                                           vmin   = self.limits[pname]["min"],
+                                           vmax   = self.limits[pname]["max"],
+                                           cmap   = self.limits[pname]["cmap"])
+                            ax.set_title(zstr + ' ' + self.depths_units)
+                        fig.savefig(os.path.join(self.output_path,
+                                                 "%s_%s_%s.png" % (m.name,region,pname)))
                         plt.close()
 
                     # Jumping through hoops to get the benchmark plotted and in the html output
@@ -621,65 +615,68 @@ class ConfSoilMoisture(Confrontation):
 
                         # plot variable
                         for region in self.regions:
-                            fig, axes = plt.subplots(self.depths.shape[0], 1,
-                                                     figsize = (6.5, 2.8*self.depths.shape[0]))
+                            nax = self.depths.shape[0]
+                            fig = plt.figure()
                             for dind, z0 in enumerate(self.depths[:,0]):
                                 zf = self.depths[dind,1]
                                 zstr = '%.2f-%.2f' % (z0, zf)
-                                ax = axes.flat[dind]
                                 obs = Variable(filename=bname,groupname="MeanState",
                                                variable_name=vname.replace(zstr_0, zstr))
-                                obs.plot(ax, region = region,
-                                         vmin   = self.limits[pname]["min"],
-                                         vmax   = self.limits[pname]["max"],
-                                         cmap   = self.limits[pname]["cmap"])
+                                ax = obs.plot(None, fig, nax, region = region,
+                                              vmin   = self.limits[pname]["min"],
+                                              vmax   = self.limits[pname]["max"],
+                                              cmap   = self.limits[pname]["cmap"])
+                                ax.set_title(zstr + ' ' + self.depths_units)
                             fig.savefig(os.path.join(self.output_path,"Benchmark_%s_%s.png" % (region,pname)))
                             plt.close()
 
-                    if not (var.spatial or (var.ndata is not None)) and var.temporal:
-                        # grab the benchmark dataset to plot along with
-                        try:
-                            obs = Variable(filename=bname,groupname="MeanState",
-                                           variable_name=vname).convert(var.unit)
-                        except:
-                            continue
+                if not (var.spatial or (var.ndata is not None)) and var.temporal:
+                    # grab the benchmark dataset to plot along with
+                    try:
+                        obs = Variable(filename=bname,groupname="MeanState",
+                                       variable_name=vname).convert(var.unit)
+                    except:
+                        continue
 
-                        # grab plotting options
-                        if pname not in time_opts: continue
-                        opts = time_opts[pname]
+                    # grab plotting options
+                    if pname not in time_opts: continue
+                    opts = time_opts[pname]
 
-                        # add to html layout
-                        page.addFigure(opts["section"],
-                                       pname,
-                                       opts["pattern"],
-                                       side   = opts["sidelbl"],
-                                       legend = opts["haslegend"])
+                    # add to html layout
+                    page.addFigure(opts["section"],
+                                   pname,
+                                   opts["pattern"],
+                                   side   = opts["sidelbl"],
+                                   legend = opts["haslegend"])
 
-                        # plot variable
-                        for region in self.regions:
-                            if region not in vname: continue
-                            fig, axes = plt.subplots(self.depths.shape[0], 1,
-                                                     figsize = (6.5, 2.8*self.depths.shape[0]))
-                            for dind, z0 in enumerate(self.depths[:,0]):
-                                zf = self.depths[dind,1]
-                                zstr = '%.2f-%.2f' % (z0, zf)
+                    # plot variable
+                    for region in self.regions:
+                        if region not in vname: continue
+                        fig, axes = plt.subplots(self.depths.shape[0], 1,
+                                                 figsize = (6.5, 2.8*self.depths.shape[0]))
+                        for dind, z0 in enumerate(self.depths[:,0]):
+                            zf = self.depths[dind,1]
+                            zstr = '%.2f-%.2f' % (z0, zf)
+                            if self.depths.shape[0] == 1:
+                                ax = axes
+                            else:
                                 ax = axes.flat[dind]
 
-                                var2 = Variable(filename=fname, groupname = "MeanState",
-                                                variable_name=vname.replace(zstr_0, zstr))
-                                obs = Variable(filename=bname,groupname="MeanState",
-                                               variable_name=vname.replace(zstr_0, zstr)).convert(var2.unit)
-                                obs.plot(ax, lw = 2, color = 'k', alpha = 0.5)
-                                var2.plot(ax, lw = 2, color = color, label = m.name,
-                                          ticks     =opts["ticks"],
-                                          ticklabels=opts["ticklabels"])
-                                dy = 0.05*(self.limits[pname][region]["max"]-self.limits[pname][region]["min"])
-                                ax.set_ylim(self.limits[pname][region]["min"]-dy,
-                                            self.limits[pname][region]["max"]+dy)
-                                ylbl = opts["ylabel"]
-                                if ylbl == "unit": ylbl = post.UnitStringToMatplotlib(var.unit)
-                                ax.set_ylabel(ylbl)
-                            fig.savefig(os.path.join(self.output_path,"%s_%s_%s.png" % (m.name,region,pname)))
-                            plt.close()
+                            var2 = Variable(filename=fname, groupname = "MeanState",
+                                            variable_name=vname.replace(zstr_0, zstr))
+                            obs = Variable(filename=bname,groupname="MeanState",
+                                           variable_name=vname.replace(zstr_0, zstr)).convert(var2.unit)
+                            obs.plot(ax, lw = 2, color = 'k', alpha = 0.5)
+                            var2.plot(ax, lw = 2, color = color, label = m.name,
+                                      ticks     =opts["ticks"],
+                                      ticklabels=opts["ticklabels"])
+                            dy = 0.05*(self.limits[pname][region]["max"]-self.limits[pname][region]["min"])
+                            ax.set_ylim(self.limits[pname][region]["min"]-dy,
+                                        self.limits[pname][region]["max"]+dy)
+                            ylbl = opts["ylabel"]
+                            if ylbl == "unit": ylbl = post.UnitStringToMatplotlib(var.unit)
+                            ax.set_ylabel(ylbl)
+                        fig.savefig(os.path.join(self.output_path,"%s_%s_%s.png" % (m.name,region,pname)))
+                        plt.close()
 
         logger.info("[%s][%s] Success" % (self.longname,m.name))

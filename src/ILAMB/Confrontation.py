@@ -15,6 +15,7 @@ import cftime as cf
 import logging
 logger = logging.getLogger("%i" % MPI.COMM_WORLD.rank)
 
+
 def getVariableList(dataset):
     """Extracts the list of variables in the dataset that aren't
     dimensions or the bounds of dimensions.

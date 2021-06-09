@@ -1147,7 +1147,7 @@ class Variable:
             for key in attributes.keys():
                 V.setncattr(key,attributes[key])
 
-    def plot(self,ax,**keywords):
+    def plot(self,ax,fig=None,nax=1,**keywords):
         """Plots the variable on the given matplotlib axis.
 
         The behavior of this routine depends on the type of variable
@@ -1161,6 +1161,10 @@ class Variable:
         ----------
         ax : matplotlib.axes._subplots.AxesSubplot
             The matplotlib axes object onto which you wish to plot the variable
+        fig: matplotlib.figure.Figure, optional
+            The matplotlib figure onto which the ax is located
+        nax: int, optional
+            The number of axes that the figure is expected to have
         lw : float, optional
             The line width to use when plotting
         alpha : float, optional
@@ -1242,7 +1246,7 @@ class Variable:
                 extents[0] = max(extents[0]-dx,-180); extents[1] = min(extents[1]+dx,+180)
                 extents[2] = max(extents[2]-dy,- 90); extents[3] = min(extents[3]+dy,+ 90)
                 lon_mid    = 0.5*(extents[0]+extents[1])
-                
+
                 # ...but the data might cross the dateline, but not be global
                 if(lon_empty[ 0]== 0 and
                    lon_empty[-1]==(self.lon.size-1) and
@@ -1253,12 +1257,11 @@ class Variable:
                     extents[1] = wrap_lon.max()
                     dx = percent_pad*(extents[1]-extents[0])
                     extents[0] -= dx; extents[1] += dx
-                    
+
                     # find the middle centroid by mean angle 
                     lons = self.lon[np.where(self.data.mask.all(axis=-2)==False)[0]]
                     lons = lons/360*2*np.pi
                     lon_mid = np.arctan2(np.sin(lons).mean(),np.cos(lons).mean())/2/np.pi*360
-                
             else:
                 extents = [self.lon.min(),self.lon.max(),
                            self.lat.min(),self.lat.max()]
@@ -1283,11 +1286,19 @@ class Variable:
                     extents = [-180,180,-90,90]
                     aspect_ratio = 0.5
                     lon_mid = 0.
-                    
+
             # make the plot
             w = 7.5; h = w*aspect_ratio
-            fig,ax = plt.subplots(figsize=(w,h),
-                                  subplot_kw={'projection':proj})
+            if fig == None:
+                fig,ax = plt.subplots(figsize=(w,h),
+                                      subplot_kw={'projection':proj})
+            else:
+                if len(fig.axes) >= nax:
+                    raise ValueError('More axes are plotted than expected by the figure.')
+                ax = fig.add_subplot(nax*100 + 11 + len(fig.axes),
+                                     projection = proj)
+                fig.set_figwidth(w)
+                fig.set_figheight(w * aspect_ratio * nax) # keep original aspect ratio
             if self.ndata is None:
                 lat = np.hstack([self.lat_bnds[:,0],self.lat_bnds[-1,-1]])
                 lon = np.hstack([self.lon_bnds[:,0],self.lon_bnds[-1,-1]])

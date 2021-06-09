@@ -73,7 +73,7 @@ def ColorBar(ax,**keywords):
     if ticks is not None: cb.set_ticks(ticks)
     if ticklabels is not None: cb.set_ticklabels(ticklabels)
 
-def TaylorDiagram(stddev,corrcoef,refstd,fig,colors,normalize=True):
+def TaylorDiagram(stddev,corrcoef,refstd,fig,colors,normalize=True,position=111):
     """Plot a Taylor diagram.
 
     This is adapted from the code by Yannick Copin found here:
@@ -121,7 +121,7 @@ def TaylorDiagram(stddev,corrcoef,refstd,fig,colors,normalize=True):
                                        extremes=(0,np.pi/2,smin,smax),
                                        grid_locator1=gl1,
                                        tick_formatter1=tf1)
-    ax = FA.FloatingSubplot(fig, 111, grid_helper=ghelper)
+    ax = FA.FloatingSubplot(fig, position, grid_helper=ghelper)
     fig.add_subplot(ax)
 
     # adjust axes
@@ -141,26 +141,26 @@ def TaylorDiagram(stddev,corrcoef,refstd,fig,colors,normalize=True):
     ax.axis["bottom"].set_visible(False)
     ax.grid(True)
 
-    ax = ax.get_aux_axes(tr)
+    aux = ax.get_aux_axes(tr)
     # Plot data
     corrcoef = corrcoef.clip(-1,1)
     for i in range(len(corrcoef)):
-        ax.plot(np.arccos(corrcoef[i]),stddev[i],'o',color=colors[i],mew=0,ms=8)
+        aux.plot(np.arccos(corrcoef[i]),stddev[i],'o',color=colors[i],mew=0,ms=8)
 
     # Add reference point and stddev contour
-    l, = ax.plot([0],refstd,'k*',ms=12,mew=0)
+    l, = aux.plot([0],refstd,'k*',ms=12,mew=0)
     t = np.linspace(0, np.pi/2)
     r = np.zeros_like(t) + refstd
-    ax.plot(t,r, 'k--')
+    aux.plot(t,r, 'k--')
 
     # centralized rms contours
     rs,ts = np.meshgrid(np.linspace(smin,smax),
                         np.linspace(0,np.pi/2))
     rms = np.sqrt(refstd**2 + rs**2 - 2*refstd*rs*np.cos(ts))
-    contours = ax.contour(ts,rs,rms,5,colors='k',alpha=0.4)
-    ax.clabel(contours,fmt='%1.1f')
+    contours = aux.contour(ts,rs,rms,5,colors='k',alpha=0.4)
+    aux.clabel(contours,fmt='%1.1f')
 
-    return ax
+    return ax, aux
 
 class HtmlFigure():
 
