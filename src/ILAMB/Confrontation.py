@@ -965,6 +965,17 @@ class Confrontation(object):
                 except:
                     continue
 
+                # if any one of the data sources are sites, they all
+                # should be, also check that the lat/lons are the same
+                src = [ref_ind,ref_dep,com_ind,com_dep]
+                for i,a in enumerate(src):
+                    for j,b in enumerate(src):
+                        if i == j: continue
+                        if a.ndata and     b.ndata: assert(np.allclose(a.lat,b.lat)*np.allclose(a.lon,b.lon))
+                        if a.ndata and not b.ndata: src[j] = b.extractDatasites(a.lat,a.lon)
+                ref_ind,ref_dep,com_ind,com_dep = src
+                
+                # create relationships
                 ref = Relationship(ref_ind,ref_dep,order=1)
                 com = Relationship(com_ind,com_dep,order=1)
                 
