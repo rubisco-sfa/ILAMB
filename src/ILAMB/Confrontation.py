@@ -933,6 +933,9 @@ class Confrontation(object):
         try:
             ref_dep  = _retrieveData(os.path.join(self.output_path,"%s_%s.nc" % (self.name,"Benchmark")))
             com_dep  = _retrieveData(os.path.join(self.output_path,"%s_%s.nc" % (self.name,m.name     )))
+            dep_name = self.longname.split("/")[0]
+            ref_dep.name = "%s/%s" % (dep_name,self.name)
+            com_dep.name = "%s/%s" % (dep_name,   m.name)
         except:
             return
 
@@ -957,6 +960,8 @@ class Confrontation(object):
                     ref_ind  = _retrieveData(os.path.join(c.output_path,"%s_%s.nc" % (c.name,"Benchmark")))
                     com_ind  = _retrieveData(os.path.join(c.output_path,"%s_%s.nc" % (c.name,m.name     )))
                     ind_name = c.longname.split("/")[0]
+                    ref_ind.name = "%s/%s" % (ind_name,c.name)
+                    com_ind.name = "%s/%s" % (ind_name,m.name)
                 except:
                     continue
 
@@ -987,7 +992,6 @@ class Confrontation(object):
                     ref.makeComparable(com,region=region)
                     
                     # Make the plots
-
                     fig,ax = plt.subplots(figsize=(6,5.25),tight_layout=True)
                     ref.plotDistribution(ax,region=region)
                     fig.savefig(os.path.join(self.output_path,"%s_%s_rel_%s.png" % ("Benchmark",region,ind_name)))
@@ -999,8 +1003,8 @@ class Confrontation(object):
                     plt.close()
 
                     fig,ax = plt.subplots(figsize=(6,5.25),tight_layout=True)
-                    ref.plotFunction(ax,region=region,shift=+0.1)
                     com.plotFunction(ax,region=region,shift=-0.1,color=m.color)
+                    ref.plotFunction(ax,region=region,shift=+0.1)
                     fig.savefig(os.path.join(self.output_path,"%s_%s_rel_func_%s.png" % (m.name,region,ind_name)))
 
                     # Score the distribution
