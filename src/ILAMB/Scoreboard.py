@@ -539,8 +539,7 @@ class Scoreboard():
 		  for(let v in H2){
 	              var s_name = scalar_name;
                       if(h1 == "Relationships") {
-                        s_name = v.substring(0,v.indexOf("/")) + " Score " + region_option.options[region_option.selectedIndex].value;
-                      }else{
+                        s_name = v.replace("/","|") + " Score " + region_option.options[region_option.selectedIndex].value;
                       }
 		      printRow(table,row,H2[v][s_name],cmap);
 		      row += 1;
