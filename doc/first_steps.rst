@@ -220,15 +220,21 @@ plotting occurs quickly.
 Viewing the Output
 ------------------
 
-The whole process generated a new directory of results in the demo
-dorectory called ``_build``. To browse the results, open the
-``_build/index.html`` file in any browser and you will see a webpage
-with a summary image in the center. As we have so few variables and
-models, this image will not make much sense at this point. Instead,
-click the middle tab called ``Results Table``. From here you will see
-both variables which we compared. Clicking on eithe will expand the
-row to show the data sources which were part of the study. If you
-further click on the CERES link in any row, it will take you to the
-plots and tabulated information from the study.
+The whole process generates a directory of results which by default is
+called ``_build``. To view the results locally on your computer,
+navigate into this directory and start a local ``http`` server::
 
+  python -m http.server
 
+You should see a message similar to this::
+
+  Serving HTTP on 0.0.0.0 port 8000 (http://0.0.0.0:8000/) ...
+
+Open this link in your browser and you will see a webpage with a
+summary table in the center. As we have so few variables and a single
+model at this point, the table will not be very helpful. As we add
+more variables and models, this summary table helps you understand
+relative differences in scores among models. For now, clicking on a
+row of the table will expand it to reveal the underlying datasets
+used. Clicking on `CERES` will take you to another page which presents
+detailed scores and plots.
