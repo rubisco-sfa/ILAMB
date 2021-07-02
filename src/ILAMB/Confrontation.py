@@ -1,5 +1,6 @@
 from . import ilamblib as il
 from .Variable import *
+from .Relationship import Relationship
 from .Regions import Regions
 from .constants import space_opts,time_opts,mid_months,bnd_months
 import os,glob,re
@@ -920,153 +921,6 @@ class Confrontation(object):
                             groupname     = "MeanState",
                             variable_name = key[0])
         
-        def _applyRefMask(ref,com):
-            tmp = ref.interpolate(lat=com.lat,lat_bnds=com.lat_bnds,
-                                  lon=com.lon,lon_bnds=com.lon_bnds)
-            com.data.mask += tmp.data.mask
-            return com
-        
-        def _checkLim(data,lim):
-            if lim is None:
-                lim     = [min(data.min(),data.min()),
-                           max(data.max(),data.max())]
-                delta   = 1e-8*(lim[1]-lim[0])
-                lim[0] -= delta
-                lim[1] += delta
-            else:
-                assert type(lim) == type([])
-                assert len (lim) == 2
-            return lim
-
-        def _limitExtents(vars):
-            lim = [+1e20,-1e20]
-            for v in vars:
-                lmin,lmax = _checkLim(v.data,None)
-                lim[0] = min(lmin,lim[0])
-                lim[1] = max(lmax,lim[1])
-            return lim
-
-        def _buildDistributionResponse(ind,dep,ind_lim=None,dep_lim=None,region=None,nbin=25,eps=3e-3):
-
-            r = Regions()
-
-            # Checks on the input parameters
-            assert np.allclose(ind.data.shape,dep.data.shape)
-            ind_lim = _checkLim(ind.data,ind_lim)
-            dep_lim = _checkLim(dep.data,dep_lim)
-
-            # Mask data
-            mask = ind.data.mask + dep.data.mask
-            if region is not None: mask += r.getMask(region,ind)
-            x = ind.data[mask==False].flatten()
-            y = dep.data[mask==False].flatten()
-
-            # Compute normalized 2D distribution
-            dist,xedges,yedges = np.histogram2d(x,y,
-                                                bins  = [nbin,nbin],
-                                                range = [ind_lim,dep_lim])
-            dist  = np.ma.masked_values(dist.T,0).astype(float)
-            dist /= dist.sum()
-
-            # Compute the functional response
-            which_bin = np.digitize(x,xedges).clip(1,xedges.size-1)-1
-            mean = np.ma.zeros(xedges.size-1)
-            std  = np.ma.zeros(xedges.size-1)
-            cnt  = np.ma.zeros(xedges.size-1)
-            np.seterr(under='ignore')
-            for i in range(mean.size):
-                yi = y[which_bin==i]
-                cnt [i] = yi.size
-                mean[i] = yi.mean()
-                std [i] = yi.std()
-            mean = np.ma.masked_array(mean,mask = (cnt/cnt.sum()) < eps)
-            std  = np.ma.masked_array( std,mask = (cnt/cnt.sum()) < eps)
-            np.seterr(under='warn')
-            return dist,xedges,yedges,mean,std
-
-        def _scoreDistribution(ref,com):
-            mask = ref.mask + com.mask
-            ref  = np.ma.masked_array(ref.data,mask=mask).compressed()
-            com  = np.ma.masked_array(com.data,mask=mask).compressed()
-            return np.sqrt(((np.sqrt(ref)-np.sqrt(com))**2).sum())/np.sqrt(2)
-
-        def _scoreFunction(ref,com):
-            mask = ref.mask + com.mask
-            ref  = np.ma.masked_array(ref.data,mask=mask).compressed()
-            com  = np.ma.masked_array(com.data,mask=mask).compressed()
-            return np.exp(-np.linalg.norm(ref-com)/np.linalg.norm(ref))
-
-        def _plotDistribution(dist,xedges,yedges,xlabel,ylabel,filename):
-            fig,ax = plt.subplots(figsize=(6,5.25),tight_layout=True)
-            pc = ax.pcolormesh(xedges, yedges, dist,
-                               norm = LogNorm(vmin = 1e-4,vmax = 1e-1),
-                               cmap = 'plasma' if 'plasma' in plt.cm.cmap_d else 'summer')
-            div = make_axes_locatable(ax)
-            fig.colorbar(pc,cax=div.append_axes("right",size="5%",pad=0.05),
-                         orientation="vertical",label="Fraction of total datasites")
-            ax.set_xlabel(xlabel,fontsize = 12)
-            ax.set_ylabel(ylabel,fontsize = 12 if len(ylabel) <= 60 else 10)
-            ax.set_xlim(xedges[0],xedges[-1])
-            ax.set_ylim(yedges[0],yedges[-1])
-            fig.savefig(filename)
-            plt.close()
-
-        def _plotDifference(ref,com,xedges,yedges,xlabel,ylabel,filename):
-            ref = np.ma.copy(ref)
-            com = np.ma.copy(com)
-            ref.data[np.where(ref.mask)] = 0.
-            com.data[np.where(com.mask)] = 0.
-            diff = np.ma.masked_array(com.data-ref.data,mask=ref.mask*com.mask)
-            lim = np.abs(diff).max()
-            fig,ax = plt.subplots(figsize=(6,5.25),tight_layout=True)
-            pc = ax.pcolormesh(xedges, yedges, diff,
-                               cmap = 'Spectral_r',
-                               vmin = -lim, vmax = +lim)
-            div = make_axes_locatable(ax)
-            fig.colorbar(pc,cax=div.append_axes("right",size="5%",pad=0.05),
-                         orientation="vertical",label="Distribution Difference")
-            ax.set_xlabel(xlabel,fontsize = 12)
-            ax.set_ylabel(ylabel,fontsize = 12 if len(ylabel) <= 60 else 10)
-            ax.set_xlim(xedges[0],xedges[-1])
-            ax.set_ylim(yedges[0],yedges[-1])
-            fig.savefig(filename)
-            plt.close()
-
-        def _plotFunction(ref_mean,ref_std,com_mean,com_std,xedges,yedges,xlabel,ylabel,color,filename):
-
-            xe    = 0.5*(xedges[:-1]+xedges[1:])
-            delta = 0.1*np.diff(xedges).mean()
-
-            # reference function
-            ref_x = xe - delta
-            ref_y = ref_mean
-            ref_e = ref_std
-            if not (ref_mean.mask==False).all():
-                ind   = np.where(ref_mean.mask==False)
-                ref_x = xe      [ind]-delta
-                ref_y = ref_mean[ind]
-                ref_e = ref_std [ind]
-
-            # comparison function
-            com_x = xe + delta
-            com_y = com_mean
-            com_e = com_std
-            if not (com_mean.mask==False).all():
-                ind   = np.where(com_mean.mask==False)
-                com_x = xe      [ind]-delta
-                com_y = com_mean[ind]
-                com_e = com_std [ind]
-
-            fig,ax = plt.subplots(figsize=(6,5.25),tight_layout=True)
-            ax.errorbar(ref_x,ref_y,yerr=ref_e,fmt='-o',color='k')
-            ax.errorbar(com_x,com_y,yerr=com_e,fmt='-o',color=color)
-            ax.set_xlabel(xlabel,fontsize = 12)
-            ax.set_ylabel(ylabel,fontsize = 12 if len(ylabel) <= 60 else 10)
-            ax.set_xlim(xedges[0],xedges[-1])
-            ax.set_ylim(yedges[0],yedges[-1])
-            fig.savefig(filename)
-            plt.close()
-
         # If there are no relationships to analyze, get out of here
         if self.relationships is None: return
 
@@ -1079,10 +933,9 @@ class Confrontation(object):
         try:
             ref_dep  = _retrieveData(os.path.join(self.output_path,"%s_%s.nc" % (self.name,"Benchmark")))
             com_dep  = _retrieveData(os.path.join(self.output_path,"%s_%s.nc" % (self.name,m.name     )))
-            com_dep  = _applyRefMask(ref_dep,com_dep)
             dep_name = self.longname.split("/")[0]
-            dep_min  = self.limits["timeint"]["min"]
-            dep_max  = self.limits["timeint"]["max"]
+            ref_dep.name = "%s/%s" % (dep_name,self.name)
+            com_dep.name = "%s/%s" % (dep_name,   m.name)
         except:
             return
 
@@ -1106,19 +959,26 @@ class Confrontation(object):
                 try:
                     ref_ind  = _retrieveData(os.path.join(c.output_path,"%s_%s.nc" % (c.name,"Benchmark")))
                     com_ind  = _retrieveData(os.path.join(c.output_path,"%s_%s.nc" % (c.name,m.name     )))
-                    com_ind  = _applyRefMask(ref_ind,com_ind)
                     ind_name = c.longname.split("/")[0]
-                    ind_min  = c.limits["timeint"]["min"]-1e-12
-                    ind_max  = c.limits["timeint"]["max"]+1e-12
+                    ref_ind.name = "%s/%s" % (ind_name,c.name)
+                    com_ind.name = "%s/%s" % (ind_name,m.name)
                 except:
                     continue
 
-                # Check on data shape
-                if not np.allclose(ref_dep.data.shape,ref_ind.data.shape):
-                    msg = "[%s][%s] Data size mismatch in relationship: %s %s vs. %s %s" % (self.longname,m.name,dep_name,str(ref_dep.data.shape),ind_name,str(ref_ind.data.shape))
-                    logger.debug(msg)
-                    raise ValueError
-
+                # if any one of the data sources are sites, they all
+                # should be, also check that the lat/lons are the same
+                src = [ref_ind,ref_dep,com_ind,com_dep]
+                for i,a in enumerate(src):
+                    for j,b in enumerate(src):
+                        if i == j: continue
+                        if a.ndata and     b.ndata: assert(np.allclose(a.lat,b.lat)*np.allclose(a.lon,b.lon))
+                        if a.ndata and not b.ndata: src[j] = b.extractDatasites(a.lat,a.lon)
+                ref_ind,ref_dep,com_ind,com_dep = src
+                
+                # create relationships
+                ref = Relationship(ref_ind,ref_dep,order=1)
+                com = Relationship(com_ind,com_dep,order=1)
+                
                 # Add figures to the html page
                 page.addFigure(c.longname,
                                "benchmark_rel_%s"            % ind_name,
@@ -1131,45 +991,35 @@ class Confrontation(object):
                                legend    = False,
                                benchmark = False)
                 page.addFigure(c.longname,
-                               "rel_diff_%s"                 % ind_name,
-                               "MNAME_RNAME_rel_diff_%s.png" % ind_name,
-                               legend    = False,
-                               benchmark = False)
-                page.addFigure(c.longname,
                                "rel_func_%s"                 % ind_name,
                                "MNAME_RNAME_rel_func_%s.png" % ind_name,
                                legend    = False,
                                benchmark = False)
 
                 # Analysis over regions
-                lim_dep  = [dep_min,dep_max]
-                lim_ind  = [ind_min,ind_max]
                 longname = c.longname.replace("/","|") # we want the source too, but netCDF doesn't like the '/'
                 for region in self.regions:
-                    ref_dist = _buildDistributionResponse(ref_ind,ref_dep,ind_lim=lim_ind,dep_lim=lim_dep,region=region)
-                    com_dist = _buildDistributionResponse(com_ind,com_dep,ind_lim=lim_ind,dep_lim=lim_dep,region=region)
 
+                    ref.makeComparable(com,region=region)
+                    
                     # Make the plots
-                    _plotDistribution(ref_dist[0],ref_dist[1],ref_dist[2],
-                                      "%s/%s,  %s" % (ind_name,   c.name,post.UnitStringToMatplotlib(ref_ind.unit)),
-                                      "%s/%s,  %s" % (dep_name,self.name,post.UnitStringToMatplotlib(ref_dep.unit)),
-                                      os.path.join(self.output_path,"%s_%s_rel_%s.png" % ("Benchmark",region,ind_name)))
-                    _plotDistribution(com_dist[0],com_dist[1],com_dist[2],
-                                      "%s/%s,  %s" % (ind_name,m.name,post.UnitStringToMatplotlib(com_ind.unit)),
-                                      "%s/%s,  %s" % (dep_name,m.name,post.UnitStringToMatplotlib(com_dep.unit)),
-                                      os.path.join(self.output_path,"%s_%s_rel_%s.png" % (m.name,region,ind_name)))
-                    _plotDifference  (ref_dist[0],com_dist[0],ref_dist[1],ref_dist[2],
-                                      "%s/%s,  %s" % (ind_name,m.name,post.UnitStringToMatplotlib(com_ind.unit)),
-                                      "%s/%s,  %s" % (dep_name,m.name,post.UnitStringToMatplotlib(com_dep.unit)),
-                                      os.path.join(self.output_path,"%s_%s_rel_diff_%s.png" % (m.name,region,ind_name)))
-                    _plotFunction    (ref_dist[3],ref_dist[4],com_dist[3],com_dist[4],ref_dist[1],ref_dist[2],
-                                      "%s,  %s" % (ind_name,post.UnitStringToMatplotlib(com_ind.unit)),
-                                      "%s,  %s" % (dep_name,post.UnitStringToMatplotlib(com_dep.unit)),
-                                      m.color,
-                                      os.path.join(self.output_path,"%s_%s_rel_func_%s.png" % (m.name,region,ind_name)))
+                    fig,ax = plt.subplots(figsize=(6,5.25),tight_layout=True)
+                    ref.plotDistribution(ax,region=region)
+                    fig.savefig(os.path.join(self.output_path,"%s_%s_rel_%s.png" % ("Benchmark",region,ind_name)))
+                    plt.close()
+
+                    fig,ax = plt.subplots(figsize=(6,5.25),tight_layout=True)
+                    com.plotDistribution(ax,region=region)
+                    fig.savefig(os.path.join(self.output_path,"%s_%s_rel_%s.png" % (m.name,region,ind_name)))
+                    plt.close()
+
+                    fig,ax = plt.subplots(figsize=(6,5.25),tight_layout=True)
+                    com.plotFunction(ax,region=region,shift=-0.1,color=m.color)
+                    ref.plotFunction(ax,region=region,shift=+0.1)
+                    fig.savefig(os.path.join(self.output_path,"%s_%s_rel_func_%s.png" % (m.name,region,ind_name)))
 
                     # Score the distribution
-                    score = _scoreDistribution(ref_dist[0],com_dist[0])
+                    score = ref.scoreHellinger(com,region=region)
                     sname = "%s Hellinger Distance %s" % (longname,region)
                     if sname in scalars.variables:
                         scalars.variables[sname][0] = score
@@ -1179,7 +1029,7 @@ class Confrontation(object):
                                  data = score).toNetCDF4(results,group="Relationships")
 
                     # Score the functional response
-                    score = _scoreFunction(ref_dist[3],com_dist[3])
+                    score = ref.scoreRMSE(com,region=region)
                     sname = "%s Score %s" % (longname,region)
                     if sname in scalars.variables:
                         scalars.variables[sname][0] = score
