@@ -978,7 +978,17 @@ class Confrontation(object):
                 # create relationships
                 ref = Relationship(ref_ind,ref_dep,order=1)
                 com = Relationship(com_ind,com_dep,order=1)
-                
+
+                # set limits to global across models
+                ref.limits = ([self.limits["timeint"]["min"],
+                               self.limits["timeint"]["max"]],
+                              [   c.limits["timeint"]["min"],
+                                  c.limits["timeint"]["max"]])
+                com.limits = ([self.limits["timeint"]["min"],
+                               self.limits["timeint"]["max"]],
+                              [   c.limits["timeint"]["min"],
+                                  c.limits["timeint"]["max"]])
+
                 # Add figures to the html page
                 page.addFigure(c.longname,
                                "benchmark_rel_%s"            % ind_name,
@@ -1017,6 +1027,7 @@ class Confrontation(object):
                     com.plotFunction(ax,region=region,shift=-0.1,color=m.color)
                     ref.plotFunction(ax,region=region,shift=+0.1)
                     fig.savefig(os.path.join(self.output_path,"%s_%s_rel_func_%s.png" % (m.name,region,ind_name)))
+                    plt.close()
 
                     # Score the distribution
                     score = ref.scoreHellinger(com,region=region)
