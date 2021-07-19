@@ -1027,6 +1027,7 @@ class Confrontation(object):
                     com.plotFunction(ax,region=region,shift=-0.1,color=m.color)
                     ref.plotFunction(ax,region=region,shift=+0.1)
                     fig.savefig(os.path.join(self.output_path,"%s_%s_rel_func_%s.png" % (m.name,region,ind_name)))
+                    plt.close()
 
                     # Score the distribution
                     score = ref.scoreHellinger(com,region=region)
