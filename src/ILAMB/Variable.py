@@ -129,8 +129,10 @@ class Variable:
             assert variable_name is not None
             t0 = keywords.get("t0",None)
             tf = keywords.get("tf",None)
+            z0 = keywords.get("z0",None) # YW
+            zf = keywords.get("zf",None) # YW
             convert_calendar = keywords.get("convert_calendar",True)
-            out = il.FromNetCDF4(filename,variable_name,alternate_vars,t0,tf,group=groupname,convert_calendar=convert_calendar)
+            out = il.FromNetCDF4(filename,variable_name,alternate_vars,t0,tf,group=groupname,convert_calendar=convert_calendar,z0=z0,zf=zf) # YW
             data,data_bnds,unit,name,time,time_bnds,lat,lat_bnds,lon,lon_bnds,depth,depth_bnds,cbounds,ndata,calendar,attr = out
 
         # Add handling for some units which cf_units does not support

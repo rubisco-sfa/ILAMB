@@ -214,7 +214,7 @@ class ModelResult():
         self.land_area = np.ma.sum(self.land_areas)
         return
 
-    def extractTimeSeries(self,variable,lats=None,lons=None,alt_vars=[],initial_time=-1e20,final_time=1e20,output_unit="",expression=None,convert_calendar=True):
+    def extractTimeSeries(self,variable,lats=None,lons=None,alt_vars=[],initial_time=-1e20,final_time=1e20,output_unit="",expression=None,convert_calendar=True,initial_depth=None,final_depth=None):
         """Extracts a time series of the given variable from the model.
 
         Parameters
@@ -236,6 +236,8 @@ class ModelResult():
             a 1D array of longitude locations at which to extract information
         expression : str, optional
             an algebraic expression describing how to combine model outputs
+        initial_depth, final_depth: float, optional
+            include model results between these depths # YW
 
         Returns
         -------
@@ -268,8 +270,10 @@ class ModelResult():
                                area           = self.land_areas,
                                convert_calendar = convert_calendar,
                                t0             = initial_time - self.shift,
-                               tf             = final_time   - self.shift)
-                
+                               tf             = final_time   - self.shift,
+                               z0             = initial_depth,
+                               zf             = final_depth)
+
                 if var.time is None: continue
                 tmin = min(tmin,var.time_bnds.min())
                 tmax = max(tmax,var.time_bnds.max())

@@ -610,7 +610,7 @@ def _removeLeapDay(t,v,datum=None,calendar=None,t0=None,tf=None):
 
     return tdata,vdata
 
-def FromNetCDF4(filename,variable_name,alternate_vars=[],t0=None,tf=None,group=None,convert_calendar=True):
+def FromNetCDF4(filename,variable_name,alternate_vars=[],t0=None,tf=None,group=None,convert_calendar=True,z0=None,zf=None):
     """Extracts data from a netCDF4 datafile for use in a Variable object.
 
     Intended to be used inside of the Variable constructor. Some of
@@ -630,6 +630,9 @@ def FromNetCDF4(filename,variable_name,alternate_vars=[],t0=None,tf=None,group=N
         usage and speed up access time.
     tf : float, optional
         If temporal, specifying the final time can reduce memory
+        usage and speed up access time.
+    z0, zf : float, optional # YW
+        Specifying the first and last depths can reduce memory
         usage and speed up access time.
 
     Returns
@@ -802,6 +805,7 @@ def FromNetCDF4(filename,variable_name,alternate_vars=[],t0=None,tf=None,group=N
     else:
         v = var[begin:(end+1),...]
         if v_bnd: v_bnd = v_bnd[begin:(end+1),...]
+
     if lat_name       is not None: lat       = grp.variables[lat_name]      [...]
     if lat_bnd_name   is not None: lat_bnd   = grp.variables[lat_bnd_name]  [...]
     if lon_name       is not None: lon       = grp.variables[lon_name]      [...]
@@ -829,6 +833,42 @@ def FromNetCDF4(filename,variable_name,alternate_vars=[],t0=None,tf=None,group=N
                 if depth_bnd is not None:
                     depth_bnd = Unit(dunit).convert(depth_bnd,Unit("Pa"),inplace=True)
                     depth_bnd = -np.log(depth_bnd/Pb)*R*Tb/M/g
+
+        print("il.FromNetCDF4 " + filename) # DEBUG
+        print(depth) # DEBUG
+        print(depth_bnd) # DEBUG
+        print(v.shape) # DEBUG
+
+        # YW
+        if z0 is not None:
+            if zf is None:
+                raise ValueError("Mismatched starting depth %f." % z0)
+            if depth_bnd is not None:
+                ind = (depth_bnd[:, 0] < zf) & (depth_bnd[:, 1] > z0)
+                depth_bnd = depth_bnd[ind, :]
+                depth = depth[ind]
+            else:
+                ind = (depth >= z0) & (depth <= zf)
+                depth = depth[ind]
+            v_depth_sub = []
+            for vs in v.shape:
+                if vs == len(ind):
+                    v_depth_sub.append( ind )
+                else:
+                    v_depth_sub.append( np.ones(vs, dtype = bool) )
+            v = v[np.ix_(v_depth_sub)]
+        else:
+            if zf is not None:
+                raise ValueError("Mismatched ending depth %f." % zf)
+
+        print(depth) # DEBUG
+        print(depth_bnd) # DEBUG
+        print(v.shape)
+    else:
+        if (z0 is not None) or (zf is not None):
+            raise ValueError("Vertical subscript is used but there is no layered dimension in %s." % filename)
+
+
     if data_name is not None:
         data = len(grp.dimensions[data_name])
         # if we have data sites, there may be lat/lon/depth data to
@@ -1365,9 +1405,8 @@ def AnalysisMeanStateSpace(ref,com,**keywords):
 
         ref_timeint.name = "timeint_of_%s" % name
 
-        # YW
-        print(benchmark_dataset)
-        print(ref_timeint.name)
+        print(benchmark_dataset) # DEBUG
+        print(ref_timeint.name) # DEBUG
 
         ref_timeint.toNetCDF4(benchmark_dataset,group="MeanState")
         for region in regions:

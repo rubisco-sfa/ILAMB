@@ -14,6 +14,7 @@ import cftime as cf
 from .Confrontation import getVariableList
 from .Confrontation import Confrontation
 import numpy as np
+import time # DEBUG
 
 
 import logging
@@ -41,8 +42,7 @@ class ConfSoilMoisture(Confrontation):
                 # of the data
                 depth_name = depth_name[0]
                 depth_bnd_name = [d for d in dset.variables.keys() \
-                                  if depth_name in d and \
-                                  ("bound" in d or "bnd" in d)]
+                                  if depth_name in d and ("bound" in d or "bnd" in d)]
 
                 if len(depth_bnd_name) > 0:
                     depth_bnd_name = depth_bnd_name[0]
@@ -69,7 +69,13 @@ class ConfSoilMoisture(Confrontation):
         unit = ""
         with Dataset(self.source) as dset:
             var = dset.variables[self.variable]
+
+            print('stage observation ' + self.variable) # DEBUG
+            tstart = time.time() #DEBUG
             obs_t,obs_tb,obs_cb,obs_b,obs_e,cal = il.GetTime(var)
+            tend = time.time() # DEBUG
+            print( "il.GetTime took " + str((tend - tstart)/60) + " minutes." ) # DEBUG
+
             obs_nt = obs_t.size
             obs_mem = var.size*8e-6
             unit = var.units
@@ -77,22 +83,24 @@ class ConfSoilMoisture(Confrontation):
             if climatology:
                 info += "[climatology]"
                 obs_cb = (obs_cb-1850)*365.
-                t0 = obs_cb[0]; tf = obs_cb[1]
+                obs_t0 = obs_cb[0]; obs_tf = obs_cb[1]
             else:
-                t0 = obs_tb[0,0]; tf = obs_tb[-1,1]
+                obs_t0 = obs_tb[0,0]; obs_tf = obs_tb[-1,1]
 
-            dname = [name for name in dset.variables.keys() \
-                     if name.lower() in ["depth_bnds", "depth_bounds"]]
-            if len(dname) == 0:
+            obs_dname = [name for name in dset.variables.keys() \
+                         if name.lower() in ["depth_bnds", "depth_bounds"]]
+            if len(obs_dname) == 0:
                 # if there is no depth, assume the data is surface
-                obs_z0 = 0; obs_zf = 0.1; obs_nd = 0
+                obs_z0 = 0; obs_zf = 0.1; obs_z_bnd = np.array([[0, 0.1]]); obs_nd = 0
+                obs_dname = None
             else:
-                dname = dname[0]
-                obs_z0 = np.min(dset.variables[dname])
-                obs_zf = np.max(dset.variables[dname])
-                obs_nd = dset.variables[dname].shape[0]
+                obs_dname = obs_dname[0]
+                obs_z0 = np.min(dset.variables[obs_dname])
+                obs_zf = np.max(dset.variables[obs_dname])
+                obs_z_bnd = dset.variables[obs_dname][...]
+                obs_nd = dset.variables[obs_dname].shape[0]
 
-            info += " contents span years %.1f to %.1f and depths %.1f to %.1f, est memory %d [Mb]" % (t0/365.+1850,tf/365.+1850,obs_z0,obs_zf,obs_mem)
+            info += " contents span years %.1f to %.1f and depths %.1f to %.1f, est memory %d [Mb]" % (obs_t0/365.+1850,obs_tf/365.+1850,obs_z0,obs_zf,obs_mem)
         logger.info("[%s][%s]%s" % (self.name,self.variable,info))
 
         # to peak at the model, we need any variable that could be
@@ -115,16 +123,24 @@ class ConfSoilMoisture(Confrontation):
         mod_zf  = -2147483648
         mod_nd = 999
         for fname in m.variables[vname]:
+
+            print('stage model ' + vname) # DEBUG
+
             with Dataset(fname) as dset:
                 var = dset.variables[vname]
-                mod_t,mod_tb,mod_cb,mod_b,mod_e,cal = il.GetTime(var,t0=t0-m.shift,
-                                                                 tf=tf-m.shift)
+
+                tstart = time.time() # DEBUG
+                mod_t,mod_tb,mod_cb,mod_b,mod_e,cal = il.GetTime(var,t0=obs_t0-m.shift,
+                                                                 tf=obs_tf-m.shift)
+                tend = time.time() # DEBUG
+                print( "il.GetTime took " + str((tend - tstart)/60) + " minutes." ) # DEBUG
+
                 if mod_t is None:
                     info += "\n      %s does not overlap the reference" % (fname)
                     continue
                 mod_t += m.shift
                 mod_tb += m.shift
-                ind = np.where((mod_tb[:,0] >= t0)*(mod_tb[:,1] <= tf))[0]
+                ind = np.where((mod_tb[:,0] >= obs_t0)*(mod_tb[:,1] <= obs_tf))[0]
                 if ind.size == 0:
                     info += "\n      %s does not overlap the reference" % (fname)
                     continue
@@ -133,14 +149,14 @@ class ConfSoilMoisture(Confrontation):
                 mod_t0 = min(mod_t0,mod_tb[ 0,0])
                 mod_tf = max(mod_tf,mod_tb[-1,1])
 
-                dname = [name for name in dset.variables.keys() \
-                         if name.lower() in ["depth_bnds", "depth_bounds"]]
-                if len(dname) == 0:
+                mod_dname = [name for name in dset.variables.keys() \
+                             if name.lower() in ["depth_bnds", "depth_bounds"]]
+                if len(mod_dname) == 0:
                     # if there is no depth, assume the data is surface
-                    z0 = 0; zf = 0.1; mod_nd = 0
+                    z0 = 0; zf = 0.1; mod_nd = 0; mod_dname = None
                 else:
-                    dname = dname[0]
-                    temp = dset.variables[dname][...]
+                    mod_dname = mod_dname[0]
+                    temp = dset.variables[mod_dname][...]
                     ind = (temp[:,1] > obs_z0)*(temp[:,0] < obs_zf)
                     if sum(ind) == 0:
                         info += "\n      %s does not overlap the reference" % (fname)
@@ -159,9 +175,8 @@ class ConfSoilMoisture(Confrontation):
         info += "\n      total est memory = %d [Mb]" % mod_mem
         logger.info("[%s][%s][%s] reading model data from possibly many files%s" % (self.name,m.name,vname,info))
         if mod_t0 > mod_tf:
-            logger.debug("[%s] Could not find [%s] in the model results in the given time frame, tinput = [%.1f,%.1f]" % (self.name,",".join(possible),t0,tf))
+            logger.debug("[%s] Could not find [%s] in the model results in the given time frame, tinput = [%.1f,%.1f]" % (self.name,",".join(possible),mod_t0,mod_tf))
             raise il.VarNotInModel()
-
 
         # yield the results by observational depths
         def _addDepth(v):
@@ -174,101 +189,70 @@ class ConfSoilMoisture(Confrontation):
             return v
 
         info = ""
-        for i in range(self.depths.shape[0]):
-            z0 = max(self.depths[i,0], obs_z0, mod_z0)
-            zf = min(self.depths[i,1], obs_zf, mod_zf)
-            if z0 >= zf:
+        for i in range(obs_z_bnd.shape[0]):
+            ind = (self.depths[:,0] < obs_z_bnd[i,1]) & \
+                  (self.depths[:,1] > obs_z_bnd[i,0]) & \
+                  (self.depths[:,0] < mod_zf) & \
+                  (self.depths[:,1] > mod_z0)
+            if sum(ind) == 0:
                 continue
+            z0 = min(self.depths[ind,0])
+            zf = max(self.depths[ind,1])
 
-            obs_mem *= (mod_tf-mod_t0)/(tf-t0)
-            mod_t0 = max(mod_t0,t0)
-            mod_tf = min(mod_tf,tf)
-            ns   = int(np.floor(max(obs_mem,mod_mem)/mem_slab))+1
-            ns   = min(min(max(1,ns),mod_nt),obs_nt)            
-            logger.info("[%s][%s] building depths %.1f to %.1f in %d slabs" \
-                        % (self.name,m.name,z0,zf,ns))
+            mod_t0 = max(mod_t0,obs_t0)
+            mod_tf = min(mod_tf,obs_tf)
+            logger.info("[%s][%s] building depths %.1f to %.1f in loop %d" % (self.name,m.name,z0,zf,i))
 
-            # across what times?
-            slab_t = (mod_tf-mod_t0)*np.linspace(0,1,ns+1)+mod_t0
-            slab_t = np.floor(slab_t / 365)*365 + bnd_months[(np.abs(bnd_months[:,np.newaxis] - (slab_t % 365))).argmin(axis=0)]
-
-            obs_tb = None; mod_tb = None
-            obs_di = []; mod_di = []
-            for j in range(ns):
-                # YW
-                print(j, slab_t[j], slab_t[j+1])
-
-                # get reference variable
+            # get reference variable
+            if obs_dname is None:
                 obs = Variable(filename       = self.source,
                                variable_name  = self.variable,
                                alternate_vars = self.alternate_vars,
-                               t0             = slab_t[j],
-                               tf             = slab_t[j+1] \
-                               ).trim(t = [slab_t[j],slab_t[j+1]])
-                if obs_tb is None:
-                    obs_tb = obs.time_bnds[...]
-                else:
-                    if np.allclose(obs_tb[-1],obs.time_bnds[0]):
-                        obs.data = obs.data[1:]
-                        obs.time = obs.time[1:]
-                        obs.time_bnds = obs.time_bnds[1:]
-                    assert np.allclose(obs.time_bnds[0,0],obs_tb[-1,1])
-                    obs_tb = obs.time_bnds[...]
-                if not obs.layered:
-                    obs = _addDepth(obs)
-                else:
-                    obs = obs.trim(d = [z0, zf]).integrateInDepth(z0 = z0, zf = zf, mean = True)
+                               t0             = mod_t0,
+                               tf             = mod_tf).trim(t = [mod_t0,mod_tf])
+                obs = _addDepth(obs)
+            else:
+                obs = Variable(filename       = self.source,
+                               variable_name  = self.variable,
+                               alternate_vars = self.alternate_vars,
+                               t0             = mod_t0,
+                               tf             = mod_tf,
+                               z0             = z0,
+                               zf             = zf).trim(t = [mod_t0,mod_tf])
+                obs = obs.integrateInDepth(z0 = z0, zf = zf, mean = True)
+            obs.name = "depthint%.2f-%.2f" % (z0, zf)
 
-                # YW
-                print(obs.unit, obs.data, obs.time, obs_tb, obs.lat, obs.lat_bnds, 
-                      obs.lon, obs.lon_bnds)
+            print("obs ", obs.name, obs.unit, obs.data, obs.time, obs_tb, obs.lat, obs.lat_bnds, 
+                  obs.lon, obs.lon_bnds) # DEBUG
 
-                obs_di.append(Variable(name = "depthint%.2f-%.2f" % (z0, zf),
-                                       unit = obs.unit, 
-                                       data = obs.data,
-                                       time = obs.time, time_bnds = obs_tb, 
-                                       lat = obs.lat, lat_bnds = obs.lat_bnds,
-                                       lon = obs.lon, lon_bnds = obs.lon_bnds))
-
-                # get model variable
+            # get model variable
+            if mod_dname is None:
                 mod = m.extractTimeSeries(self.variable,
                                           alt_vars     = self.alternate_vars,
                                           expression   = self.derived,
-                                          initial_time = slab_t[j],
-                                          final_time   = slab_t[j+1] \
-                                          ).trim(t=[slab_t[j],slab_t[j+1]]).convert(obs.unit)
-                if mod_tb is None:
-                    mod_tb = mod.time_bnds
-                else:
-                    if np.allclose(mod_tb[-1],mod.time_bnds[0]):
-                        mod.data = mod.data[1:]
-                        mod.time = mod.time[1:]
-                        mod.time_bnds = mod.time_bnds[1:]
-                    assert np.allclose(mod.time_bnds[0,0],mod_tb[-1,1])
-                    mod_tb = mod.time_bnds[...]
-                assert obs.time.size == mod.time.size
-                if not mod.layered:
-                    mod = _addDepth(mod)
-                else:
-                    mod = mod.trim(d = [z0, zf]).integrateInDepth(z0 = z0, zf = zf, mean = True)
+                                          initial_time = mod_t0,
+                                          final_time   = mod_tf).trim(t=[mod_t0,mod_tf]).convert(obs.unit)
+                mod = _addDepth(mod)
+            else:
+                mod = m.extractTimeSeries(self.variable,
+                                          alt_vars     = self.alternate_vars,
+                                          expression   = self.derived,
+                                          initial_time = mod_t0,
+                                          final_time   = mod_tf,
+                                          initial_depth= z0,
+                                          final_depth  = zf).trim(t=[mod_t0,mod_tf]).convert(obs.unit)
+                mod = mod.trim(d = [z0, zf]).integrateInDepth(z0 = z0, zf = zf, mean = True)
+            mod.name = "depthint%.2f-%.2f" % (z0, zf)
 
-                # YW
-                print(mod.unit, mod.data, mod.time, mod_tb, mod.lat, mod.lat_bnds, 
-                      mod.lon, mod.lon_bnds)
+            print("mod ", mod.name, mod.unit, mod.data, mod.time, mod_tb, mod.lat, mod.lat_bnds, 
+                  mod.lon, mod.lon_bnds) # DEBUG
 
-                mod_di.append(Variable(name = "depthint%.2f-%.2f" % (z0, zf),
-                                       unit = mod.unit,
-                                       data = mod.data,
-                                       time = mod.time, time_bnds = mod_tb,
-                                       lat = mod.lat, lat_bnds = mod.lat_bnds,
-                                       lon = mod.lon, lon_bnds = mod.lon_bnds))
+            assert obs.time.size == mod.time.size
 
-            obs_tmp = il.CombineVariables(obs_di)
-            mod_tmp = il.CombineVariables(mod_di)
-            obs_tmp.name = obs_tmp.name.split("_")[0]
-            mod_tmp.name = mod_tmp.name.split("_")[0]
+            obs.name = obs.name.split("_")[0]
+            mod.name = mod.name.split("_")[0]
 
-            yield obs_tmp, mod_tmp, z0, zf
+            yield obs, mod, z0, zf
 
 
     def confront(self,m):
@@ -541,6 +525,7 @@ class ConfSoilMoisture(Confrontation):
         this routine.
 
         """
+        self._relationship(m)
         bname     = os.path.join(self.output_path,"%s_Benchmark.nc" % (self.name       ))
         fname     = os.path.join(self.output_path,"%s_%s.nc"        % (self.name,m.name))
         if not os.path.isfile(bname): return
@@ -574,8 +559,7 @@ class ConfSoilMoisture(Confrontation):
                     if pname not in space_opts: continue
                     opts = space_opts[pname]
 
-                    # YW
-                    ##print('... is used in space_opts')
+                    ##print('... is used in space_opts') # DEBUG
 
                     # add to html layout
                     page.addFigure(opts["section"],
