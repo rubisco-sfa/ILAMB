@@ -70,11 +70,7 @@ class ConfSoilMoisture(Confrontation):
         with Dataset(self.source) as dset:
             var = dset.variables[self.variable]
 
-            print('stage observation ' + self.variable) # DEBUG
-            tstart = time.time() #DEBUG
             obs_t,obs_tb,obs_cb,obs_b,obs_e,cal = il.GetTime(var)
-            tend = time.time() # DEBUG
-            print( "il.GetTime took " + str((tend - tstart)/60) + " minutes." ) # DEBUG
 
             obs_nt = obs_t.size
             obs_mem = var.size*8e-6
@@ -91,13 +87,12 @@ class ConfSoilMoisture(Confrontation):
                          if name.lower() in ["depth_bnds", "depth_bounds"]]
             if len(obs_dname) == 0:
                 # if there is no depth, assume the data is surface
-                obs_z0 = 0; obs_zf = 0.1; obs_z_bnd = np.array([[0, 0.1]]); obs_nd = 0
+                obs_z0 = 0; obs_zf = 0.1; obs_nd = 0
                 obs_dname = None
             else:
                 obs_dname = obs_dname[0]
                 obs_z0 = np.min(dset.variables[obs_dname])
                 obs_zf = np.max(dset.variables[obs_dname])
-                obs_z_bnd = dset.variables[obs_dname][...]
                 obs_nd = dset.variables[obs_dname].shape[0]
 
             info += " contents span years %.1f to %.1f and depths %.1f to %.1f, est memory %d [Mb]" % (obs_t0/365.+1850,obs_tf/365.+1850,obs_z0,obs_zf,obs_mem)
@@ -123,17 +118,10 @@ class ConfSoilMoisture(Confrontation):
         mod_zf  = -2147483648
         mod_nd = 999
         for fname in m.variables[vname]:
-
-            print('stage model ' + vname) # DEBUG
-
             with Dataset(fname) as dset:
                 var = dset.variables[vname]
-
-                tstart = time.time() # DEBUG
                 mod_t,mod_tb,mod_cb,mod_b,mod_e,cal = il.GetTime(var,t0=obs_t0-m.shift,
                                                                  tf=obs_tf-m.shift)
-                tend = time.time() # DEBUG
-                print( "il.GetTime took " + str((tend - tstart)/60) + " minutes." ) # DEBUG
 
                 if mod_t is None:
                     info += "\n      %s does not overlap the reference" % (fname)
@@ -189,21 +177,20 @@ class ConfSoilMoisture(Confrontation):
             return v
 
         info = ""
-        for i in range(obs_z_bnd.shape[0]):
-            ind = (self.depths[:,0] < obs_z_bnd[i,1]) & \
-                  (self.depths[:,1] > obs_z_bnd[i,0]) & \
-                  (self.depths[:,0] < mod_zf) & \
-                  (self.depths[:,1] > mod_z0)
-            if sum(ind) == 0:
+        for i in range(self.depths.shape[0]):
+            z0 = max(self.depths[i,0], obs_z0, mod_z0)
+            zf = min(self.depths[i,1], obs_zf, mod_zf)
+            if z0 >= zf:
                 continue
-            z0 = min(self.depths[ind,0])
-            zf = max(self.depths[ind,1])
 
             mod_t0 = max(mod_t0,obs_t0)
             mod_tf = min(mod_tf,obs_tf)
             logger.info("[%s][%s] building depths %.1f to %.1f in loop %d" % (self.name,m.name,z0,zf,i))
 
             # get reference variable
+            print('Loading obs ' + str(z0) + '-' + str(zf))
+            tstart = time.time() # DEBUG
+
             if obs_dname is None:
                 obs = Variable(filename       = self.source,
                                variable_name  = self.variable,
@@ -222,10 +209,15 @@ class ConfSoilMoisture(Confrontation):
                 obs = obs.integrateInDepth(z0 = z0, zf = zf, mean = True)
             obs.name = "depthint%.2f-%.2f" % (z0, zf)
 
+            tend = time.time() # DEBUG
+            print("Loading obs " + str(z0) + '-' + str(zf) + ' took ' + str((tend - tstart) / 60)) # DEBUG
             print("obs ", obs.name, obs.unit, obs.data, obs.time, obs_tb, obs.lat, obs.lat_bnds, 
                   obs.lon, obs.lon_bnds) # DEBUG
 
             # get model variable
+            print('Loading model ' + str(z0) + '-' + str(zf))
+            tstart = time.time() # DEBUG
+
             if mod_dname is None:
                 mod = m.extractTimeSeries(self.variable,
                                           alt_vars     = self.alternate_vars,
@@ -244,6 +236,8 @@ class ConfSoilMoisture(Confrontation):
                 mod = mod.trim(d = [z0, zf]).integrateInDepth(z0 = z0, zf = zf, mean = True)
             mod.name = "depthint%.2f-%.2f" % (z0, zf)
 
+            tend = time.time() # DEBUG
+            print("Loading model " + str(z0) + '-' + str(zf) + ' took ' + str((tend - tstart) / 60)) # DEBUG
             print("mod ", mod.name, mod.unit, mod.data, mod.time, mod_tb, mod.lat, mod.lat_bnds, 
                   mod.lon, mod.lon_bnds) # DEBUG
 
@@ -278,10 +272,9 @@ class ConfSoilMoisture(Confrontation):
 
             # Get the depth-integrated observation and model data for each slab.
             for obs,mod,z0,zf in self.stageData(m):
-                #YW
-                print('Staging data ... %.2f-%.2f' % (z0, zf))
-                print(obs.name)
-                print(mod.name)
+                print('Staging data ... %.2f-%.2f' % (z0, zf)) # DEBUG
+                print(obs.name) # DEBUG
+                print(mod.name) # DEBUG
 
                 if obs.spatial:
                     il.AnalysisMeanStateSpace(obs, mod, dataset   = fcm.mod_dset,
@@ -309,59 +302,6 @@ class ConfSoilMoisture(Confrontation):
             fcm.mod_dset.setncattr("complete",1)
             if self.master: fcm.obs_dset.setncattr("complete",1)
         logger.info("[%s][%s] Success" % (self.longname,m.name))
-
-
-    def computeOverallScore(self,m):
-        """Computes the overall composite score for a given model.
-
-        This routine opens the netCDF results file associated with
-        this confrontation-model pair, and then looks for a "scalars"
-        group in the dataset as well as any subgroups that may be
-        present. For each grouping of scalars, it will blend any value
-        with the word "Score" in the name to render an overall score,
-        overwriting the existing value if present.
-
-        Parameters
-        ----------
-        m : ILAMB.ModelResult.ModelResult
-            the model results
-
-        """
-
-        def _computeOverallScore(scalars):
-            """Given a netCDF4 group of scalars, blend them into an overall score"""
-            scores     = {}
-            variables = [v for v in scalars.variables.keys() if "Score" in v and "Overall" not in v]
-            for region in self.regions:
-                overall_score  = 0.
-                sum_of_weights = 0.
-                for v in variables:
-                    if region not in v: continue
-                    score = v.replace(region,"").strip()
-                    weight = 1.
-                    if score in self.weight: weight = self.weight[score]
-                    overall_score  += weight*scalars.variables[v][...]
-                    sum_of_weights += weight
-                overall_score /= max(sum_of_weights,1e-12)
-                scores["Overall Score %s" % region] = overall_score
-            return scores
-
-        fname = os.path.join(self.output_path,"%s_%s.nc" % (self.name,m.name))
-        if not os.path.isfile(fname): return
-        with Dataset(fname,mode="r+") as dataset:
-            datasets = [dataset.groups[grp] for grp in dataset.groups if "scalars" not in grp]
-            groups   = [grp                 for grp in dataset.groups if "scalars" not in grp]
-            datasets.append(dataset)
-            groups  .append(None)
-            for dset,grp in zip(datasets,groups):
-                if "scalars" in dset.groups:
-                    scalars = dset.groups["scalars"]
-                    score = _computeOverallScore(scalars)
-                    for key in score.keys():
-                        if key in scalars.variables:
-                            scalars.variables[key][0] = score[key]
-                        else:
-                            Variable(data=score[key],name=key,unit="1").toNetCDF4(dataset,group=grp)
 
 
     def compositePlots(self):
@@ -450,10 +390,9 @@ class ConfSoilMoisture(Confrontation):
                              ticklabels = time_opts["cycle"]["ticklabels"],
                              vmin       = self.limits["cycle"][region]["min"]-dy,
                              vmax       = self.limits["cycle"][region]["max"]+dy)
-                    #ylbl = time_opts["cycle"]["ylabel"]
-                    #if ylbl == "unit": ylbl = post.UnitStringToMatplotlib(var.unit)
-                    ylbl = zstr + ' '+ self.depths_units
+                    ylbl = post.UnitStringToMatplotlib(var.unit)
                     ax.set_ylabel(ylbl)
+                    ax.set_title(zstr + ' '+ self.depths_units)
             fig.savefig(os.path.join(self.output_path,"%s_compcycle.png" % (region)))
             plt.close()
 
@@ -516,6 +455,7 @@ class ConfSoilMoisture(Confrontation):
                                      "%s_spatial_variance.png" % (region)))
             plt.close()
 
+
     def modelPlots(self,m):
         """For a given model, create the plots of the analysis results.
 
@@ -547,10 +487,6 @@ class ConfSoilMoisture(Confrontation):
                 pname = vname.split("_")[0]
                 if group.variables[vname][...].size <= 1: continue
                 var = Variable(filename=fname,groupname="MeanState",variable_name=vname)
-
-                # YW
-                ##print(self.limits.keys())
-                ##print(pname)
 
                 if (var.spatial or (var.ndata is not None)) and not var.temporal:
 
@@ -660,7 +596,352 @@ class ConfSoilMoisture(Confrontation):
                             ylbl = opts["ylabel"]
                             if ylbl == "unit": ylbl = post.UnitStringToMatplotlib(var.unit)
                             ax.set_ylabel(ylbl)
+                            ax.set_title(zstr + ' ' + self.depths_units)
                         fig.savefig(os.path.join(self.output_path,"%s_%s_%s.png" % (m.name,region,pname)))
                         plt.close()
 
         logger.info("[%s][%s] Success" % (self.longname,m.name))
+
+    def _relationship(self,m,nbin=25):
+        """
+        Modified to plot by depths.
+        """
+        def _retrieveData(filename):
+            key_list = []
+            with Dataset(filename,mode="r") as dset:
+                for dind, z0 in enumerate(self.depths[:,0]):
+                    zf = self.depths[dind, 1]
+                    zstr = '%.2f-%.2f' % (z0, zf)
+                    key = [v for v in dset.groups["MeanState"].variables.keys() \
+                           if ("timeint_" in v) and (zstr in v)]
+                    if len(key) == 0:
+                        raise "Unable to retrieve data for relationship " + zstr
+                    key_list.append(key)
+            return [Variable(filename      = filename,
+                             groupname     = "MeanState",
+                             variable_name = key) for key in key_list]
+        
+        def _applyRefMask(ref,com):
+            tmp = ref.interpolate(lat=com.lat,lat_bnds=com.lat_bnds,
+                                  lon=com.lon,lon_bnds=com.lon_bnds)
+            com.data.mask += tmp.data.mask
+            return com
+        
+        def _checkLim(data,lim):
+            if lim is None:
+                lim     = [min(data.min(),data.min()),
+                           max(data.max(),data.max())]
+                delta   = 1e-8*(lim[1]-lim[0])
+                lim[0] -= delta
+                lim[1] += delta
+            else:
+                assert type(lim) == type([])
+                assert len (lim) == 2
+            return lim
+
+        def _limitExtents(vars):
+            lim = [+1e20,-1e20]
+            for v in vars:
+                lmin,lmax = _checkLim(v.data,None)
+                lim[0] = min(lmin,lim[0])
+                lim[1] = max(lmax,lim[1])
+            return lim
+
+        def _buildDistributionResponse(ind,dep,ind_lim=None,dep_lim=None,region=None,nbin=25,eps=3e-3):
+
+            r = Regions()
+
+            # Checks on the input parameters
+            assert np.allclose(ind.data.shape,dep.data.shape)
+            ind_lim = _checkLim(ind.data,ind_lim)
+            dep_lim = _checkLim(dep.data,dep_lim)
+
+            # Mask data
+            mask = ind.data.mask + dep.data.mask
+            if region is not None: mask += r.getMask(region,ind)
+            x = ind.data[mask==False].flatten()
+            y = dep.data[mask==False].flatten()
+
+            # Compute normalized 2D distribution
+            dist,xedges,yedges = np.histogram2d(x,y,
+                                                bins  = [nbin,nbin],
+                                                range = [ind_lim,dep_lim])
+            dist  = np.ma.masked_values(dist.T,0).astype(float)
+            dist /= dist.sum()
+
+            # Compute the functional response
+            which_bin = np.digitize(x,xedges).clip(1,xedges.size-1)-1
+            mean = np.ma.zeros(xedges.size-1)
+            std  = np.ma.zeros(xedges.size-1)
+            cnt  = np.ma.zeros(xedges.size-1)
+            np.seterr(under='ignore')
+            for i in range(mean.size):
+                yi = y[which_bin==i]
+                cnt [i] = yi.size
+                mean[i] = yi.mean()
+                std [i] = yi.std()
+            mean = np.ma.masked_array(mean,mask = (cnt/cnt.sum()) < eps)
+            std  = np.ma.masked_array( std,mask = (cnt/cnt.sum()) < eps)
+            np.seterr(under='warn')
+            return dist,xedges,yedges,mean,std
+
+        def _scoreDistribution(ref,com):
+            mask = ref.mask + com.mask
+            ref  = np.ma.masked_array(ref.data,mask=mask).compressed()
+            com  = np.ma.masked_array(com.data,mask=mask).compressed()
+            return np.sqrt(((np.sqrt(ref)-np.sqrt(com))**2).sum())/np.sqrt(2)
+
+        def _scoreFunction(ref,com):
+            mask = ref.mask + com.mask
+            ref  = np.ma.masked_array(ref.data,mask=mask).compressed()
+            com  = np.ma.masked_array(com.data,mask=mask).compressed()
+            return np.exp(-np.linalg.norm(ref-com)/np.linalg.norm(ref))
+
+        def _plotDistribution(dist_list,xedges_list,yedges_list,
+                              xlabel_list, ylabel_list, filename):
+            fig, axes = plt.subplots(len(self.depths[:,0]), 1, 
+                                     figsize=(3 * len(self.depths[:,0]), 3.),tight_layout=True)
+            for ind, dist, xedges, yedges, xlabel, ylabel in \
+                zip(range(len(self.depths[:,0])), dist_list, xedges_list, yedges_list,
+                    xlabel_list, ylabel_list):
+                ax = axes.flat[ind]
+                pc = ax.pcolormesh(xedges, yedges, dist,
+                                   norm = LogNorm(vmin = 1e-4,vmax = 1e-1),
+                                   cmap = 'plasma' if 'plasma' in plt.cm.cmap_d else 'summer')
+                ax.set_xlabel(xlabel,fontsize = 12)
+                ax.set_ylabel(ylabel,fontsize = 12 if len(ylabel) <= 60 else 10)
+                ax.set_xlim(xedges[0],xedges[-1])
+                ax.set_ylim(yedges[0],yedges[-1])
+            fig.colorbar(pc, cax = fig.add_axes([0.95, 0.1, 0.02, 0.8]),
+                         orientation="vertical",label="Fraction of total datasites")
+            fig.savefig(filename)
+            plt.close()
+
+        def _plotDifference(ref_list,com_list,xedges_list,yedges_list,xlabel_list,ylabel_list,filename):
+            fig, axes = plt.subplots(len(self.depths[:,0]), 1,
+                                     figsize=(3 * len(self.depths[:,0]), 3.),tight_layout=True)
+            for ind, ref, com, xedges, yedges, xlabel, ylabel in \
+                zip(range(len(self.depths[:,0])), ref_list, com_list, xedges_list, yedges_list,
+                    xlabel_list, ylabel_list):
+                ref = np.ma.copy(ref)
+                com = np.ma.copy(com)
+                ref.data[np.where(ref.mask)] = 0.
+                com.data[np.where(com.mask)] = 0.
+                diff = np.ma.masked_array(com.data-ref.data,mask=ref.mask*com.mask)
+                lim = np.abs(diff).max()
+
+                pc = ax.pcolormesh(xedges, yedges, diff,
+                                   cmap = 'Spectral_r',
+                                   vmin = -lim, vmax = +lim)
+                ax.set_xlabel(xlabel,fontsize = 12)
+                ax.set_ylabel(ylabel,fontsize = 12 if len(ylabel) <= 60 else 10)
+                ax.set_xlim(xedges[0],xedges[-1])
+                ax.set_ylim(yedges[0],yedges[-1])
+            fig.colorbar(pc,cax = fig.add_axes([0.95, 0.1, 0.02, 0.8]),
+                         orientation="vertical",label="Distribution Difference")
+            fig.savefig(filename)
+            plt.close()
+
+        def _plotFunction(ref_mean_list,ref_std_list,com_mean_list,com_std_list,
+                          xedges_list,yedges_list,xlabel_list,ylabel_list,color,filename):
+            fig, axes = plt.subplots(len(self.depths[:,0]), 1, 
+                                     figsize=(3 * len(self.depths[:,0]), 3.),tight_layout=True)
+            for ind, dist, xedges, yedges, xlabel, ylabel in \
+                zip(range(len(self.depths[:,0])), dist_list, xedges_list, yedges_list,
+                    xlabel_list, ylabel_list):
+
+                xe    = 0.5*(xedges[:-1]+xedges[1:])
+                delta = 0.1*np.diff(xedges).mean()
+
+                # reference function
+                ref_x = xe - delta
+                ref_y = ref_mean
+                ref_e = ref_std
+                if not (ref_mean.mask==False).all():
+                    ind   = np.where(ref_mean.mask==False)
+                    ref_x = xe      [ind]-delta
+                    ref_y = ref_mean[ind]
+                    ref_e = ref_std [ind]
+    
+                # comparison function
+                com_x = xe + delta
+                com_y = com_mean
+                com_e = com_std
+                if not (com_mean.mask==False).all():
+                    ind   = np.where(com_mean.mask==False)
+                    com_x = xe      [ind]-delta
+                    com_y = com_mean[ind]
+                    com_e = com_std [ind]
+    
+                ax = axes.flat[ind]
+                ax.errorbar(ref_x,ref_y,yerr=ref_e,fmt='-o',color='k')
+                ax.errorbar(com_x,com_y,yerr=com_e,fmt='-o',color=color)
+                ax.set_xlabel(xlabel,fontsize = 12)
+                ax.set_ylabel(ylabel,fontsize = 12 if len(ylabel) <= 60 else 10)
+                ax.set_xlim(xedges[0],xedges[-1])
+                ax.set_ylim(yedges[0],yedges[-1])
+            fig.savefig(filename)
+            plt.close()
+
+        # If there are no relationships to analyze, get out of here
+        if self.relationships is None: return
+
+        # Get the HTML page
+        page = [page for page in self.layout.pages if "Relationships" in page.name]
+        if len(page) == 0: return
+        page = page[0]
+
+        # Try to get the dependent data from the model and obs
+        try:
+            ref_dep_list  = _retrieveData(os.path.join(self.output_path,"%s_%s.nc" % (self.name,"Benchmark")))
+            com_dep_list  = _retrieveData(os.path.join(self.output_path,"%s_%s.nc" % (self.name,m.name     )))
+            com_dep_list  = [_applyRefMask(ref_dep, com_dep) for ref_dep,com_dep in zip(ref_dep_list,com_dep_list)]
+            dep_name = self.longname.split("/")[0]
+            dep_min  = self.limits["timeint"]["min"]
+            dep_max  = self.limits["timeint"]["max"]
+        except:
+            return
+
+        with Dataset(os.path.join(self.output_path,"%s_%s.nc" % (self.name,m.name)),mode="r+") as results:
+
+            # Grab/create a relationship and scalars group
+            group = None
+            if "Relationships" not in results.groups:
+                group = results.createGroup("Relationships")
+            else:
+                group = results.groups["Relationships"]
+            if "scalars" not in group.groups:
+                scalars = group.createGroup("scalars")
+            else:
+                scalars = group.groups["scalars"]
+
+            # for each relationship...
+            for c in self.relationships:
+
+                # try to get the independent data from the model and obs
+                try:
+                    ref_ind_list  = _retrieveData(os.path.join(c.output_path,"%s_%s.nc" % (c.name,"Benchmark")))
+                    com_ind_list  = _retrieveData(os.path.join(c.output_path,"%s_%s.nc" % (c.name,m.name     )))
+                    com_ind_list  = _applyRefMask(ref_ind,com_ind)
+                    ind_name = c.longname.split("/")[0]
+                    ind_min  = c.limits["timeint"]["min"]-1e-12
+                    ind_max  = c.limits["timeint"]["max"]+1e-12
+                except:
+                    continue
+
+
+                # Add figures to the html page
+                page.addFigure(c.longname,
+                               "benchmark_rel_%s"            % ind_name,
+                               "Benchmark_RNAME_rel_%s.png"  % ind_name,
+                               legend    = False,
+                               benchmark = False)
+                page.addFigure(c.longname,
+                               "rel_%s"                      % ind_name,
+                               "MNAME_RNAME_rel_%s.png"      % ind_name,
+                               legend    = False,
+                               benchmark = False)
+                page.addFigure(c.longname,
+                               "rel_diff_%s"                 % ind_name,
+                               "MNAME_RNAME_rel_diff_%s.png" % ind_name,
+                               legend    = False,
+                               benchmark = False)
+                page.addFigure(c.longname,
+                               "rel_func_%s"                 % ind_name,
+                               "MNAME_RNAME_rel_func_%s.png" % ind_name,
+                               legend    = False,
+                               benchmark = False)
+
+                # Try to get the dependent data from the model and obs
+                try:
+                    ref_dep_list  = _retrieveData(os.path.join(self.output_path,"%s_%s.nc" % (self.name,"Benchmark")))
+                    com_dep_list  = _retrieveData(os.path.join(self.output_path,"%s_%s.nc" % (self.name,m.name     )))
+                    com_dep_list  = [_applyRefMask(ref_dep, com_dep) for ref_dep,com_dep in zip(ref_dep_list,com_dep_list)]
+                    dep_name = self.longname.split("/")[0]
+                    dep_min  = self.limits["timeint"]["min"]
+                    dep_max  = self.limits["timeint"]["max"]
+                except:
+                    return
+
+                # Analysis over regions
+                lim_dep  = [dep_min,dep_max]
+                lim_ind  = [ind_min,ind_max]
+                longname = c.longname.split('/')[0]
+                for region in self.regions:
+                    ref_dist_list = []
+                    ref_xedges_list = []
+                    ref_yedges_list = []
+                    ref_mean_list = []
+                    ref_std_list = []
+
+                    com_dist_list = []
+                    com_xedges_list = []
+                    com_yedges_list = []
+                    com_mean_list = []
+                    com_std_list = []
+
+                    for dind, ref_dep, ref_ind in zip(range(len(ref_dep_list)), ref_dep_list, ref_ind_list):
+                        # Check on data shape
+                        if not np.allclose(ref_dep.data.shape,ref_ind.data.shape):
+                            msg = "[%s][%s] Data size mismatch in relationship: %s %s vs. %s %s" % (self.longname,m.name,dep_name,str(ref_dep.data.shape),ind_name,str(ref_ind.data.shape))
+                            logger.debug(msg)
+                            raise ValueError
+
+                        ref_dist, ref_xedges, ref_yedges, ref_mean, ref_std = _buildDistributionResponse(ref_ind,ref_dep,ind_lim=lim_ind,dep_lim=lim_dep,region=region)
+                        com_dist, com_xedges, com_yedges, com_mean, com_std = _buildDistributionResponse(com_ind,com_dep,ind_lim=lim_ind,dep_lim=lim_dep,region=region)
+
+                        ref_dist_list.append(ref_dist)
+                        ref_xedges_list.append(ref_xedges)
+                        ref_yedges_list.append(ref_yedges)
+                        ref_mean_list.append(ref_mean)
+                        ref_std_list.append(ref_std)
+
+                        com_dist_list.append(com_dist)
+                        com_xedges_list.append(com_xedges)
+                        com_yedges_list.append(com_yedges)
+                        com_mean_list.append(com_mean)
+                        com_std_list.append(com_std)
+
+                    # Make the plots
+                    _plotDistribution(ref_dist_list,ref_xedges_list,ref_yedges_list,
+                                      "%s/%s,  %s" % (ind_name,   c.name,post.UnitStringToMatplotlib(ref_ind.unit)),
+                                      "%s/%s,  %s" % (dep_name,self.name,post.UnitStringToMatplotlib(ref_dep.unit)),
+                                      os.path.join(self.output_path,"%s_%s_rel_%s.png" % ("Benchmark",region,ind_name)))
+                    _plotDistribution(com_dist_list,com_xedges_list,com_yedges_list,
+                                      "%s/%s,  %s" % (ind_name,m.name,post.UnitStringToMatplotlib(com_ind.unit)),
+                                      "%s/%s,  %s" % (dep_name,m.name,post.UnitStringToMatplotlib(com_dep.unit)),
+                                      os.path.join(self.output_path,"%s_%s_rel_%s.png" % (m.name,region,ind_name)))
+                    _plotDifference  (ref_dist_list,com_dist_list,ref_xedges_list,ref_yedges_list,
+                                      "%s/%s,  %s" % (ind_name,m.name,post.UnitStringToMatplotlib(com_ind.unit)),
+                                      "%s/%s,  %s" % (dep_name,m.name,post.UnitStringToMatplotlib(com_dep.unit)),
+                                      os.path.join(self.output_path,"%s_%s_rel_diff_%s.png" % (m.name,region,ind_name)))
+                    _plotFunction(ref_mean_list,ref_std_list,com_mean_list,
+                                  com_std_list,ref_xedges_list,ref_yedges_list,
+                                  "%s,  %s" % (ind_name,post.UnitStringToMatplotlib(com_ind.unit)),
+                                  "%s,  %s" % (dep_name,post.UnitStringToMatplotlib(com_dep.unit)),
+                                  m.color,
+                                  os.path.join(self.output_path,"%s_%s_rel_func_%s.png" % (m.name,region,ind_name)))
+
+                # Score the distribution
+                score_list = []
+                for ref_dist, com_dist in zip(ref_dist_list, com_dist_list):
+                    score = _scoreDistribution(ref_dist,com_dist)
+                    score_list.append(score)
+                score = np.mean(score_list) # !!!!!!! May be wrong?
+                sname = "%s Hellinger Distance %s" % (longname,region)
+                if sname in scalars.variables:
+                    scalars.variables[sname][0] = score
+                else:
+                    Variable(name = sname,
+                             unit = "1",
+                             data = score).toNetCDF4(results,group="Relationships")
+
+                # Score the functional response
+                score = _scoreFunction(ref_dist[3],com_dist[3])
+                sname = "%s RMSE Score %s" % (longname,region)
+                if sname in scalars.variables:
+                    scalars.variables[sname][0] = score
+                else:
+                    Variable(name = sname,
+                             unit = "1",
+                             data = score).toNetCDF4(results,group="Relationships")

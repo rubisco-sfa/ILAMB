@@ -462,9 +462,11 @@ class Confrontation(object):
 
         # For those limits which we built up data across all models, compute the percentiles
         for pname in limits.keys():
-            if "data" in limits[pname]:
+            print(pname) # DEBUG
+            if ("data" in limits[pname]) and (len(limits[pname]['data']) > 0):
+                print(limits[pname]['data']) # DEBUG
                 limits[pname]["min"],limits[pname]["max"] = np.percentile(limits[pname]["data"],[1,99])
-                
+
         # Second pass to plot legends (FIX: only for master?)
         for pname in limits.keys():
 
@@ -523,58 +525,6 @@ class Confrontation(object):
 
 
         self.limits = limits
-
-    def computeOverallScore(self,m):
-        """Computes the overall composite score for a given model.
-
-        This routine opens the netCDF results file associated with
-        this confrontation-model pair, and then looks for a "scalars"
-        group in the dataset as well as any subgroups that may be
-        present. For each grouping of scalars, it will blend any value
-        with the word "Score" in the name to render an overall score,
-        overwriting the existing value if present.
-
-        Parameters
-        ----------
-        m : ILAMB.ModelResult.ModelResult
-            the model results
-
-        """
-
-        def _computeOverallScore(scalars):
-            """Given a netCDF4 group of scalars, blend them into an overall score"""
-            scores     = {}
-            variables = [v for v in scalars.variables.keys() if "Score" in v and "Overall" not in v]
-            for region in self.regions:
-                overall_score  = 0.
-                sum_of_weights = 0.
-                for v in variables:
-                    if region not in v: continue
-                    score = v.replace(region,"").strip()
-                    weight = 1.
-                    if score in self.weight: weight = self.weight[score]
-                    overall_score  += weight*scalars.variables[v][...]
-                    sum_of_weights += weight
-                overall_score /= max(sum_of_weights,1e-12)
-                scores["Overall Score %s" % region] = overall_score
-            return scores
-
-        fname = os.path.join(self.output_path,"%s_%s.nc" % (self.name,m.name))
-        if not os.path.isfile(fname): return
-        with Dataset(fname,mode="r+") as dataset:
-            datasets = [dataset.groups[grp] for grp in dataset.groups if "scalars" not in grp]
-            groups   = [grp                 for grp in dataset.groups if "scalars" not in grp]
-            datasets.append(dataset)
-            groups  .append(None)
-            for dset,grp in zip(datasets,groups):
-                if "scalars" in dset.groups:
-                    scalars = dset.groups["scalars"]
-                    score = _computeOverallScore(scalars)
-                    for key in score.keys():
-                        if key in scalars.variables:
-                            scalars.variables[key][0] = score[key]
-                        else:
-                            Variable(data=score[key],name=key,unit="1").toNetCDF4(dataset,group=grp)
 
 
     def compositePlots(self):

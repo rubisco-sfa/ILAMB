@@ -853,10 +853,11 @@ def FromNetCDF4(filename,variable_name,alternate_vars=[],t0=None,tf=None,group=N
             v_depth_sub = []
             for vs in v.shape:
                 if vs == len(ind):
-                    v_depth_sub.append( ind )
+                    v_depth_sub.append( list(np.where(ind)[0]) )
                 else:
-                    v_depth_sub.append( np.ones(vs, dtype = bool) )
-            v = v[np.ix_(v_depth_sub)]
+                    v_depth_sub.append( list(range(vs)) )
+            #print( v_depth_sub ) # DEBUG
+            v = v[np.ix_(*v_depth_sub)]
         else:
             if zf is not None:
                 raise ValueError("Mismatched ending depth %f." % zf)

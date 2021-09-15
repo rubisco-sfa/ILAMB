@@ -303,8 +303,8 @@ def BuildLocalWorkList(M,C,skip_cache=False):
     for c in C:
         for m in M:
             if skip_cache:
-                
-                # if we want to skip we have to check that it is complete                
+
+                # if we want to skip we have to check that it is complete
                 fname = os.path.join(c.output_path,"%s_%s.nc" % (c.name,m.name))
                 complete = False
                 if os.path.isfile(fname):
@@ -379,24 +379,6 @@ def WorkConfront(W,verbose=False,clean=False):
         # try to run the confrontation
         try:
             t0 = time.time()
-
-            ## YW
-            #print(m)
-            #print(m.path)
-            #print(m.color)
-            #print(m.filter)
-            #print(m.regex)
-            #print(m.shift)
-            #print(m.name)
-            #print(m.confrontations)
-            #print(m.cell_areas)
-            #print(m.land_fraction)
-            #print(m.land_areas)
-            #print(m.land_area)
-            #print(m.variables)
-            #print(m.names)
-            #print(m.extents)
-            #print(m.paths)
             
             c.confront(m)
             dt = time.time()-t0
@@ -412,7 +394,7 @@ def WorkConfront(W,verbose=False,clean=False):
             logger.debug("[%s][%s]\n%s" % (c.longname,m.name,format_exc()))
             if verbose:
                 print(("    {0:>%d} {1:<%d} %s%s%s" % (maxCL,maxML,FAIL,ex.__class__.__name__,ENDC)).format(c.longname,m.name))
-                
+
 def WorkPost(M,C,W,S,verbose=False,skip_plots=False):
     """Performs the post-processing
 
@@ -435,7 +417,9 @@ def WorkPost(M,C,W,S,verbose=False,skip_plots=False):
         enable to skip plotting
     """
     maxCL = 45; maxML = 20
-    for c in C: c.determinePlotLimits()
+    for c in C: 
+        print(c.name, c.source, c.variable, c.output_path) # DEBUG
+        c.determinePlotLimits()
     for i,w in enumerate(W):
         m,c = w
         try:
@@ -457,7 +441,7 @@ def WorkPost(M,C,W,S,verbose=False,skip_plots=False):
                 sys.stdout.flush()
 
     sys.stdout.flush(); comm.Barrier()
-    
+
     for i,c in enumerate(C):
         try:
             c.compositePlots()
