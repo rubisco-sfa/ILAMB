@@ -379,7 +379,6 @@ def WorkConfront(W,verbose=False,clean=False):
         # try to run the confrontation
         try:
             t0 = time.time()
-            
             c.confront(m)
             dt = time.time()-t0
             proc[rank] += dt
@@ -628,7 +627,6 @@ S = Scoreboard(args.config[0],
                rmse_score_basis = args.rmse_score_basis)
 
 C  = MatchRelationshipConfrontation(S.list())
-
 
 if len(args.study_limits) == 2:
     args.study_limits[1] += 1

@@ -132,6 +132,7 @@ class Variable:
             z0 = keywords.get("z0",None) # YW
             zf = keywords.get("zf",None) # YW
             convert_calendar = keywords.get("convert_calendar",True)
+
             out = il.FromNetCDF4(filename,variable_name,alternate_vars,t0,tf,group=groupname,convert_calendar=convert_calendar,z0=z0,zf=zf) # YW
             data,data_bnds,unit,name,time,time_bnds,lat,lat_bnds,lon,lon_bnds,depth,depth_bnds,cbounds,ndata,calendar,attr = out
 
@@ -342,7 +343,8 @@ class Variable:
         # the integrated array should be masked where *all* data in time was previously masked
         mask = False
         if self.data.ndim > 1 and self.data.mask.size > 1:
-            mask = np.apply_along_axis(np.all,0,self.data.mask[ind])
+            ##mask = np.apply_along_axis(np.all,0,self.data.mask[ind])
+            mask = np.all(self.data.mask[ind], 0)
         integral = np.ma.masked_array(integral,mask=mask,copy=False)
             
         # handle units
@@ -464,6 +466,7 @@ class Variable:
             dz = np.expand_dims(dz,axis=-1)
             args.append(range(self.lat.size))
             args.append(range(self.lon.size))
+
         ind = np.ix_(*args)
 
         # approximate the integral by nodal integration (rectangle rule)
@@ -475,7 +478,8 @@ class Variable:
         # the integrated array should be masked where *all* data in depth was previously masked
         mask = False
         if self.data.ndim > 1 and self.data.mask.size > 1:
-            mask = np.apply_along_axis(np.all,axis,self.data.mask[ind])
+            ##mask = np.apply_along_axis(np.all,axis,self.data.mask[ind]) # YW
+            mask = np.all(self.data.mask[ind], axis) # YW; faster
         integral = np.ma.masked_array(integral,mask=mask,copy=False)
 
         # handle units

@@ -779,6 +779,11 @@ def FromNetCDF4(filename,variable_name,alternate_vars=[],t0=None,tf=None,group=N
         depth_bnd_name = grp.variables[depth_name].bounds if (depth_name in grp.variables and
                                                               "bounds" in grp.variables[depth_name].ncattrs()) else None
         if depth_bnd_name not in grp.variables: depth_bnd_name = None
+        if depth_bnd_name is None: # YW; soil moisture data set setup
+            dummy = [d for d in grp.variables.keys() if depth_name in d and ("bound" in d or "bnd" in d)]
+            if len(dummy) > 0:
+                depth_bnd_name = dummy[0]
+
     elif len(missed) >= 1:
         raise ValueError("Ambiguous choice of values for the layered dimension [%s] in %s" % (",".join(missed),filename))
     else:
@@ -1318,9 +1323,9 @@ def AnalysisMeanStateSpace(ref,com,**keywords):
 
     Parameters
     ----------
-    obs : ILAMB.Variable.Variable
+    ref : ILAMB.Variable.Variable
         the observational (reference) variable
-    mod : ILAMB.Variable.Variable
+    com : ILAMB.Variable.Variable
         the model (comparison) variable
     regions : list of str, optional
         the regions overwhich to apply the analysis
@@ -1405,9 +1410,6 @@ def AnalysisMeanStateSpace(ref,com,**keywords):
     if benchmark_dataset is not None:
 
         ref_timeint.name = "timeint_of_%s" % name
-
-        print(benchmark_dataset) # DEBUG
-        print(ref_timeint.name) # DEBUG
 
         ref_timeint.toNetCDF4(benchmark_dataset,group="MeanState")
         for region in regions:

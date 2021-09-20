@@ -10,11 +10,9 @@ from matplotlib.colors import LogNorm
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from mpi4py import MPI
 from sympy import sympify
-import cftime as cf
 
 import logging
 logger = logging.getLogger("%i" % MPI.COMM_WORLD.rank)
-
 
 def getVariableList(dataset):
     """Extracts the list of variables in the dataset that aren't
@@ -150,8 +148,9 @@ class Confrontation(object):
         self.study_limits   = []
         
         # Make sure the source data exists
-
-        if not os.path.isfile(self.source):
+        try:
+            os.stat(self.source)
+        except:
             msg  = "\n\nI am looking for data for the %s confrontation here\n\n" % self.name
             msg += "%s\n\nbut I cannot find it. " % self.source
             msg += "Did you download the data? Have you set the ILAMB_ROOT envronment variable?\n"
@@ -179,14 +178,14 @@ class Confrontation(object):
                     self.lbls = ["site%d" % s for s in range(len(dataset.dimensions["data"]))]
             if "time" in dataset.dimensions:
                 t = dataset.variables["time"]
-                tdata = t[[0,-1]]
                 if "bounds" in t.ncattrs():
-                    tdata = dataset.variables[t.bounds]
-                    tdata = [tdata[0,0],tdata[-1,1]]
-                tdata = cf.num2date(tdata,units=t.units,calendar=t.calendar)
-                y0 = tdata[0].year
-                yf = tdata[1].year
-                
+                    t  = dataset.variables[t.bounds][...]
+                    y0 = int(t[ 0,0]/365.+1850.)
+                    yf = int(t[-1,1]/365.+1850.)-1
+                else:
+                    y0 = int(round(t[ 0]/365.)+1850.)
+                    yf = int(round(t[-1]/365.)+1850.)-1
+
         if self.hasSites:
             pages.append(post.HtmlSitePlotsPage("SitePlots","Site Plots"))
             pages[-1].setHeader("CNAME / RNAME / MNAME")
@@ -364,9 +363,8 @@ class Confrontation(object):
             # Read in some options and run the mean state analysis
             mass_weighting = self.keywords.get("mass_weighting",False)
             skip_rmse      = self.keywords.get("skip_rmse"     ,False)
-            skip_iav       = self.keywords.get("skip_iav"      ,True )
+            skip_iav       = self.keywords.get("skip_iav"      ,False)
             skip_cycle     = self.keywords.get("skip_cycle"    ,False)
-            rmse_score_basis = self.keywords.get("rmse_score_basis","cycle")
             if obs.spatial:
                 il.AnalysisMeanStateSpace(obs,mod,dataset   = fcm.mod_dset,
                                           regions           = self.regions,
@@ -377,8 +375,7 @@ class Confrontation(object):
                                           skip_rmse         = skip_rmse,
                                           skip_iav          = skip_iav,
                                           skip_cycle        = skip_cycle,
-                                          mass_weighting    = mass_weighting,
-                                          rmse_score_basis  = rmse_score_basis)
+                                          mass_weighting    = mass_weighting)
             else:
                 il.AnalysisMeanStateSites(obs,mod,dataset   = fcm.mod_dset,
                                           regions           = self.regions,
@@ -404,39 +401,34 @@ class Confrontation(object):
         called before calling any plotting routine.
 
         """
+        max_str = "up99"
+        min_str = "dn99"
+        if self.keywords.get("limit_type","99per") == "minmax":
+            max_str = "max"
+            min_str = "min"
 
-        filelist = glob.glob(os.path.join(self.output_path,"*.nc"))
-        benchmark_file = [f for f in filelist if "Benchmark" in f]
-
-        # There may be regions in which there is no benchmark data and
-        # these should be weeded out. If the plotting phase occurs in
-        # the same run as the analysis phase, this is not needed.
-        if benchmark_file:
-            with Dataset(benchmark_file[0]) as dset: Vs = getVariableList(dset.groups["MeanState"])
-            Vs = [v for v in Vs if "timeint" in v]
-            if Vs:
-                self.pruneRegions(Variable(filename = benchmark_file[0],
-                                           variable_name = Vs[0],
-                                           groupname = "MeanState"))
-        
         # Determine the min/max of variables over all models
         limits = {}
-        for fname in filelist:
+        prune  = False
+        for fname in glob.glob(os.path.join(self.output_path,"*.nc")):
             with Dataset(fname) as dataset:
                 if "MeanState" not in dataset.groups: continue
-                variables = getVariableList(dataset.groups["MeanState"])
+                group     = dataset.groups["MeanState"]
+                variables = [v for v in group.variables.keys() if v not in group.dimensions.keys()]
                 for vname in variables:
-                    var = dataset.groups["MeanState"].variables[vname]
-                    if var[...].size <= 1: continue
+                    var    = group.variables[vname]
                     pname  = vname.split("_")[0]
-
-                    """If the plot is a time series, it has been averaged over regions
-                    already and we need a separate dictionary for the
-                    region as well. These can be based on the
-                    percentiles from the attributes of the netCDF
-                    variables."""
-                    if pname in time_opts:
-                        region = vname.split("_")[-1]
+                    region = vname.split("_")[-1]
+                    if var[...].size <= 1: continue
+                    if pname in space_opts:
+                        if pname not in limits:
+                            limits[pname] = {}
+                            limits[pname]["min"]  = +1e20
+                            limits[pname]["max"]  = -1e20
+                            limits[pname]["unit"] = post.UnitStringToMatplotlib(var.getncattr("units"))
+                        limits[pname]["min"] = min(limits[pname]["min"],var.getncattr(min_str))
+                        limits[pname]["max"] = max(limits[pname]["max"],var.getncattr(max_str))
+                    elif pname in time_opts:
                         if pname not in limits: limits[pname] = {}
                         if region not in limits[pname]:
                             limits[pname][region] = {}
@@ -445,27 +437,11 @@ class Confrontation(object):
                             limits[pname][region]["unit"] = post.UnitStringToMatplotlib(var.getncattr("units"))
                         limits[pname][region]["min"] = min(limits[pname][region]["min"],var.getncattr("min"))
                         limits[pname][region]["max"] = max(limits[pname][region]["max"],var.getncattr("max"))
-
-                    else:
-                        """If the plot is spatial, we want to set the limits as a percentile
-                        of all data across models and the
-                        benchmark. So here we load the data up and in
-                        another pass will compute the percentiles."""
-                        if pname not in limits:
-                            limits[pname] = {}
-                            limits[pname]["min"]  = +1e20
-                            limits[pname]["max"]  = -1e20
-                            limits[pname]["unit"] = post.UnitStringToMatplotlib(var.getncattr("units"))
-                            limits[pname]["data"] = var[...].compressed()
-                        else:
-                            limits[pname]["data"] = np.hstack([limits[pname]["data"],var[...].compressed()])
-
-        # For those limits which we built up data across all models, compute the percentiles
-        for pname in limits.keys():
-            print(pname) # DEBUG
-            if ("data" in limits[pname]) and (len(limits[pname]['data']) > 0):
-                print(limits[pname]['data']) # DEBUG
-                limits[pname]["min"],limits[pname]["max"] = np.percentile(limits[pname]["data"],[1,99])
+                    if not prune and "Benchmark" in fname and pname == "timeint":
+                        prune = True
+                        self.pruneRegions(Variable(filename      = fname,
+                                                   variable_name = vname,
+                                                   groupname     = "MeanState"))
 
         # Second pass to plot legends (FIX: only for master?)
         for pname in limits.keys():
@@ -485,12 +461,10 @@ class Confrontation(object):
             if "score" in pname:
                 limits[pname]["min"] = 0
                 limits[pname]["max"] = 1
-                
+
             limits[pname]["cmap"] = opts["cmap"]
             if limits[pname]["cmap"] == "choose": limits[pname]["cmap"] = self.cmap
-            if "score" in pname:
-                limits[pname]["cmap"] = plt.cm.get_cmap(limits[pname]["cmap"],3)
-
+            
             # Plot a legend for each key
             if opts["haslegend"]:
                 fig,ax = plt.subplots(figsize=(6.8,1.0),tight_layout=True)
@@ -525,6 +499,58 @@ class Confrontation(object):
 
 
         self.limits = limits
+
+    def computeOverallScore(self,m):
+        """Computes the overall composite score for a given model.
+
+        This routine opens the netCDF results file associated with
+        this confrontation-model pair, and then looks for a "scalars"
+        group in the dataset as well as any subgroups that may be
+        present. For each grouping of scalars, it will blend any value
+        with the word "Score" in the name to render an overall score,
+        overwriting the existing value if present.
+
+        Parameters
+        ----------
+        m : ILAMB.ModelResult.ModelResult
+            the model results
+
+        """
+
+        def _computeOverallScore(scalars):
+            """Given a netCDF4 group of scalars, blend them into an overall score"""
+            scores     = {}
+            variables = [v for v in scalars.variables.keys() if "Score" in v and "Overall" not in v]
+            for region in self.regions:
+                overall_score  = 0.
+                sum_of_weights = 0.
+                for v in variables:
+                    if region not in v: continue
+                    score = v.replace(region,"").strip()
+                    weight = 1.
+                    if score in self.weight: weight = self.weight[score]
+                    overall_score  += weight*scalars.variables[v][...]
+                    sum_of_weights += weight
+                overall_score /= max(sum_of_weights,1e-12)
+                scores["Overall Score %s" % region] = overall_score
+            return scores
+
+        fname = os.path.join(self.output_path,"%s_%s.nc" % (self.name,m.name))
+        if not os.path.isfile(fname): return
+        with Dataset(fname,mode="r+") as dataset:
+            datasets = [dataset.groups[grp] for grp in dataset.groups if "scalars" not in grp]
+            groups   = [grp                 for grp in dataset.groups if "scalars" not in grp]
+            datasets.append(dataset)
+            groups  .append(None)
+            for dset,grp in zip(datasets,groups):
+                if "scalars" in dset.groups:
+                    scalars = dset.groups["scalars"]
+                    score = _computeOverallScore(scalars)
+                    for key in score.keys():
+                        if key in scalars.variables:
+                            scalars.variables[key][0] = score[key]
+                        else:
+                            Variable(data=score[key],name=key,unit="1").toNetCDF4(dataset,group=grp)
 
 
     def compositePlots(self):
@@ -679,7 +705,6 @@ class Confrontation(object):
 
                         # grab plotting options
                         if pname not in self.limits.keys(): continue
-                        if pname not in space_opts: continue
                         opts = space_opts[pname]
 
                         # add to html layout
@@ -727,13 +752,9 @@ class Confrontation(object):
                     if not (var.spatial or (var.ndata is not None)) and var.temporal:
 
                         # grab the benchmark dataset to plot along with
-                        try:
-                            obs = Variable(filename=bname,groupname="MeanState",variable_name=vname).convert(var.unit)
-                        except:
-                            continue
+                        obs = Variable(filename=bname,groupname="MeanState",variable_name=vname).convert(var.unit)
 
                         # grab plotting options
-                        if pname not in time_opts: continue
                         opts = time_opts[pname]
 
                         # add to html layout
@@ -834,10 +855,10 @@ class Confrontation(object):
                     for vname in grp.variables.keys():
                         found = False
                         for region in self.regions:
-                            if vname.endswith(" %s" % region):
+                            if region in vname:
                                 found = True
                                 var   = grp.variables[vname]
-                                name  = ''.join(vname.rsplit(" %s" % region,1))
+                                name  = vname.replace(region,"")
                                 metrics[mname][region][name] = Variable(name = name,
                                                                         unit = var.units,
                                                                         data = var[...])
@@ -947,8 +968,9 @@ class Confrontation(object):
         def _plotDistribution(dist,xedges,yedges,xlabel,ylabel,filename):
             fig,ax = plt.subplots(figsize=(6,5.25),tight_layout=True)
             pc = ax.pcolormesh(xedges, yedges, dist,
-                               norm = LogNorm(vmin = 1e-4,vmax = 1e-1),
-                               cmap = 'plasma' if 'plasma' in plt.cm.cmap_d else 'summer')
+                               norm = LogNorm(),
+                               cmap = 'plasma' if 'plasma' in plt.cm.cmap_d else 'summer',
+                               vmin = 1e-4, vmax = 1e-1)
             div = make_axes_locatable(ax)
             fig.colorbar(pc,cax=div.append_axes("right",size="5%",pad=0.05),
                          orientation="vertical",label="Fraction of total datasites")

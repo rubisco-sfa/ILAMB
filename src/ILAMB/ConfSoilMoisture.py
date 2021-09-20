@@ -211,8 +211,8 @@ class ConfSoilMoisture(Confrontation):
 
             tend = time.time() # DEBUG
             print("Loading obs " + str(z0) + '-' + str(zf) + ' took ' + str((tend - tstart) / 60)) # DEBUG
-            print("obs ", obs.name, obs.unit, obs.data, obs.time, obs_tb, obs.lat, obs.lat_bnds, 
-                  obs.lon, obs.lon_bnds) # DEBUG
+            print("obs ", obs.name, obs.unit, obs.time[0], obs.time[-1],
+                  obs.lat[0], obs.lat[-1], obs.lon[0], obs.lon[-1]) # DEBUG
 
             # get model variable
             print('Loading model ' + str(z0) + '-' + str(zf))
@@ -238,8 +238,8 @@ class ConfSoilMoisture(Confrontation):
 
             tend = time.time() # DEBUG
             print("Loading model " + str(z0) + '-' + str(zf) + ' took ' + str((tend - tstart) / 60)) # DEBUG
-            print("mod ", mod.name, mod.unit, mod.data, mod.time, mod_tb, mod.lat, mod.lat_bnds, 
-                  mod.lon, mod.lon_bnds) # DEBUG
+            print("mod ", mod.name, mod.unit, mod.data, mod.time[0], mod.time[-1],
+                  mod.lat[0], mod.lat[-1], mod.lon[0], mod.lon[-1]) # DEBUG
 
             assert obs.time.size == mod.time.size
 
@@ -272,9 +272,8 @@ class ConfSoilMoisture(Confrontation):
 
             # Get the depth-integrated observation and model data for each slab.
             for obs,mod,z0,zf in self.stageData(m):
-                print('Staging data ... %.2f-%.2f' % (z0, zf)) # DEBUG
-                print(obs.name) # DEBUG
-                print(mod.name) # DEBUG
+                print('Confronting data ' + obs.name + ' v.s. ' + mod.name + \
+                      '... %.2f-%.2f' % (z0, zf)) # DEBUG
 
                 if obs.spatial:
                     il.AnalysisMeanStateSpace(obs, mod, dataset   = fcm.mod_dset,
@@ -371,7 +370,8 @@ class ConfSoilMoisture(Confrontation):
         for region in self.regions:
             if region not in cycle: continue
             fig, axes = plt.subplots(self.depths.shape[0], 1,
-                                     figsize = (6.5, 2.8*self.depths.shape[0]))
+                                     figsize = (6.5, 2.8*self.depths.shape[0]), 
+                                     sharex = True, sharey = True)
             for dind, z0 in enumerate(self.depths[:,0]):
                 zf = self.depths[dind, 1]
                 zstr = '%.2f-%.2f' % (z0, zf)
@@ -573,7 +573,8 @@ class ConfSoilMoisture(Confrontation):
                     for region in self.regions:
                         if region not in vname: continue
                         fig, axes = plt.subplots(self.depths.shape[0], 1,
-                                                 figsize = (6.5, 2.8*self.depths.shape[0]))
+                                                 figsize = (6.5, 2.8*self.depths.shape[0]), 
+                                                 sharex = True, sharey = True)
                         for dind, z0 in enumerate(self.depths[:,0]):
                             zf = self.depths[dind,1]
                             zstr = '%.2f-%.2f' % (z0, zf)
@@ -606,7 +607,7 @@ class ConfSoilMoisture(Confrontation):
         """
         Modified to plot by depths.
         """
-        def _retrieveData(filename):
+        def _retrieveSM(filename):
             key_list = []
             with Dataset(filename,mode="r") as dset:
                 for dind, z0 in enumerate(self.depths[:,0]):
@@ -616,11 +617,19 @@ class ConfSoilMoisture(Confrontation):
                            if ("timeint_" in v) and (zstr in v)]
                     if len(key) == 0:
                         raise "Unable to retrieve data for relationship " + zstr
-                    key_list.append(key)
+                    key_list.append(key[0])
             return [Variable(filename      = filename,
                              groupname     = "MeanState",
                              variable_name = key) for key in key_list]
-        
+
+        def _retrieveData(filename):
+            key = None
+            with Dataset(filename,mode="r") as dset:
+                key  = [v for v in dset.groups["MeanState"].variables.keys() if "timeint_" in v]
+            return Variable(filename      = filename,
+                            groupname     = "MeanState",
+                            variable_name = key[0])
+
         def _applyRefMask(ref,com):
             tmp = ref.interpolate(lat=com.lat,lat_bnds=com.lat_bnds,
                                   lon=com.lon,lon_bnds=com.lon_bnds)
@@ -698,31 +707,33 @@ class ConfSoilMoisture(Confrontation):
             return np.exp(-np.linalg.norm(ref-com)/np.linalg.norm(ref))
 
         def _plotDistribution(dist_list,xedges_list,yedges_list,
-                              xlabel_list, ylabel_list, filename):
+                              xlabel, ylabel, filename):
             fig, axes = plt.subplots(len(self.depths[:,0]), 1, 
-                                     figsize=(3 * len(self.depths[:,0]), 3.),tight_layout=True)
-            for ind, dist, xedges, yedges, xlabel, ylabel in \
-                zip(range(len(self.depths[:,0])), dist_list, xedges_list, yedges_list,
-                    xlabel_list, ylabel_list):
-                ax = axes.flat[ind]
+                                     figsize=(3.5, 3 * len(self.depths[:,0])),
+                                     sharex = True, sharey = True, tight_layout=True)
+            for dind, dist, xedges, yedges in \
+                zip(range(len(self.depths[:,0])), dist_list, xedges_list, yedges_list):
+                ax = axes.flat[dind]
                 pc = ax.pcolormesh(xedges, yedges, dist,
                                    norm = LogNorm(vmin = 1e-4,vmax = 1e-1),
                                    cmap = 'plasma' if 'plasma' in plt.cm.cmap_d else 'summer')
-                ax.set_xlabel(xlabel,fontsize = 12)
-                ax.set_ylabel(ylabel,fontsize = 12 if len(ylabel) <= 60 else 10)
+                ax.set_xlabel(xlabel,fontsize = 8)
+                ax.set_ylabel(ylabel,fontsize = 8 if len(ylabel) <= 60 else 6)
                 ax.set_xlim(xedges[0],xedges[-1])
                 ax.set_ylim(yedges[0],yedges[-1])
-            fig.colorbar(pc, cax = fig.add_axes([0.95, 0.1, 0.02, 0.8]),
+                ax.set_title(('%.2f-%.2f' % (self.depths[dind,0], self.depths[dind,1])) \
+                             + self.depths_units)
+            fig.colorbar(pc, cax = fig.add_axes([0.97, 0.1, 0.02, 0.8]),
                          orientation="vertical",label="Fraction of total datasites")
-            fig.savefig(filename)
+            fig.savefig(filename, bbox_inches = 'tight')
             plt.close()
 
-        def _plotDifference(ref_list,com_list,xedges_list,yedges_list,xlabel_list,ylabel_list,filename):
+        def _plotDifference(ref_list,com_list,xedges_list,yedges_list,xlabel,ylabel,filename):
             fig, axes = plt.subplots(len(self.depths[:,0]), 1,
-                                     figsize=(3 * len(self.depths[:,0]), 3.),tight_layout=True)
-            for ind, ref, com, xedges, yedges, xlabel, ylabel in \
-                zip(range(len(self.depths[:,0])), ref_list, com_list, xedges_list, yedges_list,
-                    xlabel_list, ylabel_list):
+                                     figsize=(3.5, 3 * len(self.depths[:,0])),
+                                     sharex = True, sharey = True, tight_layout=True)
+            for dind, ref, com, xedges, yedges in \
+                zip(range(len(self.depths[:,0])), ref_list, com_list, xedges_list, yedges_list):
                 ref = np.ma.copy(ref)
                 com = np.ma.copy(com)
                 ref.data[np.where(ref.mask)] = 0.
@@ -730,25 +741,28 @@ class ConfSoilMoisture(Confrontation):
                 diff = np.ma.masked_array(com.data-ref.data,mask=ref.mask*com.mask)
                 lim = np.abs(diff).max()
 
+                ax = axes.flat[dind]
                 pc = ax.pcolormesh(xedges, yedges, diff,
-                                   cmap = 'Spectral_r',
-                                   vmin = -lim, vmax = +lim)
-                ax.set_xlabel(xlabel,fontsize = 12)
-                ax.set_ylabel(ylabel,fontsize = 12 if len(ylabel) <= 60 else 10)
+                                   cmap = 'Spectral_r', vmin = -lim, vmax = +lim)
+                ax.set_xlabel(xlabel,fontsize = 8)
+                ax.set_ylabel(ylabel,fontsize = 8 if len(ylabel) <= 60 else 6)
                 ax.set_xlim(xedges[0],xedges[-1])
                 ax.set_ylim(yedges[0],yedges[-1])
-            fig.colorbar(pc,cax = fig.add_axes([0.95, 0.1, 0.02, 0.8]),
+                ax.set_title(('%.2f-%.2f' % (self.depths[dind,0], self.depths[dind,1])) \
+                             + self.depths_units)
+            fig.colorbar(pc,cax = fig.add_axes([0.97, 0.1, 0.02, 0.8]),
                          orientation="vertical",label="Distribution Difference")
-            fig.savefig(filename)
+            fig.savefig(filename, bbox_inches = 'tight')
             plt.close()
 
         def _plotFunction(ref_mean_list,ref_std_list,com_mean_list,com_std_list,
-                          xedges_list,yedges_list,xlabel_list,ylabel_list,color,filename):
+                          xedges_list,yedges_list,xlabel,ylabel,color,filename):
             fig, axes = plt.subplots(len(self.depths[:,0]), 1, 
-                                     figsize=(3 * len(self.depths[:,0]), 3.),tight_layout=True)
-            for ind, dist, xedges, yedges, xlabel, ylabel in \
-                zip(range(len(self.depths[:,0])), dist_list, xedges_list, yedges_list,
-                    xlabel_list, ylabel_list):
+                                     figsize=(3.5, 3 * len(self.depths[:,0])),
+                                     sharex = True, sharey = True, tight_layout=True)
+            for dind, ref_mean, ref_std, com_mean, com_std, xedges, yedges in \
+                zip(range(len(self.depths[:,0])), ref_mean_list, ref_std_list, 
+                    com_mean_list, com_std_list, xedges_list, yedges_list):
 
                 xe    = 0.5*(xedges[:-1]+xedges[1:])
                 delta = 0.1*np.diff(xedges).mean()
@@ -773,14 +787,16 @@ class ConfSoilMoisture(Confrontation):
                     com_y = com_mean[ind]
                     com_e = com_std [ind]
     
-                ax = axes.flat[ind]
+                ax = axes.flat[dind]
                 ax.errorbar(ref_x,ref_y,yerr=ref_e,fmt='-o',color='k')
                 ax.errorbar(com_x,com_y,yerr=com_e,fmt='-o',color=color)
-                ax.set_xlabel(xlabel,fontsize = 12)
-                ax.set_ylabel(ylabel,fontsize = 12 if len(ylabel) <= 60 else 10)
+                ax.set_xlabel(xlabel,fontsize = 8)
+                ax.set_ylabel(ylabel,fontsize = 8 if len(ylabel) <= 60 else 6)
                 ax.set_xlim(xedges[0],xedges[-1])
                 ax.set_ylim(yedges[0],yedges[-1])
-            fig.savefig(filename)
+                ax.set_title(('%.2f-%.2f' % (self.depths[dind,0], self.depths[dind,1])) \
+                             + self.depths_units)
+            fig.savefig(filename, bbox_inches = 'tight')
             plt.close()
 
         # If there are no relationships to analyze, get out of here
@@ -793,8 +809,8 @@ class ConfSoilMoisture(Confrontation):
 
         # Try to get the dependent data from the model and obs
         try:
-            ref_dep_list  = _retrieveData(os.path.join(self.output_path,"%s_%s.nc" % (self.name,"Benchmark")))
-            com_dep_list  = _retrieveData(os.path.join(self.output_path,"%s_%s.nc" % (self.name,m.name     )))
+            ref_dep_list  = _retrieveSM(os.path.join(self.output_path,"%s_%s.nc" % (self.name,"Benchmark")))
+            com_dep_list  = _retrieveSM(os.path.join(self.output_path,"%s_%s.nc" % (self.name,m.name     )))
             com_dep_list  = [_applyRefMask(ref_dep, com_dep) for ref_dep,com_dep in zip(ref_dep_list,com_dep_list)]
             dep_name = self.longname.split("/")[0]
             dep_min  = self.limits["timeint"]["min"]
@@ -820,9 +836,9 @@ class ConfSoilMoisture(Confrontation):
 
                 # try to get the independent data from the model and obs
                 try:
-                    ref_ind_list  = _retrieveData(os.path.join(c.output_path,"%s_%s.nc" % (c.name,"Benchmark")))
-                    com_ind_list  = _retrieveData(os.path.join(c.output_path,"%s_%s.nc" % (c.name,m.name     )))
-                    com_ind_list  = _applyRefMask(ref_ind,com_ind)
+                    ref_ind  = _retrieveData(os.path.join(c.output_path,"%s_%s.nc" % (c.name,"Benchmark")))
+                    com_ind  = _retrieveData(os.path.join(c.output_path,"%s_%s.nc" % (c.name,m.name     )))
+                    com_ind  = _applyRefMask(ref_ind,com_ind)
                     ind_name = c.longname.split("/")[0]
                     ind_min  = c.limits["timeint"]["min"]-1e-12
                     ind_max  = c.limits["timeint"]["max"]+1e-12
@@ -852,16 +868,6 @@ class ConfSoilMoisture(Confrontation):
                                legend    = False,
                                benchmark = False)
 
-                # Try to get the dependent data from the model and obs
-                try:
-                    ref_dep_list  = _retrieveData(os.path.join(self.output_path,"%s_%s.nc" % (self.name,"Benchmark")))
-                    com_dep_list  = _retrieveData(os.path.join(self.output_path,"%s_%s.nc" % (self.name,m.name     )))
-                    com_dep_list  = [_applyRefMask(ref_dep, com_dep) for ref_dep,com_dep in zip(ref_dep_list,com_dep_list)]
-                    dep_name = self.longname.split("/")[0]
-                    dep_min  = self.limits["timeint"]["min"]
-                    dep_max  = self.limits["timeint"]["max"]
-                except:
-                    return
 
                 # Analysis over regions
                 lim_dep  = [dep_min,dep_max]
@@ -880,7 +886,8 @@ class ConfSoilMoisture(Confrontation):
                     com_mean_list = []
                     com_std_list = []
 
-                    for dind, ref_dep, ref_ind in zip(range(len(ref_dep_list)), ref_dep_list, ref_ind_list):
+                    for dind, ref_dep, com_dep in zip(range(len(ref_dep_list)), ref_dep_list,
+                                                      com_dep_list):
                         # Check on data shape
                         if not np.allclose(ref_dep.data.shape,ref_ind.data.shape):
                             msg = "[%s][%s] Data size mismatch in relationship: %s %s vs. %s %s" % (self.longname,m.name,dep_name,str(ref_dep.data.shape),ind_name,str(ref_ind.data.shape))
@@ -927,7 +934,8 @@ class ConfSoilMoisture(Confrontation):
                 for ref_dist, com_dist in zip(ref_dist_list, com_dist_list):
                     score = _scoreDistribution(ref_dist,com_dist)
                     score_list.append(score)
-                score = np.mean(score_list) # !!!!!!! May be wrong?
+                score = np.sum(np.array(score_list)*(self.depths[:,1] - self.depths[:,0])) / \
+                        (self.depths[-1,1] - self.depths[0,0])
                 sname = "%s Hellinger Distance %s" % (longname,region)
                 if sname in scalars.variables:
                     scalars.variables[sname][0] = score
@@ -937,7 +945,12 @@ class ConfSoilMoisture(Confrontation):
                              data = score).toNetCDF4(results,group="Relationships")
 
                 # Score the functional response
-                score = _scoreFunction(ref_dist[3],com_dist[3])
+                score_list = []
+                for ref_mean, com_mean in zip(ref_mean_list, com_mean_list):
+                    score = _scoreFunction(ref_mean,com_mean)
+                    score_list.append(score)
+                score = np.sum(np.array(score_list)*(self.depths[:,1] - self.depths[:,0])) / \
+                        (self.depths[-1,1] - self.depths[0,0])
                 sname = "%s RMSE Score %s" % (longname,region)
                 if sname in scalars.variables:
                     scalars.variables[sname][0] = score
