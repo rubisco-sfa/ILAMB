@@ -264,8 +264,7 @@ def NBPplot(V,vmin,vmax,colors,fname):
     Y = []; L = []
     for key in V:
         if key == "Benchmark": continue
-        # 2021/04/03 YW Seems uncessary?
-        ##if V[key].time[0] > V["Benchmark"].time[0]+10: continue
+        if V[key].time[0] > V["Benchmark"].time[0]+10: continue
         L.append(key)
         Y.append(V[key].data[-1])
     Y = np.asarray(Y); L = np.asarray(L)
