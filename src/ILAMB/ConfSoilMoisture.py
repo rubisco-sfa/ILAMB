@@ -276,6 +276,7 @@ class ConfSoilMoisture(Confrontation):
                       '... %.2f-%.2f' % (z0, zf)) # DEBUG
 
                 if obs.spatial:
+                    # Calculate mean state
                     il.AnalysisMeanStateSpace(obs, mod, dataset   = fcm.mod_dset,
                                               regions           = self.regions,
                                               benchmark_dataset = fcm.obs_dset,
@@ -287,6 +288,13 @@ class ConfSoilMoisture(Confrontation):
                                               skip_cycle        = skip_cycle,
                                               mass_weighting    = mass_weighting,
                                               rmse_score_basis  = rmse_score_basis)
+
+                    # Calculate standard deviation state
+
+
+                    # Calculate trend state
+
+
                 else:
                     il.AnalysisMeanStateSites(obs, mod, dataset   = fcm.mod_dset,
                                               regions           = self.regions,
@@ -298,6 +306,9 @@ class ConfSoilMoisture(Confrontation):
                                               skip_iav          = skip_iav,
                                               skip_cycle        = skip_cycle,
                                               mass_weighting    = mass_weighting)
+
+                # Calculate sensitivity by partial correlation - Need an option
+
             fcm.mod_dset.setncattr("complete",1)
             if self.master: fcm.obs_dset.setncattr("complete",1)
         logger.info("[%s][%s] Success" % (self.longname,m.name))

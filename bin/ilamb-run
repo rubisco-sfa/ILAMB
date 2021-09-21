@@ -74,6 +74,7 @@ def InitializeModels(model_root,models=[],verbose=False,filter="",regex="",model
                     if log: logger.debug("[%s]" % mname,format_exc())
                     continue
             M.append(m)
+
             max_model_name_len = max(max_model_name_len,len(mname))
         break
     M = sorted(M,key=lambda m: m.name.upper())
@@ -220,6 +221,65 @@ def InitializeRegions(filenames):
                                             [float(line[4]),float(line[5])])
 
 def MatchRelationshipConfrontation(C):
+    """Match relationship strings to confrontation longnames
+
+    We allow for relationships to be studied by specifying the
+    confrontation longname in the configure file. This routine loops
+    over all defined relationships and finds the matching
+    confrontation. (NOTE: this really belongs inside the Scoreboard
+    object)
+
+    Parameters
+    ----------
+    C : list of ILAMB.Confrontation.Confrontation
+        the confrontation list
+
+    Returns
+    -------
+    C : list of ILAMB.Confrontation.Confrontation
+        the same list with relationships linked to confrontations
+    """
+    for c in C:
+        if c.relationships is None: continue
+        for i,longname in enumerate(c.relationships):
+            found = False
+            for cor in C:
+                if longname.lower() == cor.longname.lower():
+                    c.relationships[i] = cor
+                    found = True
+    return C
+
+def MatchSensitivityConfrontation(C):
+    # YW
+    """Match sensitivity strings to confrontation longnames
+
+    We allow for sensitivity maps to be studied by specifying the
+    sensitivity longname in the configure file. This routine loops
+    over all defined sensitivity maps and finds the matching
+    confrontation.
+
+    Parameters
+    ----------
+    C : list of ILAMB.Confrontation.Confrontation
+        the confrontation list
+
+    Returns
+    -------
+    C : list of ILAMB.Confrontation.Confrontation
+        the same list with sensitivity maps linked to confrontations.
+    """
+    for c in C:
+        if not hasattr(c, "sensitivities"): continue
+        if c.sensitivities is None: continue
+        for i,longname in enumerate(c.sensitivities):
+            found = False
+            for cor in C:
+                if longname.lower() == cor.longname.lower():
+                    c.sensitivities[i] = cor
+                    found = True
+    return C
+
+def MatchConfrontation(C):
     """Match relationship strings to confrontation longnames
 
     We allow for relationships to be studied by specifying the
@@ -627,6 +687,10 @@ S = Scoreboard(args.config[0],
                rmse_score_basis = args.rmse_score_basis)
 
 C  = MatchRelationshipConfrontation(S.list())
+
+C  = MatchSensitivityConfrontation(C) # YW
+
+import pdb; pdb.set_trace()
 
 if len(args.study_limits) == 2:
     args.study_limits[1] += 1

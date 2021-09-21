@@ -44,6 +44,7 @@ class Node(object):
         self.plot_unit           = None
         self.space_mean          = True
         self.relationships       = None
+        self.sensitivities       = None # YW
         self.ctype               = None
         self.regions             = None
         self.skip_rmse           = False
@@ -102,6 +103,7 @@ def ConvertTypes(node):
     node.space_mean = _to_bool(node.space_mean)
     if node.regions        is not None: node.regions        = node.regions.split(",")
     if node.relationships  is not None: node.relationships  = node.relationships.split(",")
+    if node.sensitivities  is not None: node.sensitivities  = node.sensitivities.split(",")
     if node.alternate_vars is not None:
         node.alternate_vars = node.alternate_vars.split(",")
     else:
