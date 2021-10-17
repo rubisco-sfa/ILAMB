@@ -10,6 +10,9 @@ from . import Post as post
 import numpy as np
 import matplotlib.pyplot as plt
 import warnings
+from scipy.stats import linregress
+import dask.array as dsa
+
 
 def _shiftLon(lon):
     return (lon<=180)*lon + (lon>180)*(lon-360) + (lon<-180)*360
@@ -36,6 +39,92 @@ def _createBnds(x):
         x_bnds[ 0,0] = x[ 0] - 0.5*(x[ 1]-x[ 0])
         x_bnds[-1,1] = x[-1] + 0.5*(x[-1]-x[-2])
     return x_bnds
+
+def _olsTensor(Y, x):
+    """ Repeated calculation of linear regression in the spatial dimensions.
+
+    Parameters
+    ----------
+    Y : np.ma.array
+        The variable of interest. The first dimension will be assumed to be
+        time (replicate observations).
+    x : np.array or np.ma.array
+        The time variable of interest. If one-dimensional, will be propagated
+        to the dimensionality of Y. If having the same dimensionality as Y,
+        must be a masked array.
+
+    Returns
+    -------
+    r : np.ma.array
+        The trend. If x only has a time dimension, `r` is a scalar.
+        Otherwise, `r` has the same dimensionality as x[1:].
+    p : np.ma.array
+        The two-sided p-values of the trend. If x only has a time 
+        dimension, `p` is a scalar. Otherwise, `p` has the same 
+        dimensionality as x[1:].
+    """
+    if type(Y) != np.ma.core.MaskedArray:
+        raise TypeError('Y must be a masked array')
+    if Y.shape[0] < 3:
+        raise ValueError('At least three observations are needed')
+
+    if (type(x) != np.ma.core.MaskedArray) and (type(x) != np.ndarray):
+        raise TypeError('x must be either masked or ordinary numpy array')
+    if (not np.allclose(x.shape, Y.shape)) and (len(x.shape) != 1):
+        raise ValueError('x must be either 1-dimensional or has the same shape as Y')
+
+    # homogenize the shape and mask of x and Y
+    if type(Y.mask) == bool:
+        Y.mask = np.full(Y.shape, Y.mask)
+    if type(x) == np.ma.core.MaskedArray:
+        if type(x.mask) == bool:
+            x.mask = np.full(x.shape, x.mask)
+    else:
+        x = np.ma.array(x, mask = np.full(x.shape, False))
+
+    orig_shape = Y.shape
+    Y = Y.reshape(Y.shape[0], 1, int(np.prod(Y.shape[1:])))
+    if len(x.shape) != 1:
+        x = x.reshape(Y.shape)
+    else:
+        x = np.ma.array(np.broadcast_to(x.data.reshape(-1,1,1), Y.shape),
+                        mask = np.broadcast_to(x.mask.reshape(-1,1,1), Y.shape))
+    x = np.ma.array(x.data, mask = x.mask | Y.mask)
+    Y = np.ma.array(Y, mask = x.mask)
+
+    # add constant term
+    x = np.ma.concatenate([np.ma.array(np.ones(Y.shape), mask = Y.mask), x], axis = 1)
+
+    # calculate the regression coefficients; treating the masked points as if zero.
+    xx = np.where(x.mask == False, x.data, 0.)
+    yy = np.where(Y.mask == False, Y.data, 0.)
+    beta = np.einsum('ijk,jlk->ilk',
+                     np.einsum('ijk,ljk->ilk',
+                               np.linalg.pinv(np.einsum('ijk,ilk->jlk',xx,xx \
+                                                    ).transpose(2,0,1)).transpose(1,2,0),
+                               xx), yy)
+
+    # calculate the p-value
+    from scipy.stats import t
+    dof = np.sum(Y.mask == False, axis = 0) - 2
+    resid = yy - np.einsum('ijk,jlk->ilk', xx, beta)
+    mse = np.sum(np.power(resid,2), axis=0) / dof
+    std = np.ma.sum(np.ma.power(x[:,[1],:] - \
+                                np.ma.mean(x[:,[1],:],axis=0,keepdims=True), 2), axis = 0)
+    tval = beta / np.sqrt(mse/std)
+    pval = 2 * t.sf(np.abs(tval), dof)
+
+    # discard intercept & restore shape
+    beta = np.ma.array(beta[1,:], mask = np.sum(Y.mask==False, axis = 0)<3)
+    pval = np.ma.array(pval[1,:], mask = np.sum(Y.mask==False, axis = 0)<3)
+    if len(orig_shape) > 1:
+        beta = beta.reshape(orig_shape[1:])
+        pval = pval.reshape(orig_shape[1:])
+    else:
+        beta = float(beta.data)
+        pval = float(pval.data)
+    return beta, pval
+
         
 class Variable:
     r"""A class for managing variables and their analysis.
@@ -134,7 +223,13 @@ class Variable:
             convert_calendar = keywords.get("convert_calendar",True)
 
             out = il.FromNetCDF4(filename,variable_name,alternate_vars,t0,tf,group=groupname,convert_calendar=convert_calendar,z0=z0,zf=zf) # YW
-            data,data_bnds,unit,name,time,time_bnds,lat,lat_bnds,lon,lon_bnds,depth,depth_bnds,cbounds,ndata,calendar,attr = out
+            data,data_bnds,unit,name,time,time_bnds,lat,lat_bnds,lon,lon_bnds,depth,depth_bnds,cbou        def _retrieveData(filename):
+            key = None
+            with Dataset(filename,mode="r") as dset:
+                key  = [v for v in dset.groups["MeanState"].variables.keys() if "timeint_" in v]
+            return Variable(filename      = filename,
+                            groupname     = "MeanState",
+                            variable_name = key[0])nds,ndata,calendar,attr = out
 
         # Add handling for some units which cf_units does not support
         unit = unit.replace("psu","1e-3")
@@ -349,7 +444,7 @@ class Variable:
             
         # handle units
         unit = Unit(self.unit)
-        name = self.name + "_integrated_over_time"
+        name = self.name + "_integral_over_time"
 
         if mean:
 
@@ -623,6 +718,133 @@ class Variable:
                         depth_bnds = self.depth_bnds,
                         name       = name)
 
+    def trendInTime(self,**keywords):
+        r"""YW: Compute the grid-by-grid trend in the variable 
+            over a given time period. Ignore missing values.
+
+        Parameters
+        ----------
+        t0 : float, optional
+            initial time in days since 1/1/1850
+        tf : float, optional
+            final time in days since 1/1/1850
+        mean: bool, optional
+            average over a year instead of summing
+
+        Returns
+        -------
+        trend : ILAMB.Variable.Variable
+            a Variable instance with the trend value along with the
+            appropriate name and unit change
+
+        trend_p : ILAMB.Variable.Variable
+            a Variable instance with the p-value of the trend
+        """
+        if not self.temporal: raise il.NotTemporalVariable()
+        t0   = keywords.get("t0",self.time_bnds[:,0].min())
+        tf   = keywords.get("tf",self.time_bnds[:,1].max())
+        mean = keywords.get("mean",False)
+
+        # find which time bounds are included even partially in the interval [t0,tf]
+        time_bnds = np.copy(self.time_bnds)
+        ind       = np.where((t0<time_bnds[:,1])*(tf>time_bnds[:,0]))[0]
+        time_bnds[(t0>time_bnds[:,0])*(t0<time_bnds[:,1]),0] = t0
+        time_bnds[(tf>time_bnds[:,0])*(tf<time_bnds[:,1]),1] = tf
+        time_bnds = time_bnds[ind,:]
+
+        # create and apply a mask where *all* data in time was previously masked
+        mask = False
+        if self.data.ndim > 1 and self.data.mask.size > 1:
+            ##mask = np.apply_along_axis(np.all,0,self.data.mask[ind])
+            mask = np.all(self.data.mask[ind], 0)
+        data = np.ma.masked_array(self.data[ind],mask=mask,copy=False)
+        if self.data_bnds is not None:
+            data_bnds = np.ma.concatenate([self.data_bnds[...,0][ind],
+                                           self.data_bnds[...,1][ind]], axis = -1)
+
+        # integrate the data by year
+        year = np.array([cf.num2date(i, "days since 1850-1-1 00:00:00","noleap").year \
+                         for i in (time_bnds[:,0] + time_bnds[:,1])*0.5])
+        dt        = (time_bnds[:,1]-time_bnds[:,0])
+        # (expand this dt to the other dimensions of the data array (i.e. space or datasites))
+        for i in range(self.data.ndim-1): dt = np.expand_dims(dt,axis=-1)
+
+        np.seterr(over='ignore',under='ignore')
+        integral = []
+        if self.data_bnds is not None:
+            integral_bnd = []
+        for yy in np.unique(year):
+            ind2 = np.where(year == yy)[0]
+            temp = (data[ind2]*dt[ind2]).sum(axis=0, keepdims=True)
+            if self.data_bnds is not None:
+                temp_bnd = np.ma.concatenate([(data_bnds[...,0][ind2] * dt[ind2] \
+                                               ).sum(axis=0, keepdims=True),
+                                              (data_bnds[...,1][ind2] * dt[ind2] \
+                                               ).sum(axis=0, keepdims=True)], axis = -1)
+            if mean:
+                # divide thru by the non-masked amount of time
+                if self.data.mask.size > 1:
+                    dt2 = (dt[ind2]*(mask[ind2]==0)).sum(axis=0)
+                else:
+                    dt2 = dt[ind2].sum(axis=0)
+                temp = temp / dt2
+                if self.data_bnds is not None:
+                    temp_bnd[...,0] = temp_bnd[...,0] / dt2
+                    temp_bnd[...,1] = temp_bnd[...,1] / dt2
+            integral.append(temp)
+            if self.data_bnds is not None:
+                integral_bnd.append(temp_bnd)
+        integral = np.ma.stack(integral, axis = 0)
+        if self.data_bnds is not None:
+            integral_bnd = np.ma.stack(integral_bnd, axis = 0)
+        np.seterr(over='raise',under='raise')
+
+        if not mean:
+            # if not a mean, we need to potentially handle unit conversions
+            unit0 = Unit("d")*unit
+            unit  = Unit(unit0.format().split()[-1])
+            if not isinstance(integral.mask, np.ndarray):
+                if integral.mask == True:
+                   integral=np.ma.masked_array(data=integral.data, 
+                                               mask=np.ones(integral.shape,dtype='bool'))
+               else:
+                   integral=np.ma.masked_array(data=integral.data,
+                                               mask=np.zeros(integral.shape,dtype='bool'))
+            unit0.convert(integral,unit,inplace=True)
+            if integral_bnd is not None:
+                unit0.convert(integral_bnd,unit,inplace=True)
+        
+        # calculate the trend and the significance
+        trend, trend_p = _olsTensor(integral, np.mean(time_bnds, axis = 1))
+        if integral_bnd is not None:
+            trend_lower_bnd, trend_lower_bnd_p = _olsTensor(integral_bnd[0,...], 
+                                                            np.mean(time_bnds, axis =1))
+            trend_upper_bnd, trend_upper_bnd_p = _olsTensor(integral_bnd[1,...], 
+                                                            np.mean(time_bnds, axis =1))
+
+            trend_bnd = np.ma.stack([trend_lower_bnd[np.newaxis, ...],
+                                     trend_upper_bnd[np.newaxis, ...]], axis = 0)
+            trend_bnd_p = np.ma.stack([trend_lower_bnd_p[np.newaxis, ...],
+                                       trend_upper_bnd_p[np.newaxis, ...]], axis = 0)
+
+        # handle units
+        unit = Unit(self.unit + "/year")
+        name = self.name + "_trend_over_time"
+
+        return Variable(data = trend, data_bnds = trend_bnd,
+                        unit = "%s" % unit, name = name,
+                        lat = self.lat, lat_bnds = self.lat_bnds,
+                        lon = self.lon, lon_bnds = self.lon_bnds,
+                        depth = self.depth, depth_bnds = self.depth_bnds,
+                        area = self.area, ndata = self.ndata), \
+               Variable(data = trend_p, data_bnds = trend_bnd_p, unit = None,
+                        name = name.replace("trend", "trend_p"),                     
+                        lat = self.lat, lat_bnds = self.lat_bnds,
+                        lon = self.lon, lon_bnds = self.lon_bnds,
+                        depth = self.depth, depth_bnds = self.depth_bnds,
+                        area = self.area, ndata = self.ndata)
+
+
     def siteStats(self,region=None,weight=None,intabs=False):
         """Computes the mean and standard deviation of the variable over all data sites.
 
@@ -681,6 +903,53 @@ class Variable:
         return Variable(data       = mean,
                         unit       = self.unit,
                         name       = "annual_cycle_mean_of_%s" % self.name,
+                        time       = mid_months,
+                        time_bnds  = np.asarray([bnd_months[:-1],bnd_months[1:]]).T,
+                        lat        = self.lat,
+                        lat_bnds   = self.lat_bnds,
+                        lon        = self.lon,
+                        lon_bnds   = self.lon_bnds,
+                        area       = self.area,
+                        depth      = self.depth,
+                        depth_bnds = self.depth_bnds,
+                        ndata      = self.ndata)
+
+    def trendAnnualCycle(self):
+        """YW: Computes annual cycle of the linear trend for the variable.
+
+        For each site/cell/depth in the variable, compute the annual cycle of linear trend.
+
+        Returns
+        -------
+        trend : ILAMB.Variable.Variable
+            The annual cycle trend values.
+        trend_p : ILAMB.Variable.Variable
+            The annual cycle trend significance values.
+        """
+        if not self.temporal: raise il.NotTemporalVariable()
+        assert self.monthly
+        assert self.time.size > 11
+        begin = np.argmin(self.time[:11]%365)
+        end   = begin+int(self.time[begin:].size/12.)*12
+        shp   = (-1,12) + self.data.shape[1:]
+        v     = self.data[begin:end,...].reshape(shp)
+        trend, trend_p = _olsTensor(v, np.arange(v.shape[0]))
+        return Variable(data       = trend,
+                        unit       = self.unit + "/year",
+                        name       = "annual_cycle_trend_of_%s" % self.name,
+                        time       = mid_months,
+                        time_bnds  = np.asarray([bnd_months[:-1],bnd_months[1:]]).T,
+                        lat        = self.lat,
+                        lat_bnds   = self.lat_bnds,
+                        lon        = self.lon,
+                        lon_bnds   = self.lon_bnds,
+                        area       = self.area,
+                        depth      = self.depth,
+                        depth_bnds = self.depth_bnds,
+                        ndata      = self.ndata),
+               Variable(data       = trend_p,
+                        unit       = self.unit + "/year",
+                        name       = "annual_cycle_trend_p_of_%s" % self.name,
                         time       = mid_months,
                         time_bnds  = np.asarray([bnd_months[:-1],bnd_months[1:]]).T,
                         lat        = self.lat,
@@ -1528,6 +1797,199 @@ class Variable:
                         name="%s_correlation_of_%s" % (ctype,self.name),
                         time=out_time,time_bnds=out_time_bnds,ndata=out_ndata,
                         lat=out_lat,lon=out_lon,area=out_area)
+
+
+    def partialCorrelation(self, var_indep_list, ctype, region = None):
+        """Computes the correlation between variable and independent variables.
+
+        Parameters
+        ----------
+        var_indep_list: list of ILAMB.Variable.Variable
+            The variables with which we will compute partial correlation
+        ctype : str
+            The correlation type, one of {"spatial","temporal","spatiotemporal"}.
+            Currently only "temporal" is allowed. 
+        region : str, optional
+            The region over which to perform a spatial correlation
+
+        Notes
+        -----
+        Need to better think about what correlation means when data
+        are masked. The sums ignore the data but then the number of
+        items *n* is not constant and should be reduced for masked
+        values.
+        """
+        def _covarTensor(tensor3d):
+            """ Covariance matrix calculation for each data poinat along an 
+                extra dimension, e.g., in space"""
+            if tensor3d.dtype != np.ndarray:
+                raise TypeError('Input must be numpy array.')
+            if len(tensor3d.shape) != 3:
+                raise TypeError('Input must have 3 dimensions.')
+            N = tensor3d.shape[0]
+            m1 = tensor3d - tensor3d.sum(0, keepdims=True) / N
+            y_out = np.einsum('ijk,ilk->jlk',m1,m1)/(N-1)
+            return y_out
+
+        def _partialCorrTensor(x, y, covar_list):
+            """ Repeated calculation of partial correlation in the spatial dimensions.
+        
+            Parameters
+            ----------
+            x : np.ma.array
+                The independent variable. The first dimension will be assumed to be
+                time (replicate observations). 
+            y : np.ma.array
+                The dependent variable. y must have the same dimensionality as x.
+            covar_list : list of np.ma.array objects
+                The covariate variables. Each variable must have the same
+                dimensionality as x and y.
+        
+            Returns
+            -------
+            r : np.ma.array
+                The partial correlation. If x only has a time dimension, `r` is a
+                a scalar. Otherwise, `r` has the same dimensionality as x[1:].
+            p : np.ma.array
+                The two-sided p-values of the partial correlation. If x only has 
+                a time dimension, `p` is a scalar. Otherwise, `p` has the same 
+                dimensionality as x[1:].
+            """
+            if type(x) != np.ma.core.MaskedArray:
+                raise TypeError('x must be a masked array')
+            if type(y) != np.ma.core.MaskedArray:
+                raise TypeError('y must be a masked array')
+            for vv in covar_list:
+                if type(vv) != np.ma.core.MaskedArray:
+                    raise ValueError('covar_list must be masked arrays')
+            if not np.allclose(x.shape, y.shape):
+                raise ValueError('x and y must be the same shape')
+            for vv in covar_list:
+                if not np.allclose(x.shape, vv.shape):
+                    raise ValueError('x and covar_list must be the same shape')
+            if x.shape[0] < 3:
+                raise ValueError('At least three observations are needed')
+        
+            x0 = x.copy()
+            y0 = y.copy()
+        
+            orig_shape = x.shape
+            if len(orig_shape) == 1:
+                x = x.reshape(-1, 1, 1) # extra 2nd dimension for concat
+                y = y.reshape(-1, 1, 1)
+                covar_relist = []
+                for vv in covar_list:
+                    covar_relist.append(vv.reshape(-1, 1, 1))
+            else:
+                new_shape = orig_shape[0], 1, np.prod(orig_shape[1:])
+                x = x.reshape(new_shape)
+                y = y.reshape(new_shape)
+                covar_relist = []
+                for vv in covar_list:
+                    covar_relist.append(vv.reshape(new_shape))
+            covar_list = covar_relist
+            covar_relist = []; del covar_relist
+
+            data = np.ma.concatenate([x,y] + covar_list, axis = 1)
+            del x, y; covar_list = []; del covar_list
+
+            # remove invalid points
+            retain_ind = np.any(np.all(data.mask == False, axis = 1), axis = 0)
+            if sum(retain_ind) == 0:
+                raise ValueError('At least one valid spatial data point is needed')
+            ## print(retain_ind) # DEBUG
+            data = data[:, :, retain_ind]
+        
+            # TO-DO: Need to think of a way to deal with the different number
+            #        of data points in space. Right now it imposes the minimum
+            #        overlapping number of valid data points.
+            drop_replica = np.all(np.all(data.mask == False, axis = 2), axis = 1)
+            ## print(drop_replica) # DEBUG
+            if sum(drop_replica) < 3:
+                raise ValueError('At least three valid observations are needed')
+            data = data[drop_replica, :, :]
+        
+            # calculate the partial correlation and significance (translated from pingouin)
+            V = _covar_tensor(data)
+            ##print(data.shape) # DEBUG
+            ##print(V.shape) # DEBUG
+        
+            Vi = np.linalg.pinv(V.transpose(2,0,1)).transpose(1,2,0)
+            D = np.zeros(Vi.shape)
+            for ii in np.arange(Vi.shape[0]):
+                D[ii,ii,:] = np.sqrt( 1 / Vi[ii,ii,:] )
+            pcor = -1 * np.einsum('jik,ilk->jlk', np.einsum('jik,ilk->jlk',D,Vi), D)
+            ## print(-1 * D[:,:,5] @ Vi[:,:,5] @ D[:,:,5] - pcor[:,:,5]) # check if correct
+            r = pcor[0, 1, :]
+        
+            from scipy.stats import t
+            n = data.shape[0]
+            k = data.shape[1] - 2
+            dof = n - k - 2
+            tval = r * np.sqrt(dof / (1 - r**2))
+            pval = 2 * t.sf(np.abs(tval), dof)
+        
+            # restore shape
+            def _restore_shape(array, retain_ind, orig_shape):
+                array_restore = np.ma.empty(len(retain_ind))
+                array_restore.mask = retain_ind == False
+                array_restore.data[retain_ind] = array
+                array_restore = array_restore.reshape(orig_shape[1:])
+                return array_restore
+
+            # DEBUG restore shape
+            ##return x0[drop_replica,:][0,:],_restore_shape(data[0,0,:],retain_ind,orig_shape), \
+            ##    y0[drop_replica,:][0,:],_restore_shape(data[0,1,:],retain_ind,orig_shape)
+
+            if len(orig_shape) == 1:
+                return r[0], pval[0]
+            else:
+                r_restore = _restore_shape(r, retain_ind, orig_shape)
+                p_restore = _restore_shape(pval, retain_ind, orig_shape)
+                return r_restore, p_restore
+
+
+        # checks on data consistency
+        assert region is None
+        assert self.data.shape == var.data.shape
+        assert ctype is "temporal"
+
+        # determine arguments for functions
+        axes      = None
+        out_time  = None
+        out_lat   = None
+        out_lon   = None
+        out_area  = None
+        out_ndata = None
+        if ctype == "temporal":
+            axes = 0
+            if self.spatial:
+                out_lat   = self.lat
+                out_lon   = self.lon
+                out_area  = self.area
+            elif self.ndata:
+                out_ndata = self.ndata
+        else:
+            raise ValueError("Currently only allowing temporal partial correlations.")
+        out_time_bnds = None
+        if out_time is not None: out_time_bnds = self.time_bnds
+
+        result = {}
+        for i, y in enumerate(var_indep_list):
+            r, p = _partialCorrTensor(x, y, var_indep_list[:i] + var_indep_list[(i+1):])
+            r = Variable(data=r,unit="1",
+                         name="%s_partial_correlation_of_%s_and_%s" % \
+                              (ctype,self.name,y.name),
+                         time=out_time,time_bnds=out_time_bnds,ndata=out_ndata,
+                         lat=out_lat,lon=out_lon,area=out_area)
+            p = Variable(data=r,unit="1",
+                         name="%s_partial_pvalue_of_%s_and_%s" % \
+                              (ctype,self.name,y.name),
+                         time=out_time,time_bnds=out_time_bnds,ndata=out_ndata,
+                         lat=out_lat,lon=out_lon,area=out_area)
+            result[y.name] = {'r': r, 'p': p}
+        return result
+
 
     def bias(self,var):
         """Computes the bias between a given variable and this variable.

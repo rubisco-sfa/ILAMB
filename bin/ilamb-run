@@ -279,8 +279,10 @@ def MatchSensitivityConfrontation(C):
                     found = True
     return C
 
+"""
+# YW: Appears to duplicate MatchRelationshipConfrontation
 def MatchConfrontation(C):
-    """Match relationship strings to confrontation longnames
+    """ """Match relationship strings to confrontation longnames
 
     We allow for relationships to be studied by specifying the
     confrontation longname in the configure file. This routine loops
@@ -297,7 +299,7 @@ def MatchConfrontation(C):
     -------
     C : list of ILAMB.Confrontation.Confrontation
         the same list with relationships linked to confrontations
-    """
+    """ """
     for c in C:
         if c.relationships is None: continue
         for i,longname in enumerate(c.relationships):
@@ -307,6 +309,7 @@ def MatchConfrontation(C):
                     c.relationships[i] = cor
                     found = True
     return C
+"""
 
 def FilterConfrontationList(C,match_list):
     """Filter the confrontation list

@@ -143,6 +143,7 @@ class Confrontation(object):
         self.plot_unit      = keywords.get("plot_unit",None)
         self.space_mean     = keywords.get("space_mean",True)
         self.relationships  = keywords.get("relationships",None)
+        self.sensitivities  = keywords.get("sensitivities",None) # YW
         self.keywords       = keywords
         self.extents        = np.asarray([[-90.,+90.],[-180.,+180.]])
         self.study_limits   = []
@@ -163,7 +164,7 @@ class Confrontation(object):
         pages.append(post.HtmlPage("MeanState","Mean State"))
         pages[-1].setHeader("CNAME / RNAME / MNAME")
         pages[-1].setSections(["Temporally integrated period mean",
-                              "Spatially integrated regional mean"])
+                               "Spatially integrated regional mean"])
 
         # Datasites page
         self.hasSites = False

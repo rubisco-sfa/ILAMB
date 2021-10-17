@@ -185,6 +185,27 @@ space_opts["phase"]   = { "name"      :"Temporally integrated period mean max mo
                           "sidelbl"   :"MODEL MAX MONTH",
                           "haslegend" :True  }
 
+space_opts["trend_bias"]    = { "name"      :"Temporally integrated period mean bias",
+                                !!! "cmap"      :"bias",
+                          "sym"       :True,
+                          "ticks"     :None,
+                          "ticklabels":None,
+                          "label"     :"unit" ,
+                          "section"   :"Temporally integrated period mean",
+                          "pattern"   :"MNAME_RNAME_bias.png",
+                          "sidelbl"   :"BIAS",
+                          "haslegend" :True }
+space_opts["trend_biasscore"]    = { "name"      :"Temporally integrated period mean bias",
+                                     !!! "cmap"      :"bias",
+                                     "sym"       :True,
+                                     "ticks"     :None,
+                                     "ticklabels":None,
+                                     "label"     :"unit" ,
+                                     "section"   :"Temporally integrated period mean",
+                                     "pattern"   :"MNAME_RNAME_bias.png",
+                                     "sidelbl"   :"BIAS",
+                                     "haslegend" :True }
+
 
 time_opts = {}
 time_opts["spaceint"] = { "name"       : "Spatially integrated regional mean",
@@ -216,6 +237,42 @@ time_opts["cycle"]    = { "name"       : "Spatially integrated regional mean cyc
 
 time_opts["dtcycle"]  = { "name"       : "Spatially integrated regional mean detrended cycle",
                           "section"    : "Spatially integrated regional mean",
+                          "haslegend"  : False,
+                          "pattern"    : "MNAME_RNAME_dtcycle.png",
+                          "sidelbl"    : "MONTHLY ANOMALY",
+                          "ticks"      : mid_months/365.+1850.,
+                          "ticklabels" : lbl_months,
+                          "ylabel"     : "unit"}
+
+time_opts["trend"] = { "name"       : "Spatially integrated regional mean",
+                       !!! "section"    : "Spatially integrated regional mean",
+                       "haslegend"  : False,
+                       "pattern"    : "MNAME_RNAME_spaceint.png",
+                       "sidelbl"    : "REGIONAL MEAN",
+                       "ticks"      : None,
+                       "ticklabels" : None,
+                       "ylabel"     : "unit"}
+
+time_opts["trend_p"] = { "name"       : "Accumulated mean",
+                         !!! "section"    : "Spatially integrated regional mean",
+                            "haslegend"  : False,
+                            "pattern"    : "MNAME_RNAME_accumulate.png",
+                            "sidelbl"    : "ACCUMULATION",
+                            "ticks"      : None,
+                            "ticklabels" : None,
+                            "ylabel"     : "unit"}
+
+time_opts["trend_cycle"]    = { "name"       : "Spatially integrated regional mean cycle",
+                                !!! "section"    : "Spatially integrated regional mean",
+                                "haslegend"  : False,
+                          "pattern"    : "MNAME_RNAME_cycle.png",
+                          "sidelbl"    : "ANNUAL CYCLE",
+                          "ticks"      : mid_months/365.+1850.,
+                          "ticklabels" : lbl_months,
+                          "ylabel"     : "unit"}
+
+time_opts["trend_dtcycle"]  = { "name" : "Spatially integrated regional mean detrended cycle",
+                                !!! "section"    : "Spatially integrated regional mean",
                           "haslegend"  : False,
                           "pattern"    : "MNAME_RNAME_dtcycle.png",
                           "sidelbl"    : "MONTHLY ANOMALY",
