@@ -142,6 +142,7 @@ class Confrontation(object):
         self.table_unit     = keywords.get("table_unit",None)
         self.plot_unit      = keywords.get("plot_unit",None)
         self.space_mean     = keywords.get("space_mean",True)
+        # !!! Trend keywords
         self.relationships  = keywords.get("relationships",None)
         self.sensitivities  = keywords.get("sensitivities",None) # YW
         self.keywords       = keywords
@@ -165,6 +166,13 @@ class Confrontation(object):
         pages[-1].setHeader("CNAME / RNAME / MNAME")
         pages[-1].setSections(["Temporally integrated period mean",
                                "Spatially integrated regional mean"])
+
+        # Trend State page, YW
+        if self.___:
+            pages.insert(-2, post.HtmlPage('TrendState', 'Trend State'))
+            pages[-2].setHeader('CNAME / RNAME / MNAME')
+            pages[-2].setSections(["Temporally integrated period trend",
+                                   "Spatially integrated regional trend"])
 
         # Datasites page
         self.hasSites = False
@@ -207,10 +215,18 @@ class Confrontation(object):
             pages.append(post.HtmlPage("Relationships","Relationships"))
             pages[-1].setHeader("CNAME / RNAME / MNAME")
             pages[-1].setSections(list(self.relationships))
+
+        # Sensitivities page, YW
+        if self.sensitivites is not None:
+            pages.insert(-2, post.HtmlPage('Sensitivities', 'Partial Correlation Relationships'))
+            pages[-2].setHeader('CNAME / RNAME / MNAME')
+            pages[-2].setSections(list(self.sensitivities))
+
         pages.append(post.HtmlAllModelsPage("AllModels","All Models"))
         pages[-1].setHeader("CNAME / RNAME / MNAME")
         pages[-1].setSections([])
         pages[-1].setRegions(self.regions)
+
         pages.append(post.HtmlPage("DataInformation","Data Information"))
         pages[-1].setSections([])
         pages[-1].text = "\n"
@@ -497,7 +513,6 @@ class Confrontation(object):
                     limits[g]["xmax"] = max(limits[g]["xmax"],grp.variables["ind_bnd"][-1,-1])
                     limits[g]["ymin"] = min(limits[g]["ymin"],grp.variables["dep_bnd"][ 0, 0])
                     limits[g]["ymax"] = max(limits[g]["ymax"],grp.variables["dep_bnd"][-1,-1])
-
 
         self.limits = limits
 

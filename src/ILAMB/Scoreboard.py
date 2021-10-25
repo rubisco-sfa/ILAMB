@@ -49,6 +49,7 @@ class Node(object):
         self.regions             = None
         self.skip_rmse           = False
         self.skip_iav            = True
+        self.skip_trend          = False # YW
         self.mass_weighting      = False
         self.weight              = 1    # if a dataset has no weight specified, it is implicitly 1
         self.sum_weight_children = 0    # what is the sum of the weights of my children?
@@ -265,13 +266,29 @@ def CompositeScores(tree,M):
             for ind,m in enumerate(global_model_list):
                 fname = "%s/%s_%s.nc" % (node.confrontation.output_path,node.confrontation.name,m.name)
                 if os.path.isfile(fname):
+                    # YW: added extra groups
                     try:
                         dataset = Dataset(fname)
-                        grp     = dataset.groups["MeanState"].groups["scalars"]
                     except:
                         continue
-                    if "Overall Score global" in grp.variables:
-                        data[ind] = grp.variables["Overall Score global"][0]
+
+                    # !!! TO-DO: allow user to modify the weights
+                    weights = {"MeanState": 2, "TrendState": 1, "Sensitivities": 1}
+                    overall_score = 0.
+                    sum_of_weights = 0.
+                    for pn in ["MeanState", "TrendState", "Sensitivities"]:
+                        try:
+                            grp     = dataset.groups["pn"].groups["scalars"]
+                        except:
+                            continue
+                        if "Overall Score global" in grp.variables:
+                            overal_score += grp.variables["Overall Score global"][0] * \
+                                            weights[pn]
+                            sum_of_weights += weights[pn]
+                    overall_score /= max(sum_of_weights, 1e-12)
+
+                    if sum_of_weights > 1e-12:
+                        data[ind] = overall_score
                         mask[ind] = 0
                     else:
                         data[ind] = -999.

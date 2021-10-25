@@ -223,13 +223,7 @@ class Variable:
             convert_calendar = keywords.get("convert_calendar",True)
 
             out = il.FromNetCDF4(filename,variable_name,alternate_vars,t0,tf,group=groupname,convert_calendar=convert_calendar,z0=z0,zf=zf) # YW
-            data,data_bnds,unit,name,time,time_bnds,lat,lat_bnds,lon,lon_bnds,depth,depth_bnds,cbou        def _retrieveData(filename):
-            key = None
-            with Dataset(filename,mode="r") as dset:
-                key  = [v for v in dset.groups["MeanState"].variables.keys() if "timeint_" in v]
-            return Variable(filename      = filename,
-                            groupname     = "MeanState",
-                            variable_name = key[0])nds,ndata,calendar,attr = out
+            data,data_bnds,unit,name,time,time_bnds,lat,lat_bnds,lon,lon_bnds,depth,depth_bnds,cbounds,ndata,calendar,attr = out
 
         # Add handling for some units which cf_units does not support
         unit = unit.replace("psu","1e-3")
@@ -719,7 +713,7 @@ class Variable:
                         name       = name)
 
     def trendInTime(self,**keywords):
-        r"""YW: Compute the grid-by-grid trend in the variable 
+        r"""YW: Compute the grid-by-grid annual trend in the variable 
             over a given time period. Ignore missing values.
 
         Parameters
@@ -770,33 +764,17 @@ class Variable:
         for i in range(self.data.ndim-1): dt = np.expand_dims(dt,axis=-1)
 
         np.seterr(over='ignore',under='ignore')
-        integral = []
-        if self.data_bnds is not None:
-            integral_bnd = []
-        for yy in np.unique(year):
-            ind2 = np.where(year == yy)[0]
-            temp = (data[ind2]*dt[ind2]).sum(axis=0, keepdims=True)
+        if self.monthly and (self.time.size > 11):
+            begin        = np.argmin(self.time[:11]%365)
+            end          = begin+int(self.time[begin:].size/12.)*12
+            shp          = (-1,12) + data.shape[1:]
+            integral     = data[begin:end,...].reshape(shp)
             if self.data_bnds is not None:
-                temp_bnd = np.ma.concatenate([(data_bnds[...,0][ind2] * dt[ind2] \
-                                               ).sum(axis=0, keepdims=True),
-                                              (data_bnds[...,1][ind2] * dt[ind2] \
-                                               ).sum(axis=0, keepdims=True)], axis = -1)
-            if mean:
-                # divide thru by the non-masked amount of time
-                if self.data.mask.size > 1:
-                    dt2 = (dt[ind2]*(mask[ind2]==0)).sum(axis=0)
-                else:
-                    dt2 = dt[ind2].sum(axis=0)
-                temp = temp / dt2
-                if self.data_bnds is not None:
-                    temp_bnd[...,0] = temp_bnd[...,0] / dt2
-                    temp_bnd[...,1] = temp_bnd[...,1] / dt2
-            integral.append(temp)
-            if self.data_bnds is not None:
-                integral_bnd.append(temp_bnd)
-        integral = np.ma.stack(integral, axis = 0)
-        if self.data_bnds is not None:
-            integral_bnd = np.ma.stack(integral_bnd, axis = 0)
+                shp          = (-1,12) + data_bnds.shape[1:]
+                integral_bnd = data_bnds[begin:end,...].reshape(shp)
+        else:
+            integral     = data
+            integral_bnd = data_bnds
         np.seterr(over='raise',under='raise')
 
         if not mean:
@@ -815,6 +793,8 @@ class Variable:
                 unit0.convert(integral_bnd,unit,inplace=True)
         
         # calculate the trend and the significance
+        # !!! TO-DO: Change the trend_lower_bnd & trend_upper_bnd to be based on 
+        #            the confidence interval of the linear regression
         trend, trend_p = _olsTensor(integral, np.mean(time_bnds, axis = 1))
         if integral_bnd is not None:
             trend_lower_bnd, trend_lower_bnd_p = _olsTensor(integral_bnd[0,...], 
@@ -828,7 +808,7 @@ class Variable:
                                        trend_upper_bnd_p[np.newaxis, ...]], axis = 0)
 
         # handle units
-        unit = Unit(self.unit + "/year")
+        unit = Unit(self.unit + " year$^{-1}$")
         name = self.name + "_trend_over_time"
 
         return Variable(data = trend, data_bnds = trend_bnd,
@@ -838,7 +818,7 @@ class Variable:
                         depth = self.depth, depth_bnds = self.depth_bnds,
                         area = self.area, ndata = self.ndata), \
                Variable(data = trend_p, data_bnds = trend_bnd_p, unit = None,
-                        name = name.replace("trend", "trend_p"),                     
+                        name = name.replace("trend", "trendp"),
                         lat = self.lat, lat_bnds = self.lat_bnds,
                         lon = self.lon, lon_bnds = self.lon_bnds,
                         depth = self.depth, depth_bnds = self.depth_bnds,
@@ -949,7 +929,7 @@ class Variable:
                         ndata      = self.ndata),
                Variable(data       = trend_p,
                         unit       = self.unit + "/year",
-                        name       = "annual_cycle_trend_p_of_%s" % self.name,
+                        name       = "annual_cycle_trendp_of_%s" % self.name,
                         time       = mid_months,
                         time_bnds  = np.asarray([bnd_months[:-1],bnd_months[1:]]).T,
                         lat        = self.lat,
@@ -1814,10 +1794,9 @@ class Variable:
 
         Notes
         -----
-        Need to better think about what correlation means when data
-        are masked. The sums ignore the data but then the number of
-        items *n* is not constant and should be reduced for masked
-        values.
+        Need to better think about what correlation means when data are masked.
+        The sums ignore the data but then the number of items *n* is not 
+        constant and should be reduced for masked values.
         """
         def _covarTensor(tensor3d):
             """ Covariance matrix calculation for each data poinat along an 
@@ -1928,7 +1907,7 @@ class Variable:
             dof = n - k - 2
             tval = r * np.sqrt(dof / (1 - r**2))
             pval = 2 * t.sf(np.abs(tval), dof)
-        
+
             # restore shape
             def _restore_shape(array, retain_ind, orig_shape):
                 array_restore = np.ma.empty(len(retain_ind))
@@ -1974,17 +1953,39 @@ class Variable:
         out_time_bnds = None
         if out_time is not None: out_time_bnds = self.time_bnds
 
+        # if monthly data, remove the seasonal cycle
+        if self.monthly and (self.time.size > 11):
+            begin            = np.argmin(self.time[:11]%365)
+            end              = begin+int(self.time[begin:].size/12.)*12
+            shp              = (-1,12) + self.data.shape[1:]
+            x_mean           = np.ma.mean(self.data[begin:end,...].reshape(shp),
+                                          axis = 1, keepdims = True)
+            x                = self.data[begin:end,...] - \
+                               np.broadcast_to(x_mean, shp).reshape((-1,) + self.data.shape[1:])
+            y_list           = []
+            for i, y in enumerate(var_indep_list):
+                begin        = np.argmin(y.time[:11]%365)
+                end          = begin+int(y.time[begin:].size/12.)*12
+                shp          = (-1,12) + y.data.shape[1:]
+                y_mean       = np.ma.mean(y.data[begin:end,...].reshape(shp),
+                                          axis = 1, keepdims = True)
+                y_temp       = y.data[being:end,...] - \
+                               np.broadcast_to(y_mean, shp).reshape((-1,) + y.data.shape[1:])
+                y_list.append(y_temp)
+        else:
+            x                = self.data
+            y_list           = [var_indep_list[i].data for i in range(len(var_indep_list))]
+
+        # calculate the partial correlation
         result = {}
-        for i, y in enumerate(var_indep_list):
-            r, p = _partialCorrTensor(x, y, var_indep_list[:i] + var_indep_list[(i+1):])
+        for i, y in enumerate(y_list):
+            r, p = _partialCorrTensor(x, y, y_list[:i] + y_list[(i+1):])
             r = Variable(data=r,unit="1",
-                         name="%s_partial_correlation_of_%s_and_%s" % \
-                              (ctype,self.name,y.name),
+                         name="%s_partial_correlation_of_%s_and_%s" % (ctype,self.name,y.name),
                          time=out_time,time_bnds=out_time_bnds,ndata=out_ndata,
                          lat=out_lat,lon=out_lon,area=out_area)
             p = Variable(data=r,unit="1",
-                         name="%s_partial_pvalue_of_%s_and_%s" % \
-                              (ctype,self.name,y.name),
+                         name="%s_partial_pvalue_of_%s_and_%s" % (ctype,self.name,y.name),
                          time=out_time,time_bnds=out_time_bnds,ndata=out_ndata,
                          lat=out_lat,lon=out_lon,area=out_area)
             result[y.name] = {'r': r, 'p': p}

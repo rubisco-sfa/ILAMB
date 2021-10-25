@@ -1411,7 +1411,7 @@ def AnalysisMeanStateSpace(ref,com,**keywords):
     com_not_ref = (REF_timeint.data.mask == True ) * (COM_timeint.data.mask == False)
     if benchmark_dataset is not None:
 
-        ref_timeint.name = "timeint_of_%s" % name
+        ref_timeint.name = "mean_timeint_of_%s" % name
 
         ref_timeint.toNetCDF4(benchmark_dataset,group="MeanState")
         for region in regions:
@@ -1423,7 +1423,7 @@ def AnalysisMeanStateSpace(ref,com,**keywords):
 
     if dataset is not None:
 
-        com_timeint.name = "timeint_of_%s" % name
+        com_timeint.name = "mean_timeint_of_%s" % name
         com_timeint.toNetCDF4(dataset,group="MeanState")
         for region in regions:
 
@@ -1485,24 +1485,24 @@ def AnalysisMeanStateSpace(ref,com,**keywords):
     if not skip_cycle:
         ref_cycle         = REF.annualCycle()
         ref_maxt_map      = ref_cycle.timeOfExtrema(etype="max")
-        ref_maxt_map.name = "phase_map_of_%s" % name
+        ref_maxt_map.name = "mean_phase_map_of_%s" % name
         com_cycle         = COM.annualCycle()
         com_maxt_map      = com_cycle.timeOfExtrema(etype="max")
-        com_maxt_map.name = "phase_map_of_%s" % name
+        com_maxt_map.name = "mean_phase_map_of_%s" % name
         shift_map         = ref_maxt_map.phaseShift(com_maxt_map)
-        shift_map.name    = "shift_map_of_%s" % name
+        shift_map.name    = "mean_shift_map_of_%s" % name
         shift_score_map   = ScoreSeasonalCycle(shift_map)
-        shift_score_map.name  = "shiftscore_map_of_%s" % name
+        shift_score_map.name  = "mean_shiftscore_map_of_%s" % name
         shift_map.data   /= 30.; shift_map.unit = "months"
         if benchmark_dataset is not None:
             ref_maxt_map.toNetCDF4(benchmark_dataset,group="MeanState")
             for region in regions:
                 ref_mean_cycle      = ref_cycle.integrateInSpace(region=region,mean=True)
-                ref_mean_cycle.name = "cycle_of_%s_over_%s" % (name,region)
+                ref_mean_cycle.name = "mean_cycle_of_%s_over_%s" % (name,region)
                 ref_mean_cycle.toNetCDF4(benchmark_dataset,group="MeanState")
                 ref_dtcycle       = deepcopy(ref_mean_cycle)
                 ref_dtcycle.data -= ref_mean_cycle.data.mean()
-                ref_dtcycle.name  = "dtcycle_of_%s_over_%s" % (name,region)
+                ref_dtcycle.name  = "mean_dtcycle_of_%s_over_%s" % (name,region)
                 ref_dtcycle.toNetCDF4(benchmark_dataset,group="MeanState")
         if dataset is not None:
             com_maxt_map.toNetCDF4(dataset,group="MeanState")
@@ -1510,11 +1510,11 @@ def AnalysisMeanStateSpace(ref,com,**keywords):
             shift_score_map.toNetCDF4(dataset,group="MeanState")
             for region in regions:
                 com_mean_cycle      = com_cycle.integrateInSpace(region=region,mean=True)
-                com_mean_cycle.name = "cycle_of_%s_over_%s" % (name,region)
+                com_mean_cycle.name = "mean_cycle_of_%s_over_%s" % (name,region)
                 com_mean_cycle.toNetCDF4(dataset,group="MeanState")
                 com_dtcycle       = deepcopy(com_mean_cycle)
                 com_dtcycle.data -= com_mean_cycle.data.mean()
-                com_dtcycle.name  = "dtcycle_of_%s_over_%s" % (name,region)
+                com_dtcycle.name  = "mean_dtcycle_of_%s_over_%s" % (name,region)
                 com_dtcycle.toNetCDF4(dataset,group="MeanState")
                 shift       = shift_map.integrateInSpace(region=region,mean=True,intabs=True)
                 shift_score = shift_score_map.integrateInSpace(region=region,mean=True,weight=normalizer)
@@ -1544,12 +1544,12 @@ def AnalysisMeanStateSpace(ref,com,**keywords):
                                            area = area, ndata = ndata),
                                   REF_iav)
             if benchmark_dataset is not None:
-                REF_iav.name = "iav_map_of_%s" % name
+                REF_iav.name = "mean_iav_map_of_%s" % name
                 REF_iav.toNetCDF4(benchmark_dataset,group="MeanState")
             if dataset is not None:
-                COM_iav.name = "iav_map_of_%s" % name
+                COM_iav.name = "mean_iav_map_of_%s" % name
                 COM_iav.toNetCDF4(dataset,group="MeanState")
-                iav_score_map.name = "iavscore_map_of_%s"  % name
+                iav_score_map.name = "mean_iavscore_map_of_%s"  % name
                 iav_score_map.toNetCDF4(dataset,group="MeanState")
                 for region in regions:
                     iav_score = iav_score_map.integrateInSpace(region=region,mean=True,weight=normalizer)
@@ -1560,17 +1560,19 @@ def AnalysisMeanStateSpace(ref,com,**keywords):
     # Bias: maps, scalars, and scores
     bias = REF_timeint.bias(COM_timeint).convert(plot_unit)
     cREF = Variable(name = "centralized %s" % name, unit = REF.unit,
-                    data = np.ma.masked_array(REF.data-REF_timeint.data[np.newaxis,...],mask=REF.data.mask),
+                    data = np.ma.masked_array(REF.data-REF_timeint.data[np.newaxis,...],
+                                              mask=REF.data.mask),
                     time = REF.time, time_bnds = REF.time_bnds, ndata = REF.ndata,
-                    lat  = lat, lat_bnds = lat_bnds, lon = lon, lon_bnds = lon_bnds, area = REF.area).convert(plot_unit)
+                    lat  = lat, lat_bnds = lat_bnds, lon = lon, lon_bnds = lon_bnds, 
+                    area = REF.area).convert(plot_unit)
     REF_std = cREF.rms()
     if skip_rmse: del cREF
     bias_score_map = Score(bias,REF_std if REF.time.size > 1 else REF_timeint)
     bias_score_map.data.mask = (ref_and_com==False) # for some reason I need to explicitly force the mask
     if dataset is not None:
-        bias.name = "bias_map_of_%s" % name
+        bias.name = "mean_bias_map_of_%s" % name
         bias.toNetCDF4(dataset,group="MeanState")
-        bias_score_map.name = "biasscore_map_of_%s" % name
+        bias_score_map.name = "mean_biasscore_map_of_%s" % name
         bias_score_map.toNetCDF4(dataset,group="MeanState")
         for region in regions:
             bias_val = bias.integrateInSpace(region=region,mean=True).convert(plot_unit)
@@ -1586,12 +1588,12 @@ def AnalysisMeanStateSpace(ref,com,**keywords):
         if benchmark_dataset is not None:
             for region in regions:
                 ref_spaceint = REF.integrateInSpace(region=region,mean=True)
-                ref_spaceint.name = "spaceint_of_%s_over_%s" % (name,region)
+                ref_spaceint.name = "mean_spaceint_of_%s_over_%s" % (name,region)
                 ref_spaceint.toNetCDF4(benchmark_dataset,group="MeanState")
         if dataset is not None:
             for region in regions:
                 com_spaceint = COM.integrateInSpace(region=region,mean=True)
-                com_spaceint.name = "spaceint_of_%s_over_%s" % (name,region)
+                com_spaceint.name = "mean_spaceint_of_%s_over_%s" % (name,region)
                 com_spaceint.toNetCDF4(dataset,group="MeanState")
 
     # RMSE: maps, scalars, and scores
@@ -1621,9 +1623,9 @@ def AnalysisMeanStateSpace(ref,com,**keywords):
         del cREF,cCOM
         rmse_score_map = Score(crmse,REF_std)
         if dataset is not None:
-            rmse.name = "rmse_map_of_%s" % name
+            rmse.name = "mean_rmse_map_of_%s" % name
             rmse.toNetCDF4(dataset,group="MeanState")
-            rmse_score_map.name = "rmsescore_map_of_%s" % name
+            rmse_score_map.name = "mean_rmsescore_map_of_%s" % name
             rmse_score_map.toNetCDF4(dataset,group="MeanState")
             for region in regions:
                 rmse_val = rmse.integrateInSpace(region=region,mean=True).convert(plot_unit)
@@ -1648,9 +1650,9 @@ def AnalysisMeanStateSpace(ref,com,**keywords):
         crmse = ref_dtcycle.rmse(com_dtcycle).convert(plot_unit)
         rmse_score_map = Score(crmse,REF_std)
         if dataset is not None:
-            rmse.name = "rmse_map_of_%s" % name
+            rmse.name = "mean_rmse_map_of_%s" % name
             rmse.toNetCDF4(dataset,group="MeanState")
-            rmse_score_map.name = "rmsescore_map_of_%s" % name
+            rmse_score_map.name = "mean_rmsescore_map_of_%s" % name
             rmse_score_map.toNetCDF4(dataset,group="MeanState")
             for region in regions:
                 rmse_val = rmse.integrateInSpace(region=region,mean=True).convert(plot_unit)
@@ -1660,7 +1662,7 @@ def AnalysisMeanStateSpace(ref,com,**keywords):
                 rmse_score.name = "RMSE Score %s %s" % (name, region)
                 rmse_score.toNetCDF4(dataset,group="MeanState")
         del rmse,crmse,rmse_score_map
-        
+
     return
 
 
@@ -1711,14 +1713,18 @@ def AnalysisTrendStateSpace(ref,com,**keywords):
     plot_unit         = keywords.get("plot_unit"        ,None)
     mass_weighting    = keywords.get("mass_weighting"   ,False)
     skip_cycle        = keywords.get("skip_cycle"       ,False)
+    skip_rmse         = keywords.get("skip_rmse"        ,False)
     ref_trend         = keywords.get("ref_trend"        ,None)
     ref_trend_p       = keywords.get("ref_trend_p"      ,None)
     com_trend         = keywords.get("com_trend"        ,None)
     com_trend_p       = keywords.get("com_trend_p"      ,None)
+    rmse_score_basis  = keywords.get("rmse_score_basis" ,"cycle")
     ILAMBregions      = Regions()
     spatial           = ref.spatial
 
     # Convert str types to booleans
+    if type(skip_rmse) == type(""):
+        skip_rmse = (skip_rmse.lower() == "true")
     if type(skip_cycle) == type(""):
         skip_cycle = (skip_cycle.lower() == "true")
 
@@ -1737,6 +1743,9 @@ def AnalysisTrendStateSpace(ref,com,**keywords):
     unit  = REF.unit
     area  = REF.area
     ndata = REF.ndata
+
+    REF_timeint = REF.integrateInTime(mean=True).convert(plot_unit)
+    normalizer  = REF_timeint.data if mass_weighting else None
             
     # Find the trend values over the time period
     if ref_trend is None:
@@ -1763,7 +1772,7 @@ def AnalysisTrendStateSpace(ref,com,**keywords):
         if benchmark_dataset is not None:
             for region in regions:
                 ref_spaceint = REF.integrateInSpace(region=region,mean=True).convert(table_unit)
-                ref_spaceint.name = "spaceint_of_%s_over_%s" % (name,region)
+                ref_spaceint.name = "trend_spaceint_of_%s_over_%s" % (name,region)
 
                 ref_union_spaceint = Variable(name = "REF_and_com", unit = REF.unit,
                     data = np.ma.masked_array(REF.data,mask=(ref_and_com==False)),
@@ -1779,7 +1788,7 @@ def AnalysisTrendStateSpace(ref,com,**keywords):
         if dataset is not None:
             for region in regions:
                 com_spaceint = COM.integrateInSpace(region=region,mean=True).convert(table_unit)
-                com_spaceint.name = "spaceint_of_%s_over_%s" % (name,region)
+                com_spaceint.name = "trend_spaceint_of_%s_over_%s" % (name,region)
 
                 com_union_spaceint = Variable(name = "ref_and_COM", unit = COM.unit,
                     data = np.ma.masked_array(COM.data,mask=(ref_and_com==False)),
@@ -1796,7 +1805,7 @@ def AnalysisTrendStateSpace(ref,com,**keywords):
     if benchmark_dataset is not None:
         ref_trend.name = "trend_of_%s" % name
         ref_trend.toNetCDF4(benchmark_dataset,group="TrendState")
-        ref_trend_p.name = "trend_p_of_%s" % name
+        ref_trend_p.name = "trendp_of_%s" % name
         ref_trend_p.toNetCDF4(benchmark_dataset,group="TrendState")
 
         for region in regions:
@@ -1811,7 +1820,7 @@ def AnalysisTrendStateSpace(ref,com,**keywords):
     if dataset is not None:
         com_trend.name = "trend_of_%s" % name
         com_trend.toNetCDF4(dataset,group="TrendState")
-        com_trend_p.name = "trend_p_of_%s" % name
+        com_trend_p.name = "trendp_of_%s" % name
         com_trend_p.toNetCDF4(dataset,group="TrendState")
 
         for region in regions:
@@ -1869,34 +1878,36 @@ def AnalysisTrendStateSpace(ref,com,**keywords):
     # Spatial Distribution: scalars and scores
     if dataset is not None:
         for region in regions:
-            space_std,space_cor,sd_score = REF_trend.spatialDistribution(COM_trend,region=region)
-            sd_score.name = "Trend Spatial Distribution Score %s %s" % (name, region)
+            space_std,space_cor,sd_score = REF_trend.spatialDistribution(COM_trend,
+                                                                         region=region)
+            sd_score.name = "Spatial Distribution Score %s %s" % (name, region)
             sd_score.toNetCDF4(dataset,group="TrendState",
                                attributes={"std":space_std.data,
                                            "R"  :space_cor.data})
 
     # Cycle: maps, scalars, and scores
     if not skip_cycle:
-        ref_trend_cycle_map   = REF.trendAnnualCycle()
-        ref_maxt_map          = ref_trend_cycle_map.timeOfExtrema(etype="max")
-        ref_maxt_map.name     = "trend_phase_map_of_%s" % name
-        com_trend_cycle_map   = COM.trendAnnualCycle()
-        com_maxt_map          = com_trend_cycle_map.timeOfExtrema(etype="max")
-        com_maxt_map.name     = "trend_phase_map_of_%s" % name
-        shift_map             = ref_maxt_map.phaseShift(com_maxt_map)
-        shift_map.name        = "trend_shift_map_of_%s" % name
-        shift_score_map       = ScoreSeasonalCycle(shift_map)
-        shift_score_map.name  = "trend_shiftscore_map_of_%s" % name
+        ref_trend_cycle_map, _ = REF.trendAnnualCycle()
+        ref_maxt_map           = ref_trend_cycle_map.timeOfExtrema(etype="max")
+        ref_maxt_map.name      = "trend_phase_map_of_%s" % name
+        com_trend_cycle_map, _ = COM.trendAnnualCycle()
+        com_maxt_map           = com_trend_cycle_map.timeOfExtrema(etype="max")
+        com_maxt_map.name      = "trend_phase_map_of_%s" % name
+        shift_map              = ref_maxt_map.phaseShift(com_maxt_map)
+        shift_map.name         = "trend_shift_map_of_%s" % name
+        shift_score_map        = ScoreSeasonalCycle(shift_map)
+        shift_score_map.name   = "trend_shiftscore_map_of_%s" % name
         shift_map.data /= 30.; shift_map.unit = "months"
+
         if benchmark_dataset is not None:
             ref_maxt_map.toNetCDF4(benchmark_dataset,group="TrendState")
             for region in regions:
                 ref_trend_cycle      = ref_spaceint.trendAnnualCyclce()
                 ref_trend_cycle.name = "trend_cycle_of_%s_over_%s" % (name,region)
                 ref_trend_cycle.toNetCDF4(benchmark_dataset,group="TrendState")
-                ref_dtcycle       = deepcopy(ref_trend_cycle)
-                ref_dtcycle.data -= ref_trend_cycle.data.mean()
-                ref_dtcycle.name  = "trend_dtcycle_of_%s_over_%s" % (name,region)
+                ref_dtcycle          = deepcopy(ref_trend_cycle)
+                ref_dtcycle.data    -= ref_trend_cycle.data.mean()
+                ref_dtcycle.name     = "trend_dtcycle_of_%s_over_%s" % (name,region)
                 ref_dtcycle.toNetCDF4(benchmark_dataset,group="TrendState")
         if dataset is not None:
             com_maxt_map   .toNetCDF4(dataset,group="TrendState")
@@ -1906,16 +1917,16 @@ def AnalysisTrendStateSpace(ref,com,**keywords):
                 com_trend_cycle      = com_spaceint.trendAnnualCycle()
                 com_trend_cycle.name = "trend_cycle_of_%s_over_%s" % (name,region)
                 com_trend_cycle.toNetCDF4(dataset,group="TrendState")
-                com_dtcycle       = deepcopy(com_trend_cycle)
-                com_dtcycle.data -= com_trend_cycle.data.mean()
-                com_dtcycle.name  = "trend_dtcycle_of_%s_over_%s" % (name,region)
+                com_dtcycle          = deepcopy(com_trend_cycle)
+                com_dtcycle.data    -= com_trend_cycle.data.mean()
+                com_dtcycle.name     = "trend_dtcycle_of_%s_over_%s" % (name,region)
                 com_dtcycle.toNetCDF4(dataset,group="TrendState")
                 shift       = shift_map.integrateInSpace(region=region,mean=True,intabs=True)
                 shift_score = shift_score_map.integrateInSpace(region=region,mean=True,
                                                                weight=normalizer)
                 shift.name = "Trend Phase Shift %s %s" % (name, region)
                 shift.toNetCDF4(dataset,group="TrendState")
-                shift_score.name = "Trend Seasonal Cycle Score %s %s" % (name, region)
+                shift_score.name = "Seasonal Cycle Score %s %s" % (name, region)
                 shift_score.toNetCDF4(dataset,group="TrendState")
 
         del shift_map,shift_score_map
@@ -1935,10 +1946,32 @@ def AnalysisTrendStateSpace(ref,com,**keywords):
             bias_val.name = "Trend Bias %s %s" % (name, region)
             bias_val.toNetCDF4(dataset,group="TrendState")
             bias_score = bias_score_map.integrateInSpace(region=region,mean=True,weight=normalizer)
-            bias_score.name = "Trend Bias Score %s %s" % (name, region)
+            bias_score.name = "Bias Score %s %s" % (name, region)
             bias_score.toNetCDF4(dataset,group="TrendState")
     del bias,bias_score_map
 
+    if not skip_rmse:
+        if rmse_score_basis != 'cycle':
+            raise 'rmse_score_basis must be cycle to be able to calculate RMSE'
+        if skip_cycle:
+            raise 'skip_cycle must be True to calculate cycle-based RMSE'
+
+        rmse_map = ref_trend_cycle_map.rmse(com_trend_cycle_map).convert(plot_unit)
+        rmse_score_map = Score(rmse_map, REF_trend)
+        if dataset is not None:
+            rmse_map.name = 'trend_rmse_map_of_%s' % name
+            rmse_map.toNetCDF4(dataset,group='TrendState')
+            rmse_score_map.name = 'trend_rmsescore_map_of_%s' % name
+            rmse_score_map.toNetCDF4(dataset,group='TrendState')
+            for region in regions:
+                rmse = rmse_map.integrateInSpace(region=region,mean=True).convert(plot_unit)
+                rmse.name = 'Trend RMSE %s %s' % (name, region)
+                rmse.toNetCDF(dataset,group='TrendState')
+                rmse_score = rmse_score_map.integrateInSpace(region=region,mean=True,
+                                                             weight=normalizer)
+                rmse_score.name = 'RMSE Score %s %s' % (name, region)
+                rmse_score.toNetCDF4(dataset,group='TrendState')
+        del rmse_map, rmse_score_map
     return
 
 
@@ -1979,9 +2012,10 @@ def AnalysisPartialCorrSpace(ref,com,ref_indep_list,com_indep_list,**keywords):
     mass_weighting    = keywords.get("mass_weighting"   ,False)
     ref_corr          = keywords.get("ref_corr"         ,None)
     com_corr          = keywords.get("com_corr"         ,None)
+    skip_rmse         = keywords.get("skip_rmse"        ,False)
     ILAMBregions      = Regions()
     spatial           = ref.spatial
-    name = ref.name
+    name              = ref.name
 
     # Interpolate both reference and comparison to a grid composed of
     # their cell breaks
@@ -1999,39 +2033,58 @@ def AnalysisPartialCorrSpace(ref,com,ref_indep_list,com_indep_list,**keywords):
     area  = ref.area
     ndata = ref.ndata
 
+    REF_timeint = REF.integrateInTime(mean=True).convert(plot_unit)
+    normalizer  = REF_timeint.data if mass_weighting else None
+
     # Find the partial correlation values over the time period
     assert ref_corr is None
     assert com_corr is None
 
-    # Write to file
-    for region in regions:
-        ref_corr = ref.partialCorrelation(ref_indep_list, ctype = "temporal", region = region)
-        com_corr = com.partialCorrelation(com_indep_list, ctype = "temporal", region = region)
-        REF_corr = REF.partialCorrelation(REF_indep_list, ctype = "temporal", region = region)
-        COM_corr = COM.partialCorrelation(COM_indep_list, ctype = "temporal", region = region)
+    ref_corr = ref.partialCorrelation(ref_indep_list, ctype = "temporal")
+    com_corr = com.partialCorrelation(com_indep_list, ctype = "temporal")
+    REF_corr = REF.partialCorrelation(REF_indep_list, ctype = "temporal")
+    COM_corr = COM.partialCorrelation(COM_indep_list, ctype = "temporal")
+    for pp in ref_corr.keys():
+        for ss in ['r', 'p']:
+            temp = ref_corr[pp][ss]
+            temp = 'Benchmark (original grids) ' + temp.name + ' ' + region
+            temp.toNetCDF4(benchmark_dataset, group = 'Sensitivities')
 
-        for pp in ref_corr.keys():
-            for ss in ['r', 'p']:
-                temp = ref_corr[pp][ss]
-                temp = 'Benchmark (original grids) ' + temp.name + ' ' + region
-                temp.toNetCDF4(benchmark_dataset, group = 'Sensitivities')
+            temp = com_corr[pp][ss]
+            temp = 'Model (original grids) ' + temp.name + ' ' + region
+            temp.toNetCDF4(dataset, group = 'Sensitivities')
 
-            for ss in ['r', 'p']:
-                temp = com_corr[pp][ss]
-                temp = 'Model (original grids) ' + temp.name + ' ' + region
-                temp.toNetCDF4(dataset, group = 'Sensitivities')
+            # Spatial Distribution: scalars and scores
+            if dataset is not None:
+                for region in regions:
+                    space_std,space_cor,sd_score = \
+                        REF_corr[pp][ss].spatialDistribution(COM_corr[pp][ss],
+                                                             region=region)
+                    sd_score.name = "Sensitivity Spatial Distribution Score %s %s %s" % (name, pp,
+                                                                                         region)
+                    sd_score.toNetCDF4(dataset,group="Sensitivities",
+                                       attributes={"std":space_std.data,
+                                                   "R"  :space_cor.data})
 
-            # Calculate bias and write bias to file
+            # Bias: maps, scalars, and scores
             bias = REF_corr[pp][ss].bias(COM_corr[pp][ss])
             # !!! TO-DO: Use the confidence interval of REF_corr instead of the REF_corr
             bias_score_map = Score(bias, REF_corr[pp][ss])
-            bias_score_map.data.mask = ref_and_com == False
-            bias.name = 'sensitivity_bias_map_of_%s_and_%s' % (self.name, name)
-            bias.toNetCDF4(dataset, group = 'Sensitivities')
-            bias_score_map.name = 'sensitivity_biasscore_map_of_%s' % (self.name, name)
-            bias_score_map.toNetCDF4(dataset, group = 'Sensitivities')
-
-            del bias, bias_score_map
+            bias_score_map.data.mask = (ref_and_com == False) # for some reason I need to explicitly force the mask
+            if dataset is not None:
+                bias.name = 'sensitivity_bias_map_of_%s_and_%s' % (name, pp)
+                bias.toNetCDF4(dataset, group = 'Sensitivities')
+                bias_score_map.name = 'sensitivity_biasscore_map_of_%s_and_%s' % (name, pp)
+                bias_score_map.toNetCDF4(dataset, group = 'Sensitivities')
+                for region in regions:
+                    bias_val = bias.integrateInSpace(region=region,mean=True).convert(plot_unit)
+                    bias_val.name = 'Sensitivity Bias %s %s %s' % (name, pp, region)
+                    bias_val.toNetCDF4(dataset, group = 'Sensitivities')
+                    bias_score = bias_score_map.integrateInSpace(region=region,mean=True,
+                                                                 weight=normalizer)
+                    bias_score.name = 'Bias Score %s %s %s' % (name, pp, region)
+                    bias_score.toNetCDF4(dataset, group = 'Sensitivities')
+            del bias,bias_score_map
 
     return
 

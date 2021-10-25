@@ -28,16 +28,6 @@ class ConfSoilMoisture(Confrontation):
         # Calls the regular constructor
         super(ConfSoilMoisture,self).__init__(**keywords)
 
-        # Trend State page // insert before the Data Information page
-        pages.insert(-2, post.HtmlPage('TrendState', 'Trend State'))
-        pages[-2].setHeader('CNAME / RNAME / MNAME')
-        pages[-2].setSections(['Trend over the period in space', 
-                               'Trend of the regional mean over the period'])
-        if self.sensitivities is not None:
-            pages.insert(-2, post.HtmlPage('Sensitivities', 'Partial Correlation Relationships'))
-            pages[-2].setHeader('CNAME / RNAME / MNAME')
-            pages[-2].setSections(list(self.sensitivities))
-
         # Get/modify depths
         with Dataset(self.source) as dset:
             v = dset.variables[self.variable]
@@ -332,6 +322,9 @@ class ConfSoilMoisture(Confrontation):
             skip_cycle     = self.keywords.get("skip_cycle"    ,False)
             rmse_score_basis = self.keywords.get("rmse_score_basis","cycle")
 
+            # Read in some options to decide whether to run the trend state analysis
+            skip_trend     = self.keywords.get("skip_trend"    ,False)
+
             # Get the depth-integrated observation and model data for each slab.
             for obs,mod,z0,zf in self.stageData(m):
                 print('Confronting data ' + obs.name + ' v.s. ' + mod.name + \
@@ -352,14 +345,15 @@ class ConfSoilMoisture(Confrontation):
                                               rmse_score_basis  = rmse_score_basis)
 
                     # Calculate trend state
-                    il.AnalysisTrendStateSpace(obs, mod, dataset  = fcm.mod_dset,
-                                               regions           = self.regions,
-                                               benchmark_dataset = fcm.obs_dset,
-                                               table_unit        = self.table_unit,
-                                               plot_unit         = self.plot_unit,
-                                               space_mean        = self.space_mean,
-                                               skip_cycle        = skip_cycle,
-                                               mass_weighting    = mass_weighting)
+                    if not skip_trend:
+                        il.AnalysisTrendStateSpace(obs, mod, dataset  = fcm.mod_dset,
+                                                   regions           = self.regions,
+                                                   benchmark_dataset = fcm.obs_dset,
+                                                   table_unit        = self.table_unit,
+                                                   plot_unit         = self.plot_unit,
+                                                   space_mean        = self.space_mean,
+                                                   skip_cycle        = skip_cycle,
+                                                   mass_weighting    = mass_weighting)
                 else:
                     il.AnalysisMeanStateSites(obs, mod, dataset   = fcm.mod_dset,
                                               regions           = self.regions,
@@ -385,12 +379,12 @@ class ConfSoilMoisture(Confrontation):
                         obs_comparable, obs_indep = il.MakeComparable(obs_comparable, obs_indep,
                                                                       mask_ref = True, clip_ref = True,
                                                                       extents = self.extents, 
-                                                                      logstring = "[%s][%s]MakeComparable" % \
+                                                                      logstring = "[%s][%s]MakeComparablePass1" % \
                                                                       (obs.variable_name, obs_indep.variable_name))
                         mod_comparable, mod_indep = il.MakeComparable(mod_comparable, mod_indep,
                                                                       mask_ref = True, clip_ref = True,
                                                                       extents = self.extents, 
-                                                                      logstring = "[%s][%s]MakeComparable" % \
+                                                                      logstring = "[%s][%s]MakeComparablePass1" % \
                                                                       (mod.variable_name, mod_indep.variable_name))
                         obs_indep_list.append(obs_indep)
                         mod_indep_list.append(mod_indep)
@@ -400,16 +394,17 @@ class ConfSoilMoisture(Confrontation):
                         obs_comparable, obs_indep = il.MakeComparable(obs_comparable, obs_indep,
                                                                       mask_ref = True, clip_ref = True,
                                                                       extents = self.extents, 
-                                                                      logstring = "[%s][%s]MakeComparable" % \
+                                                                      logstring = "[%s][%s]MakeComparablePass2" % \
                                                                       (obs.variable_name, obs_indep.variable_name))
                         mod_comparable, mod_indep = il.MakeComparable(mod_comparable, mod_indep,
                                                                       mask_ref = True, clip_ref = True,
                                                                       extents = self.extents,
-                                                                      logstring = "[%s][%s]MakeComparable" % \
+                                                                      logstring = "[%s][%s]MakeComparablePass2" % \
                                                                       (mod.variable_name, mod_indep_variable_name))
 
                     if obs.spatial:
-                        il.AnalysisPartialCorrSpace(obs_comparable, mod_comparable, obs_indep_list, mod_indep_list)
+                        il.AnalysisPartialCorrSpace(obs_comparable, mod_comparable, 
+                                                    obs_indep_list, mod_indep_list)
                     else:
                         # !!! TO-DO: Add AnalysisPartialCorrSites
                         pass
@@ -418,6 +413,119 @@ class ConfSoilMoisture(Confrontation):
             if self.master: fcm.obs_dset.setncattr("complete",1)
         logger.info("[%s][%s] Success" % (self.longname,m.name))
 
+
+    def determinePlotLimits(self):
+        """Determine the limits of all plots which are inclusive of all ranges.
+
+        The routine will open all netCDF files in the output path and
+        add the maximum and minimum of all variables which are
+        designated to be plotted. If legends are desired for a given
+        plot, these are rendered here as well. This routine should be
+        called before calling any plotting routine.
+        """
+        max_str = "up99"
+        min_str = "dn99"
+        if self.keywords.get("limit_type","99per") == "minmax":
+            max_str = "max"
+            min_str = "min"
+
+        # Determine the min/max of variables over all models
+        limits = {}
+        prune  = False
+        for fname in glob.glob(os.path.join(self.output_path,"*.nc")):
+            with Dataset(fname) as dataset:
+                for pn in ["MeanState", "TrendState"]:
+                    if pn not in dataset.groups: continue
+
+                    limits[pn] = {}
+
+                    group     = dataset.groups[pn]
+                    variables = [v for v in group.variables.keys() \
+                                 if v not in group.dimensions.keys()]
+                    for vname in variables:
+                        var    = group.variables[vname]
+                        pname  = vname.split("_")[0]
+                        region = vname.split("_")[-1]
+                        if var[...].size <= 1: continue
+                        if pname in space_opts[pn]:
+                            if pname not in limits[pn]:
+                                limits[pn][pname] = {}
+                                limits[pn][pname]["min"]  = +1e20
+                                limits[pn][pname]["max"]  = -1e20
+                                limits[pn][pname]["unit"] = post.UnitStringToMatplotlib(var.getncattr("units"))
+                            limits[pn][pname]["min"] = min(limits[pn][pname]["min"],var.getncattr(min_str))
+                            limits[pn][pname]["max"] = max(limits[pn][pname]["max"],var.getncattr(max_str))
+                        elif pname in time_opts[pn]:
+                            if pname not in limits[pn]: limits[pn][pname] = {}
+                            if region not in limits[pn][pname]:
+                                limits[pn][pname][region] = {}
+                                limits[pn][pname][region]["min"]  = +1e20
+                                limits[pn][pname][region]["max"]  = -1e20
+                                limits[pn][pname][region]["unit"] = post.UnitStringToMatplotlib(var.getncattr("units"))
+                            limits[pn][pname][region]["min"] = min(limits[pn][pname][region]["min"],var.getncattr("min"))
+                            limits[pn][pname][region]["max"] = max(limits[pn][pname][region]["max"],var.getncattr("max"))
+                        if not prune and "Benchmark" in fname and pname == "timeint":
+                            prune = True
+                            self.pruneRegions(Variable(filename      = fname,
+                                                       variable_name = vname,
+                                                       groupname     = pn))
+
+        # Second pass to plot legends (FIX: only for master?)
+        for pn in ["MeanState", "TrendState"]:
+            if not pn in limits.keys(): continue
+            for pname in limits[pn].keys():
+                try:
+                    opts = space_opts[pn][pname]
+                except:
+                    continue
+
+                # Determine plot limits and colormap
+                if opts["sym"]:
+                    vabs =  max(abs(limits[pn][pname]["min"]),abs(limits[pn][pname]["min"]))
+                    limits[pn][pname]["min"] = -vabs
+                    limits[pn][pname]["max"] =  vabs
+    
+                # if a score, force to be [0,1]
+                if "score" in pname:
+                    limits[pn][pname]["min"] = 0
+                    limits[pn][pname]["max"] = 1
+    
+                limits[pn][pname]["cmap"] = opts["cmap"]
+                if limits[pn][pname]["cmap"] == "choose": limits[pn][pname]["cmap"] = self.cmap
+
+                # Plot a legend for each key
+                if opts["haslegend"]:
+                    fig,ax = plt.subplots(figsize=(6.8,1.0),tight_layout=True)
+                    label  = opts["label"]
+                    if label == "unit": label = limits[pn][pname]["unit"]
+                    post.ColorBar(ax,
+                                  vmin = limits[pn][pname]["min"],
+                                  vmax = limits[pn][pname]["max"],
+                                  cmap = limits[pn][pname]["cmap"],
+                                  ticks = opts["ticks"],
+                                  ticklabels = opts["ticklabels"],
+                                  label = label)
+                    fig.savefig(os.path.join(self.output_path,"legend_%s.png" % (pname)))
+                    plt.close()
+
+        # Determine min/max of relationship variables
+        for fname in glob.glob(os.path.join(self.output_path,"*.nc")):
+            with Dataset(fname) as dataset:
+                for g in dataset.groups.keys():
+                    if "relationship" not in g: continue
+                    grp = dataset.groups[g]
+                    if g not in limits:
+                        limits[g] = {}
+                        limits[g]["xmin"] = +1e20
+                        limits[g]["xmax"] = -1e20
+                        limits[g]["ymin"] = +1e20
+                        limits[g]["ymax"] = -1e20
+                    limits[g]["xmin"] = min(limits[g]["xmin"],grp.variables["ind_bnd"][ 0, 0])
+                    limits[g]["xmax"] = max(limits[g]["xmax"],grp.variables["ind_bnd"][-1,-1])
+                    limits[g]["ymin"] = min(limits[g]["ymin"],grp.variables["dep_bnd"][ 0, 0])
+                    limits[g]["ymax"] = max(limits[g]["ymax"],grp.variables["dep_bnd"][-1,-1])
+
+        self.limits = limits
 
     def compositePlots(self):
         """Renders plots which display information of all models.
@@ -430,286 +538,152 @@ class ConfSoilMoisture(Confrontation):
         if not self.master: return
 
         # get the HTML page
-        page = [page for page in self.layout.pages if "MeanState" in page.name][0]
+        for pn, ffix in zip(['MeanState', 'TrendState'], ['mean', 'trend']):
+            page = [page for page in self.layout.pages if pn in page.name][0]
 
-        models = []
-        colors = []
-        corr   = {}
-        std    = {}
-        cycle  = {}
-        has_cycle = False
-        has_std   = False
-        for fname in glob.glob(os.path.join(self.output_path,"*.nc")):
-            dataset = Dataset(fname)
-            if "MeanState" not in dataset.groups: continue
-            dset    = dataset.groups["MeanState"]
-            models.append(dataset.getncattr("name"))
-            colors.append(dataset.getncattr("color"))
+            models = []
+            colors = []
+            corr   = {}
+            std    = {}
+            cycle  = {}
+            has_cycle = False
+            has_std   = False
+            for fname in glob.glob(os.path.join(self.output_path,"*.nc")):
+                dataset = Dataset(fname)
+                if pn not in dataset.groups: continue
+                dset    = dataset.groups[pn]
+                models.append(dataset.getncattr("name"))
+                colors.append(dataset.getncattr("color"))
+                for region in self.regions:
+                    if region not in cycle: cycle[region] = {}
+                    if region not in std: std[region] = {}
+                    if region not in corr: corr[region] = {}
+    
+                    for dind, z0 in enumerate(self.depths[:,0]):
+                        zf = self.depths[dind,1]
+                        zstr = '%.2f-%.2f' % (z0, zf)
+    
+                        if zstr not in cycle[region]: cycle[region][zstr] = []
+    
+                        key = [v for v in dset.variables.keys() \
+                               if ("cycle_"  in v and zstr in v and region in v)]
+                        if len(key)>0:
+                            has_cycle = True
+                            cycle[region][zstr].append(Variable(filename=fname,groupname=pn,
+                                                                variable_name=key[0]))
+    
+                        if zstr not in std[region]: std[region][zstr] = []
+                        if zstr not in corr[region]: corr[region][zstr] = []
+    
+                        key = []
+                        if "scalars" in dset.groups:
+                            key = [v for v in dset.groups["scalars"].variables.keys() \
+                                   if ("Spatial Distribution Score" in v and zstr \
+                                       in v and region in v)]
+                            if len(key) > 0:
+                                has_std = True
+                                sds     = dset.groups["scalars"].variables[key[0]]
+                                corr[region][zstr].append(sds.getncattr("R"  ))
+                                std [region][zstr].append(sds.getncattr("std"))
+
+            # composite annual cycle plot
+            if has_cycle and len(models) > 0:
+                page.addFigure("Spatially integrated regional mean",
+                               ffix + "_compcycle",
+                               "RNAME_" + ffix + "_compcycle.png",
+                               side   = "ANNUAL CYCLE",
+                               legend = False)
+
             for region in self.regions:
-                if region not in cycle: cycle[region] = {}
-                if region not in std: std[region] = {}
-                if region not in corr: corr[region] = {}
-
+                if region not in cycle: continue
+                fig, axes = plt.subplots(self.depths.shape[0], 1,
+                                         figsize = (6.5, 2.8*self.depths.shape[0]), 
+                                         sharex = True, sharey = True)
                 for dind, z0 in enumerate(self.depths[:,0]):
-                    zf = self.depths[dind,1]
+                    zf = self.depths[dind, 1]
                     zstr = '%.2f-%.2f' % (z0, zf)
-
-                    if zstr not in cycle[region]: cycle[region][zstr] = []
-
-                    key = [v for v in dset.variables.keys() if ("cycle_"  in v and zstr in v and region in v)]
-                    if len(key)>0:
-                        has_cycle = True
-                        cycle[region][zstr].append(Variable(filename=fname,groupname="MeanState",
-                                                            variable_name=key[0]))
-
-                    if zstr not in std[region]: std[region][zstr] = []
-                    if zstr not in corr[region]: corr[region][zstr] = []
-
-                    key = []
-                    if "scalars" in dset.groups:
-                        key = [v for v in dset.groups["scalars"].variables.keys() \
-                               if ("Spatial Distribution Score" in v and zstr in v and region in v)]
-                        if len(key) > 0:
-                            has_std = True
-                            sds     = dset.groups["scalars"].variables[key[0]]
-                            corr[region][zstr].append(sds.getncattr("R"  ))
-                            std [region][zstr].append(sds.getncattr("std"))
-
-        # composite annual cycle plot
-        if has_cycle and len(models) > 0:
+    
+                    if self.depths.shape[0] == 1:
+                        ax = axes
+                    else:
+                        ax = axes.flat[dind]
+    
+                    for name,color,var in zip(models,colors,cycle[region][zstr]):
+                        dy = 0.05*(self.limits[pn]["cycle"][region]["max"] - \
+                                   self.limits[pn]["cycle"][region]["min"])
+    
+                        var.plot(ax, lw=2, color=color, label=name,
+                                 ticks      = time_opts[ffix]["cycle"]["ticks"],
+                                 ticklabels = time_opts[ffix]["cycle"]["ticklabels"],
+                                 vmin       = self.limits[pn]["cycle"][region]["min"]-dy,
+                                 vmax       = self.limits[pn]["cycle"][region]["max"]+dy)
+                        ylbl = post.UnitStringToMatplotlib(var.unit)
+                        ax.set_ylabel(ylbl)
+                        ax.set_title(zstr + ' '+ self.depths_units)
+                fig.savefig(os.path.join(self.output_path,
+                                         "%s_" + ffix + "_compcycle.png" % (region)))
+                plt.close()
+    
+            # plot legends with model colors (sorted with Benchmark data on top)
             page.addFigure("Spatially integrated regional mean",
-                           "compcycle",
-                           "RNAME_compcycle.png",
-                           side   = "ANNUAL CYCLE",
-                           legend = False)
-
-        for region in self.regions:
-            if region not in cycle: continue
-            fig, axes = plt.subplots(self.depths.shape[0], 1,
-                                     figsize = (6.5, 2.8*self.depths.shape[0]), 
-                                     sharex = True, sharey = True)
-            for dind, z0 in enumerate(self.depths[:,0]):
-                zf = self.depths[dind, 1]
-                zstr = '%.2f-%.2f' % (z0, zf)
-
-                if self.depths.shape[0] == 1:
-                    ax = axes
-                else:
-                    ax = axes.flat[dind]
-
-                for name,color,var in zip(models,colors,cycle[region][zstr]):
-                    dy = 0.05*(self.limits["cycle"][region]["max"] - \
-                               self.limits["cycle"][region]["min"])
-
-                    var.plot(ax, lw=2, color=color, label=name,
-                             ticks      = time_opts["cycle"]["ticks"],
-                             ticklabels = time_opts["cycle"]["ticklabels"],
-                             vmin       = self.limits["cycle"][region]["min"]-dy,
-                             vmax       = self.limits["cycle"][region]["max"]+dy)
-                    ylbl = post.UnitStringToMatplotlib(var.unit)
-                    ax.set_ylabel(ylbl)
-                    ax.set_title(zstr + ' '+ self.depths_units)
-            fig.savefig(os.path.join(self.output_path,"%s_compcycle.png" % (region)))
-            plt.close()
-
-        # plot legends with model colors (sorted with Benchmark data on top)
-        page.addFigure("Spatially integrated regional mean",
-                       "legend_compcycle",
-                       "legend_compcycle.png",
-                       side   = "MODEL COLORS",
-                       legend = False)
-        def _alphabeticalBenchmarkFirst(key):
-            key = key[0].lower()
-            if key == "BENCHMARK": return "A"
-            return key
-        tmp = sorted(zip(models,colors),key=_alphabeticalBenchmarkFirst)
-        fig,ax = plt.subplots()
-        for model,color in tmp:
-            ax.plot(0,0,'o',mew=0,ms=8,color=color,label=model)
-        handles,labels = ax.get_legend_handles_labels()
-        plt.close()
-
-        ncol = np.ceil(float(len(models))/11.).astype(int)
-        if ncol > 0:
-            fig,ax = plt.subplots(figsize=(3.*ncol,2.8),tight_layout=True)
-            ax.legend(handles,labels,loc="upper right",ncol=ncol,fontsize=10,numpoints=1)
-            ax.axis(False)
-            fig.savefig(os.path.join(self.output_path,"legend_compcycle.png"))
-            fig.savefig(os.path.join(self.output_path,"legend_spatial_variance.png"))
-            fig.savefig(os.path.join(self.output_path,"legend_temporal_variance.png"))
-            plt.close()
-
-        # spatial distribution Taylor plot
-        if has_std:
-            page.addFigure("Temporally integrated period mean",
-                           "spatial_variance",
-                           "RNAME_spatial_variance.png",
-                           side   = "SPATIAL TAYLOR DIAGRAM",
-                           legend = False)
-            page.addFigure("Temporally integrated period mean",
-                           "legend_spatial_variance",
-                           "legend_spatial_variance.png",
+                           "legend_" + ffix + "_compcycle",
+                           "legend_" + ffix + "_compcycle.png",
                            side   = "MODEL COLORS",
                            legend = False)
-        if "Benchmark" in models: colors.pop(models.index("Benchmark"))
-        for region in self.regions:
-            if not (region in std and region in corr): continue
-
-            fig = plt.figure(figsize=(12.0,12.0))
-            for dind, z0 in enumerate(self.depths[:,0]):
-                zf = self.depths[dind, 1]
-                zstr = '%.2f-%.2f' % (z0, zf)
-
-                if not (zstr in std[region] and zstr in corr[region]): continue
-                if len(std[region][zstr]) != len(corr[region][zstr]): continue
-                if len(std[region][zstr]) == 0: continue
-                ax, aux = post.TaylorDiagram(np.asarray(std[region][zstr]),
-                                             np.asarray(corr[region][zstr]),
-                                             1.0,fig,colors,True,220+dind+1)
-                ax.set_title(zstr + ' ' + self.depths_units)
-            fig.savefig(os.path.join(self.output_path,
-                                     "%s_spatial_variance.png" % (region)))
+            def _alphabeticalBenchmarkFirst(key):
+                key = key[0].lower()
+                if key == "BENCHMARK": return "A"
+                return key
+            tmp = sorted(zip(models,colors),key=_alphabeticalBenchmarkFirst)
+            fig,ax = plt.subplots()
+            for model,color in tmp:
+                ax.plot(0,0,'o',mew=0,ms=8,color=color,label=model)
+            handles,labels = ax.get_legend_handles_labels()
             plt.close()
-
-
-        # Get the HTML page
-        page = [page for page in self.layout.pages if "TrendState" in page.name][0]
-
-        models = []
-        colors = []
-        corr   = {}
-        cycle  = {}
-        has_cycle = False
-        has_std = False
-        for fname in glob.glob(os.path.join(self.output_path,"*.nc")):
-            dataset = Dataset(fname)
-            if "TrendState" not in dataset.groups: continue
-            dset    = dataset.groups["TrendState"]
-            models.append(dataset.getncattr("name"))
-            colors.append(dataset.getncattr("color"))
+    
+            ncol = np.ceil(float(len(models))/11.).astype(int)
+            if ncol > 0:
+                fig,ax = plt.subplots(figsize=(3.*ncol,2.8),tight_layout=True)
+                ax.legend(handles,labels,loc="upper right",ncol=ncol,fontsize=10,numpoints=1)
+                ax.axis(False)
+                fig.savefig(os.path.join(self.output_path,"legend_" + ffix + "_compcycle.png"))
+                fig.savefig(os.path.join(self.output_path,
+                                         "legend_" + ffix + "_spatial_variance.png"))
+                fig.savefig(os.path.join(self.output_path,
+                                         "legend_" + ffix + "_temporal_variance.png"))
+                plt.close()
+    
+            # spatial distribution Taylor plot
+            if has_std:
+                page.addFigure("Temporally integrated period " + ffix,
+                               ffix + "_spatial_variance",
+                               "RNAME_" + ffix + "_spatial_variance.png",
+                               side   = "SPATIAL TAYLOR DIAGRAM",
+                               legend = False)
+                page.addFigure("Temporally integrated period " + ffix,
+                               "legend_" + ffix + "_spatial_variance",
+                               "legend_" + ffix + "_spatial_variance.png",
+                               side   = "MODEL COLORS",
+                               legend = False)
+            if "Benchmark" in models: colors.pop(models.index("Benchmark"))
             for region in self.regions:
-                if region not in cycle: cycle[region] = {}
-
+                if not (region in std and region in corr): continue
+    
+                fig = plt.figure(figsize=(12.0,12.0))
                 for dind, z0 in enumerate(self.depths[:,0]):
-                    zf = self.depths[dind,1]
+                    zf = self.depths[dind, 1]
                     zstr = '%.2f-%.2f' % (z0, zf)
-
-                    if zstr not in cycle[region]: cycle[region][zstr] = []
-
-                    key = [v for v in dset.variables.keys() if ("trend_cycle_"  in v and zstr in v and region in v)]
-                    if len(key)>0:
-                        has_cycle = True
-                        cycle[region][zstr].append(Variable(filename=fname,groupname="TrendState",
-                                                            variable_name=key[0]))
-
-                    if zstr not in std[region]: std[region][zstr] = []
-                    if zstr not in corr[region]: corr[region][zstr] = []
-
-                    key = []
-                    if "scalars" in dset.groups:
-                        key = [v for v in dset.groups["scalars"].variables.keys() \
-                               if ("Spatial Distribution Score" in v and zstr in v and region in v)]
-                        if len(key) > 0:
-                            has_std = True
-                            sds     = dset.groups["scalars"].variables[key[0]]
-                            corr[region][zstr].append(sds.getncattr("R"  ))
-                            std [region][zstr].append(sds.getncattr("std"))
-
-        # composite annual cycle plot
-        if has_cycle and len(models) > 0:
-            page.addFigure("Trend of the regional mean over the period",
-                           "comptrendcycle",
-                           "RNAME_comptrendcycle.png",
-                           side   = "ANNUAL CYCLE OF TREND",
-                           legend = False)
-
-        for region in self.regions:
-            if region not in cycle: continue
-            fig, axes = plt.subplots(self.depths.shape[0], 1,
-                                     figsize = (6.5, 2.8*self.depths.shape[0]), 
-                                     sharex = True, sharey = True)
-            for dind, z0 in enumerate(self.depths[:,0]):
-                zf = self.depths[dind, 1]
-                zstr = '%.2f-%.2f' % (z0, zf)
-
-                if self.depths.shape[0] == 1:
-                    ax = axes
-                else:
-                    ax = axes.flat[dind]
-
-                for name,color,var in zip(models,colors,cycle[region][zstr]):
-                    dy = 0.05*(self.limits["cycle"][region]["max"] - \
-                               self.limits["cycle"][region]["min"])
-
-                    var.plot(ax, lw=2, color=color, label=name,
-                             ticks      = time_opts["cycle"]["ticks"],
-                             ticklabels = time_opts["cycle"]["ticklabels"],
-                             vmin       = self.limits["cycle"][region]["min"]-dy,
-                             vmax       = self.limits["cycle"][region]["max"]+dy)
-                    ylbl = post.UnitStringToMatplotlib(var.unit)
-                    ax.set_ylabel(ylbl)
-                    ax.set_title(zstr + ' '+ self.depths_units)
-            fig.savefig(os.path.join(self.output_path,"%s_comptrendcycle.png" % (region)))
-            plt.close()
-
-        # plot legends with model colors (sorted with Benchmark data on top)
-        page.addFigure("Trend of the regional mean over the period",
-                       "legend_comptrendcycle",
-                       "legend_comptrendcycle.png",
-                       side   = "MODEL COLORS",
-                       legend = False)
-        def _alphabeticalBenchmarkFirst(key):
-            key = key[0].lower()
-            if key == "BENCHMARK": return "A"
-            return key
-        tmp = sorted(zip(models,colors),key=_alphabeticalBenchmarkFirst)
-        fig,ax = plt.subplots()
-        for model,color in tmp:
-            ax.plot(0,0,'o',mew=0,ms=8,color=color,label=model)
-        handles,labels = ax.get_legend_handles_labels()
-        plt.close()
-
-        ncol = np.ceil(float(len(models))/11.).astype(int)
-        if ncol > 0:
-            fig,ax = plt.subplots(figsize=(3.*ncol,2.8),tight_layout=True)
-            ax.legend(handles,labels,loc="upper right",ncol=ncol,fontsize=10,numpoints=1)
-            ax.axis(False)
-            fig.savefig(os.path.join(self.output_path,"legend_comptrendcycle.png"))
-            plt.close()
-
-        ## !!! TO-DO? Implement the std calculation for spatial trends.
-        ## spatial distribution Taylor plot
-        #if has_std:
-        #    page.addFigure("Temporally integrated period mean",
-        #                   "spatial_variance",
-        #                   "RNAME_spatial_variance.png",
-        #                   side   = "SPATIAL TAYLOR DIAGRAM",
-        #                   legend = False)
-        #    page.addFigure("Temporally integrated period mean",
-        #                   "legend_spatial_variance",
-        #                   "legend_spatial_variance.png",
-        #                   side   = "MODEL COLORS",
-        #                   legend = False)
-        #if "Benchmark" in models: colors.pop(models.index("Benchmark"))
-        #for region in self.regions:
-        #    if not (region in std and region in corr): continue
-        #
-        #    fig = plt.figure(figsize=(12.0,12.0))
-        #    for dind, z0 in enumerate(self.depths[:,0]):
-        #        zf = self.depths[dind, 1]
-        #        zstr = '%.2f-%.2f' % (z0, zf)
-        #
-        #        if not (zstr in std[region] and zstr in corr[region]): continue
-        #        if len(std[region][zstr]) != len(corr[region][zstr]): continue
-        #        if len(std[region][zstr]) == 0: continue
-        #        ax, aux = post.TaylorDiagram(np.asarray(std[region][zstr]),
-        #                                     np.asarray(corr[region][zstr]),
-        #                                     1.0,fig,colors,True,220+dind+1)
-        #        ax.set_title(zstr + ' ' + self.depths_units)
-        #    fig.savefig(os.path.join(self.output_path,
-        #                             "%s_spatial_variance.png" % (region)))
-        #    plt.close()
-
+    
+                    if not (zstr in std[region] and zstr in corr[region]): continue
+                    if len(std[region][zstr]) != len(corr[region][zstr]): continue
+                    if len(std[region][zstr]) == 0: continue
+                    ax, aux = post.TaylorDiagram(np.asarray(std[region][zstr]),
+                                                 np.asarray(corr[region][zstr]),
+                                                 1.0,fig,colors,True,220+dind+1)
+                    ax.set_title(zstr + ' ' + self.depths_units)
+                fig.savefig(os.path.join(self.output_path,
+                                         "%s_" + ffix + "_spatial_variance.png" % (region)))
+                plt.close()
 
 
     def modelPlots(self,m):
@@ -719,7 +693,6 @@ class ConfSoilMoisture(Confrontation):
         netCDF file which results from the analysis and create
         plots. Note that determinePlotLimits should be called before
         this routine.
-
         """
         self._relationship(m)
         self._sensitivity(m)
@@ -729,29 +702,30 @@ class ConfSoilMoisture(Confrontation):
         if not os.path.isfile(fname): return
 
         # get the HTML page
-        for grp in ['MeanState', 'TrendState']:
-            page = [page for page in self.layout.pages if grp in page.name][0]
+        for pn, ffix in zip(['MeanState', 'TrendState'], ["mean", "trend"]):
+            page = [page for page in self.layout.pages if pn in page.name][0]
     
             with Dataset(fname) as dataset:
-                group     = dataset.groups[grp]
+                group     = dataset.groups[pn]
                 variables = getVariableList(group)
                 color     = dataset.getncattr("color")
                 for vname in variables:
                     # The other depths will be handled in plotting
                     zstr_0 = '%.2f-%.2f' % (self.depths[0,0], self.depths[0,1])
                     if not zstr_0 in vname: continue
-                    
+
                     # is this a variable we need to plot?
-                    pname = vname.split("_")[0]
                     if group.variables[vname][...].size <= 1: continue
-                    var = Variable(filename=fname,groupname=grp,variable_name=vname)
-    
+                    var = Variable(filename=fname,groupname=pn,variable_name=vname)
+
+                    pname = vname.split("_")[1]
+
                     if (var.spatial or (var.ndata is not None)) and not var.temporal:
-    
+
                         # grab plotting options
-                        if pname not in self.limits.keys(): continue
-                        if pname not in space_opts: continue
-                        opts = space_opts[pname]
+                        if pname not in self.limits[pn].keys(): continue
+                        if pname not in space_opts[ffix]: continue
+                        opts = space_opts[ffix][pname]
     
                         ##print('... is used in space_opts') # DEBUG
     
@@ -761,7 +735,7 @@ class ConfSoilMoisture(Confrontation):
                                        opts["pattern"],
                                        side   = opts["sidelbl"],
                                        legend = opts["haslegend"])
-    
+
                         # plot variable
                         for region in self.regions:
                             nax = self.depths.shape[0]
@@ -769,20 +743,22 @@ class ConfSoilMoisture(Confrontation):
                             for dind, z0 in enumerate(self.depths[:,0]):
                                 zf = self.depths[dind,1]
                                 zstr = '%.2f-%.2f' % (z0, zf)
-                                var2 = Variable(filename=fname, groupname = grp,
+                                var2 = Variable(filename=fname, groupname = pn,
                                                 variable_name=vname.replace(zstr_0, zstr))
                                 ax = var2.plot(None, fig, nax, region = region,
-                                               vmin   = self.limits[pname]["min"],
-                                               vmax   = self.limits[pname]["max"],
-                                               cmap   = self.limits[pname]["cmap"])
+                                               vmin   = self.limits[pn][pname]["min"],
+                                               vmax   = self.limits[pn][pname]["max"],
+                                               cmap   = self.limits[pn][pname]["cmap"])
                                 ax.set_title(zstr + ' ' + self.depths_units)
                             fig.savefig(os.path.join(self.output_path,
-                                                     "%s_%s_%s.png" % (m.name,region,pname)))
+                                                     "%s_%s_%s_%s.png" % (m.name,region,ffix,
+                                                                          pname)))
                             plt.close()
-    
+
                         # Jumping through hoops to get the benchmark plotted and in the html output
-                        if self.master and (pname == "timeint" or pname == "phase" or pname == "iav"):
-                            opts = space_opts[pname]
+                        if self.master and (pname == "timeint" or \
+                                            pname == "phase" or pname == "iav"):
+                            opts = space_opts[ffix][pname]
     
                             # add to html layout
                             page.addFigure(opts["section"],
@@ -790,7 +766,7 @@ class ConfSoilMoisture(Confrontation):
                                            opts["pattern"].replace("MNAME","Benchmark"),
                                            side   = opts["sidelbl"].replace("MODEL","BENCHMARK"),
                                            legend = True)
-    
+
                             # plot variable
                             for region in self.regions:
                                 nax = self.depths.shape[0]
@@ -798,27 +774,30 @@ class ConfSoilMoisture(Confrontation):
                                 for dind, z0 in enumerate(self.depths[:,0]):
                                     zf = self.depths[dind,1]
                                     zstr = '%.2f-%.2f' % (z0, zf)
-                                    obs = Variable(filename=bname,groupname=grp,
+                                    obs = Variable(filename=bname,groupname=pn,
                                                    variable_name=vname.replace(zstr_0, zstr))
                                     ax = obs.plot(None, fig, nax, region = region,
-                                                  vmin   = self.limits[pname]["min"],
-                                                  vmax   = self.limits[pname]["max"],
-                                                  cmap   = self.limits[pname]["cmap"])
+                                                  vmin   = self.limits[pn][pname]["min"],
+                                                  vmax   = self.limits[pn][pname]["max"],
+                                                  cmap   = self.limits[pn][pname]["cmap"])
                                     ax.set_title(zstr + ' ' + self.depths_units)
-                                fig.savefig(os.path.join(self.output_path,"Benchmark_%s_%s.png" % (region,pname)))
+                                fig.savefig(os.path.join(self.output_path,
+                                                         "Benchmark_%s_%s_%s.png" % (region,
+                                                                                     ffix,
+                                                                                     pname)))
                                 plt.close()
     
                     if not (var.spatial or (var.ndata is not None)) and var.temporal:
                         # grab the benchmark dataset to plot along with
                         try:
-                            obs = Variable(filename=bname,groupname=grp,
+                            obs = Variable(filename=bname,groupname=pn,
                                            variable_name=vname).convert(var.unit)
                         except:
                             continue
     
                         # grab plotting options
-                        if pname not in time_opts: continue
-                        opts = time_opts[pname]
+                        if pname not in time_opts[ffix]: continue
+                        opts = time_opts[ffix][pname]
     
                         # add to html layout
                         page.addFigure(opts["section"],
@@ -841,22 +820,25 @@ class ConfSoilMoisture(Confrontation):
                                 else:
                                     ax = axes.flat[dind]
     
-                                var2 = Variable(filename=fname, groupname = grp,
+                                var2 = Variable(filename=fname, groupname = pn,
                                                 variable_name=vname.replace(zstr_0, zstr))
-                                obs = Variable(filename=bname,groupname=grp,
-                                               variable_name=vname.replace(zstr_0, zstr)).convert(var2.unit)
+                                obs = Variable(filename=bname,groupname=pn,
+                                      variable_name=vname.replace(zstr_0, zstr)).convert(var2.unit)
                                 obs.plot(ax, lw = 2, color = 'k', alpha = 0.5)
                                 var2.plot(ax, lw = 2, color = color, label = m.name,
                                           ticks     =opts["ticks"],
                                           ticklabels=opts["ticklabels"])
-                                dy = 0.05*(self.limits[pname][region]["max"]-self.limits[pname][region]["min"])
-                                ax.set_ylim(self.limits[pname][region]["min"]-dy,
-                                            self.limits[pname][region]["max"]+dy)
+                                dy = 0.05*(self.limits[pn][pname][region]["max"] - \
+                                           self.limits[pn][pname][region]["min"])
+                                ax.set_ylim(self.limits[pn][pname][region]["min"]-dy,
+                                            self.limits[pn][pname][region]["max"]+dy)
                                 ylbl = opts["ylabel"]
                                 if ylbl == "unit": ylbl = post.UnitStringToMatplotlib(var.unit)
                                 ax.set_ylabel(ylbl)
                                 ax.set_title(zstr + ' ' + self.depths_units)
-                            fig.savefig(os.path.join(self.output_path,"%s_%s_%s.png" % (m.name,region,pname)))
+                            fig.savefig(os.path.join(self.output_path,
+                                                     "%s_%s_%s_%s.png" % (m.name,region,ffix,
+                                                                          pname)))
                             plt.close()
  
         logger.info("[%s][%s] Success" % (self.longname,m.name))
@@ -1071,12 +1053,13 @@ class ConfSoilMoisture(Confrontation):
             com_dep_list  = _retrieveSM(os.path.join(self.output_path,"%s_%s.nc" % (self.name,m.name     )))
             com_dep_list  = [_applyRefMask(ref_dep, com_dep) for ref_dep,com_dep in zip(ref_dep_list,com_dep_list)]
             dep_name = self.longname.split("/")[0]
-            dep_min  = self.limits["timeint"]["min"]
-            dep_max  = self.limits["timeint"]["max"]
+            dep_min  = self.limits["MeanState"]["timeint"]["min"]
+            dep_max  = self.limits["MeanState"]["timeint"]["max"]
         except:
             return
 
-        with Dataset(os.path.join(self.output_path,"%s_%s.nc" % (self.name,m.name)),mode="r+") as results:
+        with Dataset(os.path.join(self.output_path,"%s_%s.nc" % (self.name,m.name)),
+                     mode="r+") as results:
 
             # Grab/create a relationship and scalars group
             group = None
@@ -1098,8 +1081,8 @@ class ConfSoilMoisture(Confrontation):
                     com_ind  = _retrieveData(os.path.join(c.output_path,"%s_%s.nc" % (c.name,m.name     )))
                     com_ind  = _applyRefMask(ref_ind,com_ind)
                     ind_name = c.longname.split("/")[0]
-                    ind_min  = c.limits["timeint"]["min"]-1e-12
-                    ind_max  = c.limits["timeint"]["max"]+1e-12
+                    ind_min  = c.limits["MeanState"]["timeint"]["min"]-1e-12
+                    ind_max  = c.limits["MeanState"]["timeint"]["max"]+1e-12
                 except:
                     continue
 
@@ -1247,24 +1230,6 @@ class ConfSoilMoisture(Confrontation):
                             groupname     = "Sensitivities",
                             variable_name = key[1])
 
-        def _plotMap(var, pval, vminmax, title, fout):
-            # !!! Need to determine projection
-
-            fig, axes = plt.figure()
-            for dind, z0 in enumerate(self.depths[:,0]):
-                zf = self.depths[dind,1]
-                zstr = '%.2f-%.2f' % (z0, zf)
-                ax = axes.flat[dind]
-                cf = ax.contourf(var.lon, var.lat, var,
-                                 vmin = vminmax[0], vmax = vminmax[1],
-                                 cmap = 'Spectral_r')
-                ax.set_title(zstr + ' ' + self.depths_units)
-            fig.colorbar(cf, cax = fig.add_axes([0.97, 0.1, 0.02, 0.8]),
-                         orientation="vertical",label=title)
-            fig.savefig(fout)
-            plt.close()
-
-
         # Get the HTML page
         page = [page for page in self.layout.pages if "Sensitivities" in page.name]
         if len(page) == 0: return
@@ -1285,20 +1250,6 @@ class ConfSoilMoisture(Confrontation):
 
             # for each sensitivity relationship...
             for c in self.sensitivities:
-                # try to get the sensitivity map from the model and obs
-                try:
-                    ref_corr_list, ref_corr_p_list = _retrieveCorr(c.name, os.path.join(c.output_path,"%s_%s.nc" % (self.name,"Benchmark")))
-                    com_corr_list, com_corr_p_list = _retrieveCorr(c.name, os.path.join(c.output_path,"%s_%s.nc" % (self.name,m.name)))
-                    com_bias_map_list, com_biasscore_map_list = _retrieveBias(c.name, os.path.join(c.output_path,"%s_%s.nc" % (self.name,m.name)))
-                    ref_name = self.longname.split('/')[0]
-                    ref_minmax_list = [(ref_corr.data.min(), ref_corr.data.max()) \
-                                        for ref_corr in ref_corr_list]
-                    com_name = c.longname.split('/')[0]
-                    com_minmax_list = [(com_corr.data.min(), com_corr.data.max()) \ 
-                                       for com_corr in com_corr_list]
-                except:
-                    continue
-
                 # Add figures to the html page
                 page.addFigure(c.longname,
                                "benchmark_sens_%s"            % com_name,
@@ -1316,21 +1267,90 @@ class ConfSoilMoisture(Confrontation):
                                legend    = False,
                                benchmark = False)
 
-                # Analysis over regions
-                ## for region in self.regions: ## !!! TO-DO: something other than None to accept
-                # Make the plots
-                _plotMap(ref_corr_list, ref_corr_p_list, ref_minmax_list,
-                         "%s/%s,  %s" % (ref_name, self.name, 
-                                         post.UnitStringToMatplotlib(ref_corr.unit)),
-                         os.path.join(self.output_path,
-                                      "%s_%s_rel_%s.png" % ("Benchmark",region,ref_name)))
-                _plotMap(com_corr_list, com_corr_p_list, com_minmax_list,
-                         "%s/%s,  %s" % (com_name, c.name, 
-                                         post.UnitStringToMatplotlib(com_corr.unit)),
-                         os.path.join(self.output_path,
-                                      "%s_%s_rel_%s.png" % ("Benchmark",region,com_name)))
-                _plotMap(com_bias_map_list, None,
-                         "Bias, %s/%s,  %s" % (ref_name, com_name, 
-                                         post.UnitStringToMatplotlib(ref_corr.unit)))
-                _plotMap(com_biasscore_map_list, None,
-                         "Bias Score, %s/%s" % (ref_name, com_name))
+                # Get the sensitivity map from the model and obs
+                try:
+                    ref_corr_list, ref_corr_p_list = _retrieveCorr(c.name, os.path.join(c.output_path, "%s_%s.nc" % (self.name,"Benchmark")))
+                    com_corr_list, com_corr_p_list = _retrieveCorr(c.name, os.path.join(c.output_path, "%s_%s.nc" % (self.name,m.name)))
+                    com_bias_map_list, com_biasscore_map_list = _retrieveBias(c.name, os.path.join(c.output_path, "%s_%s.nc" % (self.name,m.name)))
+
+                    ref_name = self.longname.split('/')[0]
+                    ref_min = np.min([ref_corr.data.min() for ref_corr in ref_corr_list])
+                    ref_max = np.max([ref_corr.data.max() for ref_corr in ref_corr_list])
+                    com_name = c.longname.split('/')[0]
+                    com_min = np.min([com_corr.data.min() for com_corr in com_corr_list])
+                    com_max = np.max([com_corr.data.max() for com_corr in com_corr_list])
+                    diff_min = np.min([com_bias_map.data.min() \
+                                       for com_bias_map in com_bias_map_list])
+                    diff_max = np.min([com_bias_map.data.max() \
+                                       for com_bias_map in com_bias_map_list])
+                except:
+                    continue
+
+                r = Regions()
+                for region in self.regions:
+                    nax = self.depths.shape[0]
+                    fig1 = plt.figure()
+                    fig2 = plt.figure()
+                    fig3 = plt.figure()
+
+                    score_list = []
+
+                    for dind, z0 in enumerate(self.depths[:,0]):
+                        zf = self.depths[dind,1]
+                        zstr = '%.2f-%.2f' % (z0, zf)
+
+                        # Make the plots
+                        ax1 = ref_corr_list[dind].plot(None, fig, nax, region = region,
+                                                       vmin = ref_min, vmax = ref_max, 
+                                                       cmap = 'RdBu')
+                        # ---- mask the p-value
+                        ref_temp = deepcopy(ref_corr_p_list[dind])
+                        ref_temp.data.mask += r.getMask(region, ref_temp)
+                        lat = np.hstack([ref_temp.lat_bnds[:,0],ref_temp.lat_bnds[-1,-1]])
+                        lon = np.hstack([ref_temp.lon_bnds[:,0],ref_temp.lon_bnds[-1,-1]])
+                        ax1.pcolormesh(lon, lat,
+                                       np.ma.masked_array(ref_temp.data > 0.05, 
+                                                          ref_temp.data <= 0.05),
+                                       cmap = 'Grays', vmin = 0.5, vmax = 1.5, alpha = 0.5)
+                        ax1.set_title(zstr + ' ' + self.depths_units)
+
+                        ax2 = com_corr_list[dind].plot(None, fig, nax, region = region,
+                                                       vmin = com_min, vmax = com_max,
+                                                       cmap = 'RdBu')
+                        # ---- mask the p-value
+                        com_temp = deepcopy(com_corr_p_list[dind])
+                        com_temp.data.mask += r.getMask(region, com_temp)
+                        lat = np.hstack([com_temp.lat_bnds[:,0],com_temp.lat_bnds[-1,-1]])
+                        lon = np.hstack([com_temp.lon_bnds[:,0],com_temp.lon_bnds[-1,-1]])
+                        ax2.pcolormesh(lon, lat,
+                                       np.ma.masked_array(com_temp.data > 0.05, 
+                                                          com_temp.data <= 0.05),
+                                       cmap = 'Grays', vmin = 0.5, vmax = 1.5, 
+                                       alpha = 0.5)
+                        ax2.set_title(zstr + ' ' + self.depths_units)
+
+                        ax3 = com_bias_map_list[dind].plot(None, fig, nax, region = region,
+                                                           vmin = diff_min,
+                                                           vmax = diff_max, cmap = 'RdBu')
+                        ax3.set_title(zstr + ' ' + self.depths_units)
+
+                        # Score the functional response over the regions
+                        score = _scoreFunction(ref_temp,com_temp)
+                        score_list.append(score)
+
+                        del ref_temp, com_temp
+
+                    score = np.sum(np.array(score_list)*(self.depths[:,1] - \
+                                                         self.depths[:,0])) / \
+                        (self.depths[-1,1] - self.depths[0,0])
+                    sname = "%s RMSE Score %s" % (com_name,region)
+                    if sname in scalars.variables:
+                        scalars.variables[sname][0] = score
+                    else:
+                        Variable(name = sname,
+                                 unit = "1",
+                                 data = score).toNetCDF4(results,group="Sensitivites")
+
+
+            # This is gone into ILAMB.Confrontation.Confrontation.computeOverallScore(m)
+            # Figure out how to add!!!
