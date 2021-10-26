@@ -7,6 +7,7 @@ from . import Post as post
 import pylab as plt
 import numpy as np
 import os
+from cf_units import Unit
 
 class ConfRunoff(Confrontation):
     """A confrontation for examining the runoff in 50 of the world's largest river basins.
@@ -51,6 +52,11 @@ class ConfRunoff(Confrontation):
                                   alt_vars     = self.alternate_vars,
                                   initial_time = obs.time_bnds[ 0,0],
                                   final_time   = obs.time_bnds[-1,1])
+
+        # Some models output total volumetric rate instead of an area density
+        if (Unit(mod.unit)/Unit("m3 s-1")).is_dimensionless():
+            mod.data /= mod.area
+            mod.unit = mod.unit + " m-2"
 
         # We want annual mean, not monthly mean
         years = np.asarray([obs.time_bnds[  ::12,0],
