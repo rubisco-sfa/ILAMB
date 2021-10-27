@@ -348,7 +348,7 @@ time_opts["dtcycle"]  = { "name"       : "Spatially integrated regional mean det
                           "ylabel"     : "unit"}
 
 for pn, ffix in zip(["MeanState", "TrendState"], ["mean", "trend"]):
-    space_opts[pn] = {}
+    time_opts[pn] = {}
 
     time_opts[pn]["spaceint"] = { "name"       : "Spatially integrated regional " + ffix,
                                   "section"    : "Spatially integrated regional " + ffix,
@@ -372,7 +372,7 @@ for pn, ffix in zip(["MeanState", "TrendState"], ["mean", "trend"]):
                                "section"    : "Spatially integrated regional " + ffix,
                                "haslegend"  : False,
                                "pattern"    : "MNAME_RNAME_" + ffix + "_cycle.png",
-                               "sidelbl"    : "ANNUAL CYCLE OF " + ffix.uper(),
+                               "sidelbl"    : "ANNUAL CYCLE OF " + ffix.upper(),
                                "ticks"      : mid_months/365.+1850.,
                                "ticklabels" : lbl_months,
                                "ylabel"     : "unit" }

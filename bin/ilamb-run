@@ -409,6 +409,7 @@ def BuildLocalWorkList(M,C,skip_cache=False):
 
     return localW
 
+
 def WorkConfront(W,verbose=False,clean=False):
     """Performs the confrontation analysis
 
@@ -457,6 +458,7 @@ def WorkConfront(W,verbose=False,clean=False):
             if verbose:
                 print(("    {0:>%d} {1:<%d} %s%s%s" % (maxCL,maxML,FAIL,ex.__class__.__name__,ENDC)).format(c.longname,m.name))
 
+
 def WorkPost(M,C,W,S,verbose=False,skip_plots=False):
     """Performs the post-processing
 
@@ -479,9 +481,7 @@ def WorkPost(M,C,W,S,verbose=False,skip_plots=False):
         enable to skip plotting
     """
     maxCL = 45; maxML = 20
-    for c in C: 
-        print(c.name, c.source, c.variable, c.output_path) # DEBUG
-        c.determinePlotLimits()
+    for c in C: c.determinePlotLimits()
     for i,w in enumerate(W):
         m,c = w
         try:
@@ -493,6 +493,9 @@ def WorkPost(M,C,W,S,verbose=False,skip_plots=False):
             proc[rank] += dt
             if verbose:
                 dt = datetime.timedelta(seconds=max(1,int(np.round(dt))))
+                print(("    {0:>%d} {1:<%d} %sCompleted%s {2:>8}" % (maxCL,maxML,OK,ENDC)).format(c.longname,m.name,str(dt)))
+
+
                 print(("    {0:>%d} {1:<%d} %sCompleted%s {2:>8}" % (maxCL,maxML,OK,ENDC)).format(c.longname,m.name,str(dt)))
                 sys.stdout.flush()
         except Exception as ex:
@@ -552,6 +555,7 @@ class MPIFileHandler(logging.FileHandler):
 
     def _open(self):
         stream = MPI.File.Open( self.comm, self.baseFilename, self.mode )
+
         stream.Set_atomicity(True)
         return stream
 
@@ -690,8 +694,7 @@ S = Scoreboard(args.config[0],
                rmse_score_basis = args.rmse_score_basis)
 
 C  = MatchRelationshipConfrontation(S.list())
-
-C  = MatchSensitivityConfrontation(C) # YW
+C  = MatchSensitivityConfrontation(C)
 
 if len(args.study_limits) == 2:
     args.study_limits[1] += 1

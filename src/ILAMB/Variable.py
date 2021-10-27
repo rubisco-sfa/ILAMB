@@ -5,13 +5,13 @@ import cartopy.crs as ccrs
 import cartopy.feature as cfeature
 from pylab import get_cmap
 from cf_units import Unit
+import cftime as cf
 from . import ilamblib as il
 from . import Post as post
 import numpy as np
 import matplotlib.pyplot as plt
 import warnings
 from scipy.stats import linregress
-import dask.array as dsa
 
 
 def _shiftLon(lon):
@@ -39,6 +39,17 @@ def _createBnds(x):
         x_bnds[ 0,0] = x[ 0] - 0.5*(x[ 1]-x[ 0])
         x_bnds[-1,1] = x[-1] + 0.5*(x[-1]-x[-2])
     return x_bnds
+
+
+def _normalize(ma_array):
+    temp = np.where(ma_array.mask, np.nan, ma_array.data)
+    n_mean = np.nanmean(temp, axis = 0, keepdims = True)
+    n_std = np.nanstd(temp, axis = 0, keepdims = True)
+    temp = (temp - n_mean) / np.where((n_std > 0.) | np.isnan(n_std), n_std, 
+                                      np.nanmin(n_std[n_std > 0.]) * 1e-3)
+    temp = np.ma.masked_where(ma_array.mask, temp)
+    return temp, n_mean, n_std
+
 
 def _olsTensor(Y, x):
     """ Repeated calculation of linear regression in the spatial dimensions.
@@ -92,6 +103,10 @@ def _olsTensor(Y, x):
     x = np.ma.array(x.data, mask = x.mask | Y.mask)
     Y = np.ma.array(Y, mask = x.mask)
 
+    # normalize
+    x, _, x_scale = _normalize(x)
+    Y, _, Y_scale = _normalize(Y)
+
     # add constant term
     x = np.ma.concatenate([np.ma.array(np.ones(Y.shape), mask = Y.mask), x], axis = 1)
 
@@ -109,14 +124,28 @@ def _olsTensor(Y, x):
     dof = np.sum(Y.mask == False, axis = 0) - 2
     resid = yy - np.einsum('ijk,jlk->ilk', xx, beta)
     mse = np.sum(np.power(resid,2), axis=0) / dof
-    std = np.ma.sum(np.ma.power(x[:,[1],:] - \
-                                np.ma.mean(x[:,[1],:],axis=0,keepdims=True), 2), axis = 0)
+    # somehow, unable to apply np.ma.mean on x[:,[1],:]
+    temp = x[:,[1],:]
+    temp.data[temp.mask] = np.nan
+    temp = temp.data
+    std = np.nansum(np.power(temp - np.nanmean(temp, axis = 0, keepdims = True), 2), axis = 0)
+
+    # somehow, using masked array here results in underflow error; had to use np.nan
+    np.seterr(divide='ignore', invalid='ignore')
+    beta = beta[1, :] # discard intercept
     tval = beta / np.sqrt(mse/std)
+    np.seterr(divide='raise', invalid='raise')
     pval = 2 * t.sf(np.abs(tval), dof)
 
-    # discard intercept & restore shape
-    beta = np.ma.array(beta[1,:], mask = np.sum(Y.mask==False, axis = 0)<3)
-    pval = np.ma.array(pval[1,:], mask = np.sum(Y.mask==False, axis = 0)<3)
+    # scale the beta
+    beta = beta * Y_scale / x_scale
+
+    # mask the data
+    tval = np.ma.masked_invalid(tval)
+    pval = np.ma.array(pval, mask = tval.mask)
+    beta = np.ma.array(beta, mask = tval.mask)
+
+    # restore shape
     if len(orig_shape) > 1:
         beta = beta.reshape(orig_shape[1:])
         pval = pval.reshape(orig_shape[1:])
@@ -750,7 +779,8 @@ class Variable:
         mask = False
         if self.data.ndim > 1 and self.data.mask.size > 1:
             ##mask = np.apply_along_axis(np.all,0,self.data.mask[ind])
-            mask = np.all(self.data.mask[ind], 0)
+            mask = np.broadcast_to(np.all(self.data.mask[ind], 0, keepdims = True), 
+                                   self.data.mask.shape)
         data = np.ma.masked_array(self.data[ind],mask=mask,copy=False)
         if self.data_bnds is not None:
             data_bnds = np.ma.concatenate([self.data_bnds[...,0][ind],
@@ -768,10 +798,12 @@ class Variable:
             begin        = np.argmin(self.time[:11]%365)
             end          = begin+int(self.time[begin:].size/12.)*12
             shp          = (-1,12) + data.shape[1:]
-            integral     = data[begin:end,...].reshape(shp)
+            integral     = np.mean(data[begin:end,...].reshape(shp), axis = 0)
             if self.data_bnds is not None:
                 shp          = (-1,12) + data_bnds.shape[1:]
-                integral_bnd = data_bnds[begin:end,...].reshape(shp)
+                integral_bnd = np.mean(data_bnds[begin:end,...].reshape(shp), axis = 0)
+            else:
+                integral_bnd = None
         else:
             integral     = data
             integral_bnd = data_bnds
@@ -783,11 +815,11 @@ class Variable:
             unit  = Unit(unit0.format().split()[-1])
             if not isinstance(integral.mask, np.ndarray):
                 if integral.mask == True:
-                   integral=np.ma.masked_array(data=integral.data, 
-                                               mask=np.ones(integral.shape,dtype='bool'))
-               else:
-                   integral=np.ma.masked_array(data=integral.data,
-                                               mask=np.zeros(integral.shape,dtype='bool'))
+                    integral=np.ma.masked_array(data=integral.data, 
+                                                mask=np.ones(integral.shape,dtype='bool'))
+                else:
+                    integral=np.ma.masked_array(data=integral.data,
+                                                mask=np.zeros(integral.shape,dtype='bool'))
             unit0.convert(integral,unit,inplace=True)
             if integral_bnd is not None:
                 unit0.convert(integral_bnd,unit,inplace=True)
@@ -795,20 +827,23 @@ class Variable:
         # calculate the trend and the significance
         # !!! TO-DO: Change the trend_lower_bnd & trend_upper_bnd to be based on 
         #            the confidence interval of the linear regression
-        trend, trend_p = _olsTensor(integral, np.mean(time_bnds, axis = 1))
+        trend, trend_p = _olsTensor(integral, np.arange(integral.shape[0]))
         if integral_bnd is not None:
             trend_lower_bnd, trend_lower_bnd_p = _olsTensor(integral_bnd[0,...], 
-                                                            np.mean(time_bnds, axis =1))
+                                                            np.arange(integral.shape[0]))
             trend_upper_bnd, trend_upper_bnd_p = _olsTensor(integral_bnd[1,...], 
-                                                            np.mean(time_bnds, axis =1))
+                                                            np.arange(integral.shape[0]))
 
             trend_bnd = np.ma.stack([trend_lower_bnd[np.newaxis, ...],
                                      trend_upper_bnd[np.newaxis, ...]], axis = 0)
             trend_bnd_p = np.ma.stack([trend_lower_bnd_p[np.newaxis, ...],
                                        trend_upper_bnd_p[np.newaxis, ...]], axis = 0)
+        else:
+            trend_bnd = None
+            trend_bnd_p = None
 
         # handle units
-        unit = Unit(self.unit + " year$^{-1}$")
+        unit = Unit(self.unit + " year-1")
         name = self.name + "_trend_over_time"
 
         return Variable(data = trend, data_bnds = trend_bnd,
@@ -817,7 +852,7 @@ class Variable:
                         lon = self.lon, lon_bnds = self.lon_bnds,
                         depth = self.depth, depth_bnds = self.depth_bnds,
                         area = self.area, ndata = self.ndata), \
-               Variable(data = trend_p, data_bnds = trend_bnd_p, unit = None,
+               Variable(data = trend_p, data_bnds = trend_bnd_p, unit = '1',
                         name = name.replace("trend", "trendp"),
                         lat = self.lat, lat_bnds = self.lat_bnds,
                         lon = self.lon, lon_bnds = self.lon_bnds,
@@ -926,7 +961,7 @@ class Variable:
                         area       = self.area,
                         depth      = self.depth,
                         depth_bnds = self.depth_bnds,
-                        ndata      = self.ndata),
+                        ndata      = self.ndata), \
                Variable(data       = trend_p,
                         unit       = self.unit + "/year",
                         name       = "annual_cycle_trendp_of_%s" % self.name,
@@ -1801,7 +1836,7 @@ class Variable:
         def _covarTensor(tensor3d):
             """ Covariance matrix calculation for each data poinat along an 
                 extra dimension, e.g., in space"""
-            if tensor3d.dtype != np.ndarray:
+            if type(tensor3d) != type(np.array([[],[]])):
                 raise TypeError('Input must be numpy array.')
             if len(tensor3d.shape) != 3:
                 raise TypeError('Input must have 3 dimensions.')
@@ -1848,10 +1883,7 @@ class Variable:
                     raise ValueError('x and covar_list must be the same shape')
             if x.shape[0] < 3:
                 raise ValueError('At least three observations are needed')
-        
-            x0 = x.copy()
-            y0 = y.copy()
-        
+
             orig_shape = x.shape
             if len(orig_shape) == 1:
                 x = x.reshape(-1, 1, 1) # extra 2nd dimension for concat
@@ -1866,52 +1898,80 @@ class Variable:
                 covar_relist = []
                 for vv in covar_list:
                     covar_relist.append(vv.reshape(new_shape))
-            covar_list = covar_relist
-            covar_relist = []; del covar_relist
 
+            # normalization does not affect calculated partial correlation
+            x, _, _ = _normalize(x)
+            y, _, _ = _normalize(y)
+            covar_list = []
+            for vv in covar_relist:
+                vv, _, _ = _normalize(vv)
+                covar_list.append(vv)
             data = np.ma.concatenate([x,y] + covar_list, axis = 1)
             del x, y; covar_list = []; del covar_list
 
-            # remove invalid points
+            # remove invalid spatial points
             retain_ind = np.any(np.all(data.mask == False, axis = 1), axis = 0)
             if sum(retain_ind) == 0:
                 raise ValueError('At least one valid spatial data point is needed')
             ## print(retain_ind) # DEBUG
             data = data[:, :, retain_ind]
-        
+
             # TO-DO: Need to think of a way to deal with the different number
             #        of data points in space. Right now it imposes the minimum
             #        overlapping number of valid data points.
-            drop_replica = np.all(np.all(data.mask == False, axis = 2), axis = 1)
-            ## print(drop_replica) # DEBUG
-            if sum(drop_replica) < 3:
-                raise ValueError('At least three valid observations are needed')
-            data = data[drop_replica, :, :]
-        
+
+            # decide whether to drop the spatial grids that contain invalid points in time,
+            # or the observational replicates that have invalid spatial grids.
+            retain_a = np.all(np.all(data.mask == False, axis = 1), axis = 0)
+            retain_b = np.all(np.all(data.mask == False, axis = 1), axis = 1)
+            if np.sum(retain_a) > np.sum(retain_b):
+                data = data[..., retain_a]
+            else:
+                if np.sum(retain_b) < 3:
+                    raise ValueError('At least three valid observations are needed')
+                data = data[retain_b, ...]
+                retain_a = None
+
             # calculate the partial correlation and significance (translated from pingouin)
-            V = _covar_tensor(data)
+            V = _covarTensor(data.data)
             ##print(data.shape) # DEBUG
             ##print(V.shape) # DEBUG
         
             Vi = np.linalg.pinv(V.transpose(2,0,1)).transpose(1,2,0)
             D = np.zeros(Vi.shape)
             for ii in np.arange(Vi.shape[0]):
+                np.seterr(divide='ignore', invalid='ignore')
                 D[ii,ii,:] = np.sqrt( 1 / Vi[ii,ii,:] )
+                np.seterr(divide='raise', invalid='raise')
+                set("raise")
             pcor = -1 * np.einsum('jik,ilk->jlk', np.einsum('jik,ilk->jlk',D,Vi), D)
             ## print(-1 * D[:,:,5] @ Vi[:,:,5] @ D[:,:,5] - pcor[:,:,5]) # check if correct
             r = pcor[0, 1, :]
-        
+
             from scipy.stats import t
             n = data.shape[0]
             k = data.shape[1] - 2
             dof = n - k - 2
+            np.seterr(divide='ignore', invalid='ignore')
             tval = r * np.sqrt(dof / (1 - r**2))
+            np.seterr(divide='raise', invalid='raise')
             pval = 2 * t.sf(np.abs(tval), dof)
 
+            r = np.ma.masked_where(np.isnan(r), r)
+            pval = np.ma.masked_where(np.isnan(pval), pval)
+
             # restore shape
-            def _restore_shape(array, retain_ind, orig_shape):
+            def _restore_shape(array, retain_ind, orig_shape, retain_a = None):
+                if retain_a is not None:
+                    array_temp = np.ma.empty(len(retain_a))
+                    array_temp.mask = retain_a == False
+                    array_temp.mask[retain_a] = array.mask
+                    array_temp.data[retain_a] = array
+                    array = array_temp
+                    del array_temp
                 array_restore = np.ma.empty(len(retain_ind))
                 array_restore.mask = retain_ind == False
+                array_restore.mask[retain_ind] = array.mask
                 array_restore.data[retain_ind] = array
                 array_restore = array_restore.reshape(orig_shape[1:])
                 return array_restore
@@ -1923,14 +1983,14 @@ class Variable:
             if len(orig_shape) == 1:
                 return r[0], pval[0]
             else:
-                r_restore = _restore_shape(r, retain_ind, orig_shape)
-                p_restore = _restore_shape(pval, retain_ind, orig_shape)
+                r_restore = _restore_shape(r, retain_ind, orig_shape, retain_a)
+                p_restore = _restore_shape(pval, retain_ind, orig_shape, retain_a)
                 return r_restore, p_restore
-
 
         # checks on data consistency
         assert region is None
-        assert self.data.shape == var.data.shape
+        for var in var_indep_list:
+            assert self.data.shape == var.data.shape
         assert ctype is "temporal"
 
         # determine arguments for functions
@@ -1957,20 +2017,31 @@ class Variable:
         if self.monthly and (self.time.size > 11):
             begin            = np.argmin(self.time[:11]%365)
             end              = begin+int(self.time[begin:].size/12.)*12
-            shp              = (-1,12) + self.data.shape[1:]
-            x_mean           = np.ma.mean(self.data[begin:end,...].reshape(shp),
-                                          axis = 1, keepdims = True)
+            shp              = ((end-begin)//12, 12) + self.data.shape[1:]
+
+            # somehow I get floating point error doing this using np.mean or np.ma.mean
+            temp = self.data[begin:end,...].data.copy()
+            temp[self.data[begin:end,...].mask == True] = np.nan
+            x_mean       = np.nanmean(temp, axis = 0, keepdims=True)
+            x_mean       = np.ma.masked_where(np.isnan(x_mean), x_mean)
+
             x                = self.data[begin:end,...] - \
-                               np.broadcast_to(x_mean, shp).reshape((-1,) + self.data.shape[1:])
+                               np.broadcast_to(x_mean, shp).reshape((-1,)+self.data.shape[1:])
+
             y_list           = []
             for i, y in enumerate(var_indep_list):
                 begin        = np.argmin(y.time[:11]%365)
                 end          = begin+int(y.time[begin:].size/12.)*12
-                shp          = (-1,12) + y.data.shape[1:]
-                y_mean       = np.ma.mean(y.data[begin:end,...].reshape(shp),
-                                          axis = 1, keepdims = True)
-                y_temp       = y.data[being:end,...] - \
-                               np.broadcast_to(y_mean, shp).reshape((-1,) + y.data.shape[1:])
+                shp          = ((end-begin)//12, 12) + y.data.shape[1:]
+
+                # somehow I get floating point error doing this using np.mean or np.ma.mean
+                temp = y.data[begin:end,...].data.copy()
+                temp[y.data[begin:end,...].mask == True] = np.nan
+                y_mean       = np.nanmean(temp, axis = 0, keepdims=True)
+                y_mean       = np.ma.masked_where(np.isnan(y_mean), y_mean)
+
+                y_temp       = y.data[begin:end,...] - \
+                               np.broadcast_to(y_mean, shp).reshape((-1,)+y.data.shape[1:])
                 y_list.append(y_temp)
         else:
             x                = self.data
@@ -1980,15 +2051,19 @@ class Variable:
         result = {}
         for i, y in enumerate(y_list):
             r, p = _partialCorrTensor(x, y, y_list[:i] + y_list[(i+1):])
+            r = np.where( np.abs(r) < 1e-8, 0., r ) # control for floating point precision
+
             r = Variable(data=r,unit="1",
-                         name="%s_partial_correlation_of_%s_and_%s" % (ctype,self.name,y.name),
+                         name="%s_partial_correlation_of_%s_and_%s" % (ctype,self.name,
+                                                                       var_indep_list[i].name),
                          time=out_time,time_bnds=out_time_bnds,ndata=out_ndata,
                          lat=out_lat,lon=out_lon,area=out_area)
-            p = Variable(data=r,unit="1",
-                         name="%s_partial_pvalue_of_%s_and_%s" % (ctype,self.name,y.name),
+            p = Variable(data=p,unit="1",
+                         name="%s_partial_pvalue_of_%s_and_%s" % (ctype,self.name,
+                                                                  var_indep_list[i].name),
                          time=out_time,time_bnds=out_time_bnds,ndata=out_ndata,
                          lat=out_lat,lon=out_lon,area=out_area)
-            result[y.name] = {'r': r, 'p': p}
+            result[var_indep_list[i].name] = {'r': r, 'p': p}
         return result
 
 

@@ -142,7 +142,6 @@ class Confrontation(object):
         self.table_unit     = keywords.get("table_unit",None)
         self.plot_unit      = keywords.get("plot_unit",None)
         self.space_mean     = keywords.get("space_mean",True)
-        # !!! Trend keywords
         self.relationships  = keywords.get("relationships",None)
         self.sensitivities  = keywords.get("sensitivities",None) # YW
         self.keywords       = keywords
@@ -168,10 +167,13 @@ class Confrontation(object):
                                "Spatially integrated regional mean"])
 
         # Trend State page, YW
-        if self.___:
-            pages.insert(-2, post.HtmlPage('TrendState', 'Trend State'))
-            pages[-2].setHeader('CNAME / RNAME / MNAME')
-            pages[-2].setSections(["Temporally integrated period trend",
+        skip_trend     = self.keywords.get("skip_trend"    ,False)
+        if type(skip_trend)  == type(""):
+            skip_trend = (skip_trend.lower() == "true")
+        if not skip_trend:
+            pages.append(post.HtmlPage('TrendState', 'Trend State'))
+            pages[-1].setHeader('CNAME / RNAME / MNAME')
+            pages[-1].setSections(["Temporally integrated period trend",
                                    "Spatially integrated regional trend"])
 
         # Datasites page
@@ -217,10 +219,10 @@ class Confrontation(object):
             pages[-1].setSections(list(self.relationships))
 
         # Sensitivities page, YW
-        if self.sensitivites is not None:
-            pages.insert(-2, post.HtmlPage('Sensitivities', 'Partial Correlation Relationships'))
-            pages[-2].setHeader('CNAME / RNAME / MNAME')
-            pages[-2].setSections(list(self.sensitivities))
+        if self.sensitivities is not None:
+            pages.append(post.HtmlPage('Sensitivities', 'Partial Correlation Relationships'))
+            pages[-1].setHeader('CNAME / RNAME / MNAME')
+            pages[-1].setSections(list(self.sensitivities))
 
         pages.append(post.HtmlAllModelsPage("AllModels","All Models"))
         pages[-1].setHeader("CNAME / RNAME / MNAME")
@@ -434,7 +436,8 @@ class Confrontation(object):
                 variables = [v for v in group.variables.keys() if v not in group.dimensions.keys()]
                 for vname in variables:
                     var    = group.variables[vname]
-                    pname  = vname.split("_")[0]
+                    ## pname  = vname.split("_")[0]
+                    pname  = vname.split("_")[1] # YW: to match the prefixed part in ilamblib.py
                     region = vname.split("_")[-1]
                     if var[...].size <= 1: continue
                     if pname in space_opts:
@@ -713,7 +716,8 @@ class Confrontation(object):
             for vname in variables:
 
                     # is this a variable we need to plot?
-                    pname = vname.split("_")[0]
+                    ## pname = vname.split("_")[0]
+                    pname = vname.split("_")[1] # YW: to deal with the prefixed name part in ilamblib
                     if group.variables[vname][...].size <= 1: continue
                     var = Variable(filename=fname,groupname="MeanState",variable_name=vname)
 

@@ -189,9 +189,7 @@ class ConfSoilMoisture(Confrontation):
             logger.info("[%s][%s] building depths %.1f to %.1f in loop %d" % (self.name,m.name,z0,zf,i))
 
             # get reference variable
-            print('Loading obs ' + str(z0) + '-' + str(zf))
-            tstart = time.time() # DEBUG
-
+            tstart = time.time()
             if obs_dname is None:
                 obs = Variable(filename       = self.source,
                                variable_name  = self.variable,
@@ -209,16 +207,13 @@ class ConfSoilMoisture(Confrontation):
                                zf             = zf).trim(t = [mod_t0,mod_tf])
                 obs = obs.integrateInDepth(z0 = z0, zf = zf, mean = True)
             obs.name = "depthint%.2f-%.2f" % (z0, zf)
-
-            tend = time.time() # DEBUG
-            print("Loading obs " + str(z0) + '-' + str(zf) + ' took ' + str((tend - tstart) / 60)) # DEBUG
-            print("obs ", obs.name, obs.unit, obs.time[0], obs.time[-1],
-                  obs.lat[0], obs.lat[-1], obs.lon[0], obs.lon[-1]) # DEBUG
+            tend = time.time()
+            logger.info("[%s][%s] loading the reference depths %.1f to %.1f took %f minutes" % (self.name,m.name,z0, zf,(tend-tstart)/60))
+            ##print("obs ", obs.name, obs.unit, obs.time[0], obs.time[-1],
+            ##      obs.lat[0], obs.lat[-1], obs.lon[0], obs.lon[-1]) # DEBUG
 
             # get model variable
-            print('Loading model ' + str(z0) + '-' + str(zf))
             tstart = time.time() # DEBUG
-
             if mod_dname is None:
                 mod = m.extractTimeSeries(self.variable,
                                           alt_vars     = self.alternate_vars,
@@ -236,11 +231,10 @@ class ConfSoilMoisture(Confrontation):
                                           final_depth  = zf).trim(t=[mod_t0,mod_tf]).convert(obs.unit)
                 mod = mod.trim(d = [z0, zf]).integrateInDepth(z0 = z0, zf = zf, mean = True)
             mod.name = "depthint%.2f-%.2f" % (z0, zf)
-
             tend = time.time() # DEBUG
-            print("Loading model " + str(z0) + '-' + str(zf) + ' took ' + str((tend - tstart) / 60)) # DEBUG
-            print("mod ", mod.name, mod.unit, mod.data, mod.time[0], mod.time[-1],
-                  mod.lat[0], mod.lat[-1], mod.lon[0], mod.lon[-1]) # DEBUG
+            logger.info("[%s][%s] loading the model depths %.1f to %.1f took %f minutes" % (self.name,m.name,z0, zf,(tend-tstart)/60))
+            ##print("mod ", mod.name, mod.unit, mod.time[0], mod.time[-1],
+            ##      mod.lat[0], mod.lat[-1], mod.lon[0], mod.lon[-1]) # DEBUG
 
             assert obs.time.size == mod.time.size
 
@@ -261,8 +255,6 @@ class ConfSoilMoisture(Confrontation):
 
         def _getOrder(var):
             return np.log10(np.abs(var.data).clip(1e-16)).mean()
-            order = _getOrder(obs)
-            count = 0
 
         obs_list = []
         mod_list = []
@@ -289,13 +281,15 @@ class ConfSoilMoisture(Confrontation):
                                         extents   = self.extents,
                                         logstring = "[%s][%s]" % (self.longname,m.name))
 
+            order = _getOrder(obs)
+            count = 0
             while order < -2 and count < 2:
                 obs    = _reduceRoundoffErrors(obs)
                 order  = _getOrder(obs)
                 count += 1
 
-                # convert the model data to the same unit
-                mod = mod.convert(obs.unit)
+            # convert the model data to the same unit
+            mod = mod.convert(obs.unit)
             obs_list.append(obs)
             mod_list.append(mod)
         return obs_list, mod_list
@@ -324,11 +318,12 @@ class ConfSoilMoisture(Confrontation):
 
             # Read in some options to decide whether to run the trend state analysis
             skip_trend     = self.keywords.get("skip_trend"    ,False)
+            if type(skip_trend)  == type(""):
+                skip_trend = (skip_trend.lower() == "true")
 
             # Get the depth-integrated observation and model data for each slab.
             for obs,mod,z0,zf in self.stageData(m):
-                print('Confronting data ' + obs.name + ' v.s. ' + mod.name + \
-                      '... %.2f-%.2f' % (z0, zf)) # DEBUG
+                logger.info("[%s][%s] confronting the depths %.1f to %.1f" % (self.name,m.name,z0, zf))
 
                 if obs.spatial:
                     # Calculate mean state
@@ -372,39 +367,43 @@ class ConfSoilMoisture(Confrontation):
                     obs_comparable = deepcopy(obs)
                     mod_comparable = deepcopy(mod)
 
-                    obs_indep_list = []
-                    mod_indep_list = []
-                    for indep in self.sensitivities:
-                        obs_indep, mod_indep = self.stageRef(indep)
-                        obs_comparable, obs_indep = il.MakeComparable(obs_comparable, obs_indep,
-                                                                      mask_ref = True, clip_ref = True,
-                                                                      extents = self.extents, 
-                                                                      logstring = "[%s][%s]MakeComparablePass1" % \
-                                                                      (obs.variable_name, obs_indep.variable_name))
-                        mod_comparable, mod_indep = il.MakeComparable(mod_comparable, mod_indep,
-                                                                      mask_ref = True, clip_ref = True,
-                                                                      extents = self.extents, 
-                                                                      logstring = "[%s][%s]MakeComparablePass1" % \
-                                                                      (mod.variable_name, mod_indep.variable_name))
-                        obs_indep_list.append(obs_indep)
-                        mod_indep_list.append(mod_indep)
+                    obs_indep_list, mod_indep_list = self.stageRef(m)
+
+                    # Find the minimum overlapping time periods between obs_comparable and
+                    # all the obs_indep, mod_comparable and all the mod_indep
+                    obs_t0 = obs_comparable.time_bnds[0,0]
+                    obs_tf = obs_comparable.time_bnds[-1,1]
+                    mod_t0 = mod_comparable.time_bnds[0,0]
+                    mod_tf = mod_comparable.time_bnds[-1,1]
+                    for obs_indep, mod_indep in zip(obs_indep_list, mod_indep_list):
+                        obs_indep = il.ClipTime(obs_indep, obs_t0, obs_tf)
+                        obs_t0    = max(obs_t0, obs_indep.time_bnds[ 0,0])
+                        obs_tf    = min(obs_tf, obs_indep.time_bnds[-1,1])
+
+                        mod_indep = il.ClipTime(mod_indep, mod_t0, mod_tf)
+                        mod_t0    = max(mod_t0, mod_indep.time_bnds[ 0,0])
+                        mod_tf    = min(mod_tf, mod_indep.time_bnds[-1,1])
+
                     # (second pass)
-                    for k, obs_indep, mod_indep in zip(range(len(obs_indep_list)),
-                                                       obs_indep_list, mod_indep_list):
-                        obs_comparable, obs_indep = il.MakeComparable(obs_comparable, obs_indep,
-                                                                      mask_ref = True, clip_ref = True,
-                                                                      extents = self.extents, 
-                                                                      logstring = "[%s][%s]MakeComparablePass2" % \
-                                                                      (obs.variable_name, obs_indep.variable_name))
-                        mod_comparable, mod_indep = il.MakeComparable(mod_comparable, mod_indep,
-                                                                      mask_ref = True, clip_ref = True,
-                                                                      extents = self.extents,
-                                                                      logstring = "[%s][%s]MakeComparablePass2" % \
-                                                                      (mod.variable_name, mod_indep_variable_name))
+                    obs_comparable = il.ClipTime(obs_comparable, obs_t0, obs_tf)
+                    mod_comparable = il.ClipTime(mod_comparable, mod_t0, mod_tf)
+
+                    obs_indep_list_update = []
+                    mod_indep_list_update = []
+                    for obs_indep, mod_indep in zip(obs_indep_list, mod_indep_list):
+                        obs_indep_list_update.append(il.ClipTime(obs_indep, obs_t0, obs_tf))
+                        mod_indep_list_update.append(il.ClipTime(mod_indep, mod_t0, mod_tf))
+                    obs_indep_list = [oil for oil in obs_indep_list_update]
+                    mod_indep_list = [mil for mil in mod_indep_list_update]
+                    obs_indep_list_update = []
+                    mod_indep_list_update = []
 
                     if obs.spatial:
-                        il.AnalysisPartialCorrSpace(obs_comparable, mod_comparable, 
-                                                    obs_indep_list, mod_indep_list)
+                        il.AnalysisPartialCorrSpace(obs_comparable, mod_comparable,
+                                                    obs_indep_list, mod_indep_list,
+                                                    benchmark_dataset = fcm.obs_dset,
+                                                    dataset           = fcm.mod_dset,
+                                                    mass_weighting    = mass_weighting)
                     else:
                         # !!! TO-DO: Add AnalysisPartialCorrSites
                         pass
@@ -434,17 +433,16 @@ class ConfSoilMoisture(Confrontation):
         prune  = False
         for fname in glob.glob(os.path.join(self.output_path,"*.nc")):
             with Dataset(fname) as dataset:
-                for pn in ["MeanState", "TrendState"]:
+                for pn,ffix in zip(["MeanState", "TrendState"], ["mean", "trend"]):
                     if pn not in dataset.groups: continue
-
                     limits[pn] = {}
-
                     group     = dataset.groups[pn]
                     variables = [v for v in group.variables.keys() \
                                  if v not in group.dimensions.keys()]
                     for vname in variables:
+                        if (ffix + "_") != vname[:(len(ffix)+1)]: continue
                         var    = group.variables[vname]
-                        pname  = vname.split("_")[0]
+                        pname  = vname.split("_")[1]
                         region = vname.split("_")[-1]
                         if var[...].size <= 1: continue
                         if pname in space_opts[pn]:
@@ -539,7 +537,10 @@ class ConfSoilMoisture(Confrontation):
 
         # get the HTML page
         for pn, ffix in zip(['MeanState', 'TrendState'], ['mean', 'trend']):
-            page = [page for page in self.layout.pages if pn in page.name][0]
+            try:
+                page = [page for page in self.layout.pages if pn in page.name][0]
+            except:
+                continue
 
             models = []
             colors = []
@@ -588,7 +589,7 @@ class ConfSoilMoisture(Confrontation):
 
             # composite annual cycle plot
             if has_cycle and len(models) > 0:
-                page.addFigure("Spatially integrated regional mean",
+                page.addFigure("Spatially integrated regional " + ffix,
                                ffix + "_compcycle",
                                "RNAME_" + ffix + "_compcycle.png",
                                side   = "ANNUAL CYCLE",
@@ -613,19 +614,19 @@ class ConfSoilMoisture(Confrontation):
                                    self.limits[pn]["cycle"][region]["min"])
     
                         var.plot(ax, lw=2, color=color, label=name,
-                                 ticks      = time_opts[ffix]["cycle"]["ticks"],
-                                 ticklabels = time_opts[ffix]["cycle"]["ticklabels"],
+                                 ticks      = time_opts[pn]["cycle"]["ticks"],
+                                 ticklabels = time_opts[pn]["cycle"]["ticklabels"],
                                  vmin       = self.limits[pn]["cycle"][region]["min"]-dy,
                                  vmax       = self.limits[pn]["cycle"][region]["max"]+dy)
                         ylbl = post.UnitStringToMatplotlib(var.unit)
                         ax.set_ylabel(ylbl)
                         ax.set_title(zstr + ' '+ self.depths_units)
                 fig.savefig(os.path.join(self.output_path,
-                                         "%s_" + ffix + "_compcycle.png" % (region)))
+                                         "%s_%s_compcycle.png" % (region, ffix)))
                 plt.close()
     
             # plot legends with model colors (sorted with Benchmark data on top)
-            page.addFigure("Spatially integrated regional mean",
+            page.addFigure("Spatially integrated regional " + ffix,
                            "legend_" + ffix + "_compcycle",
                            "legend_" + ffix + "_compcycle.png",
                            side   = "MODEL COLORS",
@@ -682,7 +683,7 @@ class ConfSoilMoisture(Confrontation):
                                                  1.0,fig,colors,True,220+dind+1)
                     ax.set_title(zstr + ' ' + self.depths_units)
                 fig.savefig(os.path.join(self.output_path,
-                                         "%s_" + ffix + "_spatial_variance.png" % (region)))
+                                         "%s_%s_spatial_variance.png" % (region, ffix)))
                 plt.close()
 
 
@@ -703,8 +704,11 @@ class ConfSoilMoisture(Confrontation):
 
         # get the HTML page
         for pn, ffix in zip(['MeanState', 'TrendState'], ["mean", "trend"]):
-            page = [page for page in self.layout.pages if pn in page.name][0]
-    
+            try:
+                page = [page for page in self.layout.pages if pn in page.name][0]
+            except:
+                continue
+
             with Dataset(fname) as dataset:
                 group     = dataset.groups[pn]
                 variables = getVariableList(group)
@@ -713,19 +717,19 @@ class ConfSoilMoisture(Confrontation):
                     # The other depths will be handled in plotting
                     zstr_0 = '%.2f-%.2f' % (self.depths[0,0], self.depths[0,1])
                     if not zstr_0 in vname: continue
+                    if (ffix + "_") != vname[:(len(ffix)+1)]: continue
 
                     # is this a variable we need to plot?
                     if group.variables[vname][...].size <= 1: continue
                     var = Variable(filename=fname,groupname=pn,variable_name=vname)
-
                     pname = vname.split("_")[1]
 
                     if (var.spatial or (var.ndata is not None)) and not var.temporal:
 
                         # grab plotting options
                         if pname not in self.limits[pn].keys(): continue
-                        if pname not in space_opts[ffix]: continue
-                        opts = space_opts[ffix][pname]
+                        if pname not in space_opts[pn]: continue
+                        opts = space_opts[pn][pname]
     
                         ##print('... is used in space_opts') # DEBUG
     
@@ -758,7 +762,7 @@ class ConfSoilMoisture(Confrontation):
                         # Jumping through hoops to get the benchmark plotted and in the html output
                         if self.master and (pname == "timeint" or \
                                             pname == "phase" or pname == "iav"):
-                            opts = space_opts[ffix][pname]
+                            opts = space_opts[pn][pname]
     
                             # add to html layout
                             page.addFigure(opts["section"],
@@ -796,8 +800,8 @@ class ConfSoilMoisture(Confrontation):
                             continue
     
                         # grab plotting options
-                        if pname not in time_opts[ffix]: continue
-                        opts = time_opts[ffix][pname]
+                        if pname not in time_opts[pn]: continue
+                        opts = time_opts[pn][pname]
     
                         # add to html layout
                         page.addFigure(opts["section"],
@@ -1199,36 +1203,87 @@ class ConfSoilMoisture(Confrontation):
                              data = score).toNetCDF4(results,group="Relationships")
 
 
-    def _sensitivities(self, m):
+    def _sensitivity(self, m):
         # If there are no sensitivities to analyze, get out of here
         if self.sensitivities is None: return
 
-        def _retrieveCorr(cname, filename):
-            # Grab by depth!!!!!!!!!
+        def _retrieveCorr(variable, filename, alternate_vars):
             with Dataset(filename,mode="r") as dset:
-                key  = [v for v in dset.groups["Sensitivies"].variables.keys() \
-                        if "partial_correlation_" in v and cname in v]
-                key2 = [v for v in dset.groups["Sensitivies"].variables.keys() \
-                        if "partial_pvalue_" in v and cname in v]
-            return Variable(filename      = filename,
-                            groupname     = "Sensitivities",
-                            variable_name = key[0]), \
-                   Variable(filename      = filename,
-                            groupname     = "Sensitivities",
-                            variable_name = key[1])
+                varlist   = [variable] + alternate_vars
+                corr_list_orig = []
+                corr_list_itrp = []
+                pval_list_orig = []
+                pval_list_itrp = []
+                for dind, z0 in enumerate(self.depths[:,0]):
+                    zf = self.depths[dind,1]
+                    zstr = '%.2f-%.2f' % (z0, zf)
 
-        def _retrieveBias(cname, filename):
+                    key  = [v for v in dset.groups["Sensitivities"].variables.keys() \
+                            if "partial_correlation_" in v and zstr in v and \
+                            sum([vv in v for vv in varlist]) > 0 and \
+                            'original grids' in v]
+                    if len(key) > 0:
+                        corr_list_orig.append(Variable(filename      = filename,
+                                                       groupname     = "Sensitivities",
+                                                       variable_name = key[0]))
+                    key2 = [v for v in dset.groups["Sensitivities"].variables.keys() \
+                            if "partial_correlation_" in v and zstr in v and \
+                            sum([vv in v for vv in varlist]) > 0 and \
+                            'common grids' in v]
+                    if len(key2) > 0:
+                        corr_list_itrp.append(Variable(filename      = filename,
+                                                       groupname     = "Sensitivities",
+                                                       variable_name = key2[0]))
+                    key3 = [v for v in dset.groups["Sensitivities"].variables.keys() \
+                            if "partial_pvalue_" in v and zstr in v and \
+                            sum([vv in v for vv in varlist]) > 0 and \
+                            'original grids' in v]
+                    if len(key3) > 0:
+                        pval_list_orig.append(Variable(filename      = filename,
+                                                       groupname     = "Sensitivities",
+                                                       variable_name = key3[0]))
+                    key4 = [v for v in dset.groups["Sensitivities"].variables.keys() \
+                            if "partial_pvalue_" in v and zstr in v and \
+                            sum([vv in v for vv in varlist]) > 0 and \
+                            'common grids' in v]
+                    if len(key4) > 0:
+                        pval_list_itrp.append(Variable(filename      = filename,
+                                                       groupname     = "Sensitivities",
+                                                       variable_name = key4[0]))
+                return corr_list_orig, corr_list_itrp, pval_list_orig, pval_list_itrp
+
+        def _retrieveBias(variable, filename, alternate_vars):
             with Dataset(filename,mode="r") as dset:
-                key  = [v for v in dset.groups["Sensitivies"].variables.keys() \
-                        if "sensitivity_bias_map_" in v and cname in v]
-                key2  = [v for v in dset.groups["Sensitivies"].variables.keys() \
-                         if "sensitivity_biasscore_map_" in v and cname in v]
-            return Variable(filename      = filename,
-                            groupname     = "Sensitivities",
-                            variable_name = key[0]), \
-                   Variable(filename      = filename,
-                            groupname     = "Sensitivities",
-                            variable_name = key[1])
+                varlist   = [variable] + alternate_vars
+                key_list  = []
+                key2_list = []
+
+                for dind, z0 in enumerate(self.depths[:,0]):
+                    zf = self.depths[dind,1]
+                    zstr = '%.2f-%.2f' % (z0, zf)
+
+                    key  = [v for v in dset.groups["Sensitivities"].variables.keys() \
+                            if "sensitivity_bias_map_" in v and zstr in v and \
+                            sum([vv in v for vv in varlist]) > 0]
+                    key2  = [v for v in dset.groups["Sensitivities"].variables.keys() \
+                             if "sensitivity_biasscore_map_" in v and zstr in v and \
+                             sum([vv in v for vv in varlist]) > 0]
+                    if len(key) > 0:
+                        key_list.append(key[0])
+                    if len(key2) > 0:
+                        key2_list.append(key2[0])
+            return [Variable(filename      = filename,
+                             groupname     = "Sensitivities",
+                             variable_name = kk) for kk in key_list], \
+                   [Variable(filename      = filename,
+                             groupname     = "Sensitivities",
+                             variable_name = kk) for kk in key2_list]
+
+        def _scoreFunction(ref,com):
+            mask = ref.mask + com.mask
+            ref  = np.ma.masked_array(ref.data,mask=mask).compressed()
+            com  = np.ma.masked_array(com.data,mask=mask).compressed()
+            return np.exp(-np.linalg.norm(ref-com)/np.linalg.norm(ref))
 
         # Get the HTML page
         page = [page for page in self.layout.pages if "Sensitivities" in page.name]
@@ -1237,6 +1292,7 @@ class ConfSoilMoisture(Confrontation):
 
         with Dataset(os.path.join(self.output_path,"%s_%s.nc" % (self.name,m.name)),
                      mode="r+") as results:
+
             # Grab/create a sensitivity and scalars group
             group = None
             if "Sensitivities" not in results.groups:
@@ -1249,7 +1305,28 @@ class ConfSoilMoisture(Confrontation):
                 scalars = group.groups["scalars"]
 
             # for each sensitivity relationship...
-            for c in self.sensitivities:
+            for c in self.sensitivities:                
+                # Get the sensitivity map from the model and obs
+                try:
+                    import pdb; pdb.set_trace()
+
+                    ref_corr_list, REF_corr_list, ref_corr_p_list, REF_corr_p_list = _retrieveCorr(c.variable, os.path.join(self.output_path, "%s_%s.nc" % (self.name,"Benchmark")), c.alternate_vars)
+                    com_corr_list, COM_corr_list, com_corr_p_list, COM_corr_p_list = _retrieveCorr(c.variable, os.path.join(self.output_path, "%s_%s.nc" % (self.name,m.name)), c.alternate_vars)
+                    com_bias_map_list, com_biasscore_map_list = _retrieveBias(c.variable, os.path.join(self.output_path, "%s_%s.nc" % (self.name,m.name)), c.alternate_vars)
+
+                    ref_name = self.longname.split('/')[0]
+                    ref_min = np.min([ref_corr.data.min() for ref_corr in ref_corr_list])
+                    ref_max = np.max([ref_corr.data.max() for ref_corr in ref_corr_list])
+                    com_name = c.longname.split('/')[0]
+                    com_min = np.min([com_corr.data.min() for com_corr in com_corr_list])
+                    com_max = np.max([com_corr.data.max() for com_corr in com_corr_list])
+                    diff_min = np.min([com_bias_map.data.min() \
+                                       for com_bias_map in com_bias_map_list])
+                    diff_max = np.min([com_bias_map.data.max() \
+                                       for com_bias_map in com_bias_map_list])
+                except:
+                    continue
+
                 # Add figures to the html page
                 page.addFigure(c.longname,
                                "benchmark_sens_%s"            % com_name,
@@ -1267,25 +1344,6 @@ class ConfSoilMoisture(Confrontation):
                                legend    = False,
                                benchmark = False)
 
-                # Get the sensitivity map from the model and obs
-                try:
-                    ref_corr_list, ref_corr_p_list = _retrieveCorr(c.name, os.path.join(c.output_path, "%s_%s.nc" % (self.name,"Benchmark")))
-                    com_corr_list, com_corr_p_list = _retrieveCorr(c.name, os.path.join(c.output_path, "%s_%s.nc" % (self.name,m.name)))
-                    com_bias_map_list, com_biasscore_map_list = _retrieveBias(c.name, os.path.join(c.output_path, "%s_%s.nc" % (self.name,m.name)))
-
-                    ref_name = self.longname.split('/')[0]
-                    ref_min = np.min([ref_corr.data.min() for ref_corr in ref_corr_list])
-                    ref_max = np.max([ref_corr.data.max() for ref_corr in ref_corr_list])
-                    com_name = c.longname.split('/')[0]
-                    com_min = np.min([com_corr.data.min() for com_corr in com_corr_list])
-                    com_max = np.max([com_corr.data.max() for com_corr in com_corr_list])
-                    diff_min = np.min([com_bias_map.data.min() \
-                                       for com_bias_map in com_bias_map_list])
-                    diff_max = np.min([com_bias_map.data.max() \
-                                       for com_bias_map in com_bias_map_list])
-                except:
-                    continue
-
                 r = Regions()
                 for region in self.regions:
                     nax = self.depths.shape[0]
@@ -1300,7 +1358,7 @@ class ConfSoilMoisture(Confrontation):
                         zstr = '%.2f-%.2f' % (z0, zf)
 
                         # Make the plots
-                        ax1 = ref_corr_list[dind].plot(None, fig, nax, region = region,
+                        ax1 = ref_corr_list[dind].plot(None, fig1, nax, region = region,
                                                        vmin = ref_min, vmax = ref_max, 
                                                        cmap = 'RdBu')
                         # ---- mask the p-value
@@ -1311,10 +1369,10 @@ class ConfSoilMoisture(Confrontation):
                         ax1.pcolormesh(lon, lat,
                                        np.ma.masked_array(ref_temp.data > 0.05, 
                                                           ref_temp.data <= 0.05),
-                                       cmap = 'Grays', vmin = 0.5, vmax = 1.5, alpha = 0.5)
+                                       cmap = 'Greys', vmin = 0.5, vmax = 1.5, alpha = 0.5)
                         ax1.set_title(zstr + ' ' + self.depths_units)
 
-                        ax2 = com_corr_list[dind].plot(None, fig, nax, region = region,
+                        ax2 = com_corr_list[dind].plot(None, fig2, nax, region = region,
                                                        vmin = com_min, vmax = com_max,
                                                        cmap = 'RdBu')
                         # ---- mask the p-value
@@ -1325,20 +1383,32 @@ class ConfSoilMoisture(Confrontation):
                         ax2.pcolormesh(lon, lat,
                                        np.ma.masked_array(com_temp.data > 0.05, 
                                                           com_temp.data <= 0.05),
-                                       cmap = 'Grays', vmin = 0.5, vmax = 1.5, 
+                                       cmap = 'Greys', vmin = 0.5, vmax = 1.5, 
                                        alpha = 0.5)
                         ax2.set_title(zstr + ' ' + self.depths_units)
 
-                        ax3 = com_bias_map_list[dind].plot(None, fig, nax, region = region,
+                        ax3 = com_bias_map_list[dind].plot(None, fig3, nax, region = region,
                                                            vmin = diff_min,
                                                            vmax = diff_max, cmap = 'RdBu')
                         ax3.set_title(zstr + ' ' + self.depths_units)
 
                         # Score the functional response over the regions
-                        score = _scoreFunction(ref_temp,com_temp)
+                        score = _scoreFunction(REF_corr_list[dind].data, COM_corr_list[dind].data)
                         score_list.append(score)
 
                         del ref_temp, com_temp
+
+
+                    fig1.savefig(os.path.join(self.output_path, 
+                                              "Benchmark_%s_sens_%s.png" % (region, com_name)))
+                    fig2.savefig(os.path.join(self.output_path, 
+                                              "%s_%s_sens_%s.png" % (m.name, region, com_name)))
+                    fig3.savefig(os.path.join(self.output_path, 
+                                              "%s_%s_sens_diff_%s.png" % (m.name, region, 
+                                                                          com_name)))
+                    plt.close(fig1)
+                    plt.close(fig2)
+                    plt.close(fig3)
 
                     score = np.sum(np.array(score_list)*(self.depths[:,1] - \
                                                          self.depths[:,0])) / \
@@ -1349,7 +1419,7 @@ class ConfSoilMoisture(Confrontation):
                     else:
                         Variable(name = sname,
                                  unit = "1",
-                                 data = score).toNetCDF4(results,group="Sensitivites")
+                                 data = score).toNetCDF4(results,group="Sensitivities")
 
 
             # This is gone into ILAMB.Confrontation.Confrontation.computeOverallScore(m)
