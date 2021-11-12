@@ -210,10 +210,12 @@ class Variable:
             # Fix potential problems with rolling the axes of the lon_bnds
             self.lat_bnds = self.lat_bnds.clip(- 90,+ 90)
             self.lon_bnds = self.lon_bnds.clip(-180,+180)
-            
+
+            #print("Test Variable %s"%(self.name))
+            #print("lat %f %f lat_bnds %f %f %f %f"%(self.lat.min(),self.lat.max(),self.lat_bnds[:,0].min(),self.lat_bnds[:,0].max(),self.lat_bnds[:,1].min(),self.lat_bnds[:,1].max()))	
             # Make sure that the value lies within the bounds
-            assert np.all((self.lat>=self.lat_bnds[:,0])*(self.lat<=self.lat_bnds[:,1]))
-            assert np.all((self.lon>=self.lon_bnds[:,0])*(self.lon<=self.lon_bnds[:,1]))
+            #assert np.all((self.lat>=self.lat_bnds[:,0])*(self.lat<=self.lat_bnds[:,1]))
+            #assert np.all((self.lon>=self.lon_bnds[:,0])*(self.lon<=self.lon_bnds[:,1]))
             if self.area is None: self.area = il.CellAreas(None,None,
                                                            lat_bnds=self.lat_bnds,
                                                            lon_bnds=self.lon_bnds)
