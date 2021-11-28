@@ -1727,8 +1727,6 @@ def AnalysisTrendStateSpace(ref,com,**keywords):
     com_trend         = keywords.get("com_trend"        ,None)
     com_trend_p       = keywords.get("com_trend_p"      ,None)
     rmse_score_basis  = keywords.get("rmse_score_basis" ,"cycle")
-    ILAMBregions      = Regions()
-    spatial           = ref.spatial
 
     # Convert str types to booleans
     if type(skip_rmse) == type(""):
@@ -1748,9 +1746,6 @@ def AnalysisTrendStateSpace(ref,com,**keywords):
     lat,lon,lat_bnds,lon_bnds = _composeGrids(ref,com)
     REF   = ref.interpolate(lat=lat,lon=lon,lat_bnds=lat_bnds,lon_bnds=lon_bnds)
     COM   = com.interpolate(lat=lat,lon=lon,lat_bnds=lat_bnds,lon_bnds=lon_bnds)
-    unit  = REF.unit
-    area  = REF.area
-    ndata = REF.ndata
 
     REF_timeint = REF.integrateInTime(mean=True).convert(plot_unit)
     normalizer  = REF_timeint.data if mass_weighting else None
@@ -1771,9 +1766,9 @@ def AnalysisTrendStateSpace(ref,com,**keywords):
 
     # Report period trend values over all possible representations of land
     if benchmark_dataset is not None:
-        ref_trend.name = "trend_of_%s" % name
+        ref_trend.name = "trend_timeint_of_%s" % name
         ref_trend.toNetCDF4(benchmark_dataset,group="TrendState")
-        ref_trend_p.name = "trendp_of_%s" % name
+        ref_trend_p.name = "trendp_timeint_of_%s" % name
         ref_trend_p.toNetCDF4(benchmark_dataset,group="TrendState")
 
     # Similar as above, but for the comparison (model) data
@@ -1786,9 +1781,9 @@ def AnalysisTrendStateSpace(ref,com,**keywords):
         COM_trend_p = com_trend_p.interpolate(lat=lat,lon=lon,lat_bnds=lat_bnds,lon_bnds=lon_bnds)
 
     if dataset is not None:
-        com_trend.name = "trend_of_%s" % name
+        com_trend.name = "trend_timeint_of_%s" % name
         com_trend.toNetCDF4(dataset,group="TrendState")
-        com_trend_p.name = "trendp_of_%s" % name
+        com_trend_p.name = "trendp_timeint_of_%s" % name
         com_trend_p.toNetCDF4(dataset,group="TrendState")
 
     # Cycle: maps, scalars, and scores
@@ -1809,7 +1804,6 @@ def AnalysisTrendStateSpace(ref,com,**keywords):
             ref_maxt_map.toNetCDF4(benchmark_dataset,group="TrendState")
             for region in regions:
                 ref_spaceint = REF.integrateInSpace(region=region,mean=True).convert(table_unit)
-                ref_spaceint.name = "trend_spaceint_of_%s_over_%s" % (name,region)
 
                 ref_trend_cycle, _   = ref_spaceint.trendAnnualCycle()
                 ref_trend_cycle.name = "trend_cycle_of_%s_over_%s" % (name,region)
@@ -2051,7 +2045,7 @@ def AnalysisPartialCorrSpace(ref,com,ref_indep_list,com_indep_list,**keywords):
     COM_corr = COM.partialCorrelation(COM_indep_list, ctype = "temporal")
     for pp in ref_corr.keys():
         for ss in ['r', 'p']:
-            print(pp, ss) # DEBUB
+            # print(pp, ss) # DEBUG
 
             temp = ref_corr[pp][ss]
             temp.name = 'Benchmark (original grids) ' + temp.name

@@ -615,15 +615,16 @@ class HtmlAllModelsPage(HtmlPage):
                 for section in page.sections:
                     if len(page.figures[section]) == 0: continue
                     for figure in page.figures[section]:
-                        if (figure.name in ["spatial_variance","compcycle","profile",
-                                            "legend_spatial_variance","legend_compcycle"]): continue # ignores
+                        if sum([n in figure.name for n in \
+                                ["spatial_variance","compcycle","profile",
+                                "legend_spatial_variance","legend_compcycle"]]): continue # ignores
                         if "benchmark" in figure.name:
                             if figure.name not in bench: bench.append(figure.name)
                             continue
                         if figure not in self.plots: self.plots.append(figure)
                         if not figure.legend: self.nolegend.append(figure.name)
         self.nobench = [plot.name for plot in self.plots if "benchmark_%s" % (plot.name) not in bench]
-        
+
     def __str__(self):
 
         if self.plots is None: self._populatePlots()
@@ -669,16 +670,28 @@ class HtmlAllModelsPage(HtmlPage):
       <select id="%sPlot" onchange="AllSelect()">""" % (self.name)
             for plot in self.plots:
                 name  = ''
-                if plot.name in space_opts:
-                    name = space_opts[plot.name]["name"]
-                elif plot.name in time_opts:
-                    name = time_opts[plot.name]["name"]
+                if "mean_" in plot.name:
+                    pname   = plot.name.split("mean_")[-1]
+                    sp_opts = space_opts["MeanState"]
+                    tm_opts = time_opts ["MeanState"]
+                elif "trend_" in plot.name:
+                    pname   = plot.name.split("trend_")[-1]
+                    sp_opts = space_opts["TrendState"]
+                    tm_opts = time_opts ["TrendState"]
+                else:
+                    pname   = plot.name
+                    sp_opts = space_opts
+                    tm_opts = time_opts
+                if pname in sp_opts:
+                    name = sp_opts[pname]["name"]
+                elif pname in tm_opts:
+                    name = tm_opts[pname]["name"]
                 elif plot.longname is not None:
                     name = plot.longname
                 if "rel_" in plot.name: name = plot.name.replace("rel_","Relationship with ")
                 if name == "": continue
                 opts  = ''
-                if plot.name == "timeint" or len(self.plots) == 1:
+                if pname == "timeint" or len(self.plots) == 1:
                     opts  = ' selected="selected"'
                 code += """
         <option value='%s'%s>%s</option>""" % (plot.name,opts,name)

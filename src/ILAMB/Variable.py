@@ -118,10 +118,9 @@ def _olsTensor(Y, x):
                                np.linalg.pinv(np.einsum('ijk,ilk->jlk',xx,xx \
                                                     ).transpose(2,0,1)).transpose(1,2,0),
                                xx), yy)
-
     # calculate the p-value
     from scipy.stats import t
-    dof = np.sum(Y.mask == False, axis = 0) - 2
+    dof = np.sum(np.ma.getmaskarray(Y)== False, axis = 0) - 2
     resid = yy - np.einsum('ijk,jlk->ilk', xx, beta)
     mse = np.sum(np.power(resid,2), axis=0) / dof
     # somehow, unable to apply np.ma.mean on x[:,[1],:]
@@ -154,7 +153,7 @@ def _olsTensor(Y, x):
         pval = float(pval.data)
     return beta, pval
 
-        
+
 class Variable:
     r"""A class for managing variables and their analysis.
 
@@ -1910,7 +1909,7 @@ class Variable:
             del x, y; covar_list = []; del covar_list
 
             # remove invalid spatial points
-            retain_ind = np.any(np.all(data.mask == False, axis = 1), axis = 0)
+            retain_ind = np.any(np.all(np.ma.getmaskarray(data) == False, axis = 1), axis = 0)
             if sum(retain_ind) == 0:
                 raise ValueError('At least one valid spatial data point is needed')
             ## print(retain_ind) # DEBUG
@@ -1922,8 +1921,8 @@ class Variable:
 
             # decide whether to drop the spatial grids that contain invalid points in time,
             # or the observational replicates that have invalid spatial grids.
-            retain_a = np.all(np.all(data.mask == False, axis = 1), axis = 0)
-            retain_b = np.all(np.all(data.mask == False, axis = 1), axis = 1)
+            retain_a = np.all(np.all(np.ma.getmaskarray(data) == False, axis = 1), axis = 0)
+            retain_b = np.all(np.all(np.ma.getmaskarray(data) == False, axis = 1), axis = 1)
             if np.sum(retain_a) > np.sum(retain_b):
                 data = data[..., retain_a]
             else:
@@ -2021,7 +2020,7 @@ class Variable:
 
             # somehow I get floating point error doing this using np.mean or np.ma.mean
             temp = self.data[begin:end,...].data.copy()
-            temp[self.data[begin:end,...].mask == True] = np.nan
+            temp[np.ma.getmaskarray(self.data[begin:end,...]) == True] = np.nan
             x_mean       = np.nanmean(temp, axis = 0, keepdims=True)
             x_mean       = np.ma.masked_where(np.isnan(x_mean), x_mean)
 
@@ -2036,7 +2035,7 @@ class Variable:
 
                 # somehow I get floating point error doing this using np.mean or np.ma.mean
                 temp = y.data[begin:end,...].data.copy()
-                temp[y.data[begin:end,...].mask == True] = np.nan
+                temp[np.ma.getmaskarray(y.data[begin:end,...]) == True] = np.nan
                 y_mean       = np.nanmean(temp, axis = 0, keepdims=True)
                 y_mean       = np.ma.masked_where(np.isnan(y_mean), y_mean)
 

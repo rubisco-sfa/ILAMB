@@ -445,15 +445,12 @@ class ConfSoilMoisture(Confrontation):
                         pname  = vname.split("_")[1]
                         region = vname.split("_")[-1]
                         if var[...].size <= 1: continue
-                        if pname in space_opts[pn]:
-                            if pname not in limits[pn]:
-                                limits[pn][pname] = {}
-                                limits[pn][pname]["min"]  = +1e20
-                                limits[pn][pname]["max"]  = -1e20
-                                limits[pn][pname]["unit"] = post.UnitStringToMatplotlib(var.getncattr("units"))
-                            limits[pn][pname]["min"] = min(limits[pn][pname]["min"],var.getncattr(min_str))
-                            limits[pn][pname]["max"] = max(limits[pn][pname]["max"],var.getncattr(max_str))
-                        elif pname in time_opts[pn]:
+                        if pname in time_opts[pn]:
+                            """If the plot is a time series, it has been averaged over regions
+                            already and we need a separate dictionary for the
+                            region as well. These can be based on the
+                            percentiles from the attributes of the netCDF
+                            variables."""
                             if pname not in limits[pn]: limits[pn][pname] = {}
                             if region not in limits[pn][pname]:
                                 limits[pn][pname][region] = {}
@@ -462,6 +459,21 @@ class ConfSoilMoisture(Confrontation):
                                 limits[pn][pname][region]["unit"] = post.UnitStringToMatplotlib(var.getncattr("units"))
                             limits[pn][pname][region]["min"] = min(limits[pn][pname][region]["min"],var.getncattr("min"))
                             limits[pn][pname][region]["max"] = max(limits[pn][pname][region]["max"],var.getncattr("max"))
+                        else:
+                            """If the plot is spatial, we want to set the limits as a percentile
+                            of all data across models and the
+                            benchmark. So here we load the data up and in
+                            another pass will compute the percentiles."""
+                            if pname not in limits[pn]:
+                                limits[pn][pname] = {}
+                                limits[pn][pname]["min"]  = +1e20
+                                limits[pn][pname]["max"]  = -1e20
+                                limits[pn][pname]["unit"] = post.UnitStringToMatplotlib(var.getncattr("units"))
+                                limits[pn][pname]["data"] = var[...].compressed()
+                            else:
+                                limits[pn][pname]["data"] = np.hstack([limits[pn][pname]["data"],var[...].compressed()])
+                            limits[pn][pname]["min"] = min(limits[pn][pname]["min"],var.getncattr(min_str))
+                            limits[pn][pname]["max"] = max(limits[pn][pname]["max"],var.getncattr(max_str))
                         if not prune and "Benchmark" in fname and pname == "timeint":
                             prune = True
                             self.pruneRegions(Variable(filename      = fname,
@@ -469,7 +481,7 @@ class ConfSoilMoisture(Confrontation):
                                                        groupname     = pn))
 
         # Second pass to plot legends (FIX: only for master?)
-        for pn in ["MeanState", "TrendState"]:
+        for pn, ffix in zip(["MeanState", "TrendState"], ["mean", "trend"]):
             if not pn in limits.keys(): continue
             for pname in limits[pn].keys():
                 try:
@@ -479,7 +491,8 @@ class ConfSoilMoisture(Confrontation):
 
                 # Determine plot limits and colormap
                 if opts["sym"]:
-                    vabs =  max(abs(limits[pn][pname]["min"]),abs(limits[pn][pname]["min"]))
+                    vabs =  max(abs(limits[pn][pname]["min"]),
+                                abs(limits[pn][pname]["min"]))
                     limits[pn][pname]["min"] = -vabs
                     limits[pn][pname]["max"] =  vabs
     
@@ -503,8 +516,13 @@ class ConfSoilMoisture(Confrontation):
                                   ticks = opts["ticks"],
                                   ticklabels = opts["ticklabels"],
                                   label = label)
-                    fig.savefig(os.path.join(self.output_path,"legend_%s.png" % (pname)))
+                    fig.savefig(os.path.join(self.output_path,"legend_%s.png" % (ffix + "_" + pname)))
                     plt.close()
+
+            # For those limits which we built up data across all models, compute the percentiles
+            for pname in limits.keys():
+                if "data" in limits[pname]:
+                    limits[pn][pname]["min"],limits[pn][pname]["max"] = np.percentile(limits[pn][pname]["data"],[1,99])
 
         # Determine min/max of relationship variables
         for fname in glob.glob(os.path.join(self.output_path,"*.nc")):
@@ -703,7 +721,7 @@ class ConfSoilMoisture(Confrontation):
         if not os.path.isfile(fname): return
 
         # get the HTML page
-        for pn, ffix in zip(['MeanState', 'TrendState'], ["mean", "trend"]):
+        for pn, ffix in zip(["MeanState", "TrendState"], ["mean", "trend"]):
             try:
                 page = [page for page in self.layout.pages if pn in page.name][0]
             except:
@@ -725,17 +743,14 @@ class ConfSoilMoisture(Confrontation):
                     pname = vname.split("_")[1]
 
                     if (var.spatial or (var.ndata is not None)) and not var.temporal:
-
                         # grab plotting options
                         if pname not in self.limits[pn].keys(): continue
                         if pname not in space_opts[pn]: continue
-                        opts = space_opts[pn][pname]
-    
-                        ##print('... is used in space_opts') # DEBUG
-    
+                        opts = space_opts[pn][pname] 
+ 
                         # add to html layout
                         page.addFigure(opts["section"],
-                                       pname,
+                                       ffix + "_" + pname,
                                        opts["pattern"],
                                        side   = opts["sidelbl"],
                                        legend = opts["haslegend"])
@@ -758,7 +773,7 @@ class ConfSoilMoisture(Confrontation):
                                                      "%s_%s_%s_%s.png" % (m.name,region,ffix,
                                                                           pname)))
                             plt.close()
-
+        
                         # Jumping through hoops to get the benchmark plotted and in the html output
                         if self.master and (pname == "timeint" or \
                                             pname == "phase" or pname == "iav"):
@@ -766,7 +781,7 @@ class ConfSoilMoisture(Confrontation):
     
                             # add to html layout
                             page.addFigure(opts["section"],
-                                           "benchmark_%s" % pname,
+                                           "benchmark_%s" % (ffix + "_" + pname),
                                            opts["pattern"].replace("MNAME","Benchmark"),
                                            side   = opts["sidelbl"].replace("MODEL","BENCHMARK"),
                                            legend = True)
@@ -790,7 +805,7 @@ class ConfSoilMoisture(Confrontation):
                                                                                      ffix,
                                                                                      pname)))
                                 plt.close()
-    
+
                     if not (var.spatial or (var.ndata is not None)) and var.temporal:
                         # grab the benchmark dataset to plot along with
                         try:
@@ -805,11 +820,11 @@ class ConfSoilMoisture(Confrontation):
     
                         # add to html layout
                         page.addFigure(opts["section"],
-                                       pname,
+                                       ffix + "_" + pname,
                                        opts["pattern"],
                                        side   = opts["sidelbl"],
                                        legend = opts["haslegend"])
-    
+
                         # plot variable
                         for region in self.regions:
                             if region not in vname: continue
@@ -1308,8 +1323,6 @@ class ConfSoilMoisture(Confrontation):
             for c in self.sensitivities:                
                 # Get the sensitivity map from the model and obs
                 try:
-                    import pdb; pdb.set_trace()
-
                     ref_corr_list, REF_corr_list, ref_corr_p_list, REF_corr_p_list = _retrieveCorr(c.variable, os.path.join(self.output_path, "%s_%s.nc" % (self.name,"Benchmark")), c.alternate_vars)
                     com_corr_list, COM_corr_list, com_corr_p_list, COM_corr_p_list = _retrieveCorr(c.variable, os.path.join(self.output_path, "%s_%s.nc" % (self.name,m.name)), c.alternate_vars)
                     com_bias_map_list, com_biasscore_map_list = _retrieveBias(c.variable, os.path.join(self.output_path, "%s_%s.nc" % (self.name,m.name)), c.alternate_vars)

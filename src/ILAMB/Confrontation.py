@@ -161,7 +161,7 @@ class Confrontation(object):
         pages = []
 
         # Mean State page
-        pages.append(post.HtmlPage("MeanState","Mean State"))
+        pages.append(post.HtmlPage("MeanState", "Mean State"))
         pages[-1].setHeader("CNAME / RNAME / MNAME")
         pages[-1].setSections(["Temporally integrated period mean",
                                "Spatially integrated regional mean"])
@@ -171,8 +171,8 @@ class Confrontation(object):
         if type(skip_trend)  == type(""):
             skip_trend = (skip_trend.lower() == "true")
         if not skip_trend:
-            pages.append(post.HtmlPage('TrendState', 'Trend State'))
-            pages[-1].setHeader('CNAME / RNAME / MNAME')
+            pages.append(post.HtmlPage("TrendState", "Trend State"))
+            pages[-1].setHeader("CNAME / RNAME / MNAME")
             pages[-1].setSections(["Temporally integrated period trend",
                                    "Spatially integrated regional trend"])
 

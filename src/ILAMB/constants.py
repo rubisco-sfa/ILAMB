@@ -297,7 +297,7 @@ for pn, ffix in zip(["MeanState", "TrendState"], ["mean", "trend"]):
                                        "pattern"   :"MNAME_RNAME_" + ffix + "_shiftscore.png",
                                        "sidelbl"   :"SEASONAL CYCLE SCORE " + ffix.upper(),
                                        "haslegend" :True }
-    
+
     space_opts[pn]["phase"]   = { "name":"Temporally integrated period " + ffix + " max month",
                                     "cmap"      :"jet",
                                     "sym"       :False,
