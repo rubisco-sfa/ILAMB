@@ -1993,14 +1993,12 @@ class Variable:
         assert ctype is "temporal"
 
         # determine arguments for functions
-        axes      = None
         out_time  = None
         out_lat   = None
         out_lon   = None
         out_area  = None
         out_ndata = None
         if ctype == "temporal":
-            axes = 0
             if self.spatial:
                 out_lat   = self.lat
                 out_lon   = self.lon

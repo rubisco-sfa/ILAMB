@@ -435,7 +435,7 @@ class ConfSoilMoisture(Confrontation):
             with Dataset(fname) as dataset:
                 for pn,ffix in zip(["MeanState", "TrendState"], ["mean", "trend"]):
                     if pn not in dataset.groups: continue
-                    limits[pn] = {}
+                    if pn not in limits: limits[pn] = {}
                     group     = dataset.groups[pn]
                     variables = [v for v in group.variables.keys() \
                                  if v not in group.dimensions.keys()]
@@ -838,7 +838,7 @@ class ConfSoilMoisture(Confrontation):
                                     ax = axes
                                 else:
                                     ax = axes.flat[dind]
-    
+
                                 var2 = Variable(filename=fname, groupname = pn,
                                                 variable_name=vname.replace(zstr_0, zstr))
                                 obs = Variable(filename=bname,groupname=pn,

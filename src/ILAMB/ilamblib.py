@@ -1613,7 +1613,7 @@ def AnalysisMeanStateSpace(ref,com,**keywords):
                         time = COM.time, time_bnds = COM.time_bnds,
                         lat  = lat, lat_bnds = lat_bnds, lon = lon, lon_bnds = lon_bnds,
                         area = COM.area, ndata = COM.ndata).convert(plot_unit)
-        
+
         try:
             import psutil
             comm = MPI.COMM_WORLD
@@ -2005,14 +2005,10 @@ def AnalysisPartialCorrSpace(ref,com,ref_indep_list,com_indep_list,**keywords):
     regions           = keywords.get("regions"          ,["global"])
     dataset           = keywords.get("dataset"          ,None)
     benchmark_dataset = keywords.get("benchmark_dataset",None)
-    table_unit        = keywords.get("table_unit"       ,None)
     plot_unit         = keywords.get("plot_unit"        ,None)
     mass_weighting    = keywords.get("mass_weighting"   ,False)
     ref_corr          = keywords.get("ref_corr"         ,None)
     com_corr          = keywords.get("com_corr"         ,None)
-    skip_rmse         = keywords.get("skip_rmse"        ,False)
-    ILAMBregions      = Regions()
-    spatial           = ref.spatial
     name              = ref.name
 
     # Interpolate both reference and comparison to a grid composed of
@@ -2020,16 +2016,13 @@ def AnalysisPartialCorrSpace(ref,com,ref_indep_list,com_indep_list,**keywords):
     ref.convert(plot_unit)
     com.convert(plot_unit)
     lat,lon,lat_bnds,lon_bnds = _composeGrids(ref,com)
+
     REF   = ref.interpolate(lat=lat,lon=lon,lat_bnds=lat_bnds,lon_bnds=lon_bnds)
     COM   = com.interpolate(lat=lat,lon=lon,lat_bnds=lat_bnds,lon_bnds=lon_bnds)
-    ref_and_com = (REF.data.mask == False) * (REF.data.mask == False)
     REF_indep_list = [rr.interpolate(lat=lat,lon=lon,lat_bnds=lat_bnds,lon_bnds=lon_bnds) \
                       for rr in ref_indep_list]
     COM_indep_list = [cc.interpolate(lat=lat,lon=lon,lat_bnds=lat_bnds,lon_bnds=lon_bnds) \
                       for cc in com_indep_list]
-    unit  = ref.unit
-    area  = ref.area
-    ndata = ref.ndata
 
     REF_timeint = REF.integrateInTime(mean=True).convert(plot_unit)
     normalizer  = REF_timeint.data if mass_weighting else None
@@ -2047,21 +2040,33 @@ def AnalysisPartialCorrSpace(ref,com,ref_indep_list,com_indep_list,**keywords):
         for ss in ['r', 'p']:
             # print(pp, ss) # DEBUG
 
-            temp = ref_corr[pp][ss]
-            temp.name = 'Benchmark (original grids) ' + temp.name
-            temp.toNetCDF4(benchmark_dataset, group = 'Sensitivities')
+            ref_temp = ref_corr[pp][ss]
+            # somehow I need to remask this to make Score calculation behave correctly
+            ref_temp.data = np.ma.masked_invalid(np.where(np.any(ref.data.mask, axis = 0), 
+                                                          np.nan, ref_temp.data.data))
+            ref_temp.name = 'Benchmark (original grids) ' + ref_temp.name
+            ref_temp.toNetCDF4(benchmark_dataset, group = 'Sensitivities')
 
-            temp = com_corr[pp][ss]
-            temp.name = 'Model (original grids) ' + temp.name
-            temp.toNetCDF4(dataset, group = 'Sensitivities')
+            com_temp = com_corr[pp][ss]
+            # somehow I need to remask this to make Score calculation behave correctly
+            com_temp.data = np.ma.masked_invalid(np.where(np.any(com.data.mask, axis = 0),
+                                                          np.nan, com_temp.data.data))
+            com_temp.name = 'Model (original grids) ' + com_temp.name
+            com_temp.toNetCDF4(dataset, group = 'Sensitivities')
 
-            temp = REF_corr[pp][ss]
-            temp.name = 'Benchmark (common grids) ' + temp.name
-            temp.toNetCDF4(benchmark_dataset, group = 'Sensitivities')
+            REF_temp = REF_corr[pp][ss]
+            # somehow I need to remask this to make Score calculation behave correctly
+            REF_temp.data = np.ma.masked_invalid(np.where(np.any(REF.data.mask, axis = 0), 
+                                                          np.nan, REF_temp.data.data))
+            REF_temp.name = 'Benchmark (common grids) ' + REF_temp.name
+            REF_temp.toNetCDF4(benchmark_dataset, group = 'Sensitivities')
 
-            temp = COM_corr[pp][ss]
-            temp.name = 'Model (common grids) ' + temp.name
-            temp.toNetCDF4(dataset, group = 'Sensitivities')
+            COM_temp = COM_corr[pp][ss]
+            # somehow I need to remask this to make Score calculation behave correctly
+            COM_temp.data = np.ma.masked_invalid(np.where(np.any(COM.data.mask, axis = 0), 
+                                                          np.nan, COM_temp.data.data))
+            COM_temp.name = 'Model (common grids) ' + COM_temp.name
+            COM_temp.toNetCDF4(dataset, group = 'Sensitivities')
 
             if ss == 'p':
                 continue
@@ -2070,8 +2075,7 @@ def AnalysisPartialCorrSpace(ref,com,ref_indep_list,com_indep_list,**keywords):
             if dataset is not None:
                 for region in regions:
                     space_std,space_cor,sd_score = \
-                        REF_corr[pp][ss].spatialDistribution(COM_corr[pp][ss],
-                                                             region=region)
+                        ref_temp.spatialDistribution(com_temp, region=region)
                     sd_score.name = "Sensitivity Spatial Distribution Score %s %s %s" % (name, pp,
                                                                                          region)
                     sd_score.toNetCDF4(dataset,group="Sensitivities",
@@ -2079,10 +2083,13 @@ def AnalysisPartialCorrSpace(ref,com,ref_indep_list,com_indep_list,**keywords):
                                                    "R"  :space_cor.data})
 
             # Bias: maps, scalars, and scores
-            bias = REF_corr[pp][ss].bias(COM_corr[pp][ss])
+            bias = ref_temp.bias(com_temp)
+            # somehow I need to remask this
+            bias.data = np.ma.masked_invalid(np.where(bias.data.mask, np.nan, bias.data.data))
             # !!! TO-DO: Use the confidence interval of REF_corr instead of the REF_corr
-            bias_score_map = Score(bias, REF_corr[pp][ss])
-            bias_score_map.data.mask = (ref_and_com == False) # for some reason I need to explicitly force the mask
+            bias_score_map = Score(bias, normalizer)
+            # somehow I need to remask this
+            bias_score_map.data = np.ma.masked_invalid(np.where(bias_score_map.data.mask, np.nan, bias_score_map.data.data))
             if dataset is not None:
                 bias.name = 'sensitivity_bias_map_of_%s_and_%s' % (name, pp)
                 bias.toNetCDF4(dataset, group = 'Sensitivities')
