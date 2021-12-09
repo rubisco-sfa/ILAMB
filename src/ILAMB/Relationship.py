@@ -218,10 +218,12 @@ class Relationship(object):
             gauss_critval =  0.674 # for 50%, could make more abstract
             if self.dep_log:
                 p = np.polyfit(x,np.log10(y),self.order)
-                i = gauss_critval*(np.log10(y)-np.polyval(p,x)).std()
+                with np.errstate(under='ignore'):
+                    i = gauss_critval*(np.log10(y)-np.polyval(p,x)).std()
             else:
                 p = np.polyfit(x,y,self.order)
-                i = gauss_critval*(y-np.polyval(p,x)).std()
+                with np.errstate(under='ignore'):
+                    i = gauss_critval*(y-np.polyval(p,x)).std()
         
         # Save the arrays
         self.dist["default" if region is None else region] = dist,xedges,yedges,mean,std,p,i
