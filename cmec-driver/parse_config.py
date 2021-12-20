@@ -66,8 +66,13 @@ if __name__ == '__main__':
 
     if custom_keys is not None:
         # load cmip config
-        with open(code_dir + "/cmip.json","r") as cf:
-            cmip = json.load(cf)["default_parameters"]["cfg"]
+        try:
+            cmip = cfdict["ILAMB/CMIP"]["cfg"]
+        except KeyError:
+            print("ILAMB/CMIP settings missing from cmec.json.")
+            print("Loading CMIP obs information from ILAMB/cmec-driver/cmip.json.")
+            with open(code_dir + "/cmip.json","r") as cf:
+                cmip = cfdict["ILAMB/CMIP"]["cfg"]
         # Might need to initialize config dictionary if using custom
         if "cfg" not in cfdict:
             cfdict["cfg"] = {}
