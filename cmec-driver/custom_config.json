@@ -20,7 +20,7 @@
     "any": {
       "version": "any",
       "long_name": "any observation",
-      "description": "Any obs avialable in CMIP configuration"
+      "description": "Any obs available in CMIP configuration"
     }
   },
   "coordinates": {
