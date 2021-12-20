@@ -1,6 +1,6 @@
 {
     "settings": {
-        "name": "forcings",
+        "name": "Forcings",
         "driver": "cmec-driver/forcings.sh",
         "async": "MPI",
         "long_name": "Forcings",
@@ -8,22 +8,32 @@
         "runtime": {"ILAMB": 2.6}
     },
     "varlist": {
-        "": {
-            "long_name": "",
-            "units": "",
-            "frequency": ""
+        "tas": {
+          "long_name": "Surface Air Temperature",
+          "units": "K",
+          "frequency": "mon"
+        },
+        "pr": {
+            "long_name": "Precipitation",
+            "units": "kg m-2 s-1",
+            "frequency": "mon"
         }
     },
     "obslist": {
-        "": {
-            "version": "",
-            "long_name": "",
-            "description": ""
+        "CRU4.02": {
+            "version": "4.02",
+            "long_name": "CRU time series (TS) high-resolution gridded datasets",
+            "description": "monthly observations at meteorological stations across the world land areas"
+        },
+        "GPCPv2.3": {
+            "version": "2.3",
+            "long_name": "GPCP Version 2.3 Combined Precipitation Dataset (Final)",
+            "description": "GPCC gauge analysis to bias correct satellite estimates over land and merge with satellite based on sampling"
         }
     },
     "coordinates": {
-        "max_time_range": "",
-        "min_time_range": ""
+        "max_time_range": "year",
+        "min_time_range": "mon"
     },
     "default_parameters": {
         "cfg": {
