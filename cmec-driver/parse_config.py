@@ -61,7 +61,6 @@ if __name__ == '__main__':
 
     # Load CMIP confrontation info for custom configuration
     custom_keys = cfdict.pop("confrontations",None)
-    print(custom_keys)
 
     if custom_keys is not None:
         # load cmip config
