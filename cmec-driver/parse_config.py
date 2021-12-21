@@ -72,7 +72,7 @@ if __name__ == '__main__':
             print("ILAMB/CMIP settings missing from cmec.json.")
             print("Loading CMIP obs information from ILAMB/cmec-driver/cmip.json.")
             with open(code_dir + "/cmip.json","r") as cf:
-                cmip = cf["default_parameters"]["cfg"]
+                cmip = json.load(cf)["default_parameters"]["cfg"]
         # Might need to initialize config dictionary if using custom
         if "cfg" not in cfdict:
             cfdict["cfg"] = {}
