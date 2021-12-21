@@ -54,7 +54,6 @@ if __name__ == '__main__':
     config_file = config_dir + "/cmec.json"
     try:
         with open(config_file) as cf:
-            print(config_file)
             cfdict = json.load(cf)[module]
     except json.decoder.JSONDecodeError:
         print("Error: could not read " + config_file + ". File might not be valid JSON.")
@@ -67,7 +66,8 @@ if __name__ == '__main__':
     if custom_keys is not None:
         # load cmip config
         try:
-            cmip = cfdict["ILAMB/CMIP"]["cfg"]
+            with open(config_file) as cf:
+                cmip = json.load(cf)["ILAMB/CMIP"]["cfg"]
         except KeyError:
             print("ILAMB/CMIP settings missing from cmec.json.")
             print("Loading CMIP obs information from ILAMB/cmec-driver/cmip.json.")
