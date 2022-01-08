@@ -1384,6 +1384,7 @@ def AnalysisMeanStateSpace(ref,com,**keywords):
     if ref.time.size < 12: skip_cycle = True
     if ref.time.size == 1: skip_rmse  = True
     if skip_rmse         : skip_iav   = True
+
     name = ref.name
 
     # Interpolate both reference and comparison to a grid composed of
@@ -1534,7 +1535,6 @@ def AnalysisMeanStateSpace(ref,com,**keywords):
         del shift_map,shift_score_map
 
         # IAV: maps, scalars, scores
-        # !!!!!!!!!!!!! Why is this not plotted?
         if not skip_iav:
             REF_iav = Variable(data = np.ma.masked_array(REF.data-ExtendAnnualCycle(REF.time,ref_cycle.data,ref_cycle.time),mask=REF.data.mask),
                                unit = unit,
@@ -1737,6 +1737,7 @@ def AnalysisTrendStateSpace(ref,com,**keywords):
     # Check if we need to skip parts of the analysis
     if not ref.monthly   : skip_cycle = True
     if ref.time.size < 12: skip_cycle = True
+
     name = ref.name
 
     # Interpolate both reference and comparison to a grid composed of
@@ -1814,38 +1815,6 @@ def AnalysisTrendStateSpace(ref,com,**keywords):
                 ref_dtcycle.name     = "trend_dtcycle_of_%s_over_%s" % (name,region)
                 ref_dtcycle.toNetCDF4(benchmark_dataset,group="TrendState")
 
-                # reference period trend on intersection of land
-                ref_union_spaceint = Variable(name = "REF_and_com", unit = REF.unit,
-                    data = np.ma.masked_array(REF.data,mask=(ref_and_com==False)),
-                    time = REF.time, time_bnds = REF.time_bnds, 
-                    lat  = lat, lat_bnds = lat_bnds, lon  = lon, lon_bnds = lon_bnds,
-                    area = REF.area).integrateInSpace(region=region,
-                                                      mean=space_mean).convert(table_unit)
-
-                ref_union_trend, ref_union_trend_p = \
-                    ref_union_spaceint.convert(plot_unit).trendAnnualCycle()
-                ref_union_trend.name = "Benchmark Period Trend (intersection) %s %s" % \
-                                       (name, region)
-                ref_union_trend.toNetCDF4(dataset,group="TrendState")
-                ref_union_trend_p.name = "Benchmark Period Trend P (intersection) %s %s" % \
-                                         (name, region)
-                ref_union_trend_p.toNetCDF4(dataset,group="TrendState")
-
-                # reference period mean on complement of land
-                ref_comp_spaceint = Variable(name = "REF_not_com", unit = REF.unit,
-                    data = np.ma.masked_array(REF.data,mask=(ref_not_com==False)),
-                    time = REF.time, time_bnds = REF.time_bnds, 
-                    lat  = lat, lat_bnds = lat_bnds, lon  = lon, lon_bnds = lon_bnds,
-                    area = REF.area).integrateInSpace(region=region,
-                                                      mean=space_mean).convert(table_unit)
-                ref_comp_trend, ref_comp_trend_p = \
-                    ref_comp_spaceint.convert(plot_unit).trendAnnualCycle()
-                ref_comp_trend.name = "Benchmark Period Trend (complement) %s %s" % (name, region)
-                ref_comp_trend.toNetCDF4(dataset,group="TrendState")
-                ref_comp_trend_p.name = "Benchmark Period Trend P (complement) %s %s" % \
-                                        (name, region)
-                ref_comp_trend_p.toNetCDF4(dataset,group="TrendState")
-
         if dataset is not None:
             com_maxt_map   .toNetCDF4(dataset,group="TrendState")
             shift_map      .toNetCDF4(dataset,group="TrendState")
@@ -1866,47 +1835,11 @@ def AnalysisTrendStateSpace(ref,com,**keywords):
                 shift       = shift_map.integrateInSpace(region=region,mean=True,intabs=True)
                 shift_score = shift_score_map.integrateInSpace(region=region,mean=True,
                                                                weight=normalizer)
-                shift.name = "Trend Phase Shift %s %s" % (name, region)
+                shift.name = "Phase Shift %s %s" % (name, region)
                 shift.toNetCDF4(dataset,group="TrendState")
                 shift_score.name = "Seasonal Cycle Score %s %s" % (name, region)
                 shift_score.toNetCDF4(dataset,group="TrendState")
 
-                # comparison period mean on original grid
-                com_union_spaceint = Variable(name = "ref_and_COM", unit = COM.unit,
-                    data = np.ma.masked_array(COM.data,mask=(ref_and_com==False)),
-                    time = REF.time, time_bnds = REF.time_bnds, 
-                    lat  = lat, lat_bnds = lat_bnds, lon  = lon, lon_bnds = lon_bnds,
-                    area = COM.area).integrateInSpace(region=region,
-                                                      mean=space_mean).convert(table_unit)
-                com_period_trend, com_period_trend_p = \
-                    com_spaceint.convert(plot_unit).trendAnnualCycle()
-                com_period_trend.name = "Period Trend (original grids) %s %s" % (name, region)
-                com_period_trend.toNetCDF4(dataset,group="TrendState")
-                com_period_trend_p.name = "Period Trend P (original grids) %s %s" % (name, region)
-                com_period_trend_p.toNetCDF4(dataset,group="TrendState")
-    
-                # comparison period mean on intersection of land
-                com_comp_spaceint = Variable(name = "COM_not_ref", unit = COM.unit,
-                    data = np.ma.masked_array(COM.data,mask=(com_not_ref==False)),
-                    time = REF.time, time_bnds = REF.time_bnds, 
-                    lat  = lat, lat_bnds = lat_bnds, lon  = lon, lon_bnds = lon_bnds,
-                    area = COM.area).integrateInSpace(region=region,
-                                                      mean=space_mean).convert(table_unit)
-                com_union_trend, com_union_trend_p = \
-                    com_union_spaceint.convert(plot_unit).trendAnnualCycle()
-                com_union_trend.name = "Model Period Trend (intersection) %s %s" % (name, region)
-                com_union_trend.toNetCDF4(dataset,group="TrendState")
-                com_union_trend_p.name = "Model Period Trend P (intersection) %s %s" % \
-                                         (name, region)
-                com_union_trend_p.toNetCDF4(dataset,group="TrendState")
-    
-                # comparison period mean on complement of land
-                com_comp_trend, com_comp_trend_p = \
-                    com_comp_spaceint.convert(plot_unit).trendAnnualCycle()
-                com_comp_trend.name = "Model Period Trend (complement) %s %s" % (name, region)
-                com_comp_trend.toNetCDF4(dataset,group="TrendState")
-                com_comp_trend_p.name = "Model Period Trend P (complement) %s %s" % (name, region)
-                com_comp_trend_p.toNetCDF4(dataset,group="TrendState")
 
     # Now that we are done reporting on the intersection / complement,
     # set all masks to the intersection
@@ -1941,7 +1874,7 @@ def AnalysisTrendStateSpace(ref,com,**keywords):
         bias_score_map.toNetCDF4(dataset,group="TrendState")
         for region in regions:
             bias_val = bias.integrateInSpace(region=region,mean=True).convert(plot_unit)
-            bias_val.name = "Trend Bias %s %s" % (name, region)
+            bias_val.name = "Bias %s %s" % (name, region)
             bias_val.toNetCDF4(dataset,group="TrendState")
             bias_score = bias_score_map.integrateInSpace(region=region,mean=True,weight=normalizer)
             bias_score.name = "Bias Score %s %s" % (name, region)
@@ -1963,7 +1896,7 @@ def AnalysisTrendStateSpace(ref,com,**keywords):
             rmse_score_map.toNetCDF4(dataset,group='TrendState')
             for region in regions:
                 rmse = rmse_map.integrateInSpace(region=region,mean=True).convert(plot_unit)
-                rmse.name = 'Trend RMSE %s %s' % (name, region)
+                rmse.name = 'RMSE %s %s' % (name, region)
                 rmse.toNetCDF4(dataset,group='TrendState')
                 rmse_score = rmse_score_map.integrateInSpace(region=region,mean=True,
                                                              weight=normalizer)
@@ -2007,9 +1940,11 @@ def AnalysisPartialCorrSpace(ref,com,ref_indep_list,com_indep_list,**keywords):
     benchmark_dataset = keywords.get("benchmark_dataset",None)
     plot_unit         = keywords.get("plot_unit"        ,None)
     mass_weighting    = keywords.get("mass_weighting"   ,False)
+    skip_rmse         = keywords.get("skip_rmse"        ,False)
     ref_corr          = keywords.get("ref_corr"         ,None)
     com_corr          = keywords.get("com_corr"         ,None)
-    name              = ref.name
+
+    name = ref.name
 
     # Interpolate both reference and comparison to a grid composed of
     # their cell breaks
@@ -2019,13 +1954,13 @@ def AnalysisPartialCorrSpace(ref,com,ref_indep_list,com_indep_list,**keywords):
 
     REF   = ref.interpolate(lat=lat,lon=lon,lat_bnds=lat_bnds,lon_bnds=lon_bnds)
     COM   = com.interpolate(lat=lat,lon=lon,lat_bnds=lat_bnds,lon_bnds=lon_bnds)
-    REF_indep_list = [rr.interpolate(lat=lat,lon=lon,lat_bnds=lat_bnds,lon_bnds=lon_bnds) \
-                      for rr in ref_indep_list]
-    COM_indep_list = [cc.interpolate(lat=lat,lon=lon,lat_bnds=lat_bnds,lon_bnds=lon_bnds) \
-                      for cc in com_indep_list]
+    REF_indep_list = {key: rr.interpolate(lat=lat,lon=lon,lat_bnds=lat_bnds,lon_bnds=lon_bnds) \
+                      for key,rr in ref_indep_list.items()}
+    COM_indep_list = {key: cc.interpolate(lat=lat,lon=lon,lat_bnds=lat_bnds,lon_bnds=lon_bnds) \
+                      for key,cc in com_indep_list.items()}
 
     REF_timeint = REF.integrateInTime(mean=True).convert(plot_unit)
-    normalizer  = REF_timeint.data if mass_weighting else None
+    normalizer  = np.abs(REF_timeint.data) if mass_weighting else None
     del REF_timeint
 
     # Find the partial correlation values over the time period
@@ -2033,13 +1968,12 @@ def AnalysisPartialCorrSpace(ref,com,ref_indep_list,com_indep_list,**keywords):
     assert com_corr is None
 
     ref_corr = ref.partialCorrelation(ref_indep_list, ctype = "temporal")
+
     com_corr = com.partialCorrelation(com_indep_list, ctype = "temporal")
     REF_corr = REF.partialCorrelation(REF_indep_list, ctype = "temporal")
     COM_corr = COM.partialCorrelation(COM_indep_list, ctype = "temporal")
     for pp in ref_corr.keys():
         for ss in ['r', 'p']:
-            # print(pp, ss) # DEBUG
-
             ref_temp = ref_corr[pp][ss]
             # somehow I need to remask this to make Score calculation behave correctly
             ref_temp.data = np.ma.masked_invalid(np.where(np.any(ref.data.mask, axis = 0), 
@@ -2076,8 +2010,8 @@ def AnalysisPartialCorrSpace(ref,com,ref_indep_list,com_indep_list,**keywords):
                 for region in regions:
                     space_std,space_cor,sd_score = \
                         ref_temp.spatialDistribution(com_temp, region=region)
-                    sd_score.name = "Sensitivity Spatial Distribution Score %s %s %s" % (name, pp,
-                                                                                         region)
+                    sd_score.name = "Spatial Distribution Score %s %s %s" % (name,
+                                                                             pp, region)
                     sd_score.toNetCDF4(dataset,group="Sensitivities",
                                        attributes={"std":space_std.data,
                                                    "R"  :space_cor.data})
@@ -2097,13 +2031,46 @@ def AnalysisPartialCorrSpace(ref,com,ref_indep_list,com_indep_list,**keywords):
                 bias_score_map.toNetCDF4(dataset, group = 'Sensitivities')
                 for region in regions:
                     bias_val = bias.integrateInSpace(region=region,mean=True).convert(plot_unit)
-                    bias_val.name = 'Sensitivity Bias %s %s %s' % (name, pp, region)
+                    bias_val.name = 'Bias %s %s %s' % (name, pp, region)
                     bias_val.toNetCDF4(dataset, group = 'Sensitivities')
                     bias_score = bias_score_map.integrateInSpace(region=region,mean=True,
                                                                  weight=normalizer)
                     bias_score.name = 'Bias Score %s %s %s' % (name, pp, region)
                     bias_score.toNetCDF4(dataset, group = 'Sensitivities')
             del bias,bias_score_map
+
+            # Spatial RMSE: scalars and scores
+            if not skip_rmse:
+                def _scoreFunction(ref,com,more_mask):
+                    mask = ref.data.mask + com.data.mask + more_mask
+                    ref  = np.ma.masked_array(ref.data,mask=mask).compressed()
+                    com  = np.ma.masked_array(com.data,mask=mask).compressed()
+                    return np.exp(-np.linalg.norm(ref-com)/np.linalg.norm(ref))
+
+                rmse_map = REF_temp.spatialDifference(COM_temp)
+
+                r = Regions()
+
+                if dataset is not None:
+                    for region in regions:
+                        region_mask = r.getMask(region, rmse_map)
+                        temp = np.where(rmse_map.data.mask + region_mask,
+                                        np.nan, rmse_map.data.data)
+                        np.seterr(over='ignore',under='ignore')
+                        rmse = np.sqrt(np.nanmean(temp * temp))
+                        np.seterr(over='raise',under='raise')
+
+                        rmse = Variable(data = rmse, unit = REF_temp.unit, 
+                                        name = "RMSE %s %s %s" % (name, pp, region) \
+                        ).convert(plot_unit)
+                        rmse.toNetCDF4(dataset,group='Sensitivities')
+
+                        rmse_score = _scoreFunction(REF_temp, COM_temp, region_mask)
+                        rmse_score = Variable(data = rmse_score, unit = "1",
+                                              name = 'RMSE Score %s %s %s' % (name, pp, region))
+                        rmse_score.toNetCDF4(dataset,group='Sensitivities')
+
+                del rmse_map
 
     return
 

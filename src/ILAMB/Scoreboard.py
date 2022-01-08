@@ -49,7 +49,7 @@ class Node(object):
         self.regions             = None
         self.skip_rmse           = False
         self.skip_iav            = True
-        self.skip_trend          = False # YW
+        self.skip_trend          = True # YW
         self.mass_weighting      = False
         self.weight              = 1    # if a dataset has no weight specified, it is implicitly 1
         self.sum_weight_children = 0    # what is the sum of the weights of my children?
@@ -342,9 +342,9 @@ class Scoreboard():
 
         def _initConfrontation(node):
             if not node.isLeaf(): return
-            
+
             node.rmse_score_basis = self.rmse_score_basis
-            
+
             # if the user hasn't set regions, use the globally defined ones
             if node.regions is None: node.regions = regions
 
@@ -360,6 +360,7 @@ class Scoreboard():
                 if node.cmap is None: node.cmap = "jet"
                 node.source = os.path.join(os.environ["ILAMB_ROOT"],node.source if node.source else "")
                 node.mem_slab = mem_per_pair*0.5
+
                 node.confrontation = Constructor(**(node.__dict__))
                 node.confrontation.extents = extents
 

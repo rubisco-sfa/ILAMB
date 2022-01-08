@@ -43,8 +43,10 @@ def _createBnds(x):
 
 def _normalize(ma_array):
     temp = np.where(ma_array.mask, np.nan, ma_array.data)
-    n_mean = np.nanmean(temp, axis = 0, keepdims = True)
-    n_std = np.nanstd(temp, axis = 0, keepdims = True)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", category = RuntimeWarning)
+        n_mean = np.nanmean(temp, axis = 0, keepdims = True)
+        n_std = np.nanstd(temp, axis = 0, keepdims = True)
     temp = (temp - n_mean) / np.where((n_std > 0.) | np.isnan(n_std), n_std, 
                                       np.nanmin(n_std[n_std > 0.]) * 1e-3)
     temp = np.ma.masked_where(ma_array.mask, temp)
@@ -127,7 +129,9 @@ def _olsTensor(Y, x):
     temp = x[:,[1],:]
     temp.data[temp.mask] = np.nan
     temp = temp.data
-    std = np.nansum(np.power(temp - np.nanmean(temp, axis = 0, keepdims = True), 2), axis = 0)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", category = RuntimeWarning)
+        std = np.nansum(np.power(temp - np.nanmean(temp, axis = 0, keepdims = True), 2), axis = 0)
 
     # somehow, using masked array here results in underflow error; had to use np.nan
     np.seterr(divide='ignore', invalid='ignore')
@@ -1818,7 +1822,7 @@ class Variable:
 
         Parameters
         ----------
-        var_indep_list: list of ILAMB.Variable.Variable
+        var_indep_list: dict of ILAMB.Variable.Variable
             The variables with which we will compute partial correlation
         ctype : str
             The correlation type, one of {"spatial","temporal","spatiotemporal"}.
@@ -1988,7 +1992,7 @@ class Variable:
 
         # checks on data consistency
         assert region is None
-        for var in var_indep_list:
+        for key, var in var_indep_list.items():
             assert self.data.shape == var.data.shape
         assert ctype is "temporal"
 
@@ -2019,14 +2023,16 @@ class Variable:
             # somehow I get floating point error doing this using np.mean or np.ma.mean
             temp = self.data[begin:end,...].data.copy()
             temp[np.ma.getmaskarray(self.data[begin:end,...]) == True] = np.nan
-            x_mean       = np.nanmean(temp, axis = 0, keepdims=True)
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", category=RuntimeWarning)
+                x_mean       = np.nanmean(temp, axis = 0, keepdims=True)
             x_mean       = np.ma.masked_where(np.isnan(x_mean), x_mean)
 
             x                = self.data[begin:end,...] - \
                                np.broadcast_to(x_mean, shp).reshape((-1,)+self.data.shape[1:])
 
-            y_list           = []
-            for i, y in enumerate(var_indep_list):
+            y_list           = {}
+            for key, y in var_indep_list.items():
                 begin        = np.argmin(y.time[:11]%365)
                 end          = begin+int(y.time[begin:].size/12.)*12
                 shp          = ((end-begin)//12, 12) + y.data.shape[1:]
@@ -2034,33 +2040,36 @@ class Variable:
                 # somehow I get floating point error doing this using np.mean or np.ma.mean
                 temp = y.data[begin:end,...].data.copy()
                 temp[np.ma.getmaskarray(y.data[begin:end,...]) == True] = np.nan
-                y_mean       = np.nanmean(temp, axis = 0, keepdims=True)
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore", category=RuntimeWarning)
+                    y_mean       = np.nanmean(temp, axis = 0, keepdims=True)
                 y_mean       = np.ma.masked_where(np.isnan(y_mean), y_mean)
 
-                y_temp       = y.data[begin:end,...] - \
+                y_list[key]  = y.data[begin:end,...] - \
                                np.broadcast_to(y_mean, shp).reshape((-1,)+y.data.shape[1:])
-                y_list.append(y_temp)
         else:
             x                = self.data
-            y_list           = [var_indep_list[i].data for i in range(len(var_indep_list))]
+            y_list           = {key: val.data for key,val in var_indep_list.items()}
 
         # calculate the partial correlation
         result = {}
-        for i, y in enumerate(y_list):
-            r, p = _partialCorrTensor(x, y, y_list[:i] + y_list[(i+1):])
+        for key, y in y_list.items():
+            y_sub_list = []
+            for k,z in y_list.items():
+                if k != key:
+                    y_sub_list.append(z)
+            r, p = _partialCorrTensor(x, y, y_sub_list)
             r = np.where( np.abs(r) < 1e-8, 0., r ) # control for floating point precision
 
             r = Variable(data=r,unit="1",
-                         name="%s_partial_correlation_of_%s_and_%s" % (ctype,self.name,
-                                                                       var_indep_list[i].name),
+                         name="%s_partial_correlation_of_%s_and_%s" % (ctype,self.name,key),
                          time=out_time,time_bnds=out_time_bnds,ndata=out_ndata,
                          lat=out_lat,lon=out_lon,area=out_area)
             p = Variable(data=p,unit="1",
-                         name="%s_partial_pvalue_of_%s_and_%s" % (ctype,self.name,
-                                                                  var_indep_list[i].name),
+                         name="%s_partial_pvalue_of_%s_and_%s" % (ctype,self.name,key),
                          time=out_time,time_bnds=out_time_bnds,ndata=out_ndata,
                          lat=out_lat,lon=out_lon,area=out_area)
-            result[var_indep_list[i].name] = {'r': r, 'p': p}
+            result[key] = {'r': r, 'p': p}
         return result
 
 

@@ -166,8 +166,8 @@ class Confrontation(object):
         pages[-1].setSections(["Temporally integrated period mean",
                                "Spatially integrated regional mean"])
 
-        # Trend State page, YW
-        skip_trend     = self.keywords.get("skip_trend"    ,False)
+        # Trend State page
+        skip_trend     = self.keywords.get("skip_trend", True)
         if type(skip_trend)  == type(""):
             skip_trend = (skip_trend.lower() == "true")
         if not skip_trend:
