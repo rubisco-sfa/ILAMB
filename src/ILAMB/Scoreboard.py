@@ -2,7 +2,7 @@ from .Confrontation import Confrontation
 from .ConfNBP import ConfNBP
 from .ConfTWSA import ConfTWSA
 from .ConfRunoff import ConfRunoff
-from .ConfDrainage import ConfDrainage
+from .ConfBasin import ConfBasin
 from .ConfEvapFraction import ConfEvapFraction
 from .ConfIOMB import ConfIOMB
 from .ConfDiurnal import ConfDiurnal
@@ -290,7 +290,7 @@ ConfrontationTypes = { None              : Confrontation,
                        "ConfNBP"         : ConfNBP,
                        "ConfTWSA"        : ConfTWSA,
                        "ConfRunoff"      : ConfRunoff,
-                       "ConfDrainage"    : ConfDrainage,
+                       "ConfBasin"    : ConfBasin,
                        "ConfEvapFraction": ConfEvapFraction,
                        "ConfIOMB"        : ConfIOMB,
                        "ConfDiurnal"     : ConfDiurnal,

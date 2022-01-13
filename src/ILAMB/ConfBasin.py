@@ -9,14 +9,14 @@ import numpy as np
 import os
 from cf_units import Unit
 
-class ConfDrainage(Confrontation):
+class ConfBasin(Confrontation):
     """A confrontation for examining the runoff/drainage in defined drainage basins.
 
     """
     def __init__(self,**keywords):
 
         # Ugly, but this is how we call the Confrontation constructor
-        super(ConfDrainage,self).__init__(**keywords)
+        super(ConfBasin,self).__init__(**keywords)
 
         # Now we overwrite some things which are different here
         self.regions        = ['global']
@@ -66,6 +66,7 @@ class ConfDrainage(Confrontation):
                                   initial_time = obs.time_bnds[ 0,0],
                                   final_time   = obs.time_bnds[-1,1])
         #print(mod)
+        # save original model data as omod	
         omod=mod
         # Some models output total volumetric rate instead of an area density
         if (Unit(mod.unit)/Unit("m3 s-1")).is_dimensionless():
@@ -79,6 +80,7 @@ class ConfDrainage(Confrontation):
         mod   = mod.coarsenInTime(years)
         obs.name = "runoff"
         mod.name = "runoff"
+        # need to add code to compute min, max variables here
 
         # Operate on model data to compute mean runoff values in each basin.
         data   = np.ma.zeros(obs.data.shape)
@@ -159,8 +161,10 @@ class ConfDrainage(Confrontation):
         """
         # Grab the data
         obs,mod,omod = self.stageData(m)
-        #print("model data")
-        #print(omod)
+        print("original model data")
+        print(omod)
+        print("spatially accumulated model data")
+        print(mod)
 
         # Basic analysis from ilamblib.AnalysisMeanState() for
         # datasites and only the global region
@@ -226,7 +230,7 @@ class ConfDrainage(Confrontation):
 
         # some of the plots can be generated using the standard
         # routine, with some modifications
-        super(ConfDrainage,self).modelPlots(m)
+        super(ConfBasin,self).modelPlots(m)
 
         #
         bname = os.path.join(self.output_path,"%s_Benchmark.nc" % (self.name       ))
