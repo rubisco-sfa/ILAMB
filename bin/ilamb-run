@@ -253,6 +253,8 @@ def InitializeRegions(filenames):
         try:
             r.addRegionNetCDF4(filename)
         except IOError:
+            r.addRegionShapeFile(filename)
+        except:
             for line in open(filename):
                 line = line.strip()
                 if line.startswith("#"): continue
@@ -642,7 +644,8 @@ for region in args.regions:
     if region not in r.regions: missing.append(region)
 if len(missing) > 0:
     raise ValueError("Unable to find the following regions %s from the following list of possible regions %s" % (missing,r.regions))
-
+print("Regions list")
+print(args.regions)
 # Set up drainage basin regions
 dbasins = Regions()
 InitializeDrainageBasins(args.drainage_basins)

@@ -84,10 +84,12 @@ class Regions(object):
             #print(vregions.label[vregions.value == c].unique()[0].lower())
             label  = vregions.label[vregions.value == c].unique()[0]
             name = label.lower()
-            regionnames.append(label)
+            regionnames.append(label.lower())
             #shape = list((geom, value) for geom, value in zip(vregions.geometry[vregions.value == c], vregions.value[vregions.value == c]))
             shape = vregions[vregions.value == c]
-            Regions._regions[label] = [name, catid, shape]
+            Regions._regions[label.lower()] = [name, catid, shape]
+            Regions._sources[label.lower()] = os.path.basename(filename)
+        print(regionnames)
         return regionnames 
 
        
