@@ -14,7 +14,6 @@ dependencies:
   - netCDF4
   - sympy
   - scipy
-  - udunits
   - mpi4py
   - cf_units
   - cython
