@@ -47,8 +47,9 @@ def _normalize(ma_array):
         warnings.simplefilter("ignore", category = RuntimeWarning)
         n_mean = np.nanmean(temp, axis = 0, keepdims = True)
         n_std = np.nanstd(temp, axis = 0, keepdims = True)
+
     temp = (temp - n_mean) / np.where((n_std > 0.) | np.isnan(n_std), n_std, 
-                                      np.nanmin(n_std[n_std > 0.]) * 1e-3)
+                                       np.nanmin(n_std[n_std > 0.]) * 1e-3)
     temp = np.ma.masked_where(ma_array.mask, temp)
     return temp, n_mean, n_std
 
@@ -250,11 +251,11 @@ class Variable:
             assert variable_name is not None
             t0 = keywords.get("t0",None)
             tf = keywords.get("tf",None)
-            z0 = keywords.get("z0",None) # YW
-            zf = keywords.get("zf",None) # YW
+            z0 = keywords.get("z0",None)
+            zf = keywords.get("zf",None)
             convert_calendar = keywords.get("convert_calendar",True)
 
-            out = il.FromNetCDF4(filename,variable_name,alternate_vars,t0,tf,group=groupname,convert_calendar=convert_calendar,z0=z0,zf=zf) # YW
+            out = il.FromNetCDF4(filename,variable_name,alternate_vars,t0,tf,group=groupname,convert_calendar=convert_calendar,z0=z0,zf=zf)
             data,data_bnds,unit,name,time,time_bnds,lat,lat_bnds,lon,lon_bnds,depth,depth_bnds,cbounds,ndata,calendar,attr = out
 
         # Add handling for some units which cf_units does not support

@@ -228,11 +228,11 @@ def BuildScalars(node):
                 if section not in dset.groups: continue
                 grp = dset.groups[section]["scalars"]
                 scores = [c for c in grp.variables.keys() if "Score" in c]
-                global_scores += [c for c in scores if ((c not in global_scores) and ("global" in c))]
+                global_scores += [section+" "+c for c in scores if ((section+" "+c not in global_scores) and ("global" in c))]
                 for c in scores:
                     if c not in s.keys():
                         s[c] = np.ma.masked_array(np.zeros(len(models)),mask=np.ones(len(models),dtype=bool))
-                    s[c][models.index(dset.getncattr("name"))] = grp[c][...]
+                    s[c][models.index(dset.getncattr("name"))] = grp[c.replace(section+" ","")][...]
     else:
         scores = None
         for child in node.children:
@@ -241,7 +241,13 @@ def BuildScalars(node):
                 if c not in s.keys():
                     s[c] = np.ma.masked_array(np.zeros(len(models)),mask=np.zeros(len(models),dtype=bool))
                 if c in s['children'][child.name].keys():
-                    s[c] = s[c] + s['children'][child.name][c]*child.normalize_weight
+                    if isinstance(s[c], list):
+                        s[c] = np.ma.masked_array(s[c], mask = False)
+                    if isinstance(s['children'][child.name][c], list):
+                        temp = np.ma.masked_array(s['children'][child.name][c], mask = False)
+                    else:
+                        temp = s['children'][child.name][c]
+                    s[c] = s[c] + temp*child.normalize_weight
 
 def ConvertList(node):
     if node.name is None: return
@@ -411,25 +417,27 @@ class Scoreboard():
         global models
         global global_scores
         global section
-        
+
         rel_tree = GenerateRelationshipTree(self,M)
         global_scores = []
         models  = [m.name for m in M]
         scalars = {}
         TraversePreorder (self.tree,BuildDictionary)
 
-        section = "MeanState"    ; TraversePostorder(self.tree,BuildScalars)
-        TraversePreorder (self.tree,ConvertList)
+        section = "MeanState"      ; TraversePostorder(self.tree,BuildScalars)
         check = rel_tree.children
         if len(check) > 0: check = check[0]
         if len(check.children) > 0:
             TraversePreorder(rel_tree,BuildDictionary)
             section = "Relationships"; TraversePostorder(rel_tree,BuildScalars)
             TraversePreorder(rel_tree,ConvertList)
+        section = "TrendState"     ; TraversePostorder(self.tree,BuildScalars)
+        section = "Sensitivities"  ; TraversePostorder(self.tree,BuildScalars)
+        TraversePreorder(self.tree,ConvertList)
         with open(os.path.join(self.build_dir,filename),mode='w') as f:
             json.dump(scalars, f)
         return global_scores,rel_tree
-        
+ 
     def createHtml(self,M,filename="index.html"):
         global models
         from ILAMB.generated_version import version as ilamb_version
@@ -538,11 +546,11 @@ class Scoreboard():
 	  	  
         $.getJSON("scalars.json", function(data) {
           var scalars = data;
-	  var scalar_option = document.getElementById("ScalarOption");
+	      var scalar_option = document.getElementById("ScalarOption");
           var region_option = document.getElementById("RegionOption");
 	  var scalar_name   = scalar_option.options[scalar_option.selectedIndex].value;
 	  scalar_name  += " " + region_option.options[region_option.selectedIndex].value;
-	  
+
 	  var PuOr = ['#b35806','#e08214','#fdb863','#fee0b6','#f7f7f7','#d8daeb','#b2abd2','#8073ac','#542788'];
 	  var GnRd = ['#b2182b','#d6604d','#f4a582','#fddbc7','#f7f7f7','#d9f0d3','#a6dba0','#5aae61','#1b7837'];
 	  var cmap = GnRd;

@@ -18,10 +18,23 @@ from .Confrontation import Confrontation
 import numpy as np
 import time
 from copy import deepcopy
-
+import warnings
 
 import logging
 logger = logging.getLogger("%i" % MPI.COMM_WORLD.rank)
+
+
+def _createBnds(x):
+    x      = np.asarray(x)
+    x_bnds = np.zeros((x.size,2))
+    x_bnds[+1:,0] = 0.5*(x[:-1]+x[+1:])
+    x_bnds[:-1,1] = 0.5*(x[:-1]+x[+1:])
+    if x.size == 1:
+        x_bnds[ ...] = x
+    else:
+        x_bnds[ 0,0] = x[ 0] - 0.5*(x[ 1]-x[ 0])
+        x_bnds[-1,1] = x[-1] + 0.5*(x[-1]-x[-2])
+    return x_bnds
 
 
 class ConfSoilMoisture(Confrontation):
@@ -33,7 +46,7 @@ class ConfSoilMoisture(Confrontation):
         # Get/modify depths
         with Dataset(self.source) as dset:
             v = dset.variables[self.variable]
-            depth_name = [d for d in v.dimensions if d in ["layer","depth"]]
+            depth_name = [d for d in v.dimensions if d in ["layer","depth","levgrnd"]]
             if len(depth_name) == 0:
                 # if there is no depth dimension, we assume the data is
                 # top 10cm
@@ -54,12 +67,8 @@ class ConfSoilMoisture(Confrontation):
                     self.depths_units = dset.variables[depth_bnd_name].units
                 else:
                     data = dset.variables[depth_name][...]
-
-                    self.depths = np.asarray(self.keywords.get("depths_bnds",
-                                                               [[0., .1]]),
-                                             dtype = float)
-                    self.depths = self.depths[(self.depths[:,1]>=data.min()
-                        )*(self.depths[:,0]<=data.max()), :]
+                    data = _createBnds(data)
+                    self.depths = data
                     self.depths_units = dset.variables[depth_name].units
 
     def stageData(self,m):
@@ -87,17 +96,24 @@ class ConfSoilMoisture(Confrontation):
                 obs_t0 = obs_tb[0,0]; obs_tf = obs_tb[-1,1]
 
             obs_dname = [name for name in dset.variables.keys() \
-                         if name.lower() in ["depth_bnds", "depth_bounds"]]
-            if len(obs_dname) == 0:
-                # if there is no depth, assume the data is surface
-                obs_z0 = 0; obs_zf = 0.1; obs_nd = 0
-                obs_dname = None
-            else:
-                obs_dname = obs_dname[0]
+                        if name.lower() in ["depth", "layer", "levgrnd"]]
+            obs_dbndname = [name for name in dset.variables.keys() \
+                            if name.lower() in ["depth_bnds", "depth_bounds",
+                                                "layer_bnds", "layer_bounds",
+                                                "levgrnd_bnds", "levgrnd_bounds"]]
+            if len(obs_dbndname) > 0:
+                obs_dname = obs_dbndname[0]
                 obs_z0 = np.min(dset.variables[obs_dname])
                 obs_zf = np.max(dset.variables[obs_dname])
-                obs_nd = dset.variables[obs_dname].shape[0]
-
+            elif len(obs_dname) > 0:
+                obs_dname = obs_dname[0]
+                data = _createBnds(dset.variables[obs_dname][...].data)
+                obs_z0 = np.min(data)
+                obs_zf = np.max(data)
+            else:
+                # if there is no depth, assume the data is surface
+                obs_z0 = 0; obs_zf = 0.1
+                obs_dname = None
             info += " contents span years %.1f to %.1f and depths %.1f to %.1f, est memory %d [Mb]" % (obs_t0/365.+1850,obs_tf/365.+1850,obs_z0,obs_zf,obs_mem)
         logger.info("[%s][%s]%s" % (self.name,self.variable,info))
 
@@ -119,7 +135,6 @@ class ConfSoilMoisture(Confrontation):
         mod_tf  = -2147483648
         mod_z0  =  2147483647
         mod_zf  = -2147483648
-        mod_nd = 999
         for fname in m.variables[vname]:
             with Dataset(fname) as dset:
                 var = dset.variables[vname]
@@ -141,12 +156,13 @@ class ConfSoilMoisture(Confrontation):
                 mod_tf = max(mod_tf,mod_tb[-1,1])
 
                 mod_dname = [name for name in dset.variables.keys() \
-                             if name.lower() in ["depth_bnds", "depth_bounds"]]
-                if len(mod_dname) == 0:
-                    # if there is no depth, assume the data is surface
-                    z0 = 0; zf = 0.1; mod_nd = 0; mod_dname = None
-                else:
-                    mod_dname = mod_dname[0]
+                             if name.lower() in ["depth", "layer", "levgrnd"]]
+                mod_dbndname = [name for name in dset.variables.keys() \
+                                if name.lower() in ["depth_bnds", "depth_bounds",
+                                                    "layer_bnds", "layer_bounds",
+                                                    "levgrnd_bnds", "levgrnd_bounds"]]
+                if len(mod_dbndname) > 0:
+                    mod_dname = mod_dbndname[0]
                     temp = dset.variables[mod_dname][...]
                     ind = (temp[:,1] > obs_z0)*(temp[:,0] < obs_zf)
                     if sum(ind) == 0:
@@ -154,7 +170,15 @@ class ConfSoilMoisture(Confrontation):
                         continue
                     z0 = np.min(temp[ind, :])
                     zf = np.max(temp[ind, :])
-                    mod_nd = min(mod_nd, sum(ind))
+                elif len(mod_dname) > 0:
+                    mod_dname = mod_dname[0]
+                    data = _createBnds(dset.variables[mod_dname][...].data)
+                    z0 = np.min(data)
+                    zf = np.max(data)
+                else:
+                    # if there is no depth, assume the data is surface
+                    z0 = 0; zf = 0.1; mod_dname = None
+
                 mod_z0 = min(mod_z0,z0)
                 mod_zf = max(mod_zf,zf)
 
@@ -230,6 +254,7 @@ class ConfSoilMoisture(Confrontation):
                                           initial_depth= z0,
                                           final_depth  = zf).trim(t=[mod_t0,mod_tf]).convert(obs.unit)
                 mod = mod.trim(d = [z0, zf]).integrateInDepth(z0 = z0, zf = zf, mean = True)
+
             mod.name = "%.2f-%.2f %s" % (z0, zf, self.depths_units)
             tend = time.time()
             logger.info("[%s][%s] loading the model depths %.1f to %.1f took %f minutes" % (self.name,m.name,z0, zf,(tend-tstart)/60))
@@ -1065,9 +1090,11 @@ class ConfSoilMoisture(Confrontation):
                 ax.set_ylim(yedges[0],yedges[-1])
                 ax.set_title(('%.2f-%.2f' % (self.depths[dind,0], self.depths[dind,1])) \
                              + self.depths_units)
+            warnings.filterwarnings(action = 'ignore')
             fig.colorbar(pc, cax = fig.add_axes([0.97, 0.1, 0.02, 0.8]),
                          orientation="vertical",label="Fraction of total datasites")
             fig.savefig(filename, bbox_inches = 'tight')
+            warnings.filterwarnings(action = 'default')
             plt.close()
 
         def _plotDifference(ref_list,com_list,xedges_list,yedges_list,xlabel,ylabel,filename):
@@ -1092,9 +1119,11 @@ class ConfSoilMoisture(Confrontation):
                 ax.set_ylim(yedges[0],yedges[-1])
                 ax.set_title(('%.2f-%.2f' % (self.depths[dind,0], self.depths[dind,1])) \
                              + self.depths_units)
+            warnings.filterwarnings(action = 'ignore')
             fig.colorbar(pc,cax = fig.add_axes([0.97, 0.1, 0.02, 0.8]),
                          orientation="vertical",label="Distribution Difference")
             fig.savefig(filename, bbox_inches = 'tight')
+            warnings.filterwarnings(action = 'default')
             plt.close()
 
         def _plotFunction(ref_mean_list,ref_std_list,com_mean_list,com_std_list,
@@ -1138,8 +1167,29 @@ class ConfSoilMoisture(Confrontation):
                 ax.set_ylim(yedges[0],yedges[-1])
                 ax.set_title(('%.2f-%.2f' % (self.depths[dind,0], self.depths[dind,1])) \
                              + self.depths_units)
+            warnings.filterwarnings(action = 'ignore')
             fig.savefig(filename, bbox_inches = 'tight')
+            warnings.filterwarnings(action = 'default')
             plt.close()
+
+        def _composeSubset(a_dep, a_ind):
+            lat,lon,lat_bnds,lon_bnds = il._composeGrids(a_dep, a_ind)
+
+            lat_min  = max(np.min(a_dep.lat), np.min(a_ind.lat))
+            lat_max  = min(np.max(a_dep.lat), np.max(a_ind.lat))
+            temp     = (lat >= lat_min) & (lat <= lat_max)
+            lat      = lat[temp]
+            lat_bnds = lat_bnds[temp, :]
+            lon_min  = max(np.min(a_dep.lon), np.min(a_ind.lon))
+            lon_max  = min(np.max(a_dep.lon), np.max(a_ind.lon))
+            temp     = (lon >= lon_min) & (lon <= lon_max)
+            lon      = lon[temp]
+            lon_bnds = lon_bnds[temp, :]
+
+            new_dep = a_dep.interpolate(lat=lat,lon=lon,lat_bnds=lat_bnds,lon_bnds=lon_bnds)
+            new_ind= a_ind.interpolate(lat=lat,lon=lon,lat_bnds=lat_bnds,lon_bnds=lon_bnds)
+
+            return new_dep, new_ind
 
         # If there are no relationships to analyze, get out of here
         if self.relationships is None: return
@@ -1176,15 +1226,18 @@ class ConfSoilMoisture(Confrontation):
 
             # for each relationship...
             for c in self.relationships:
-
                 # try to get the independent data from the model and obs
                 try:
                     ref_ind  = _retrieveData(os.path.join(c.output_path,"%s_%s.nc" % (c.name,"Benchmark")))
                     com_ind  = _retrieveData(os.path.join(c.output_path,"%s_%s.nc" % (c.name,m.name     )))
                     com_ind  = _applyRefMask(ref_ind,com_ind)
                     ind_name = c.longname.split("/")[0]
-                    ind_min  = c.limits["MeanState"]["timeint"]["min"]-1e-12
-                    ind_max  = c.limits["MeanState"]["timeint"]["max"]+1e-12
+                    if "MeanState" in c.limits.keys():
+                        ind_min  = c.limits["MeanState"]["timeint"]["min"]-1e-12
+                        ind_max  = c.limits["MeanState"]["timeint"]["max"]+1e-12
+                    else:
+                        ind_min  = c.limits["timeint"]["min"]-1e-12
+                        ind_max  = c.limits["timeint"]["max"]+1e-12
                 except:
                     continue
 
@@ -1231,12 +1284,29 @@ class ConfSoilMoisture(Confrontation):
                                                       com_dep_list):
                         # Check on data shape
                         if not np.allclose(ref_dep.data.shape,ref_ind.data.shape):
-                            msg = "[%s][%s] Data size mismatch in relationship: %s %s vs. %s %s" % (self.longname,m.name,dep_name,str(ref_dep.data.shape),ind_name,str(ref_ind.data.shape))
-                            logger.debug(msg)
-                            raise ValueError
+                            try:
+                                # try to subset to the overlapping region
+                                REF_dep, REF_ind = _composeSubset(ref_dep, ref_ind)
+                            except:
+                                msg = "[%s][%s] Data size mismatch in relationship: %s %s vs. %s %s" % (self.longname,m.name,dep_name,str(ref_dep.data.shape),ind_name,str(ref_ind.data.shape))
+                                logger.debug(msg)
+                                raise ValueError
+                        else:
+                            REF_dep, REF_ind = ref_dep, ref_ind
 
-                        ref_dist, ref_xedges, ref_yedges, ref_mean, ref_std = _buildDistributionResponse(ref_ind,ref_dep,ind_lim=lim_ind,dep_lim=lim_dep,region=region)
-                        com_dist, com_xedges, com_yedges, com_mean, com_std = _buildDistributionResponse(com_ind,com_dep,ind_lim=lim_ind,dep_lim=lim_dep,region=region)
+                        if not np.allclose(com_dep.data.shape,com_ind.data.shape):
+                            try:
+                                # try to subset to the overlapping region
+                                COM_dep, COM_ind = _composeSubset(com_dep, com_ind)
+                            except:
+                                msg = "[%s][%s] Data size mismatch in relationship: %s %s vs. %s %s" % (self.longname,m.name,dep_name,str(com_dep.data.shape),ind_name,str(com_ind.data.shape))
+                                logger.debug(msg)
+                                raise ValueError
+                        else:
+                            COM_dep, COM_ind = com_dep, com_ind
+
+                        ref_dist, ref_xedges, ref_yedges, ref_mean, ref_std = _buildDistributionResponse(REF_ind,REF_dep,ind_lim=lim_ind,dep_lim=lim_dep,region=region)
+                        com_dist, com_xedges, com_yedges, com_mean, com_std = _buildDistributionResponse(COM_ind,COM_dep,ind_lim=lim_ind,dep_lim=lim_dep,region=region)
 
                         ref_dist_list.append(ref_dist)
                         ref_xedges_list.append(ref_xedges)

@@ -278,8 +278,10 @@ class ModelResult():
                 if var.time is None: continue
                 tmin = min(tmin,var.time_bnds.min())
                 tmax = max(tmax,var.time_bnds.max())
+
                 if ((var.time_bnds.max() < initial_time - self.shift) or
                     (var.time_bnds.min() >   final_time - self.shift)): continue
+
                 if lats is not None and var.ndata:
                     r = np.sqrt((lats[:,np.newaxis]-var.lat)**2 +
                                 (lons[:,np.newaxis]-var.lon)**2)
@@ -295,6 +297,7 @@ class ModelResult():
                 if lats is not None and var.spatial: var = var.extractDatasites(lats,lons)
                 var.time      += self.shift
                 var.time_bnds += self.shift
+
                 V.append(var)
             if len(V) > 0: break
 

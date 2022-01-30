@@ -318,6 +318,7 @@ class Confrontation(object):
                                   final_time   = obs.time_bnds[-1,1],
                                   lats         = None if obs.spatial else obs.lat,
                                   lons         = None if obs.spatial else obs.lon)
+
         obs,mod = il.MakeComparable(obs,mod,
                                     mask_ref  = True,
                                     clip_ref  = True,
@@ -436,8 +437,10 @@ class Confrontation(object):
                 variables = [v for v in group.variables.keys() if v not in group.dimensions.keys()]
                 for vname in variables:
                     var    = group.variables[vname]
-                    ## pname  = vname.split("_")[0]
-                    pname  = vname.split("_")[1] # YW: to match the prefixed part in ilamblib.py
+                    if not "_" in vname:
+                        pname = vname
+                    else:
+                        pname  = vname.split("_")[1] # YW: to match the prefixed part in ilamblib.py
                     region = vname.split("_")[-1]
                     if var[...].size <= 1: continue
                     if pname in space_opts:
@@ -714,60 +717,61 @@ class Confrontation(object):
             variables = getVariableList(group)
             color     = dataset.getncattr("color")
             for vname in variables:
-
-                    # is this a variable we need to plot?
-                    ## pname = vname.split("_")[0]
+                # is this a variable we need to plot?
+                if not "_" in vname:
+                    pname = vname
+                else:
                     pname = vname.split("_")[1] # YW: to deal with the prefixed name part in ilamblib
-                    if group.variables[vname][...].size <= 1: continue
-                    var = Variable(filename=fname,groupname="MeanState",variable_name=vname)
+                if group.variables[vname][...].size <= 1: continue
+                var = Variable(filename=fname,groupname="MeanState",variable_name=vname)
 
-                    if (var.spatial or (var.ndata is not None)) and not var.temporal:
+                if (var.spatial or (var.ndata is not None)) and not var.temporal:
 
-                        # grab plotting options
-                        if pname not in self.limits.keys(): continue
+                    # grab plotting options
+                    if pname not in self.limits.keys(): continue
+                    opts = space_opts[pname]
+
+                    # add to html layout
+                    page.addFigure(opts["section"],
+                                    pname,
+                                    opts["pattern"],
+                                    side   = opts["sidelbl"],
+                                    legend = opts["haslegend"])
+
+                    # plot variable
+                    for region in self.regions:
+                        ax = var.plot(None,
+                                        region = region,
+                                        vmin   = self.limits[pname]["min"],
+                                        vmax   = self.limits[pname]["max"],
+                                        cmap   = self.limits[pname]["cmap"])
+                        fig = ax.get_figure()
+                        fig.savefig(os.path.join(self.output_path,"%s_%s_%s.png" % (m.name,region,pname)))
+                        plt.close()
+
+                    # Jumping through hoops to get the benchmark plotted and in the html output
+                    if self.master and (pname == "timeint" or pname == "phase" or pname == "iav"):
+
                         opts = space_opts[pname]
 
                         # add to html layout
                         page.addFigure(opts["section"],
-                                       pname,
-                                       opts["pattern"],
-                                       side   = opts["sidelbl"],
-                                       legend = opts["haslegend"])
+                                        "benchmark_%s" % pname,
+                                        opts["pattern"].replace("MNAME","Benchmark"),
+                                        side   = opts["sidelbl"].replace("MODEL","BENCHMARK"),
+                                        legend = True)
 
                         # plot variable
+                        obs = Variable(filename=bname,groupname="MeanState",variable_name=vname)
                         for region in self.regions:
-                            ax = var.plot(None,
-                                          region = region,
-                                          vmin   = self.limits[pname]["min"],
-                                          vmax   = self.limits[pname]["max"],
-                                          cmap   = self.limits[pname]["cmap"])
+                            ax = obs.plot(None,
+                                            region = region,
+                                            vmin   = self.limits[pname]["min"],
+                                            vmax   = self.limits[pname]["max"],
+                                            cmap   = self.limits[pname]["cmap"])
                             fig = ax.get_figure()
-                            fig.savefig(os.path.join(self.output_path,"%s_%s_%s.png" % (m.name,region,pname)))
+                            fig.savefig(os.path.join(self.output_path,"Benchmark_%s_%s.png" % (region,pname)))
                             plt.close()
-
-                        # Jumping through hoops to get the benchmark plotted and in the html output
-                        if self.master and (pname == "timeint" or pname == "phase" or pname == "iav"):
-
-                            opts = space_opts[pname]
-
-                            # add to html layout
-                            page.addFigure(opts["section"],
-                                           "benchmark_%s" % pname,
-                                           opts["pattern"].replace("MNAME","Benchmark"),
-                                           side   = opts["sidelbl"].replace("MODEL","BENCHMARK"),
-                                           legend = True)
-
-                            # plot variable
-                            obs = Variable(filename=bname,groupname="MeanState",variable_name=vname)
-                            for region in self.regions:
-                                ax = obs.plot(None,
-                                              region = region,
-                                              vmin   = self.limits[pname]["min"],
-                                              vmax   = self.limits[pname]["max"],
-                                              cmap   = self.limits[pname]["cmap"])
-                                fig = ax.get_figure()
-                                fig.savefig(os.path.join(self.output_path,"Benchmark_%s_%s.png" % (region,pname)))
-                                plt.close()
 
                     if not (var.spatial or (var.ndata is not None)) and var.temporal:
 

@@ -611,6 +611,20 @@ def _removeLeapDay(t,v,datum=None,calendar=None,t0=None,tf=None):
 
     return tdata,vdata
 
+
+def _createBnds(x):
+    x      = np.asarray(x)
+    x_bnds = np.zeros((x.size,2))
+    x_bnds[+1:,0] = 0.5*(x[:-1]+x[+1:])
+    x_bnds[:-1,1] = 0.5*(x[:-1]+x[+1:])
+    if x.size == 1:
+        x_bnds[ ...] = x
+    else:
+        x_bnds[ 0,0] = x[ 0] - 0.5*(x[ 1]-x[ 0])
+        x_bnds[-1,1] = x[-1] + 0.5*(x[-1]-x[-2])
+    return x_bnds
+
+
 def FromNetCDF4(filename,variable_name,alternate_vars=[],t0=None,tf=None,group=None,convert_calendar=True,z0=None,zf=None):
     """Extracts data from a netCDF4 datafile for use in a Variable object.
 
@@ -822,6 +836,8 @@ def FromNetCDF4(filename,variable_name,alternate_vars=[],t0=None,tf=None,group=N
         depth = grp.variables[depth_name][...]
         if depth_bnd_name is not None:
             depth_bnd = grp.variables[depth_bnd_name][...]
+        else:
+            depth_bnd = _createBnds(depth)
         if dunit is not None:
             if not (Unit(dunit).is_convertible(Unit("m")) or Unit(dunit).is_convertible(Unit("Pa"))):
                 raise ValueError("Units [%s] not compatible with [m,Pa] of the layered dimension [%s] in %s" % (dunit,depth_name,filename))
@@ -839,17 +855,6 @@ def FromNetCDF4(filename,variable_name,alternate_vars=[],t0=None,tf=None,group=N
                 if depth_bnd is not None:
                     depth_bnd = Unit(dunit).convert(depth_bnd,Unit("Pa"),inplace=True)
                     depth_bnd = -np.log(depth_bnd/Pb)*R*Tb/M/g
-
-        ## DEBUG
-        #print("il.FromNetCDF4, soil moisture, " + filename)
-        #if t is not None:
-        #    print(t[0], t[-1])
-        #else:
-        #    print("None", "None")
-        #print(begin, end, calendar)
-        #print(depth)
-        #print(depth_bnd)
-        #print(v.shape)
 
         # YW
         if z0 is not None:
@@ -874,11 +879,6 @@ def FromNetCDF4(filename,variable_name,alternate_vars=[],t0=None,tf=None,group=N
             if zf is not None:
                 raise ValueError("Mismatched ending depth %f." % zf)
 
-        #print(z0, zf)
-        #print(depth)
-        #print(depth_bnd)
-        #print(v.shape)
-        #print("********")
     else:
         if (z0 is not None) or (zf is not None):
             raise ValueError("Vertical subscript is used but there is no layered dimension in %s." % filename)
