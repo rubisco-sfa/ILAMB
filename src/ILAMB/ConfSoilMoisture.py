@@ -1340,35 +1340,35 @@ class ConfSoilMoisture(Confrontation):
                                   m.color,
                                   os.path.join(self.output_path,"%s_%s_rel_func_%s.png" % (m.name,region,ind_name)))
 
-                # Score the distribution
-                score_list = []
-                for ref_dist, com_dist in zip(ref_dist_list, com_dist_list):
-                    score = _scoreDistribution(ref_dist,com_dist)
-                    score_list.append(score)
-                score = np.sum(np.array(score_list)*(self.depths[:,1] - self.depths[:,0])) / \
-                        (self.depths[-1,1] - self.depths[0,0])
-                sname = "%s Hellinger Distance %s" % (longname,region)
-                if sname in scalars.variables:
-                    scalars.variables[sname][0] = score
-                else:
-                    Variable(name = sname,
-                             unit = "1",
-                             data = score).toNetCDF4(results,group="Relationships")
+                    # Score the distribution
+                    score_list = []
+                    for ref_dist, com_dist in zip(ref_dist_list, com_dist_list):
+                        score = _scoreDistribution(ref_dist,com_dist)
+                        score_list.append(score)
+                    score = np.sum(np.array(score_list)*(self.depths[:,1] - self.depths[:,0])) / \
+                            (self.depths[-1,1] - self.depths[0,0])
+                    sname = "%s Hellinger Distance %s" % (longname,region)
+                    if sname in scalars.variables:
+                        scalars.variables[sname][0] = score
+                    else:
+                        Variable(name = sname,
+                                 unit = "1",
+                                 data = score).toNetCDF4(results,group="Relationships")
 
-                # Score the functional response
-                score_list = []
-                for ref_mean, com_mean in zip(ref_mean_list, com_mean_list):
-                    score = _scoreFunction(ref_mean,com_mean)
-                    score_list.append(score)
-                score = np.sum(np.array(score_list)*(self.depths[:,1] - self.depths[:,0])) / \
-                        (self.depths[-1,1] - self.depths[0,0])
-                sname = "%s RMSE Score %s" % (longname,region)
-                if sname in scalars.variables:
-                    scalars.variables[sname][0] = score
-                else:
-                    Variable(name = sname,
-                             unit = "1",
-                             data = score).toNetCDF4(results,group="Relationships")
+                    # Score the functional response
+                    score_list = []
+                    for ref_mean, com_mean in zip(ref_mean_list, com_mean_list):
+                        score = _scoreFunction(ref_mean,com_mean)
+                        score_list.append(score)
+                    score = np.sum(np.array(score_list)*(self.depths[:,1] - self.depths[:,0])) / \
+                            (self.depths[-1,1] - self.depths[0,0])
+                    sname = "%s RMSE Score %s" % (longname,region)
+                    if sname in scalars.variables:
+                        scalars.variables[sname][0] = score
+                    else:
+                        Variable(name = sname,
+                                 unit = "1",
+                                 data = score).toNetCDF4(results,group="Relationships")
 
 
     def _sensitivity(self, m):

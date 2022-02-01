@@ -418,6 +418,7 @@ class ModelResult():
 
         np.seterr(divide='ignore',invalid='ignore')
         result,unit = il.SympifyWithArgsUnits(expression,args,units)
+        result = result.astype(var.data.data.dtype)
         np.seterr(divide='raise',invalid='raise')
         mask  += np.isnan(result)
         result = np.ma.masked_array(np.nan_to_num(result),mask=mask)
