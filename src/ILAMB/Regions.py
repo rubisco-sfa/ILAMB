@@ -68,29 +68,14 @@ class Regions(object):
         catids.sort()
         regionnames = []
 
-#        # turn the vectors into grids
-#        shapes = ((geom, value) for geom, value in zip(vregions.geometry, vregions.cat))
-#        transform = rasterio.transform.from_bounds(vregions.bounds.minx.min(), 
-#            vregions.bounds.miny.min(), vregions.bounds.maxx.max(),
-#            vregions.bounds.maxy.max(), res, res)
-#        rregions = features.rasterize(shapes=shapes,
-#            out_shape=((vregions.bounds.maxy.max()-vregions.bounds.miny.min())/res, (vregions.bounds.maxx.max()-vregions.bounds.minx.min())/res),
-#            transform=transform)
-
-        #print(catids)
-        #for c in [0]:
         for c in catids:
             catid = c
-            #print("catid: %d"%(c))
-            #print(vregions.label[vregions.value == c].unique()[0].lower())
             label  = vregions.label[vregions.value == c].unique()[0]
             name = label.lower()
             regionnames.append(label.lower())
-            #shape = list((geom, value) for geom, value in zip(vregions.geometry[vregions.value == c], vregions.value[vregions.value == c]))
             shape = vregions[vregions.value == c]
             Regions._regions[label.lower()] = [name, catid, shape]
             Regions._sources[label.lower()] = os.path.basename(filename)
-        #print(regionnames)
         return regionnames 
 
        
@@ -212,7 +197,6 @@ class Regions(object):
 
         if len(Regions._regions[label]) == 4:
             name,lat,lon,mask = Regions._regions[label]
-            #print("getmask for %s"%(name))
             if lat.size == 4 and lon.size == 4:
                 # if lat/lon bounds, find which bounds we are in
                 rows = ((var.lat[:,np.newaxis]>=lat[:-1])*(var.lat[:,np.newaxis]<=lat[1:])).argmax(axis=1)
@@ -222,53 +206,26 @@ class Regions(object):
                 rows = (np.abs(lat[:,np.newaxis]-var.lat)).argmin(axis=0)
                 cols = (np.abs(lon[:,np.newaxis]-var.lon)).argmin(axis=0)
             if var.ndata: return mask[np.ix_(rows,cols)].diagonal()
-            #print(mask)
             return mask[np.ix_(rows,cols)]
 
         if len(Regions._regions[label]) == 3:
-            ##print(var.lon.max())
-            ##print(var.lat.max())
             nrows=len(var.lat)
             ncols=len(var.lon)
             res=(var.lat.max()-var.lat.min())/nrows
             # calculate nominal pixel area for the model var
             marea = res*res/100
-            #print("rows %d cols %d res %f"%(nrows, ncols, res))
             name,catid,shape = Regions._regions[label]
-            #print("START: Name %s catid %d"%(name, catid))
-            #transform = rasterio.transform.from_bounds(shape.bounds.minx.min(), 
-            #    shape.bounds.miny.min(), shape.bounds.maxx.max(),
-            #    shape.bounds.maxy.max(), res, res)
-            print(var.lat.min(),var.lon.min(),var.lon.max(),var.lat.max(), ncols, nrows)
             transform = rasterio.transform.from_bounds(var.lon.min(), 
                 var.lat.max(), var.lon.max(),
                 var.lat.min(), ncols, nrows)
-            #print(transform)			
-            #mask = features.rasterize(shape,
-            #    out_shape=(int((shape.bounds.maxy.max()-shape.bounds.miny.min())/res),
-            #     int((shape.bounds.maxx.max()-shape.bounds.minx.min())/res)),
-            #    transform=transform)
-            #print("shape")
-            #print(shape)
             # create a generator with shapes to rasterize
             # subset only the polygons >= marea i.e. ignore any polygon smaller than model grid cell
             gshape = list((geom, value) for geom, value in zip(shape.loc[shape.area >= marea].geometry, shape.value.unique()))
-            #print(gshape)           
             try:
                 rregion = features.rasterize(shapes=gshape, fill=9999, out_shape=(nrows,ncols), transform=transform)
-                #print("getmask for %s %d"%(name, catid))
-                #print(rregion.min(),rregion.max())
             except:
                 pass
-                #print("name %s catid %s nrows %d ncols %d"%(name,catid,nrows,ncols))
-                #print(shape)
-                #import sys
-                #sys.exit()
             mask = rregion != catid
-            #print(mask)
-            #print("END: Name %s catid %d"%(name, catid))
-            #print(mask.min())
-            #print(mask.max())
             return mask
 
     def getMaskLatLon(self,label,var):
@@ -302,14 +259,10 @@ class Regions(object):
                 var.lat.min(), ncols, nrows)
             gshape = list((geom, value) for geom, value in zip(shape.loc[shape.area >= marea].geometry, shape.value.unique()))
             try:
-                #rregion = np.flip(features.rasterize(shapes=gshape, fill=9999, out_shape=(nrows,ncols), transform=transform),0)
                 rregion = features.rasterize(shapes=gshape, fill=9999, out_shape=(nrows,ncols), transform=transform)
-                #print("getmasklatlon for %s %d"%(name, catid))
             except:
-                print("name %s catid %s nrows %d ncols %d"%(name,catid,nrows,ncols))
-                #print(shape)
+                pass
             mask = rregion != catid
-            #print(mask)
             return var.lat,var.lon,mask
 
 
