@@ -4,6 +4,7 @@ import numpy as np
 import geopandas as gpd
 import rasterio
 from rasterio import features
+import warnings
 
 class Regions(object):
     """A class for unifying the treatment of regions in ILAMB.
@@ -89,7 +90,7 @@ class Regions(object):
             shape = vregions[vregions.value == c]
             Regions._regions[label.lower()] = [name, catid, shape]
             Regions._sources[label.lower()] = os.path.basename(filename)
-        print(regionnames)
+        #print(regionnames)
         return regionnames 
 
        
@@ -205,6 +206,10 @@ class Regions(object):
         mask : numpy.ndarray
             a boolean array appropriate for masking the input variable data
         """
+        # we are calculating area of a lat/lon projection in this
+        # routine. Suppress geopandas warning message 
+        warnings.filterwarnings('ignore', category=UserWarning)
+
         if len(Regions._regions[label]) == 4:
             name,lat,lon,mask = Regions._regions[label]
             #print("getmask for %s"%(name))
@@ -227,7 +232,7 @@ class Regions(object):
             ncols=len(var.lon)
             res=(var.lat.max()-var.lat.min())/nrows
             # calculate nominal pixel area for the model var
-            marea = res*res
+            marea = res*res/100
             #print("rows %d cols %d res %f"%(nrows, ncols, res))
             name,catid,shape = Regions._regions[label]
             #print("START: Name %s catid %d"%(name, catid))
@@ -236,8 +241,8 @@ class Regions(object):
             #    shape.bounds.maxy.max(), res, res)
             print(var.lat.min(),var.lon.min(),var.lon.max(),var.lat.max(), ncols, nrows)
             transform = rasterio.transform.from_bounds(var.lon.min(), 
-                var.lat.min(), var.lon.max(),
-                var.lat.max(), ncols, nrows)
+                var.lat.max(), var.lon.max(),
+                var.lat.min(), ncols, nrows)
             #print(transform)			
             #mask = features.rasterize(shape,
             #    out_shape=(int((shape.bounds.maxy.max()-shape.bounds.miny.min())/res),
@@ -248,14 +253,15 @@ class Regions(object):
             # create a generator with shapes to rasterize
             # subset only the polygons >= marea i.e. ignore any polygon smaller than model grid cell
             gshape = list((geom, value) for geom, value in zip(shape.loc[shape.area >= marea].geometry, shape.value.unique()))
-            print(gshape)           
+            #print(gshape)           
             try:
                 rregion = features.rasterize(shapes=gshape, fill=9999, out_shape=(nrows,ncols), transform=transform)
                 #print("getmask for %s %d"%(name, catid))
                 #print(rregion.min(),rregion.max())
             except:
-                print("name %s catid %s nrows %d ncols %d"%(name,catid,nrows,ncols))
-                print(shape)
+                pass
+                #print("name %s catid %s nrows %d ncols %d"%(name,catid,nrows,ncols))
+                #print(shape)
                 #import sys
                 #sys.exit()
             mask = rregion != catid
@@ -292,15 +298,16 @@ class Regions(object):
             marea = res*res
             name,catid,shape = Regions._regions[label]
             transform = rasterio.transform.from_bounds(var.lon.min(), 
-                var.lat.min(), var.lon.max(),
-                var.lat.max(), ncols, nrows)
+                var.lat.max(), var.lon.max(),
+                var.lat.min(), ncols, nrows)
             gshape = list((geom, value) for geom, value in zip(shape.loc[shape.area >= marea].geometry, shape.value.unique()))
             try:
-                rregion = np.flip(features.rasterize(shapes=gshape, fill=9999, out_shape=(nrows,ncols), transform=transform),0)
+                #rregion = np.flip(features.rasterize(shapes=gshape, fill=9999, out_shape=(nrows,ncols), transform=transform),0)
+                rregion = features.rasterize(shapes=gshape, fill=9999, out_shape=(nrows,ncols), transform=transform)
                 #print("getmasklatlon for %s %d"%(name, catid))
             except:
                 print("name %s catid %s nrows %d ncols %d"%(name,catid,nrows,ncols))
-                print(shape)
+                #print(shape)
             mask = rregion != catid
             #print(mask)
             return var.lat,var.lon,mask
