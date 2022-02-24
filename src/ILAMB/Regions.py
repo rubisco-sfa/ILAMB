@@ -257,11 +257,6 @@ class Regions(object):
         mask : numpy.ndarray
             a boolean array appropriate for masking the input variable data
         """
-        if len(Regions._regions[label]) == 4:
-            print("This function is only implemented for shape based regions")
-            import sys
-            sys.exit()
-
         if len(Regions._regions[label]) == 3:
             nrows=len(var.lat)
             ncols=len(var.lon)
@@ -278,7 +273,9 @@ class Regions(object):
                 pass
             mask = rregion != catid
             return var.lat,var.lon,mask
-
+        else:
+            msg = "Regions.getMaskLatLon() is only implemented for shapefile-based regions"
+            raise ValueError(msg)
 
     def hasData(self,label,var):
         """Checks if the ILAMB.Variable has data on the given region.
