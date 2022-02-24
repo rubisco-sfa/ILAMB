@@ -23,8 +23,11 @@ class ConfBasin(Confrontation):
         self.layout.regions = self.regions
 
         # Adding a member variable called basins, add them as regions
-        basin_file = self.keywords.get('drainage_basins', False)
         r = Regions()
+        basin_file = self.keywords.get('drainage_basins', False)
+        if not basin_file:
+            msg = "ConfBasin requires a configure keyword 'drainage_basins' which points to the netCDF or shapefile which represents the basins"
+            raise ValueError(msg) 
         ext = basin_file.split('.')[-1]
         if (ext == "nc"): 
             self.basins = r.addRegionNetCDF4(basin_file)
