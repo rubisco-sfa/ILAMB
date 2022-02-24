@@ -18,6 +18,7 @@ import pylab as plt
 import re
 from ILAMB.Post import RegisterCustomColormaps
 if "wetdry" not in plt.colormaps(): RegisterCustomColormaps()
+import platform
 
 # MPI stuff
 comm = MPI.COMM_WORLD
@@ -187,48 +188,6 @@ def ParseModelSetup(model_setup,models=[],verbose=False,filter="",regex="",model
 
     return M
 
-def InitializeDrainageBasins(filenames):
-    """Initialize drainage basins from a list of files.
-
-    If the file is a netCDF4 file, see documentation in
-    ILAMB.Regions.addRegionNetCDF4 for details on the required
-    format.
-
-	If the file is ShapeFile, see documentation in
-	ILAMB.Regions.addRegionShapeFile for details on the required format.
-
-	If the file defines regions by latitude/longitude bounds,
-    then we anticipate comma delimited rows in the following form:
-
-    shortname, longname, min lat, max lat, min lon, max lon
-
-    Note that latitudes should be on (-90,90) and longitudes on
-    (-180,180).
-
-    Parameters
-    ----------
-    filenames : list of str
-        a list of files from which to search for regions
-
-    """
-    r = Regions()
-    for filename in filenames:
-        try:
-            r.addRegionNetCDF4(filename)
-        except IOError:
-            r.addRegionShapeFile(filename)
-        except IOError:
-            for line in open(filename):
-                line = line.strip()
-                if line.startswith("#"): continue
-                line = line.split(",")
-                if len(line) == 6:
-                    r.addRegionLatLonBounds(line[0].strip(),
-                                            line[1].strip(),
-                                            [float(line[2]),float(line[3])],
-                                            [float(line[4]),float(line[5])])
-
-
 def InitializeRegions(filenames):
     """Initialize regions from a list of files.
 
@@ -253,8 +212,6 @@ def InitializeRegions(filenames):
         try:
             r.addRegionNetCDF4(filename)
         except IOError:
-            r.addRegionShapeFile(filename)
-        except:
             for line in open(filename):
                 line = line.strip()
                 if line.startswith("#"): continue
@@ -607,8 +564,6 @@ parser.add_argument('--build_dir', dest="build_dir", metavar='build_dir', type=s
                     help='path of where to save the output')
 parser.add_argument('--define_regions', dest="define_regions", type=str, nargs='+',default=[],
                     help='list files containing user-defined regions')
-parser.add_argument('--drainage_basins', dest="drainage_basins", type=str, nargs='+',default=[],
-                    help='list files containing user-defined drainage basins')
 parser.add_argument('--model_setup', dest="model_setup", type=str, nargs='+',default=None,
                     help='list files model setup information')
 parser.add_argument('--skip_plots', dest="skip_plots", action="store_true",
@@ -644,10 +599,6 @@ for region in args.regions:
     if region not in r.regions: missing.append(region)
 if len(missing) > 0:
     raise ValueError("Unable to find the following regions %s from the following list of possible regions %s" % (missing,r.regions))
-
-# Set up drainage basin regions
-dbasins = Regions()
-InitializeDrainageBasins(args.drainage_basins)
 
 # Setup study
 T0 = time.time()
@@ -693,7 +644,7 @@ if args.logging:
     logger.addHandler(mh)
 
 if rank == 0:
-    logger.info(" " + " ".join(os.uname()))
+    logger.info(" " + " ".join(platform.uname()))
     for key in ["ILAMB","numpy","matplotlib","netCDF4","cf_units","sympy","mpi4py"]:
         pkg  = __import__(key)
         try:
