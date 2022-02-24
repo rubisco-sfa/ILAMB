@@ -24,20 +24,15 @@ class ConfBasin(Confrontation):
 
         # Adding a member variable called basins, add them as regions
         basin_file = self.keywords.get('drainage_basins', False)
-        #print("Read basins from FILE %s"%(basin_file))		
         r = Regions()
-        # get file extension
         ext = basin_file.split('.')[-1]
-        #print("extension: %s"%(ext)) 
         if (ext == "nc"): 
             self.basins = r.addRegionNetCDF4(basin_file)
-            #print("List basins - netcdf4")
-            #print(self.basins)
-        if (ext == "shp"):
+        elif (ext == "shp"):
             self.basins = r.addRegionShapeFile(basin_file)
-            #print("List basins - shp")
-            #print(self.basins)
-
+        else:
+            raise ValueError("Unknown file extension (.%s) for adding regions" % ext)
+        
     def stageData(self,m):
         """Extracts model data and transforms it to make it comparable to the runoff dataset.
 
@@ -58,16 +53,16 @@ class ConfBasin(Confrontation):
                        variable_name = self.variable,
                        t0 = None if len(self.study_limits) != 2 else self.study_limits[0],
                        tf = None if len(self.study_limits) != 2 else self.study_limits[1]).convert("mm d-1")
-        #print(obs)
 
         # Extract the globally gridded runoff
         mod = m.extractTimeSeries(self.variable,
                                   alt_vars     = self.alternate_vars,
                                   initial_time = obs.time_bnds[ 0,0],
                                   final_time   = obs.time_bnds[-1,1])
-        #print(mod)
-        # save original model data as omod	
-        omod=mod
+
+        # Save original model data as omod	
+        omod = mod
+        
         # Some models output total volumetric rate instead of an area density
         if (Unit(mod.unit)/Unit("m3 s-1")).is_dimensionless():
             mod.data /= mod.area
@@ -80,7 +75,6 @@ class ConfBasin(Confrontation):
         mod   = mod.coarsenInTime(years)
         obs.name = "runoff"
         mod.name = "runoff"
-        # need to add code to compute min, max variables here
 
         # Operate on model data to compute mean runoff values in each basin.
         data   = np.ma.zeros(obs.data.shape)
@@ -118,26 +112,16 @@ class ConfBasin(Confrontation):
             input variable
         """
 
-        #print("extendSiteToMap")
-        #print(var.lat.min(), var.lat.max())
-        #print(var.lon.min(), var.lon.max())
-        #print(modvar.name)
-        #print(modvar.data.shape)
         # determine the global mask
         global_mask = None
         global_data = None
         for i,basin in enumerate(self.basins):
-            #print("i %d basin %s"%(i, basin))
             if len(Regions._regions[basin]) == 3:
                 name,catid,shape = Regions._regions[basin]
                 r = Regions()
                 lat,lon,mask = r.getMaskLatLon(basin, modvar)
-                #print("extendsitestomap %s"%(name))
-                #print(mask)
             if len(Regions._regions[basin]) == 4:
                 name,lat,lon,mask = Regions._regions[basin]
-                #print("extendsitestomap %s"%(name))
-                #print(mask)
             keep = (mask == False)
             if global_mask is None:
                 global_mask  = np.copy(mask)
@@ -161,10 +145,6 @@ class ConfBasin(Confrontation):
         """
         # Grab the data
         obs,mod,omod = self.stageData(m)
-        print("original model data")
-        print(omod)
-        print("spatially accumulated model data")
-        print(mod)
 
         # Basic analysis from ilamblib.AnalysisMeanState() for
         # datasites and only the global region
@@ -231,8 +211,6 @@ class ConfBasin(Confrontation):
         # some of the plots can be generated using the standard
         # routine, with some modifications
         super(ConfBasin,self).modelPlots(m)
-
-        #
         bname = os.path.join(self.output_path,"%s_Benchmark.nc" % (self.name       ))
         fname = os.path.join(self.output_path,"%s_%s.nc"        % (self.name,m.name))
 
