@@ -1,11 +1,12 @@
 import os
 from netCDF4 import Dataset
 import numpy as np
-import geopandas as gpd
-import rasterio
-from rasterio import features
 import warnings
+from mpi4py import MPI
 
+import logging
+logger = logging.getLogger("%i" % MPI.COMM_WORLD.rank)
+                           
 class Regions(object):
     """A class for unifying the treatment of regions in ILAMB.
 
@@ -52,22 +53,27 @@ class Regions(object):
         """Add regions found in a Shapefile.
        
         This routine will read region gemoetries from a Shapefile and
-		create ILAMB regions. Shapefiles provided can be in any
-		geospatial projection, however, they will all be projected to
-		standard EPSG 4326 latlon projection. Routine expects the
-		shapefile to provide 'label' attribute to populate attribute
-		'labels' for the region.
+	create ILAMB regions. Shapefiles provided can be in any
+	geospatial projection, however, they will all be projected to
+	standard EPSG 4326 latlon projection. Routine expects the
+	shapefile to provide 'label' attribute to populate attribute
+	'labels' for the region.
+
         """
+        warnings.filterwarnings('ignore')
+        try:
+            import geopandas as gpd
+        except:
+            msg = "ILAMB Regions based on shapefiles requires the rasterio and geopandas modules"
+            raise ValueError(msg)            
         vregions = gpd.read_file(filename)
-        # check projection of the shapefile
-        # if not EPSG 4326, reproject to 4326
+        # check projection of the shapefile, if not EPSG 4326, reproject to 4326
         if vregions.crs != 4326:
-            print("Reprojection %s from EPSG %d to EPSG 4326"%(filename, vregions.crs))
+            logger.info("[Regions.addRegionShapeFile()] Reprojected %s from EPSG %d to EPSG 4326" % (filename, vregions.crs))
             vregions.to_crs(epsg=4326)
         catids = vregions.value.unique().tolist()
         catids.sort()
         regionnames = []
-
         for c in catids:
             catid = c
             label  = vregions.label[vregions.value == c].unique()[0]
@@ -76,6 +82,7 @@ class Regions(object):
             shape = vregions[vregions.value == c]
             Regions._regions[label.lower()] = [name, catid, shape]
             Regions._sources[label.lower()] = os.path.basename(filename)
+        warnings.filterwarnings('default')            
         return regionnames 
 
        
@@ -191,10 +198,7 @@ class Regions(object):
         mask : numpy.ndarray
             a boolean array appropriate for masking the input variable data
         """
-        # we are calculating area of a lat/lon projection in this
-        # routine. Suppress geopandas warning message 
-        warnings.filterwarnings('ignore', category=UserWarning)
-
+        
         if len(Regions._regions[label]) == 4:
             name,lat,lon,mask = Regions._regions[label]
             if lat.size == 4 and lon.size == 4:
@@ -209,6 +213,15 @@ class Regions(object):
             return mask[np.ix_(rows,cols)]
 
         if len(Regions._regions[label]) == 3:
+            # we are calculating area of a lat/lon projection in this
+            # routine. Suppress geopandas warning message 
+            warnings.filterwarnings('ignore')
+            try:
+                import rasterio
+                from rasterio import features
+            except:
+                msg = "ILAMB Regions based on shapefiles requires the rasterio and geopandas modules"
+                raise ValueError(msg)
             nrows=len(var.lat)
             ncols=len(var.lon)
             res=(var.lat.max()-var.lat.min())/nrows
@@ -226,6 +239,7 @@ class Regions(object):
             except:
                 pass
             mask = rregion != catid
+            warnings.filterwarnings('default') # toggle warnings back on
             return mask
 
     def getMaskLatLon(self,label,var):
