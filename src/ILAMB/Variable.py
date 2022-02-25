@@ -394,140 +394,48 @@ class Variable:
                         area       = self.area,
                         ndata      = self.ndata)
 
-    def maxInTime(self,**keywords):
-        r"""Identify maxinum of the variable over a given time period.
+    def applyOverTimeInterval(self,op,**keywords):
+        r"""Apply operator over time intervals.
 
         Parameters
         ----------
+        op : function
+            operator to apply over the time intervals
         t0 : float, optional
             initial time in days since 1/1/1850
         tf : float, optional
             final time in days since 1/1/1850
-        mean : boolean, optional
-            enable to divide the integrand to get the mean function value
-
-        Returns
-        -------
-        integral : ILAMB.Variable.Variable
-            a Variable instance with the integrated value along with the
-            appropriate name and unit change
+        intervals : array of shape (n,2), optional
+            An array of n intervals where the first entry is the
+            beginning and the second entry is the end of the interval
 
         """
         if not self.temporal: raise il.NotTemporalVariable()
-        t0   = keywords.get("t0",self.time_bnds[:,0].min())
-        tf   = keywords.get("tf",self.time_bnds[:,1].max())
-        mean = keywords.get("mean",False)
-
-        # find which time bounds are included even partially in the interval [t0,tf]
-        time_bnds = np.copy(self.time_bnds)
-        ind       = np.where((t0<time_bnds[:,1])*(tf>time_bnds[:,0]))[0]
-        time_bnds[(t0>time_bnds[:,0])*(t0<time_bnds[:,1]),0] = t0
-        time_bnds[(tf>time_bnds[:,0])*(tf<time_bnds[:,1]),1] = tf
-        time_bnds = time_bnds[ind,:]
-        dt        = (time_bnds[:,1]-time_bnds[:,0])
-
-        # now expand this dt to the other dimensions of the data array (i.e. space or datasites)
-        for i in range(self.data.ndim-1): dt = np.expand_dims(dt,axis=-1)
-
-        # approximate the integral by nodal integration (rectangle rule)
-        np.seterr(over='ignore',under='ignore')
-        datamax = (self.data[ind]*dt).max(axis=0)
-        datamax_bnd = None
-#        if self.data_bnds is not None:
-#            integral_bnd = np.ma.asarray([((((self.data_bnds[...,0])[ind])*dt).sum(axis=0)).T,
-#                                          ((((self.data_bnds[...,1])[ind])*dt).sum(axis=0)).T]).T
-        np.seterr(over='raise',under='raise')
-
-        # the integrated array should be masked where *all* data in time was previously masked
-        mask = False
-        if self.data.ndim > 1 and self.data.mask.size > 1:
-            mask = np.apply_along_axis(np.all,0,self.data.mask[ind])
-        datamax = np.ma.masked_array(datamax,mask=mask,copy=False)
-            
-        # handle units
-        unit = Unit(self.unit)
-        name = self.name + "_max_over_time"
-
-        return Variable(data       = datamax,
-                        data_bnds   = datamax_bnd,
-                        unit       = "%s" % unit,
-                        name       = name,
+        t0 = keywords.get("t0",self.time_bnds[:,0].min())
+        tf = keywords.get("tf",self.time_bnds[:,1].max())
+        intervals = keywords.get("intervals",None)
+        if intervals is None: intervals = np.asarray([[t0,tf]])
+        assert intervals.ndim == 2
+        n    = intervals.shape[0]
+        shp  = (n,)+self.data.shape[1:]
+        time = np.zeros(n)
+        data = np.ma.zeros(shp)
+        for i in range(n):
+            t0          = intervals[i,0]
+            tf          = intervals[i,1]
+            time[i]     = 0.5*(t0+tf)
+            ind         = np.where((t0 <= self.time_bnds[:,1])*(tf >= self.time_bnds[:,0]))[0]
+            data[i]     = op(self.data[ind,...],axis=0)
+        return Variable(name       = "%s_%s" % (op.__name__,self.name),
+                        unit       = self.unit,
+                        time       = time,
+                        time_bnds  = intervals,
+                        data       = data,
+                        ndata      = self.ndata,
                         lat        = self.lat,
-                        lat_bnds   = self.lat_bnds,
                         lon        = self.lon,
-                        lon_bnds   = self.lon_bnds,
-                        depth      = self.depth,
-                        depth_bnds = self.depth_bnds,
                         area       = self.area,
-                        ndata      = self.ndata)
-
-    def minInTime(self,**keywords):
-        r"""Identify mininum of the variable over a given time period.
-
-        Parameters
-        ----------
-        t0 : float, optional
-            initial time in days since 1/1/1850
-        tf : float, optional
-            final time in days since 1/1/1850
-        mean : boolean, optional
-            enable to divide the integrand to get the mean function value
-
-        Returns
-        -------
-        integral : ILAMB.Variable.Variable
-            a Variable instance with the integrated value along with the
-            appropriate name and unit change
-
-        """
-        if not self.temporal: raise il.NotTemporalVariable()
-        t0   = keywords.get("t0",self.time_bnds[:,0].min())
-        tf   = keywords.get("tf",self.time_bnds[:,1].max())
-        mean = keywords.get("mean",False)
-
-        # find which time bounds are included even partially in the interval [t0,tf]
-        time_bnds = np.copy(self.time_bnds)
-        ind       = np.where((t0<time_bnds[:,1])*(tf>time_bnds[:,0]))[0]
-        time_bnds[(t0>time_bnds[:,0])*(t0<time_bnds[:,1]),0] = t0
-        time_bnds[(tf>time_bnds[:,0])*(tf<time_bnds[:,1]),1] = tf
-        time_bnds = time_bnds[ind,:]
-        dt        = (time_bnds[:,1]-time_bnds[:,0])
-
-        # now expand this dt to the other dimensions of the data array (i.e. space or datasites)
-        for i in range(self.data.ndim-1): dt = np.expand_dims(dt,axis=-1)
-
-        # approximate the integral by nodal integration (rectangle rule)
-        np.seterr(over='ignore',under='ignore')
-        datamin = (self.data[ind]*dt).min(axis=0)
-        datamin_bnd = None
-#        if self.data_bnds is not None:
-#            integral_bnd = np.ma.asarray([((((self.data_bnds[...,0])[ind])*dt).sum(axis=0)).T,
-#                                          ((((self.data_bnds[...,1])[ind])*dt).sum(axis=0)).T]).T
-        np.seterr(over='raise',under='raise')
-
-        # the integrated array should be masked where *all* data in time was previously masked
-        mask = False
-        if self.data.ndim > 1 and self.data.mask.size > 1:
-            mask = np.apply_along_axis(np.all,0,self.data.mask[ind])
-        datamin = np.ma.masked_array(datamin,mask=mask,copy=False)
-            
-        # handle units
-        unit = Unit(self.unit)
-        name = self.name + "_min_over_time"
-
-        return Variable(data       = datamin,
-                        data_bnds   = datamin_bnd,
-                        unit       = "%s" % unit,
-                        name       = name,
-                        lat        = self.lat,
-                        lat_bnds   = self.lat_bnds,
-                        lon        = self.lon,
-                        lon_bnds   = self.lon_bnds,
-                        depth      = self.depth,
-                        depth_bnds = self.depth_bnds,
-                        area       = self.area,
-                        ndata      = self.ndata)
-
+                        depth_bnds = self.depth_bnds)
 
     def integrateInDepth(self,**keywords):
         r"""Integrates the variable over a given layer limits.
@@ -1885,84 +1793,6 @@ class Variable:
             mean        = self.integrateInTime(mean=True,t0=t0,tf=tf).convert(self.unit)
             data[i,...] = mean.data
         return Variable(name       = "coarsened_%s" % self.name,
-                        unit       = self.unit,
-                        time       = time,
-                        time_bnds  = intervals,
-                        data       = data,
-                        ndata      = self.ndata,
-                        lat        = self.lat,
-                        lon        = self.lon,
-                        area       = self.area,
-                        depth_bnds = self.depth_bnds)
-
-    def coarsenMaxInTime(self,intervals,window=0.):
-        """Compute the max function value in each of the input intervals.
-
-        Parameters
-        ----------
-        intervals : array of shape (n,2)
-            An array of n intervals where the first entry is the
-            beginning and the second entry is the end of the interval
-        window : float, optional
-            Extend each interval before and after by this amount of time
-
-        Returns
-        -------
-        coarse : ILAMB.Variable.Variable
-            The coarsened variable
-        """
-        if not self.temporal: raise il.NotTemporalVariable
-        assert intervals.ndim == 2
-        n    = intervals.shape[0]
-        shp  = (n,)+self.data.shape[1:]
-        time = np.zeros(n)
-        data = np.ma.zeros(shp)
-        for i in range(n):
-            t0          = intervals[i,0]-window
-            tf          = intervals[i,1]+window
-            time[i]     = 0.5*(t0+tf)
-            maximum        = self.maxInTime(mean=True,t0=t0,tf=tf).convert(self.unit)
-            data[i,...] = maximum.data
-        return Variable(name       = "coarsened_max_%s" % self.name,
-                        unit       = self.unit,
-                        time       = time,
-                        time_bnds  = intervals,
-                        data       = data,
-                        ndata      = self.ndata,
-                        lat        = self.lat,
-                        lon        = self.lon,
-                        area       = self.area,
-                        depth_bnds = self.depth_bnds)
-
-    def coarsenMinInTime(self,intervals,window=0.):
-        """Compute the min function value in each of the input intervals.
-
-        Parameters
-        ----------
-        intervals : array of shape (n,2)
-            An array of n intervals where the first entry is the
-            beginning and the second entry is the end of the interval
-        window : float, optional
-            Extend each interval before and after by this amount of time
-
-        Returns
-        -------
-        coarse : ILAMB.Variable.Variable
-            The coarsened variable
-        """
-        if not self.temporal: raise il.NotTemporalVariable
-        assert intervals.ndim == 2
-        n    = intervals.shape[0]
-        shp  = (n,)+self.data.shape[1:]
-        time = np.zeros(n)
-        data = np.ma.zeros(shp)
-        for i in range(n):
-            t0          = intervals[i,0]-window
-            tf          = intervals[i,1]+window
-            time[i]     = 0.5*(t0+tf)
-            mininum        = self.minInTime(mean=True,t0=t0,tf=tf).convert(self.unit)
-            data[i,...] = minimum.data
-        return Variable(name       = "coarsened_min_%s" % self.name,
                         unit       = self.unit,
                         time       = time,
                         time_bnds  = intervals,
