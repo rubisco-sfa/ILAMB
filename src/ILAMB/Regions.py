@@ -1,7 +1,12 @@
 import os
 from netCDF4 import Dataset
 import numpy as np
+import warnings
+from mpi4py import MPI
 
+import logging
+logger = logging.getLogger("%i" % MPI.COMM_WORLD.rank)
+                           
 class Regions(object):
     """A class for unifying the treatment of regions in ILAMB.
 
@@ -43,7 +48,44 @@ class Regions(object):
                            [1,1,1]],dtype=bool)
         Regions._regions[label] = [name,lat,lon,mask]
         Regions._sources[label] = source
-        
+
+    def addRegionShapeFile(self, filename):
+        """Add regions found in a Shapefile.
+       
+        This routine will read region gemoetries from a Shapefile and
+	create ILAMB regions. Shapefiles provided can be in any
+	geospatial projection, however, they will all be projected to
+	standard EPSG 4326 latlon projection. Routine expects the
+	shapefile to provide 'label' attribute to populate attribute
+	'labels' for the region.
+
+        """
+        warnings.filterwarnings('ignore')
+        try:
+            import geopandas as gpd
+        except:
+            msg = "ILAMB Regions based on shapefiles requires the rasterio and geopandas modules"
+            raise ValueError(msg)            
+        vregions = gpd.read_file(filename)
+        # check projection of the shapefile, if not EPSG 4326, reproject to 4326
+        if vregions.crs != 4326:
+            logger.info("[Regions.addRegionShapeFile()] Reprojected %s from EPSG %d to EPSG 4326" % (filename, vregions.crs))
+            vregions.to_crs(epsg=4326)
+        catids = vregions.value.unique().tolist()
+        catids.sort()
+        regionnames = []
+        for c in catids:
+            catid = c
+            label  = vregions.label[vregions.value == c].unique()[0]
+            name = label.lower()
+            regionnames.append(label.lower())
+            shape = vregions[vregions.value == c]
+            Regions._regions[label.lower()] = [name, catid, shape]
+            Regions._sources[label.lower()] = os.path.basename(filename)
+        warnings.filterwarnings('default')            
+        return regionnames 
+
+       
     def addRegionNetCDF4(self,filename):
         """Add regions found in a netCDF4 file.
 
@@ -156,17 +198,84 @@ class Regions(object):
         mask : numpy.ndarray
             a boolean array appropriate for masking the input variable data
         """
-        name,lat,lon,mask = Regions._regions[label]
-        if lat.size == 4 and lon.size == 4:
-            # if lat/lon bounds, find which bounds we are in
-            rows = ((var.lat[:,np.newaxis]>=lat[:-1])*(var.lat[:,np.newaxis]<=lat[1:])).argmax(axis=1)
-            cols = ((var.lon[:,np.newaxis]>=lon[:-1])*(var.lon[:,np.newaxis]<=lon[1:])).argmax(axis=1)
+        
+        if len(Regions._regions[label]) == 4:
+            name,lat,lon,mask = Regions._regions[label]
+            if lat.size == 4 and lon.size == 4:
+                # if lat/lon bounds, find which bounds we are in
+                rows = ((var.lat[:,np.newaxis]>=lat[:-1])*(var.lat[:,np.newaxis]<=lat[1:])).argmax(axis=1)
+                cols = ((var.lon[:,np.newaxis]>=lon[:-1])*(var.lon[:,np.newaxis]<=lon[1:])).argmax(axis=1)
+            else:
+                # if more globally defined, nearest neighbor is fine
+                rows = (np.abs(lat[:,np.newaxis]-var.lat)).argmin(axis=0)
+                cols = (np.abs(lon[:,np.newaxis]-var.lon)).argmin(axis=0)
+            if var.ndata: return mask[np.ix_(rows,cols)].diagonal()
+            return mask[np.ix_(rows,cols)]
+
+        if len(Regions._regions[label]) == 3:
+            # we are calculating area of a lat/lon projection in this
+            # routine. Suppress geopandas warning message 
+            warnings.filterwarnings('ignore')
+            try:
+                import rasterio
+                from rasterio import features
+            except:
+                msg = "ILAMB Regions based on shapefiles requires the rasterio and geopandas modules"
+                raise ValueError(msg)
+            nrows=len(var.lat)
+            ncols=len(var.lon)
+            res=(var.lat.max()-var.lat.min())/nrows
+            # calculate nominal pixel area for the model var
+            marea = res*res/100
+            name,catid,shape = Regions._regions[label]
+            transform = rasterio.transform.from_bounds(var.lon.min(), 
+                var.lat.max(), var.lon.max(),
+                var.lat.min(), ncols, nrows)
+            # create a generator with shapes to rasterize
+            # subset only the polygons >= marea i.e. ignore any polygon smaller than model grid cell
+            gshape = list((geom, value) for geom, value in zip(shape.loc[shape.area >= marea].geometry, shape.value.unique()))
+            try:
+                rregion = features.rasterize(shapes=gshape, fill=9999, out_shape=(nrows,ncols), transform=transform)
+            except:
+                pass
+            mask = rregion != catid
+            warnings.filterwarnings('default') # toggle warnings back on
+            return mask
+
+    def getMaskLatLon(self,label,var):
+        """Given the region label and a ILAMB.Variable, return a mask appropriate for that variable.
+
+        Parameters
+        ----------
+        label : str
+            the unique region identifier
+        var : ILAMB.Variable.Variable
+            the variable to which we would like to apply a mask
+
+        Returns
+        -------
+        mask : numpy.ndarray
+            a boolean array appropriate for masking the input variable data
+        """
+        if len(Regions._regions[label]) == 3:
+            nrows=len(var.lat)
+            ncols=len(var.lon)
+            res=(var.lat.max()-var.lat.min())/nrows
+            marea = res*res
+            name,catid,shape = Regions._regions[label]
+            transform = rasterio.transform.from_bounds(var.lon.min(), 
+                var.lat.max(), var.lon.max(),
+                var.lat.min(), ncols, nrows)
+            gshape = list((geom, value) for geom, value in zip(shape.loc[shape.area >= marea].geometry, shape.value.unique()))
+            try:
+                rregion = features.rasterize(shapes=gshape, fill=9999, out_shape=(nrows,ncols), transform=transform)
+            except:
+                pass
+            mask = rregion != catid
+            return var.lat,var.lon,mask
         else:
-            # if more globally defined, nearest neighbor is fine
-            rows = (np.abs(lat[:,np.newaxis]-var.lat)).argmin(axis=0)
-            cols = (np.abs(lon[:,np.newaxis]-var.lon)).argmin(axis=0)
-        if var.ndata: return mask[np.ix_(rows,cols)].diagonal()
-        return mask[np.ix_(rows,cols)]
+            msg = "Regions.getMaskLatLon() is only implemented for shapefile-based regions"
+            raise ValueError(msg)
 
     def hasData(self,label,var):
         """Checks if the ILAMB.Variable has data on the given region.

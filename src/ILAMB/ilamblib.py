@@ -1809,6 +1809,12 @@ def MakeComparable(ref,com,**keywords):
         # comparison, coarsen the comparison
         if np.log10(ref.dt/com.dt) > 0.5:
             com = com.coarsenInTime(ref.time_bnds,window=window)
+        elif np.log10(com.dt/ref.dt) > 0.5:
+            msg  = "%s Reference data was coarsened\n: " % logstring
+            msg += " dt before: %s" % (ref.dt)
+            ref  = ref.coarsenInTime(com.time_bnds,window=window)
+            msg += " dt after: %s" % (ref.dt)
+            logger.info(msg)
 
         # Time bounds of the reference dataset
         t0  = ref.time_bnds[ 0,0]
