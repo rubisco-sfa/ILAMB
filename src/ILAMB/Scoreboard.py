@@ -109,6 +109,10 @@ def ConvertTypes(node):
         node.alternate_vars = node.alternate_vars.split(",")
     else:
         node.alternate_vars = []
+    if node.derived is not None:
+        node.derived = node.derived.split(",")
+    else:
+        node.derived = []
 
 def SumWeightChildren(node):
     for child in node.children: node.sum_weight_children += child.weight
@@ -130,7 +134,8 @@ def OverallWeights(node):
 def InheritVariableNames(node):
     if node.parent             is None: return
     if node.variable           is None:  node.variable       = node.parent.variable
-    if node.derived            is None:  node.derived        = node.parent.derived
+    #if node.derived            is None:  node.derived        = node.parent.derived
+    node.derived = node.parent.derived
     if node.cmap               is None:  node.cmap           = node.parent.cmap
     if node.ctype              is None:  node.ctype          = node.parent.ctype
     if node.skip_rmse          is False: node.skip_rmse      = node.parent.skip_rmse

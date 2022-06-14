@@ -166,7 +166,12 @@ class ConfIOMB(Confrontation):
         # part of the expression to look at the time
         info = ""
         possible = [self.variable,] + self.alternate_vars
-        if self.derived is not None: possible += [str(s) for s in sympify(self.derived).free_symbols]
+        if self.derived is not None:
+            if isinstance(self.derived, list):
+                for dr in self.derived:
+                    possible += [str(s) for s in sympify(dr).free_symbols]
+            else:
+                possible += [str(s) for s in sympify(self.derived).free_symbols]
         vname = [v for v in possible if v in m.variables.keys()]
         if len(vname) == 0:
             logger.debug("[%s] Could not find [%s] in the model results" % (self.name,",".join(possible)))

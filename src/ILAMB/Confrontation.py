@@ -123,7 +123,6 @@ class Confrontation(object):
         change the types of plot limits, one of ['minmax', '99per' (default)]
     """
     def __init__(self,**keywords):
-
         # Initialize
         self.master         = True
         self.name           = keywords.get("name",None)
@@ -131,7 +130,7 @@ class Confrontation(object):
         self.variable       = keywords.get("variable",None)
         self.output_path    = keywords.get("output_path","./")
         self.alternate_vars = keywords.get("alternate_vars",[])
-        self.derived        = keywords.get("derived",None)
+        self.derived        = keywords.get("derived",[])
         self.regions        = list(keywords.get("regions",["global"]))
         self.data           = None
         self.cmap           = keywords.get("cmap","jet")
@@ -264,8 +263,13 @@ class Confrontation(object):
                        "Spatial Distribution Score"    :1.}
 
     def requires(self):
-        if self.derived is not None:
-            ands = [arg.name for arg in sympify(self.derived).free_symbols]
+        if (self.derived is not None) and (len(self.derived) > 0):
+            if isinstance(self.derived, list):
+                ands = []
+                for d in self.derived:
+                    ands = ands + [arg.name for arg in sympify(d).free_symbols]
+            else:
+                ands = [arg.name for arg in sympify(self.derived).free_symbols]
             ors  = []
         else:
             ands = []

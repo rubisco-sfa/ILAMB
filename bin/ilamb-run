@@ -78,7 +78,7 @@ def InitializeModels(model_root,models=[],verbose=False,filter="",regex="",model
             max_model_name_len = max(max_model_name_len,len(mname))
         break
     M = sorted(M,key=lambda m: m.name.upper())
-    
+
     # assign unique colors
     clrs = il.GenerateDistinctColors(len(M))
     for m in M:

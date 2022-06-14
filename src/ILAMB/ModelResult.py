@@ -101,6 +101,7 @@ class ModelResult():
         variables = {}
         names     = {}
         paths     = self.paths if self.paths is not None else [self.path]
+
         for path in paths:
             for subdir, dirs, files in os.walk(path,followlinks=True):
                 for fileName in files:
@@ -119,6 +120,7 @@ class ModelResult():
 
                     # populate dictionary for which variables are in which files
                     for key in dataset.variables.keys():
+
                         if key not in variables:
                             variables[key] = []
                         variables[key].append(pathName)
@@ -170,7 +172,7 @@ class ModelResult():
         """
         def _shiftLon(lon):
             return (lon<=180)*lon + (lon>180)*(lon-360) + (lon<-180)*360
-        
+
         # Are there cell areas associated with this model?
         area_name = None
         area_name = "area"      if "area"      in self.variables.keys() else area_name
@@ -186,13 +188,13 @@ class ModelResult():
             with Dataset(self.variables["lat_bnds"][0]) as f:
                 x = f.variables["lat_bnds"][...]
             with Dataset(self.variables["lon_bnds"][0]) as f:
-                y = f.variables["lon_bnds"][...]
+                y = _shiftLon(f.variables["lon_bnds"][...])
                 s = y.mean(axis=1).argmin()
-                y = np.roll(_shiftLon(y),-s,axis=0)
+                y = np.roll(y,-s,axis=0)
                 if y[ 0,0] > y[ 0,1]: y[ 0,0] = -180.
                 if y[-1,0] > y[-1,1]: y[-1,1] = +180.
             self.cell_areas = il.CellAreas(None,None,lat_bnds=x,lon_bnds=y)
-            
+
         # Now we do the same for land fractions
         frac_name = None
         frac_name = "landfrac" if "landfrac" in self.variables.keys() else frac_name
@@ -214,7 +216,7 @@ class ModelResult():
         self.land_area = np.ma.sum(self.land_areas)
         return
 
-    def extractTimeSeries(self,variable,lats=None,lons=None,alt_vars=[],initial_time=-1e20,final_time=1e20,output_unit="",expression=None,convert_calendar=True,initial_depth=None,final_depth=None):
+    def extractTimeSeries(self,variable,lats=None,lons=None,alt_vars=[],initial_time=-1e20,final_time=1e20,output_unit="",expression=[],convert_calendar=True,initial_depth=None,final_depth=None):
         """Extracts a time series of the given variable from the model.
 
         Parameters
@@ -234,7 +236,7 @@ class ModelResult():
             a 1D array of latitude locations at which to extract information
         lons : numpy.ndarray, optional
             a 1D array of longitude locations at which to extract information
-        expression : str, optional
+        expression : str or list of str, optional
             an algebraic expression describing how to combine model outputs
         initial_depth, final_depth: float, optional
             include model results between these depths # YW
@@ -246,6 +248,7 @@ class ModelResult():
 
         """
         # prepend the target variable to the list of possible variables
+
         altvars = list(alt_vars)
         altvars.insert(0,variable)
 
@@ -260,11 +263,12 @@ class ModelResult():
         tmin =  1e20
         tmax = -1e20
         same_site_epsilon = 0.5
+
         for v in altvars:
+
             if v not in self.variables: continue
             for ifile,pathName in enumerate(self.variables[v]):
                 if _skipFile(pathName,altvars,lats,lons,same_site_epsilon): continue
-
                 var = Variable(filename       = pathName,
                                variable_name  = variable,
                                alternate_vars = altvars[1:],
@@ -299,18 +303,39 @@ class ModelResult():
                 var.time_bnds += self.shift
 
                 V.append(var)
+
             if len(V) > 0: break
 
         # If we didn't find any files, try to put together the
         # variable from a given expression
         if len(V) == 0:
-            if expression is not None:
-                v = self.derivedVariable(variable,
-                                         expression,
-                                         lats         = lats,
-                                         lons         = lons,
-                                         initial_time = initial_time,
-                                         final_time   = final_time)
+            if (expression is not None) and (len(expression) > 0):
+                if isinstance(expression, list):
+                    for e in expression:
+                        v = None
+                        try:
+                            v = self.derivedVariable(variable,
+                                                     e,
+                                                     lats         = lats,
+                                                     lons         = lons,
+                                                     initial_time = initial_time,
+                                                     final_time   = final_time)
+                        except:
+                            pass
+                        if v is not None:
+                            break
+                    if v is None:
+                        tstr = ""
+                        if tmin < tmax: tstr = " in the given time frame, tinput = [%.1f,%.1f], tmodel = [%.1f,%.1f]" % (initial_time,final_time,tmin+self.shift,tmax+self.shift)
+                        logger.debug("[%s] Could not find [%s] in the model results%s" % (self.name,",".join(altvars),tstr))
+                        raise il.VarNotInModel()
+                else:
+                    v = self.derivedVariable(variable,
+                                             expression,
+                                             lats         = lats,
+                                             lons         = lons,
+                                             initial_time = initial_time,
+                                             final_time   = final_time)                    
             else:
                 tstr = ""
                 if tmin < tmax: tstr = " in the given time frame, tinput = [%.1f,%.1f], tmodel = [%.1f,%.1f]" % (initial_time,final_time,tmin+self.shift,tmax+self.shift)
@@ -318,7 +343,6 @@ class ModelResult():
                 raise il.VarNotInModel()
         else:
             v = il.CombineVariables(V)
-
 
         return v
 

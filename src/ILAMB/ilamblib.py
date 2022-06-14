@@ -611,7 +611,6 @@ def _removeLeapDay(t,v,datum=None,calendar=None,t0=None,tf=None):
 
     return tdata,vdata
 
-
 def _createBnds(x):
     x      = np.asarray(x)
     x_bnds = np.zeros((x.size,2))
@@ -624,6 +623,19 @@ def _createBnds(x):
         x_bnds[-1,1] = x[-1] + 0.5*(x[-1]-x[-2])
     return x_bnds
 
+def _make_bnds_lat(x):
+    bnds       = np.zeros(x.size+1)
+    bnds[1:-1] = 0.5*(x[1:]+x[:-1])
+    bnds[ 0]   = max(x[ 0]-0.5*(x[ 1]-x[ 0]),-90)
+    bnds[-1]   = min(x[-1]+0.5*(x[-1]-x[-2]),+90)
+    return bnds
+
+def _make_bnds_lon(x):
+    bnds       = np.zeros(x.size+1)
+    bnds[1:-1] = 0.5*(x[1:]+x[:-1])
+    bnds[ 0]   = max(x[ 0]-0.5*(x[ 1]-x[ 0]),-180)
+    bnds[-1]   = min(x[-1]+0.5*(x[-1]-x[-2]),+180)
+    return bnds
 
 def FromNetCDF4(filename,variable_name,alternate_vars=[],t0=None,tf=None,group=None,convert_calendar=True,z0=None,zf=None):
     """Extracts data from a netCDF4 datafile for use in a Variable object.
@@ -856,7 +868,6 @@ def FromNetCDF4(filename,variable_name,alternate_vars=[],t0=None,tf=None,group=N
                     depth_bnd = Unit(dunit).convert(depth_bnd,Unit("Pa"),inplace=True)
                     depth_bnd = -np.log(depth_bnd/Pb)*R*Tb/M/g
 
-        # YW
         if z0 is not None:
             if zf is None:
                 raise ValueError("Mismatched starting depth %f." % z0)
@@ -873,7 +884,6 @@ def FromNetCDF4(filename,variable_name,alternate_vars=[],t0=None,tf=None,group=N
                     v_depth_sub.append( list(np.where(ind)[0]) )
                 else:
                     v_depth_sub.append( list(range(vs)) )
-            #print( v_depth_sub ) # DEBUG
             v = v[np.ix_(*v_depth_sub)]
         else:
             if zf is not None:
@@ -998,16 +1008,10 @@ def ComposeSpatialGrids(var1,var2):
     """
     if not var1.spatial: il.NotSpatialVariable()
     if not var2.spatial: il.NotSpatialVariable()
-    def _make_bnds(x):
-        bnds       = np.zeros(x.size+1)
-        bnds[1:-1] = 0.5*(x[1:]+x[:-1])
-        bnds[ 0]   = max(x[ 0]-0.5*(x[ 1]-x[ 0]),-180)
-        bnds[-1]   = min(x[-1]+0.5*(x[-1]-x[-2]),+180)
-        return bnds
-    lat1_bnd = _make_bnds(var1.lat)
-    lon1_bnd = _make_bnds(var1.lon)
-    lat2_bnd = _make_bnds(var2.lat)
-    lon2_bnd = _make_bnds(var2.lon)
+    lat1_bnd = _make_bnds_lat(var1.lat)
+    lon1_bnd = _make_bnds_lon(var1.lon)
+    lat2_bnd = _make_bnds_lat(var2.lat)
+    lon2_bnd = _make_bnds_lon(var2.lon)
     lat_bnd  = np.hstack((lat1_bnd,lat2_bnd)); lat_bnd.sort(); lat_bnd = np.unique(lat_bnd)
     lon_bnd  = np.hstack((lon1_bnd,lon2_bnd)); lon_bnd.sort(); lon_bnd = np.unique(lon_bnd)
     lat      = 0.5*(lat_bnd[1:]+lat_bnd[:-1])
@@ -1392,6 +1396,7 @@ def AnalysisMeanStateSpace(ref,com,**keywords):
     ref.convert(plot_unit)
     com.convert(plot_unit)
     lat,lon,lat_bnds,lon_bnds = _composeGrids(ref,com)
+
     REF   = ref.interpolate(lat=lat,lon=lon,lat_bnds=lat_bnds,lon_bnds=lon_bnds)
     COM   = com.interpolate(lat=lat,lon=lon,lat_bnds=lat_bnds,lon_bnds=lon_bnds)
     unit  = REF.unit
@@ -1968,7 +1973,6 @@ def AnalysisPartialCorrSpace(ref,com,ref_indep_list,com_indep_list,**keywords):
     assert com_corr is None
 
     ref_corr = ref.partialCorrelation(ref_indep_list, ctype = "temporal")
-
     com_corr = com.partialCorrelation(com_indep_list, ctype = "temporal")
     REF_corr = REF.partialCorrelation(REF_indep_list, ctype = "temporal")
     COM_corr = COM.partialCorrelation(COM_indep_list, ctype = "temporal")
@@ -2008,16 +2012,14 @@ def AnalysisPartialCorrSpace(ref,com,ref_indep_list,com_indep_list,**keywords):
             # Spatial Distribution: scalars and scores
             if dataset is not None:
                 for region in regions:
-                    space_std,space_cor,sd_score = \
-                        ref_temp.spatialDistribution(com_temp, region=region)
-                    sd_score.name = "Spatial Distribution Score %s %s %s" % (name,
-                                                                             pp, region)
+                    space_std,space_cor,sd_score = REF_temp.spatialDistribution(COM_temp, region=region)
+                    sd_score.name = "Spatial Distribution Score %s %s %s" % (name, pp, region)
                     sd_score.toNetCDF4(dataset,group="Sensitivities",
                                        attributes={"std":space_std.data,
                                                    "R"  :space_cor.data})
 
             # Bias: maps, scalars, and scores
-            bias = ref_temp.bias(com_temp)
+            bias = REF_temp.bias(COM_temp)
             # somehow I need to remask this
             bias.data = np.ma.masked_invalid(np.where(bias.data.mask, np.nan, bias.data.data))
             # !!! TO-DO: Use the confidence interval of REF_corr instead of the REF_corr

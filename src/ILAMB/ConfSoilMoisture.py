@@ -121,7 +121,12 @@ class ConfSoilMoisture(Confrontation):
         # part of the expression to look at the time
         info = ""
         possible = [self.variable,] + self.alternate_vars
-        if self.derived is not None: possible += [str(s) for s in sympify(self.derived).free_symbols]
+        if self.derived is not None:
+            if isinstance(self.derived, list):
+                for dr in self.derived:
+                    possible += [str(s) for s in sympify(dr).free_symbols]
+            else:
+                possible += [str(s) for s in sympify(self.derived).free_symbols]
         vname = [v for v in possible if v in m.variables.keys()]
         if len(vname) == 0:
             logger.debug("[%s] Could not find [%s] in the model results" % (self.name,",".join(possible)))
@@ -156,11 +161,12 @@ class ConfSoilMoisture(Confrontation):
                 mod_tf = max(mod_tf,mod_tb[-1,1])
 
                 mod_dname = [name for name in dset.variables.keys() \
-                             if name.lower() in ["depth", "layer", "levgrnd"]]
+                             if name.lower() in ["depth", "layer", "levgrnd", "solay"]]
                 mod_dbndname = [name for name in dset.variables.keys() \
                                 if name.lower() in ["depth_bnds", "depth_bounds",
                                                     "layer_bnds", "layer_bounds",
-                                                    "levgrnd_bnds", "levgrnd_bounds"]]
+                                                    "levgrnd_bnds", "levgrnd_bounds",
+                                                    "solay_bnds", "solay_bounds"]]
                 if len(mod_dbndname) > 0:
                     mod_dname = mod_dbndname[0]
                     temp = dset.variables[mod_dname][...]
@@ -431,7 +437,7 @@ class ConfSoilMoisture(Confrontation):
                                                     mass_weighting    = mass_weighting,
                                                     regions           = self.regions)
                     else:
-                        # !!! TO-DO: Add AnalysisPartialCorrSites
+                        # TO-DO: Add AnalysisPartialCorrSites
                         pass
 
             fcm.mod_dset.setncattr("complete",1)

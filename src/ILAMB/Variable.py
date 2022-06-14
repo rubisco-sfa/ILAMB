@@ -40,6 +40,21 @@ def _createBnds(x):
         x_bnds[-1,1] = x[-1] + 0.5*(x[-1]-x[-2])
     return x_bnds
 
+def _createBnds_lat(x):
+    bnds       = np.zeros(x.size+1)
+    bnds[1:-1] = 0.5*(x[1:]+x[:-1])
+    bnds[ 0]   = max(x[ 0]-0.5*(x[ 1]-x[ 0]),-90)
+    bnds[-1]   = min(x[-1]+0.5*(x[-1]-x[-2]),+90)
+    bnds       = np.hstack([bnds[:-1].reshape(-1,1), bnds[1:].reshape(-1,1)])
+    return bnds
+
+def _createBnds_lon(x):
+    bnds       = np.zeros(x.size+1)
+    bnds[1:-1] = 0.5*(x[1:]+x[:-1])
+    bnds[ 0]   = max(x[ 0]-0.5*(x[ 1]-x[ 0]),-180)
+    bnds[-1]   = min(x[-1]+0.5*(x[-1]-x[-2]),+180)
+    bnds       = np.hstack([bnds[:-1].reshape(-1,1), bnds[1:].reshape(-1,1)])
+    return bnds
 
 def _normalize(ma_array):
     temp = np.where(ma_array.mask, np.nan, ma_array.data)
@@ -270,7 +285,7 @@ class Variable:
         self.cbounds = cbounds
         self.calendar = calendar
         self.attr = attr
-        
+
         # Handle time data
         self.time      = time      # time data
         self.time_bnds = time_bnds # bounds on time
@@ -328,11 +343,13 @@ class Variable:
                                               data     = self.data,
                                               area     = self.area)
             self.lon,self.lon_bnds,self.data,self.area = out
-            
+
             # Finally create bounds if they are not there
-            if self.lat_bnds is None: self.lat_bnds = _createBnds(self.lat)
-            if self.lon_bnds is None: self.lon_bnds = _createBnds(self.lon)
-            
+            if self.lat_bnds is None: 
+                self.lat_bnds = _createBnds_lat(self.lat)
+            if self.lon_bnds is None: 
+                self.lon_bnds = _createBnds_lon(self.lon)
+
             # Fix potential problems with rolling the axes of the lon_bnds
             self.lat_bnds = self.lat_bnds.clip(- 90,+ 90)
             self.lon_bnds = self.lon_bnds.clip(-180,+180)
@@ -340,6 +357,18 @@ class Variable:
             # Make sure that the value lies within the bounds
             assert np.all((self.lat>=self.lat_bnds[:,0])*(self.lat<=self.lat_bnds[:,1]))
             assert np.all((self.lon>=self.lon_bnds[:,0])*(self.lon<=self.lon_bnds[:,1]))
+            ##DEBUG
+            ##temp = np.all((self.lat>=self.lat_bnds[:,0])*(self.lat<=self.lat_bnds[:,1]))
+            ##if not temp:
+            ##    print(self.lat_bnds - self.lat.reshape(-1,1),
+            ##          self.lon_bnds - self.lon.reshape(-1,1))
+            ##    import pdb; pdb.set_trace()
+            ##temp = np.all((self.lon>=self.lon_bnds[:,0])*(self.lon<=self.lon_bnds[:,1]))
+            ##if not temp:
+            ##    print(self.lat_bnds - self.lat.reshape(-1,1),
+            ##          self.lon_bnds - self.lon.reshape(-1,1))
+            ##    import pdb; pdb.set_trace()
+
             if self.area is None: self.area = il.CellAreas(None,None,
                                                            lat_bnds=self.lat_bnds,
                                                            lon_bnds=self.lon_bnds)
@@ -1067,7 +1096,13 @@ class Variable:
         diff : ILAMB.Variable.Variable
             A new variable object representing the difference
         """
-        def _make_bnds(x):
+        def _make_bnds_lat(x):
+            bnds       = np.zeros(x.size+1)
+            bnds[1:-1] = 0.5*(x[1:]+x[:-1])
+            bnds[0]    = max(x[0] -0.5*(x[ 1]-x[ 0]),-90)
+            bnds[-1]   = min(x[-1]+0.5*(x[-1]-x[-2]),+90)
+            return bnds
+        def _make_bnds_lon(x):
             bnds       = np.zeros(x.size+1)
             bnds[1:-1] = 0.5*(x[1:]+x[:-1])
             bnds[0]    = max(x[0] -0.5*(x[ 1]-x[ 0]),-180)
@@ -1097,10 +1132,10 @@ class Variable:
                              name      = "%s_minus_%s" % (var.name,self.name))
         else:
             if not self.spatial: raise il.NotSpatialVariable()
-            lat_bnd1 = _make_bnds(self.lat)
-            lon_bnd1 = _make_bnds(self.lon)
-            lat_bnd2 = _make_bnds( var.lat)
-            lon_bnd2 = _make_bnds( var.lon)
+            lat_bnd1 = _make_bnds_lat(self.lat)
+            lon_bnd1 = _make_bnds_lon(self.lon)
+            lat_bnd2 = _make_bnds_lat( var.lat)
+            lon_bnd2 = _make_bnds_lon( var.lon)
             lat_bnd,lon_bnd,lat,lon,error = il.TrueError(lat_bnd1,lon_bnd1,self.lat,self.lon,self.data,
                                                          lat_bnd2,lon_bnd2, var.lat, var.lon, var.data)
             diff = Variable(data      = error,
@@ -1612,9 +1647,9 @@ class Variable:
             ax.set_extent(extents,ccrs.PlateCarree())
             if cbar: fig.colorbar(p,orientation='horizontal',pad=0.05,label=label)
             if rem_mask is not None: self.data.mask = rem_mask
-            
+
         return ax
-    
+
     def interpolate(self,time=None,lat=None,lon=None,lat_bnds=None,lon_bnds=None,itype='nearestneighbor'):
         """Use nearest-neighbor interpolation to interpolate time and/or space at given values.
 
