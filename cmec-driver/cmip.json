@@ -187,11 +187,6 @@
       "long_name": "Forest Biomass",
       "description": "This product was derived from Forest Biomass across the Lower 48 States and Alaska originally in a raster format at 250m."
     },
-    "Thurner": {
-      "version": "2010",
-      "long_name": "Max Planck Institute regridded 30N-80N forest biomass",
-      "description": "Retrievals from synthetic aperture radar data using existing databases of wood density and allometric relationships between biomass compartments"
-    },
     "NOAA.Emulated": {
       "version": "Randerson and Mu 2016",
       "long_name": "derived NOAA GMD Site Observations",
@@ -360,13 +355,6 @@
             "table_unit": "Pg",
             "plot_unit": "kg m-2",
             "space_mean": true
-          },
-          "Thurner": {
-            "source": "DATA/biomass/Thurner/biomass_0.5x0.5.nc",
-            "weight": 15.0,
-            "table_unit": "Pg",
-            "plot_unit": "kg m-2",
-            "space_mean": true
           }
         },
         "Carbon Dioxide": {
@@ -386,7 +374,7 @@
           "cmap": "Greens",
           "weight": 5.0,
           "mass_weighting": true,
-          "FLUXNET2015": {
+          "FLUXNET": {
             "source": "DATA/gpp/FLUXNET2015/gpp.nc",
             "weight": 9.0,
             "table_unit": "g m-2 d-1",

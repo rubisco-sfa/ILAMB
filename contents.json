@@ -8,6 +8,7 @@
     "contents": [
         "cmec-driver/cmip.json",
         "cmec-driver/custom_config.json",
+        "cmec-driver/forcings.json",
         "cmec-driver/iomb.json",
         "cmec-driver/sample.json",
         "cmec-driver/ilamb.json"

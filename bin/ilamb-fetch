@@ -28,6 +28,8 @@ def GenerateSha1sumFile(root,suffix=".nc"):
     
     lines = ""
     for topdir, dirs, files in os.walk(root):
+        if topdir.startswith(  "_"): continue
+        if topdir.startswith("./_"): continue        
         for fpath in [os.path.join(topdir, f) for f in files]:
             if not fpath.endswith(suffix): continue
             size = os.path.getsize(fpath)

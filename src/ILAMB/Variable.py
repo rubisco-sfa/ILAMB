@@ -210,7 +210,7 @@ class Variable:
             # Fix potential problems with rolling the axes of the lon_bnds
             self.lat_bnds = self.lat_bnds.clip(- 90,+ 90)
             self.lon_bnds = self.lon_bnds.clip(-180,+180)
-            
+
             # Make sure that the value lies within the bounds
             assert np.all((self.lat>=self.lat_bnds[:,0])*(self.lat<=self.lat_bnds[:,1]))
             assert np.all((self.lon>=self.lon_bnds[:,0])*(self.lon<=self.lon_bnds[:,1]))
@@ -393,6 +393,49 @@ class Variable:
                         depth_bnds = self.depth_bnds,
                         area       = self.area,
                         ndata      = self.ndata)
+
+    def applyOverTimeInterval(self,op,**keywords):
+        r"""Apply operator over time intervals.
+
+        Parameters
+        ----------
+        op : function
+            operator to apply over the time intervals
+        t0 : float, optional
+            initial time in days since 1/1/1850
+        tf : float, optional
+            final time in days since 1/1/1850
+        intervals : array of shape (n,2), optional
+            An array of n intervals where the first entry is the
+            beginning and the second entry is the end of the interval
+
+        """
+        if not self.temporal: raise il.NotTemporalVariable()
+        t0 = keywords.get("t0",self.time_bnds[:,0].min())
+        tf = keywords.get("tf",self.time_bnds[:,1].max())
+        intervals = keywords.get("intervals",None)
+        if intervals is None: intervals = np.asarray([[t0,tf]])
+        assert intervals.ndim == 2
+        n    = intervals.shape[0]
+        shp  = (n,)+self.data.shape[1:]
+        time = np.zeros(n)
+        data = np.ma.zeros(shp)
+        for i in range(n):
+            t0          = intervals[i,0]
+            tf          = intervals[i,1]
+            time[i]     = 0.5*(t0+tf)
+            ind         = np.where((t0 <= self.time_bnds[:,1])*(tf >= self.time_bnds[:,0]))[0]
+            data[i]     = op(self.data[ind,...],axis=0)
+        return Variable(name       = "%s_%s" % (op.__name__,self.name),
+                        unit       = self.unit,
+                        time       = time,
+                        time_bnds  = intervals,
+                        data       = data,
+                        ndata      = self.ndata,
+                        lat        = self.lat,
+                        lon        = self.lon,
+                        area       = self.area,
+                        depth_bnds = self.depth_bnds)
 
     def integrateInDepth(self,**keywords):
         r"""Integrates the variable over a given layer limits.

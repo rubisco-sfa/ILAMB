@@ -18,6 +18,7 @@ import pylab as plt
 import re
 from ILAMB.Post import RegisterCustomColormaps
 if "wetdry" not in plt.colormaps(): RegisterCustomColormaps()
+import platform
 
 # MPI stuff
 comm = MPI.COMM_WORLD
@@ -643,7 +644,7 @@ if args.logging:
     logger.addHandler(mh)
 
 if rank == 0:
-    logger.info(" " + " ".join(os.uname()))
+    logger.info(" " + " ".join(platform.uname()))
     for key in ["ILAMB","numpy","matplotlib","netCDF4","cf_units","sympy","mpi4py"]:
         pkg  = __import__(key)
         try:
