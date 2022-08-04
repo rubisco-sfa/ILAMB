@@ -8,6 +8,7 @@ import pylab as plt
 import numpy as np
 import os
 from cf_units import Unit
+import rasterio
 
 class ConfBasin(Confrontation):
     """A confrontation for examining the runoff/drainage in defined drainage basins.

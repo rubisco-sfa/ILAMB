@@ -257,6 +257,12 @@ class Regions(object):
         mask : numpy.ndarray
             a boolean array appropriate for masking the input variable data
         """
+        try:
+            import rasterio
+            from rasterio import features
+        except:
+            msg = "ILAMB Regions based on shapefiles requires the rasterio and geopandas modules"
+            raise ValueError(msg)
         if len(Regions._regions[label]) == 3:
             nrows=len(var.lat)
             ncols=len(var.lon)
