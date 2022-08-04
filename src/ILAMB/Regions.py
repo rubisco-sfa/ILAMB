@@ -63,7 +63,7 @@ class Regions(object):
         warnings.filterwarnings('ignore')
         try:
             import geopandas as gpd
-        except:
+        except ImportError:
             msg = "ILAMB Regions based on shapefiles requires the rasterio and geopandas modules"
             raise ValueError(msg)            
         vregions = gpd.read_file(filename)
@@ -219,7 +219,7 @@ class Regions(object):
             try:
                 import rasterio
                 from rasterio import features
-            except:
+            except ImportError:
                 msg = "ILAMB Regions based on shapefiles requires the rasterio and geopandas modules"
                 raise ValueError(msg)
             nrows=len(var.lat)
@@ -260,7 +260,7 @@ class Regions(object):
         try:
             import rasterio
             from rasterio import features
-        except:
+        except ImportError:
             msg = "ILAMB Regions based on shapefiles requires the rasterio and geopandas modules"
             raise ValueError(msg)
         if len(Regions._regions[label]) == 3:
