@@ -257,6 +257,9 @@ class Regions(object):
         mask : numpy.ndarray
             a boolean array appropriate for masking the input variable data
         """
+        # we are calculating area of a lat/lon projection in this
+        # routine. Suppress geopandas warning message 
+        warnings.filterwarnings('ignore')
         try:
             import rasterio
             from rasterio import features
@@ -282,6 +285,7 @@ class Regions(object):
         else:
             msg = "Regions.getMaskLatLon() is only implemented for shapefile-based regions"
             raise ValueError(msg)
+        warnings.filterwarnings('default') # toggle warnings back on
 
     def hasData(self,label,var):
         """Checks if the ILAMB.Variable has data on the given region.
