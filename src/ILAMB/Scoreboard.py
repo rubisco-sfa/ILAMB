@@ -20,6 +20,7 @@ import numpy as np
 from .Post import HarvestScalarDatabase,CreateJSON
 from .ilamblib import MisplacedData
 import glob,json
+from copy import deepcopy
 
 global_print_node_string  = ""
 global_confrontation_list = []
@@ -59,10 +60,11 @@ class Node(object):
         if self.parent is None: return ""
         name   = self.name if self.name is not None else ""
         weight = self.weight
+        depth = "%dm" % self.depth if "depth" in self.__dict__ else ""
         if self.isLeaf():
-            s = "%s%s %s" % ("   "*(self.getDepth()-1),name,self.score)
+            s = "%s%s %s" % ("   "*(self.getDepth()-1),name,depth)
         else:
-            s = "%s%s %s" % ("   "*(self.getDepth()-1),name,self.score)
+            s = "%s%s %s" % ("   "*(self.getDepth()-1),name,depth)
         return s
 
     def isLeaf(self):
@@ -135,6 +137,25 @@ def InheritVariableNames(node):
     if node.mass_weighting     is False: node.mass_weighting = node.parent.mass_weighting
     node.alternate_vars = node.parent.alternate_vars
 
+def ExpandDepths(node):
+    if node.getDepth() != 2: return
+    if "depths" not in node.__dict__: return
+    depths = [float(d) for d in node.__dict__['depths'].split(",")]
+    
+    # we need to replace 'node' with a list of nodes
+    replace_node = []
+    for d in depths:
+        depth_node = deepcopy(node)
+        depth_node.__dict__.pop("depths")
+        depth_node.name += " %dm" % d
+        for c,_ in enumerate(depth_node.children):
+            depth_node.children[c].depth = d
+        replace_node.append(depth_node)
+    
+    # now replace/expand    
+    expansions = (replace_node if c == node else [c] for c in node.parent.children)
+    node.parent.children = [v for vals in expansions for v in vals]
+
 def ParseScoreboardConfigureFile(filename):
     root = Node(None)
     previous_node = root
@@ -179,6 +200,7 @@ def ParseScoreboardConfigureFile(filename):
     TraversePreorder (root,NormalizeWeights)
     TraversePreorder (root,OverallWeights)
     TraversePostorder(root,InheritVariableNames)
+    TraversePreorder (root,ExpandDepths)
     return root
 
 def getDict(node,scalars):

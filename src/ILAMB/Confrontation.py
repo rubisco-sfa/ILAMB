@@ -293,6 +293,11 @@ class Confrontation(object):
         if obs.time is None: raise il.NotTemporalVariable()
         self.pruneRegions(obs)
 
+        # The reference might be layered and we want to extract a
+        # slice to compare against models
+        if "depth" in self.keywords and obs.layered:
+            obs.trim(d=[self.keywords['depth']-0.01,self.keywords['depth']+0.01])
+        
         # Try to extract a commensurate quantity from the model
         mod = m.extractTimeSeries(self.variable,
                                   alt_vars     = self.alternate_vars,
