@@ -36,4 +36,4 @@ Documentation
    
 .. _ILAMB:     http://www.ilamb.org/
 .. _github:    https://github.com/rubisco-sfa/ILAMB.git
-.. _site:      https://www.ilamb.org/CMIP5/esmHistorical/
+.. _site:      https://www.ilamb.org/results.html
