@@ -24,7 +24,7 @@ to the following::
   Download replacements? [y/n]
 
 This tool looks at a remote location (by default the location of the
-land datasets) and compares it to a local location (by defult
+land datasets) and compares it to a local location (by default
 ``ILAMB_ROOT`` or ``./``). It detects for the presence and version of
 the data on your local machine and populates a list for download. The
 tool will then prompt you to rerun to check for file validity.
