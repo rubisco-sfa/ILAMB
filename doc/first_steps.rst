@@ -202,7 +202,7 @@ data really is in the paths you specified in the configure file.
 
 Next we ran all model-confrontation pairs. In our parlance, a
 *confrontation* is a benchmark observational dataset and its
-accompanying analsys. We have two confrontations specified in our
+accompanying analysis. We have two confrontations specified in our
 configure file and one model, so we have two entries here. If the
 analysis completed without error, you will see a green ``Completed``
 text appear along with the runtime. Here we see that ``albedo`` took a
@@ -212,7 +212,7 @@ additional burden of reading in two datasets and combining them.
 The next stage is the post-processing. This is done as a separate loop
 to exploit some parallelism. All the work in a model-confrontation
 pair is purely local to the pair. Yet plotting results on the same
-scale implies that we know the maxmimum and minimum values from all
+scale implies that we know the maximum and minimum values from all
 models and thus requires the communcation of this information. Here,
 as we are plotting only over the globe and not extra regions, the
 plotting occurs quickly.
