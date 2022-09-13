@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 import hashlib,argparse,os,sys
 import requests
+from tqdm import tqdm
 
 # Here I am disabling warnings as they pollute long download
 # screens. However, I am passing a more readable warning to the user
@@ -52,7 +53,7 @@ def CheckSha1sumFile(sha1sumfile,root):
             else:
                 needs_updating.append(filename)
     return needs_updating
-    
+
 # default value is ILAMB_ROOT if set
 local_root = "./"
 if "ILAMB_ROOT" in os.environ: local_root = os.environ["ILAMB_ROOT"]
@@ -104,8 +105,23 @@ if len(needs_updating) == 0:
     sys.exit()
 
 print("\nI found the following files which are missing, out of date, or corrupt:\n")
+
 for key in needs_updating:
-    print("\t%s/%s" % (args.local_root,key))
+    print("\t%s%s" % (args.local_root,key))
+
+if args.auto_accept:
+    reply = 'y'
+else:
+    reply = str(input('\nCalculate Total Download size? [y/n] ')).lower().strip()
+
+if reply[0] == "y":
+    total_download_size = 0
+    with tqdm(total=len(needs_updating)) as pbar:
+        for key in needs_updating:
+            resp = requests.get(args.remote_root + "/" + key, stream=True, verify=(not args.check))
+            total_download_size += int(resp.headers.get('content-length'))
+            pbar.update(1)
+    print("\nTotal download size: %6.1f MB" % (total_download_size / 1e6))
 
 if args.auto_accept:
     reply = 'y'
@@ -116,9 +132,18 @@ if reply[0] == 'y':
     for key in needs_updating:
         print("\tDownloading %s/%s..." % (args.remote_root,key))
         BuildDirectories(args.local_root  + "/" + key)
-        resp = requests.get(args.remote_root + "/" + key, verify=(not args.check))
-        with open(args.local_root  + "/" + key, "wb") as f:
-            f.write(resp.content)
+        resp = requests.get(args.remote_root + "/" + key, stream=True, verify=(not args.check))
+        total_size = int(resp.headers.get('content-length'))
+        initial_pos = 0
+        file = args.local_root  + "/" + key
+        with open(file, "wb") as f:
+            with tqdm(total=total_size,
+                      unit='B', unit_scale=True, desc=file,
+                      initial=initial_pos, ascii=True) as pbar:
+                for ch in resp.iter_content(chunk_size=1024):
+                    if ch:
+                        f.write(ch)
+                        pbar.update(len(ch))
     print("\nDownload complete. Rerun ilamb-fetch to check file integrity.\n")
     
 os.system("rm -f " + args.local_root  + "/SHA1SUM")
