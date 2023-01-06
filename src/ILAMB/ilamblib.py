@@ -9,6 +9,7 @@ from mpi4py import MPI
 import numpy as np
 import logging,re,os
 import cftime as cf
+import pandas as pd
 from pkg_resources import parse_version, get_distribution
 
 logger = logging.getLogger("%i" % MPI.COMM_WORLD.rank)
@@ -1309,6 +1310,7 @@ def AnalysisMeanStateSpace(ref,com,**keywords):
     ref_timeint       = keywords.get("ref_timeint"      ,None)
     com_timeint       = keywords.get("com_timeint"      ,None)
     rmse_score_basis  = keywords.get("rmse_score_basis" ,"cycle")
+    df_errs           = keywords.get("df_errs"          ,None)
     ILAMBregions      = Regions()
     spatial           = ref.spatial
     
@@ -1512,7 +1514,26 @@ def AnalysisMeanStateSpace(ref,com,**keywords):
                     lat  = lat, lat_bnds = lat_bnds, lon = lon, lon_bnds = lon_bnds, area = REF.area).convert(plot_unit)
     REF_std = cREF.rms()
     if skip_rmse: del cREF
-    bias_score_map = Score(bias,REF_std if REF.time.size > 1 else REF_timeint)
+    if df_errs is not None and name in df_errs['variable'].unique():
+        bias_score_map = deepcopy(bias)
+        for region in df_errs.region.unique():
+            mask = ILAMBregions.getMask(region, bias)
+            val = df_errs.loc[
+                (df_errs['variable'] == name)
+                & (df_errs['error'] == 'bias')
+                & (df_errs['region'] == region)
+                & (df_errs['quantile'] == 75),
+                "value"
+            ]
+            mask = mask*float(val) + (mask==False)
+            with np.errstate(under='ignore'):
+                bias_score_map.data /= mask
+        bias_score_map.data = (1 - np.abs(bias_score_map.data)).clip(0, 1)
+        bias_score_map.unit = "1"
+        bias_score_map.name = "biasscore_map_of_%s" % name
+    else:
+        bias_score_map = Score(bias,REF_std if REF.time.size > 1 else REF_timeint)
+        
     bias_score_map.data.mask = (ref_and_com==False) # for some reason I need to explicitly force the mask
     if dataset is not None:
         bias.name = "bias_map_of_%s" % name

@@ -145,6 +145,7 @@ class Confrontation(object):
         self.plot_unit      = keywords.get("plot_unit",None)
         self.space_mean     = keywords.get("space_mean",True)
         self.relationships  = keywords.get("relationships",None)
+        self.df_errs        = keywords.get("df_errs",None)
         self.keywords       = keywords
         self.extents        = np.asarray([[-90.,+90.],[-180.,+180.]])
         self.study_limits   = []
@@ -386,7 +387,8 @@ class Confrontation(object):
                                           skip_iav          = skip_iav,
                                           skip_cycle        = skip_cycle,
                                           mass_weighting    = mass_weighting,
-                                          rmse_score_basis  = rmse_score_basis)
+                                          rmse_score_basis  = rmse_score_basis,
+                                          df_errs           = self.df_errs)
             else:
                 il.AnalysisMeanStateSites(obs,mod,dataset   = fcm.mod_dset,
                                           regions           = self.regions,
