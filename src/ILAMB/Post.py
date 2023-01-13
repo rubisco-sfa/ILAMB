@@ -1009,9 +1009,7 @@ def RegisterCustomColormaps():
     import colorsys as cs
 
     # score colormap
-    cm = LinearSegmentedColormap.from_list("score",[[0.84765625, 0.37109375, 0.0078125 ],
-                                                    [0.45703125, 0.4375    , 0.69921875],
-                                                    [0.10546875, 0.6171875 , 0.46484375]])
+    cm = plt.get_cmap('plasma')
     plt.register_cmap("score",cm)
 
     # bias colormap

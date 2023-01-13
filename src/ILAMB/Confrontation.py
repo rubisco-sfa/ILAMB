@@ -497,7 +497,7 @@ class Confrontation(object):
             limits[pname]["cmap"] = opts["cmap"]
             if limits[pname]["cmap"] == "choose": limits[pname]["cmap"] = self.cmap
             if "score" in pname:
-                limits[pname]["cmap"] = plt.cm.get_cmap(limits[pname]["cmap"],3)
+                limits[pname]["cmap"] = plt.cm.get_cmap(limits[pname]["cmap"])
 
             # Plot a legend for each key
             if opts["haslegend"]:
