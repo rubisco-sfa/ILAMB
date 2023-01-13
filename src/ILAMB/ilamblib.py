@@ -1533,13 +1533,13 @@ def AnalysisMeanStateSpace(ref,com,**keywords):
 
             with np.errstate(under='ignore'):
                 bias_score_map.data /= mask
-        msg = f"[{MPI.COMM_WORLD.rank}][AnalysisMeanState] Bias scored using regional quantiles"
+        msg = f"[{name}] Bias scored using regional quantiles"
         logger.info(msg)
         bias_score_map.data = (1 - np.abs(bias_score_map.data)).clip(0, 1)
         bias_score_map.unit = "1"
         bias_score_map.name = "biasscore_map_of_%s" % name
     else:
-        msg = f"[{MPI.COMM_WORLD.rank}][AnalysisMeanState] Bias scored using Collier2018"
+        msg = f"[{name}] Bias scored using Collier2018"
         logger.info(msg)
         bias_score_map = Score(bias,REF_std if REF.time.size > 1 else REF_timeint)
         
