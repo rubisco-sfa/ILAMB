@@ -622,10 +622,12 @@ else:
 try:
     df_errs = None
     if args.df_errs is not None:
-        df_errs = pd.read_pickle(args.df_errs)
+        df_errs = pd.read_parquet(args.df_errs)
 except:
-    print("Unable to read quantiles, reverting to old methodology")
-    df_errs = None
+    if rank==0:
+        print("Unable to read quantiles")
+    comm.Abort(0)
+
     
 if rank == 0 and not args.quiet: print("\nParsing config file %s...\n" % args.config[0])
 S = Scoreboard(args.config[0],

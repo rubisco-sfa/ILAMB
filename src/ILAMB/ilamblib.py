@@ -1520,18 +1520,27 @@ def AnalysisMeanStateSpace(ref,com,**keywords):
             mask = ILAMBregions.getMask(region, bias)
             val = df_errs.loc[
                 (df_errs['variable'] == name)
-                & (df_errs['error'] == 'bias')
+                & (df_errs['type'] == 'bias')
                 & (df_errs['region'] == region)
-                & (df_errs['quantile'] == 75),
+                & (df_errs['quantile'] == 70),
                 "value"
             ]
-            mask = mask*float(val) + (mask==False)
+            try:
+                val = float(val)
+                mask = mask*val + (mask==False)
+            except:
+                print(f"Error: {name}, {region}, {val}")
+
             with np.errstate(under='ignore'):
                 bias_score_map.data /= mask
+        msg = f"[{MPI.COMM_WORLD.rank}][{pname}] Bias scored using regional quantiles"
+        logger.info(msg)
         bias_score_map.data = (1 - np.abs(bias_score_map.data)).clip(0, 1)
         bias_score_map.unit = "1"
         bias_score_map.name = "biasscore_map_of_%s" % name
     else:
+        msg = f"[{MPI.COMM_WORLD.rank}][{pname}] Bias scored using Collier2018"
+        logger.info(msg)
         bias_score_map = Score(bias,REF_std if REF.time.size > 1 else REF_timeint)
         
     bias_score_map.data.mask = (ref_and_com==False) # for some reason I need to explicitly force the mask
