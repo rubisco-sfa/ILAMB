@@ -1321,6 +1321,8 @@ def AnalysisMeanStateSpace(ref,com,**keywords):
         skip_iav  = (skip_iav .lower() == "true")
     if type(skip_cycle) == type(""):
         skip_cycle = (skip_cycle.lower() == "true")
+    if df_errs is not None:
+        mass_weighting = False
 
     # Check if we need to skip parts of the analysis
     if not ref.monthly   : skip_cycle = True
@@ -1516,8 +1518,9 @@ def AnalysisMeanStateSpace(ref,com,**keywords):
     if skip_rmse: del cREF
     if df_errs is not None and name in df_errs['variable'].unique():
         bias_score_map = deepcopy(bias)
+        bias_score_map.data[bias_score_map.data.mask==False] = 0.
         for region in df_errs.region.unique():
-            mask = ILAMBregions.getMask(region, bias)
+            mask = ILAMBregions.getMask(region, bias_score_map)==False
             val = df_errs.loc[
                 (df_errs['variable'] == name)
                 & (df_errs['type'] == 'bias')
@@ -1527,15 +1530,13 @@ def AnalysisMeanStateSpace(ref,com,**keywords):
             ]
             try:
                 val = float(val)
-                mask = mask*val + (mask==False)
+                bias_score_map.data += mask*val
             except:
                 print(f"Error: {name}, {region}, {val}, {len(val)}")
-
-            with np.errstate(under='ignore'):
-                bias_score_map.data /= mask
         msg = f"[{name}] Bias scored using regional quantiles"
         logger.info(msg)
-        bias_score_map.data = (1 - np.abs(bias_score_map.data)).clip(0, 1)
+        with np.errstate(under='ignore'):
+            bias_score_map.data = (1 - np.abs(bias.data)/bias_score_map.data).clip(0, 1)
         bias_score_map.unit = "1"
         bias_score_map.name = "biasscore_map_of_%s" % name
     else:
