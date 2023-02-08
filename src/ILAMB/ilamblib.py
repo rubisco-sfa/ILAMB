@@ -1215,9 +1215,9 @@ def AnalysisMeanStateSites(ref,com,**keywords):
         out_vars.append(shift_map)
         out_vars.append(shift_score_map)
     if not skip_rmse:
-        rmse          .name = "rmse_map_of_%s"       % ref.name
+        crmse         .name = "rmse_map_of_%s"       % ref.name
         rmse_score_map.name = "rmsescore_map_of_%s"  % ref.name
-        out_vars.append(rmse)
+        out_vars.append(crmse)
         out_vars.append(rmse_score_map)
         out_vars.append(rmse_val)
         out_vars.append(rmse_score)
@@ -1600,7 +1600,8 @@ def AnalysisMeanStateSpace(ref,com,**keywords):
         rmse_score_map = Score(crmse,REF_std)
         if dataset is not None:
             rmse.name = "rmse_map_of_%s" % name
-            rmse.toNetCDF4(dataset,group="MeanState")
+            crmse.name = "rmse_map_of_%s" % name
+            crmse.toNetCDF4(dataset,group="MeanState")
             rmse_score_map.name = "rmsescore_map_of_%s" % name
             rmse_score_map.toNetCDF4(dataset,group="MeanState")
             for region in regions:
