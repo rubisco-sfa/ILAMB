@@ -399,7 +399,8 @@ class Confrontation(object):
                                           skip_rmse         = skip_rmse,
                                           skip_iav          = skip_iav,
                                           skip_cycle        = skip_cycle,
-                                          mass_weighting    = mass_weighting)
+                                          mass_weighting    = mass_weighting,
+                                          df_errs           = self.df_errs)
             fcm.mod_dset.setncattr("complete",1)
             if self.master: fcm.obs_dset.setncattr("complete",1)
         logger.info("[%s][%s] Success" % (self.longname,m.name))

@@ -96,7 +96,7 @@ setup(
     keywords=['benchmarking','earth system modeling','climate modeling','model intercomparison'],
     packages=['ILAMB'],
     package_dir={'' : 'src'},
-    package_data={'ILAMB' : ['data/*.cfg']},
+    package_data={'ILAMB' : ['data/*.cfg','data/*.parquet']},
     scripts=['bin/ilamb-run','bin/ilamb-fetch','bin/ilamb-mean','bin/ilamb-doctor','bin/ilamb-table',
              'bin/ilamb-setup'],
     zip_safe=False,

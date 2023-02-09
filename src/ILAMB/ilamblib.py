@@ -1033,9 +1033,11 @@ def AnalysisMeanStateSites(ref,com,**keywords):
     skip_rmse         = keywords.get("skip_rmse"        ,False)
     skip_iav          = keywords.get("skip_iav"         ,True )
     skip_cycle        = keywords.get("skip_cycle"       ,False)
+    df_errs           = keywords.get("df_errs"          ,None)    
     ILAMBregions      = Regions()
     normalizer        = None
-
+    name = ref.name
+    
     # Convert str types to booleans
     if type(skip_rmse) == type(""):
         skip_rmse = (skip_rmse.lower() == "true")
@@ -1069,7 +1071,34 @@ def AnalysisMeanStateSites(ref,com,**keywords):
                     lon  = REF.lon , lon_bnds  = REF.lon_bnds,
                     area = REF.area, ndata     = REF.ndata)
     crms = cREF.rms ()
-    bias_score_map = Score(bias,crms)
+
+    if df_errs is not None and name in df_errs['variable'].unique():
+        values = []
+        mask = []    
+        for region in df_errs.region.unique():
+            val = df_errs.loc[
+                (df_errs['variable'] == name)
+                & (df_errs['type'] == 'bias')
+                & (df_errs['region'] == region)
+                & (df_errs['quantile'] == 70),
+                "value"
+            ]
+            if len(val) > 0:
+                mask.append(ILAMBregions.getMask(region, bias))
+                values.append((mask[-1] == False) * float(val))
+        bias_score_map = deepcopy(bias)
+        bias_score_map.data = np.ma.masked_array(np.array(values).sum(axis=0), mask=np.array(mask).all(axis=0))
+        msg = f"[{name}] Bias scored using regional quantiles"
+        logger.info(msg)
+        with np.errstate(under='ignore'):
+            bias_score_map.data = (1 - np.abs(bias.data)/bias_score_map.data).clip(0, 1)
+        bias_score_map.unit = "1"
+        bias_score_map.name = "biasscore_map_of_%s" % name
+    else:
+        msg = f"[{name}] Bias scored using Collier2018"
+        logger.info(msg)
+        bias_score_map = Score(bias,crms)
+    
     if not skip_rmse:
         cCOM = Variable(name = "centralized %s" % COM.name, unit = COM.unit,
                         data = np.ma.masked_array(COM.data-COM_timeint.data[np.newaxis,...],mask=COM.data.mask),
@@ -1517,10 +1546,9 @@ def AnalysisMeanStateSpace(ref,com,**keywords):
     REF_std = cREF.rms()
     if skip_rmse: del cREF
     if df_errs is not None and name in df_errs['variable'].unique():
-        bias_score_map = deepcopy(bias)
-        bias_score_map.data[bias_score_map.data.mask==False] = 0.
+        values = []
+        mask = []    
         for region in df_errs.region.unique():
-            mask = ILAMBregions.getMask(region, bias_score_map)==False
             val = df_errs.loc[
                 (df_errs['variable'] == name)
                 & (df_errs['type'] == 'bias')
@@ -1528,11 +1556,11 @@ def AnalysisMeanStateSpace(ref,com,**keywords):
                 & (df_errs['quantile'] == 70),
                 "value"
             ]
-            try:
-                val = float(val)
-                bias_score_map.data += mask*val
-            except:
-                print(f"Error: {name}, {region}, {val}, {len(val)}")
+            if len(val) > 0:
+                mask.append(ILAMBregions.getMask(region, bias))
+                values.append((mask[-1] == False) * float(val))
+        bias_score_map = deepcopy(bias)
+        bias_score_map.data = np.ma.masked_array(np.array(values).sum(axis=0), mask=np.array(mask).all(axis=0))
         msg = f"[{name}] Bias scored using regional quantiles"
         logger.info(msg)
         with np.errstate(under='ignore'):
@@ -1543,8 +1571,8 @@ def AnalysisMeanStateSpace(ref,com,**keywords):
         msg = f"[{name}] Bias scored using Collier2018"
         logger.info(msg)
         bias_score_map = Score(bias,REF_std if REF.time.size > 1 else REF_timeint)
+        bias_score_map.data.mask = (ref_and_com==False) # for some reason I need to explicitly force the mask
         
-    bias_score_map.data.mask = (ref_and_com==False) # for some reason I need to explicitly force the mask
     if dataset is not None:
         bias.name = "bias_map_of_%s" % name
         bias.toNetCDF4(dataset,group="MeanState")
