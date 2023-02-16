@@ -300,7 +300,7 @@ class Relationship(object):
         
         pc = ax.pcolormesh(xedges, yedges, dist,
                            norm = LogNorm(vmin = 1e-4, vmax = 1e-1),
-                           cmap = 'plasma' if 'plasma' in plt.cm.cmap_d else 'summer')
+                           cmap = 'plasma')
         div = make_axes_locatable(ax)
         fig.colorbar(pc,cax=div.append_axes("right",size="5%",pad=0.05),
                      orientation="vertical",label="Fraction of total datasites")

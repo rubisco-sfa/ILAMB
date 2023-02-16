@@ -16,6 +16,7 @@ import datetime,glob
 from netCDF4 import Dataset
 import pylab as plt
 import re
+import pandas as pd
 from ILAMB.Post import RegisterCustomColormaps
 if "wetdry" not in plt.colormaps(): RegisterCustomColormaps()
 import platform
@@ -576,6 +577,8 @@ parser.add_argument('--title', dest="run_title", metavar='title', type=str, narg
                     help='title of the study to use in the HTML output')
 parser.add_argument('--rmse_score_basis', dest="rmse_score_basis", metavar='basis', type=str, default="cycle",
                     help='base the RMSE score on the full time series with "series" or just the annual cycle with "cycle"')
+parser.add_argument('--df_errs', dest="df_errs", metavar='df_errs', type=str, default=None,
+                    help='the pandas dataframe with the quantiles to use in scoring.')
 args = parser.parse_args()
 if args.config is None:
     if rank == 0:
@@ -614,6 +617,18 @@ if args.model_setup is None:
                          models_path=args.build_dir[0])
 else:
     M = ParseModelSetup(args.model_setup[0],args.models,not args.quiet,filter=args.filter[0],models_path=args.build_dir[0])
+
+
+try:
+    df_errs = None
+    if args.df_errs is not None:
+        df_errs = pd.read_parquet(args.df_errs)
+except:
+    if rank==0:
+        print("Unable to read quantiles")
+    comm.Abort(0)
+
+    
 if rank == 0 and not args.quiet: print("\nParsing config file %s...\n" % args.config[0])
 S = Scoreboard(args.config[0],
                regions   = args.regions,
@@ -624,7 +639,8 @@ S = Scoreboard(args.config[0],
                rel_only  = args.rel_only,
                mem_per_pair = args.mem_per_pair,
                run_title = args.run_title,
-               rmse_score_basis = args.rmse_score_basis)
+               rmse_score_basis = args.rmse_score_basis,
+               df_errs = df_errs)
 C  = MatchRelationshipConfrontation(S.list())
 if len(args.study_limits) == 2:
     args.study_limits[1] += 1

@@ -9,6 +9,7 @@ from mpi4py import MPI
 import numpy as np
 import logging,re,os
 import cftime as cf
+import pandas as pd
 from pkg_resources import parse_version, get_distribution
 
 logger = logging.getLogger("%i" % MPI.COMM_WORLD.rank)
@@ -1032,9 +1033,11 @@ def AnalysisMeanStateSites(ref,com,**keywords):
     skip_rmse         = keywords.get("skip_rmse"        ,False)
     skip_iav          = keywords.get("skip_iav"         ,True )
     skip_cycle        = keywords.get("skip_cycle"       ,False)
+    df_errs           = keywords.get("df_errs"          ,None)    
     ILAMBregions      = Regions()
     normalizer        = None
-
+    name = ref.name
+    
     # Convert str types to booleans
     if type(skip_rmse) == type(""):
         skip_rmse = (skip_rmse.lower() == "true")
@@ -1068,7 +1071,34 @@ def AnalysisMeanStateSites(ref,com,**keywords):
                     lon  = REF.lon , lon_bnds  = REF.lon_bnds,
                     area = REF.area, ndata     = REF.ndata)
     crms = cREF.rms ()
-    bias_score_map = Score(bias,crms)
+
+    if df_errs is not None and name in df_errs['variable'].unique():
+        values = []
+        mask = []    
+        for region in df_errs.region.unique():
+            val = df_errs.loc[
+                (df_errs['variable'] == name)
+                & (df_errs['type'] == 'bias')
+                & (df_errs['region'] == region)
+                & (df_errs['quantile'] == 70),
+                "value"
+            ]
+            if len(val) > 0:
+                mask.append(ILAMBregions.getMask(region, bias))
+                values.append((mask[-1] == False) * float(val))
+        bias_score_map = deepcopy(bias)
+        bias_score_map.data = np.ma.masked_array(np.array(values).sum(axis=0), mask=np.array(mask).all(axis=0))
+        msg = f"[{name}] Bias scored using regional quantiles"
+        logger.info(msg)
+        with np.errstate(under='ignore'):
+            bias_score_map.data = (1 - np.abs(bias.data)/bias_score_map.data).clip(0, 1)
+        bias_score_map.unit = "1"
+        bias_score_map.name = "biasscore_map_of_%s" % name
+    else:
+        msg = f"[{name}] Bias scored using Collier2018"
+        logger.info(msg)
+        bias_score_map = Score(bias,crms)
+    
     if not skip_rmse:
         cCOM = Variable(name = "centralized %s" % COM.name, unit = COM.unit,
                         data = np.ma.masked_array(COM.data-COM_timeint.data[np.newaxis,...],mask=COM.data.mask),
@@ -1078,7 +1108,33 @@ def AnalysisMeanStateSites(ref,com,**keywords):
                         area = COM.area, ndata     = COM.ndata)
         rmse  =  REF.rmse( COM)
         crmse = cREF.rmse(cCOM)
-        rmse_score_map = Score(crmse,crms)
+
+        if df_errs is not None and name in df_errs['variable'].unique():
+            values = []
+            mask = []    
+            for region in df_errs.region.unique():
+                val = df_errs.loc[
+                    (df_errs['variable'] == name)
+                    & (df_errs['type'] == 'rmse')
+                    & (df_errs['region'] == region)
+                    & (df_errs['quantile'] == 70),
+                    "value"
+                ]
+                if len(val) > 0:
+                    mask.append(ILAMBregions.getMask(region, crmse))
+                    values.append((mask[-1] == False) * float(val))
+            rmse_score_map = deepcopy(crmse)
+            rmse_score_map.data = np.ma.masked_array(np.array(values).sum(axis=0), mask=np.array(mask).all(axis=0))
+            msg = f"[{name}] RMSE scored using regional quantiles"
+            logger.info(msg)
+            with np.errstate(under='ignore'):
+                rmse_score_map.data = (1 - crmse.data/rmse_score_map.data).clip(0, 1)
+            rmse_score_map.unit = "1"
+            rmse_score_map.name = "rmsescore_map_of_%s" % name        
+        else:
+            msg = f"[{name}] RMSE scored using Collier2018"
+            logger.info(msg)
+            rmse_score_map = Score(crmse,crms)
     if not skip_iav:
         ref_iav = Variable(name = "centralized %s" % ref.name, unit = ref.unit,
                            data = np.ma.masked_array(ref.data-ref_timeint.data[np.newaxis,...],mask=ref.data.mask),
@@ -1214,9 +1270,9 @@ def AnalysisMeanStateSites(ref,com,**keywords):
         out_vars.append(shift_map)
         out_vars.append(shift_score_map)
     if not skip_rmse:
-        rmse          .name = "rmse_map_of_%s"       % ref.name
+        crmse         .name = "rmse_map_of_%s"       % ref.name
         rmse_score_map.name = "rmsescore_map_of_%s"  % ref.name
-        out_vars.append(rmse)
+        out_vars.append(crmse)
         out_vars.append(rmse_score_map)
         out_vars.append(rmse_val)
         out_vars.append(rmse_score)
@@ -1309,6 +1365,7 @@ def AnalysisMeanStateSpace(ref,com,**keywords):
     ref_timeint       = keywords.get("ref_timeint"      ,None)
     com_timeint       = keywords.get("com_timeint"      ,None)
     rmse_score_basis  = keywords.get("rmse_score_basis" ,"cycle")
+    df_errs           = keywords.get("df_errs"          ,None)
     ILAMBregions      = Regions()
     spatial           = ref.spatial
     
@@ -1319,6 +1376,8 @@ def AnalysisMeanStateSpace(ref,com,**keywords):
         skip_iav  = (skip_iav .lower() == "true")
     if type(skip_cycle) == type(""):
         skip_cycle = (skip_cycle.lower() == "true")
+    if df_errs is not None:
+        mass_weighting = False
 
     # Check if we need to skip parts of the analysis
     if not ref.monthly   : skip_cycle = True
@@ -1512,8 +1571,34 @@ def AnalysisMeanStateSpace(ref,com,**keywords):
                     lat  = lat, lat_bnds = lat_bnds, lon = lon, lon_bnds = lon_bnds, area = REF.area).convert(plot_unit)
     REF_std = cREF.rms()
     if skip_rmse: del cREF
-    bias_score_map = Score(bias,REF_std if REF.time.size > 1 else REF_timeint)
-    bias_score_map.data.mask = (ref_and_com==False) # for some reason I need to explicitly force the mask
+    if df_errs is not None and name in df_errs['variable'].unique():
+        values = []
+        mask = []    
+        for region in df_errs.region.unique():
+            val = df_errs.loc[
+                (df_errs['variable'] == name)
+                & (df_errs['type'] == 'bias')
+                & (df_errs['region'] == region)
+                & (df_errs['quantile'] == 70),
+                "value"
+            ]
+            if len(val) > 0:
+                mask.append(ILAMBregions.getMask(region, bias))
+                values.append((mask[-1] == False) * float(val))
+        bias_score_map = deepcopy(bias)
+        bias_score_map.data = np.ma.masked_array(np.array(values).sum(axis=0), mask=np.array(mask).all(axis=0))
+        msg = f"[{name}] Bias scored using regional quantiles"
+        logger.info(msg)
+        with np.errstate(under='ignore'):
+            bias_score_map.data = (1 - np.abs(bias.data)/bias_score_map.data).clip(0, 1)
+        bias_score_map.unit = "1"
+        bias_score_map.name = "biasscore_map_of_%s" % name
+    else:
+        msg = f"[{name}] Bias scored using Collier2018"
+        logger.info(msg)
+        bias_score_map = Score(bias,REF_std if REF.time.size > 1 else REF_timeint)
+        bias_score_map.data.mask = (ref_and_com==False) # for some reason I need to explicitly force the mask
+        
     if dataset is not None:
         bias.name = "bias_map_of_%s" % name
         bias.toNetCDF4(dataset,group="MeanState")
@@ -1566,10 +1651,38 @@ def AnalysisMeanStateSpace(ref,com,**keywords):
         del COM
         crmse = cREF.rmse(cCOM).convert(plot_unit)
         del cREF,cCOM
-        rmse_score_map = Score(crmse,REF_std)
+
+        if df_errs is not None and name in df_errs['variable'].unique():
+            values = []
+            mask = []    
+            for region in df_errs.region.unique():
+                val = df_errs.loc[
+                    (df_errs['variable'] == name)
+                    & (df_errs['type'] == 'rmse')
+                    & (df_errs['region'] == region)
+                    & (df_errs['quantile'] == 70),
+                    "value"
+                ]
+                if len(val) > 0:
+                    mask.append(ILAMBregions.getMask(region, crmse))
+                    values.append((mask[-1] == False) * float(val))
+            rmse_score_map = deepcopy(crmse)
+            rmse_score_map.data = np.ma.masked_array(np.array(values).sum(axis=0), mask=np.array(mask).all(axis=0))
+            msg = f"[{name}] RMSE scored using regional quantiles"
+            logger.info(msg)
+            with np.errstate(under='ignore'):
+                rmse_score_map.data = (1 - crmse.data/rmse_score_map.data).clip(0, 1)
+            rmse_score_map.unit = "1"
+            rmse_score_map.name = "rmsescore_map_of_%s" % name
+        else:
+            msg = f"[{name}] RMSE scored using Collier2018"
+            logger.info(msg)
+            rmse_score_map = Score(crmse,REF_std)
+        
         if dataset is not None:
             rmse.name = "rmse_map_of_%s" % name
-            rmse.toNetCDF4(dataset,group="MeanState")
+            crmse.name = "rmse_map_of_%s" % name
+            crmse.toNetCDF4(dataset,group="MeanState")
             rmse_score_map.name = "rmsescore_map_of_%s" % name
             rmse_score_map.toNetCDF4(dataset,group="MeanState")
             for region in regions:
@@ -1593,7 +1706,33 @@ def AnalysisMeanStateSpace(ref,com,**keywords):
         del REF,COM,cREF
         rmse = ref_cycle.rmse(com_cycle).convert(plot_unit)
         crmse = ref_dtcycle.rmse(com_dtcycle).convert(plot_unit)
-        rmse_score_map = Score(crmse,REF_std)
+        if df_errs is not None and name in df_errs['variable'].unique():
+            values = []
+            mask = []    
+            for region in df_errs.region.unique():
+                val = df_errs.loc[
+                    (df_errs['variable'] == name)
+                    & (df_errs['type'] == 'rmse')
+                    & (df_errs['region'] == region)
+                    & (df_errs['quantile'] == 70),
+                    "value"
+                ]
+                if len(val) > 0:
+                    mask.append(ILAMBregions.getMask(region, crmse))
+                    values.append((mask[-1] == False) * float(val))
+            rmse_score_map = deepcopy(crmse)
+            rmse_score_map.data = np.ma.masked_array(np.array(values).sum(axis=0), mask=np.array(mask).all(axis=0))
+            msg = f"[{name}] RMSE scored using regional quantiles"
+            logger.info(msg)
+            with np.errstate(under='ignore'):
+                rmse_score_map.data = (1 - crmse.data/rmse_score_map.data).clip(0, 1)
+            rmse_score_map.unit = "1"
+            rmse_score_map.name = "rmsescore_map_of_%s" % name
+        else:
+            msg = f"[{name}] RMSE scored using Collier2018"
+            logger.info(msg)
+            rmse_score_map = Score(crmse,REF_std)        
+
         if dataset is not None:
             rmse.name = "rmse_map_of_%s" % name
             rmse.toNetCDF4(dataset,group="MeanState")

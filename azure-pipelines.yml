@@ -6,8 +6,8 @@ pool:
   vmImage: 'ubuntu-latest'
 strategy:
   matrix:
-    Python36:
-      python.version: '3.6'
+    Python:
+      python.version: '3.7'
 
 steps:
 - task: UsePythonVersion@0

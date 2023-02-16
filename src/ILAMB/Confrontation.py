@@ -145,6 +145,7 @@ class Confrontation(object):
         self.plot_unit      = keywords.get("plot_unit",None)
         self.space_mean     = keywords.get("space_mean",True)
         self.relationships  = keywords.get("relationships",None)
+        self.df_errs        = keywords.get("df_errs",None)
         self.keywords       = keywords
         self.extents        = np.asarray([[-90.,+90.],[-180.,+180.]])
         self.study_limits   = []
@@ -386,7 +387,8 @@ class Confrontation(object):
                                           skip_iav          = skip_iav,
                                           skip_cycle        = skip_cycle,
                                           mass_weighting    = mass_weighting,
-                                          rmse_score_basis  = rmse_score_basis)
+                                          rmse_score_basis  = rmse_score_basis,
+                                          df_errs           = self.df_errs)
             else:
                 il.AnalysisMeanStateSites(obs,mod,dataset   = fcm.mod_dset,
                                           regions           = self.regions,
@@ -397,7 +399,8 @@ class Confrontation(object):
                                           skip_rmse         = skip_rmse,
                                           skip_iav          = skip_iav,
                                           skip_cycle        = skip_cycle,
-                                          mass_weighting    = mass_weighting)
+                                          mass_weighting    = mass_weighting,
+                                          df_errs           = self.df_errs)
             fcm.mod_dset.setncattr("complete",1)
             if self.master: fcm.obs_dset.setncattr("complete",1)
         logger.info("[%s][%s] Success" % (self.longname,m.name))
@@ -495,7 +498,7 @@ class Confrontation(object):
             limits[pname]["cmap"] = opts["cmap"]
             if limits[pname]["cmap"] == "choose": limits[pname]["cmap"] = self.cmap
             if "score" in pname:
-                limits[pname]["cmap"] = plt.cm.get_cmap(limits[pname]["cmap"],3)
+                limits[pname]["cmap"] = plt.cm.get_cmap(limits[pname]["cmap"])
 
             # Plot a legend for each key
             if opts["haslegend"]:
