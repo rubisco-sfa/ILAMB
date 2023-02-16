@@ -978,6 +978,7 @@ def GenerateRelationshipTree(S,M):
         for var in cat.children:
             for data in var.children:
                 if data               is None: continue
+                if data.confrontation is None: continue
                 if data.relationships is None: continue
 
                 # build tree
