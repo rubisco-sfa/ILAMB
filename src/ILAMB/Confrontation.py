@@ -149,7 +149,8 @@ class Confrontation(object):
         self.keywords       = keywords
         self.extents        = np.asarray([[-90.,+90.],[-180.,+180.]])
         self.study_limits   = []
-        self.cweight         = 1
+        self.cweight        = 1
+        self.scale_factor   = keywords.get("scale_factor",1.)
         
         # Make sure the source data exists
 
@@ -291,6 +292,7 @@ class Confrontation(object):
                        alternate_vars = self.alternate_vars,
                        t0 = None if len(self.study_limits) != 2 else self.study_limits[0],
                        tf = None if len(self.study_limits) != 2 else self.study_limits[1])
+        obs.data *= self.scale_factor
         if obs.time is None: raise il.NotTemporalVariable()
         self.pruneRegions(obs)
 
