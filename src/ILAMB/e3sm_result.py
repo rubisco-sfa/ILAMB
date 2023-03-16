@@ -15,7 +15,7 @@ from ILAMB.Variable import Variable
 
 
 @dataclass
-class E3SMResults:
+class E3SMResult:
     """A class for abstracting and managing raw E3SM model results."""
 
     name: str = "E3SM"
@@ -126,8 +126,8 @@ class E3SMResults:
                 dset["time_bounds"] - cftime.DatetimeNoLeap(1850, 1, 1)
             ).values.astype(float)
             * ns_to_d,
-            lat=dset["lat"],
-            lon=dset["lon"],
+            lat=dset["lat"].to_numpy(),
+            lon=dset["lon"].to_numpy(),
             area=(dset["area"] * 1e6 * dset["landfrac"]).isel({"time": 0}),
         )
         return var

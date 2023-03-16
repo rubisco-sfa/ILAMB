@@ -4,7 +4,10 @@ Runs an ILAMB study.
 """
 import mpi4py.rc; mpi4py.rc.threads = False
 import logging
+import yaml
 from ILAMB.ModelResult import ModelResult
+from ILAMB.ats_result import ATSPointResult
+from ILAMB.e3sm_result import E3SMResult
 from ILAMB.Scoreboard import Scoreboard
 from ILAMB.Regions import Regions
 from ILAMB import ilamblib as il
@@ -17,6 +20,8 @@ from netCDF4 import Dataset
 import pylab as plt
 import re
 import pandas as pd
+import inspect
+
 from ILAMB.Post import RegisterCustomColormaps
 if "wetdry" not in plt.colormaps(): RegisterCustomColormaps()
 import platform
@@ -106,6 +111,76 @@ def InitializeModels(model_root,models=[],verbose=False,filter="",regex="",model
 
     return M
 
+
+def _parse_model_yaml(filename: str, cache_path: str = "./"):
+    """Setup models using a yaml file."""
+    model_classes = {
+        "ATSPointResult": ATSPointResult,
+        "E3SMResult": E3SMResult,
+        "ModelResult": ModelResult,
+    }
+    models = []
+    with open(filename, encoding="utf-8") as fin:
+        yml = yaml.safe_load(fin)
+    for name, opts in yml.items():
+
+        # if the model_year option is given, convert to lits of floats
+        if "model_year" in opts:
+            opts["model_year"] = [
+                float(y.strip()) for y in opts["model_year"].split(",")
+            ]
+
+        # select the class type
+        cls = model_classes[opts["type"]] if "type" in opts else ModelResult
+        fcns = dir(cls)
+
+        # if the pickle file exists, just load it
+        cache = os.path.join(cache_path, f"{name}.pkl")
+        if os.path.exists(cache):
+            if "read_pickle" in fcns:
+                model = cls().read_pickle(cache)
+            else:
+                with open(cache, mode="rb") as fin:
+                    model = pickle.load(fin)
+            models.append(model)
+            continue
+
+        # call the constructor using keywords defined in the YAML file
+        cls = model_classes[opts["type"]] if "type" in opts else ModelResult
+        model = cls(
+            **{
+                key: opts[key]
+                for key in inspect.getfullargspec(cls).args
+                if key in opts
+            }
+        )
+
+        # some model types have a find_files() method, call if present loading
+        # proper keywords from the YAML file
+        if "find_files" in fcns:
+            model.find_files(
+                **{
+                    key: opts[key]
+                    for key in inspect.getfullargspec(model.find_files).args
+                    if key in opts
+                }
+            )
+            
+        # some model types allow you to specify snynonms
+        if "add_synonym" in fcns and "synonyms" in opts:
+            for mvar, syn in opts['synonyms'].items():
+                model.add_synonym(mvar,syn)
+            
+        # cache the model result
+        if "read_pickle" in fcns:
+            model.to_pickle(cache)
+        else:
+            with open(cache, mode="wb") as fin:
+                pickle.dump(model, fin)
+
+        models.append(model)
+    return models
+
 def ParseModelSetup(model_setup,models=[],verbose=False,filter="",regex="",models_path="./"):
     """Initializes a list of models
 
@@ -128,6 +203,17 @@ def ParseModelSetup(model_setup,models=[],verbose=False,filter="",regex="",model
        a list of the model results, sorted alphabetically by name
 
     """
+    if model_setup.endswith(".yaml"):
+        M = _parse_model_yaml(model_setup, cache_path=models_path)
+        if rank == 0 and verbose:
+            for m in M:
+                print(("    {0:>45}").format(m.name))
+            if len(M) == 0:
+                print("No model results found")
+                comm.Barrier()
+                comm.Abort(0)
+        return M
+    
     # initialize the models
     M = []
     max_model_name_len = 0
@@ -457,6 +543,8 @@ def RestrictiveModelExtents(M,eps=2.):
     extents0 = np.asarray([[-90.,+90.],[-180.,+180.]])
     extents  = extents0.copy()
     for m in M:
+        if not hasattr(m,"extents"):
+            continue
         for i in range(2):
             extents[i,0] = max(extents[i,0],m.extents[i,0])
             extents[i,1] = min(extents[i,1],m.extents[i,1])
