@@ -11,7 +11,7 @@ import cftime
 import pandas as pd
 import xarray as xr
 
-from ILAMB.Variable import Variable
+from .Variable import Variable
 
 
 @dataclass
