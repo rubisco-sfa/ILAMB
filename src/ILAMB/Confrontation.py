@@ -150,7 +150,7 @@ class Confrontation(object):
         self.extents        = np.asarray([[-90.,+90.],[-180.,+180.]])
         self.study_limits   = []
         self.cweight        = 1
-        self.scale_factor   = keywords.get("scale_factor",1.)
+        self.scale_factor   = float(keywords.get("scale_factor",1.))
         
         # Make sure the source data exists
 
