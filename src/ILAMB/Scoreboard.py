@@ -13,6 +13,7 @@ from .ConfCO2 import ConfCO2
 from .ConfSoilCarbon import ConfSoilCarbon
 from .ConfUncertainty import ConfUncertainty
 from .ConfBurntArea import ConfBurntArea
+from .ConfGSNF import ConfGSNF
 from .Regions import Regions
 import os,re
 from netCDF4 import Dataset
@@ -322,7 +323,8 @@ ConfrontationTypes = { None              : Confrontation,
                        "ConfCO2"         : ConfCO2,
                        "ConfSoilCarbon"  : ConfSoilCarbon,
                        "ConfUncertainty" : ConfUncertainty,
-                       "ConfBurntArea"   : ConfBurntArea}
+                       "ConfBurntArea"   : ConfBurntArea,
+                       "ConfGSNF"        : ConfGSNF}
 
 class Scoreboard():
     """
