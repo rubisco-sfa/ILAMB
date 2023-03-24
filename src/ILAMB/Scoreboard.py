@@ -163,6 +163,7 @@ def ParseScoreboardConfigureFile(filename):
     for line in open(filename).readlines():
         line = line.strip()
         if line.startswith("#"): continue
+        line = line[:line.index("#")] if "#" in line else line
         m1 = re.search(r"\[h(\d):\s+(.*)\]",line)
         m2 = re.search(r"\[(.*)\]",line)
         m3 = re.search(r"(.*)=(.*)",line)
