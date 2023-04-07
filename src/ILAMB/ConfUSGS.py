@@ -23,12 +23,31 @@ def convert_unit(
     tar_unit: str,
     mass_density: float = 998.2,
     molar_mass: str = 18.01528,
-):
-    """Converts units of a pandas series where the unit string is expected to be
-    stored in the `attrs` of the input series.
+) -> pd.Series:
+    """Convert the units of a pandas series.
 
-    Example:
-    temperature.attrs['unit'] = 'degC'
+    The unit string is expected to be stored in the `attrs` of the input series.
+    See the example below for how to set the unit.
+
+    Parameters
+    ----------
+    series
+        The series whose units are to be converted.
+    tar_unit
+        The target unit to convert.
+    mass_density
+        The mass density of a substance in ``kg m-3``. The default is set to
+        water and is used for converting units of the type ``kg m-2 s-1`` to
+        ``mm d-1``.
+    molar_mass
+        The molar density of a substance in ``g mol-1``. The default is set to
+        water and is used for converting units of the type from ``mol`` to
+        ``kg``.
+
+    Example
+    -------
+    >>> temperature.attrs['unit'] = 'degC'
+
     """
     if "unit" not in series.attrs:
         raise ValueError("Input series has no unit.")
@@ -56,8 +75,8 @@ def convert_unit(
     return series
 
 
-def add_time_bounds(dset: xr.Dataset):
-    """."""
+def add_time_bounds(dset: xr.Dataset) -> xr.Dataset:
+    """Add bounds to the time variable of the input dataset."""
     delt = dset["time"].isel({"time": 1}) - dset["time"].isel({"time": 0})
     dset["time_bnds"] = xr.DataArray(
         np.asarray([dset["time"], dset["time"] + delt]).T, dims=["time", "nb"]
@@ -249,10 +268,10 @@ class ConfUSGS(Confrontation):
         mod_mean = mod["discharge"].mean(dim="time")
         mod_mean.attrs["units"] = mod["discharge"].attrs["units"]
         mod_mean.name = "Mean Discharge global"
-        score = np.exp(-np.abs(ref_mean-mod_mean)/ref_mean)
+        score = np.exp(-np.abs(ref_mean - mod_mean) / ref_mean)
         score.attrs["units"] = "1"
         score.name = "Discharge Score global"
-        
+
         # output to intermediate netcdf files
         if self.master:
             ref.to_netcdf(_path(f"{self.name}_Benchmark.nc"), group="MeanState")
@@ -266,13 +285,13 @@ class ConfUSGS(Confrontation):
         score.to_netcdf(
             _path(f"{self.name}_{model.name}.nc"), group="MeanState/scalars", mode="a"
         )
-        
+
         # just to get global attributes in the right place
         add_global_attributes(_path(f"{self.name}_Benchmark.nc"), "Benchmark", "k")
         add_global_attributes(
             _path(f"{self.name}_{model.name}.nc"), model.name, model.color
         )
-        
+
     def modelPlots(self, model):
         """."""
         _path = partial(os.path.join, self.output_path)
