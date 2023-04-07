@@ -3,12 +3,16 @@ import os
 from functools import partial
 from typing import Any
 
+import contextily as cx
+import geopandas as gpd
+import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import xarray as xr
 from cf_units import Unit
 from dataretrieval import nwis
+from pynhd import NLDI, NHDPlusHR
 
 from . import Post as post
 from .Confrontation import Confrontation
@@ -62,11 +66,81 @@ def add_time_bounds(dset: xr.Dataset):
     return dset
 
 
-def add_global_attributes(filename: str, name: str, color: Any):
-    """."""
+def add_global_attributes(filename: str, name: str, color: Any) -> None:
+    """Add global attributes to the input dataset used by ILAMB."""
     dset = xr.Dataset()
     dset.attrs = {"name": name, "color": color, "complete": 1, "weight": 1}
     dset.to_netcdf(filename, mode="a")
+
+
+def plot_usgs_site(sitecode: str, filename: str | None = None) -> None:
+    """Plot the site in the context of CONUS and the immediate area.
+
+    Parameters
+    ----------
+    sitecode
+        The USGS sitecode.
+    filename
+        The optional name in which to save the plot. Defaults to
+        ``{sitecode}.png``.
+    """
+    usa = gpd.read_file("USA_states_epsg4326.geojson")
+    usa = usa[~usa.NAME_1.isin(["Alaska", "Hawaii"])]
+
+    # We need to cache this information
+    info = nwis.get_info(sites=sitecode)[0]
+    area = NLDI().get_basins([sitecode]).to_crs("EPSG:4326")
+    hucs = NHDPlusHR("huc12").bygeom(area.geometry[0].bounds)
+
+    # Determine bounds and set the figure size
+    bounds = area.bounds.iloc[0]
+    delx = bounds["maxx"] - bounds["minx"]
+    dely = bounds["maxy"] - bounds["miny"]
+    figwidth = 20
+    figheight = (0.5 * figwidth) * dely / delx
+
+    # Create the plots
+    fig, axs = plt.subplots(1, 2, figsize=(figwidth, figheight), tight_layout=True)
+    usa.boundary.plot(edgecolor="k", linewidth=0.5, ax=axs[0], color=None)
+    hucs.boundary.plot(
+        ax=axs[1],
+        edgecolor="k",
+        linewidth=0.8,
+        linestyle=(0, (5, 5)),
+        color=None,
+        label="Nearby Watershed (HUC12) Boundaries",
+    )
+    area.plot(ax=axs[1], color="blue", alpha=0.4)
+    axs[0].plot(info.dec_long_va, info.dec_lat_va, "o", ms=10, color="red")
+    axs[1].plot(
+        info.dec_long_va, info.dec_lat_va, "o", ms=10, color="red", label="USGS Site"
+    )
+
+    # Legend tricks
+    handles, labels = axs[1].get_legend_handles_labels()
+    patch = mpatches.Patch(
+        color="blue", alpha=0.4, linewidth=0, label="Contributing Area"
+    )
+    handles.append(patch)
+    labels.append(patch._label)
+    axs[0].legend(
+        handles,
+        labels,
+        bbox_to_anchor=(0, 1.00, 1, 0.25),
+        loc="lower left",
+        mode="expand",
+        ncol=3,
+        borderaxespad=0,
+        frameon=False,
+    )
+
+    # Finalize
+    cx.add_basemap(axs[0], crs=area.crs)
+    cx.add_basemap(axs[1], crs=area.crs)
+    filename = filename if filename else f"{sitecode}.png"
+    fig.suptitle(f"{info.station_nm[0]} ({sitecode})")
+    fig.savefig(filename)
+    plt.close()
 
 
 class ConfUSGS(Confrontation):
@@ -109,7 +183,7 @@ class ConfUSGS(Confrontation):
         pages = []
         pages.append(post.HtmlPage("MeanState", "Model View"))
         pages[-1].setHeader("CNAME / RNAME / MNAME")
-        pages[-1].setSections(["Discharge"])
+        pages[-1].setSections(["Site Information", "Discharge"])
         pages.append(post.HtmlAllModelsPage("AllModels", "All Models"))
         pages[-1].setHeader("CNAME / RNAME / MNAME")
         pages[-1].setSections([])
@@ -228,4 +302,8 @@ class ConfUSGS(Confrontation):
         plt.close()
 
     def compositePlots(self):
-        pass
+        """Render plots only once per master process."""
+        # get the HTML page
+        page = [page for page in self.layout.pages if "MeanState" in page.name][0]
+        page.addFigure("Site Information", "site", "site.png")
+        plot_usgs_site(self.sitecode, os.path.join(self.output_path, "site.png"))
