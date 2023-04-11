@@ -10,6 +10,8 @@ from typing import Union
 import pandas as pd
 from dataretrieval import nwis
 
+from . import ilamblib as il
+
 
 def is_binary_file(filename: str) -> bool:
     """Tests if the file is binary, as opposed to text."""
@@ -115,13 +117,20 @@ class ATSPointResult:
         dfv = dfv[dfv["variable"] == found].iloc[0]
 
         # Process csv file
-        time_col = "time [d]"
-        new_time_col = "time"
         dfo = pd.read_csv(self.sites.loc[sitecode, "path"], comment="#")
-        dfo[new_time_col] = pd.to_datetime(dfo[time_col], unit="D", origin=self.origin)
+        time_col = [c for c in dfo.columns if ("time" in c or "date" in c)]
+        time_col = time_col[0]
+        new_time_col = "time"
+        try:
+            dfo[new_time_col] = pd.to_datetime(
+                dfo[time_col], unit="D", origin=self.origin
+            )
+        except (TypeError, ValueError):
+            dfo[new_time_col] = pd.to_datetime(dfo[time_col])
         dfo = dfo.rename(columns={dfv["column"]: vname})
         dfo = dfo.set_index(new_time_col)
-        dfo = dfo.tz_localize(0)
+        dfo = dfo.tz_localize(None)
+        dfo = dfo.groupby(pd.Grouper(freq="D")).mean(numeric_only=True)
         dfo.attrs["unit"] = dfv["unit"]
         dfo = dfo[vname]
         return dfo
@@ -145,3 +154,9 @@ class ATSPointResult:
             obj = self.__new__(self.__class__)
             obj.__dict__.update(pickle.load(pkl))
         return obj
+
+    def extractTimeSeries(self, *args, **kwargs):
+        """."""
+        raise il.VarNotInModel(
+            "The ATS model object does not yet handle gridded output."
+        )

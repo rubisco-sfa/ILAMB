@@ -11,6 +11,7 @@ import cftime
 import pandas as pd
 import xarray as xr
 
+from . import ilamblib as il
 from .Variable import Variable
 
 
@@ -70,7 +71,9 @@ class E3SMResult:
         possible += [var for syms in possible_syms for var in self.synonyms[syms]]
         found = [p for p in possible if p in self.variables]
         if len(found) == 0:
-            raise ValueError(f"Variable '{vname}' not found in model '{self.name}'")
+            raise il.VarNotInModel(
+                f"Variable '{vname}' not found in model '{self.name}'"
+            )
         found = found[0]
 
         # Figure out what files

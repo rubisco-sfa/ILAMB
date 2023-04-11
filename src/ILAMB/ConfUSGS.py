@@ -235,6 +235,7 @@ class ConfUSGS(Confrontation):
             end=self.time_end,
             parameterCd=self.usgs_varid,
         )[f"{self.usgs_varid}_Mean"]
+        ref.index = ref.index.tz_localize(None)
         row = self._table.loc[int(self.usgs_varid)]
         vname = row["Parameter Name/Description"].split(", ")[0].lower()
         unit = row["Parameter Unit"]
@@ -261,16 +262,31 @@ class ConfUSGS(Confrontation):
         _path = partial(os.path.join, self.output_path)
         ref, mod = self.stageData(model)
 
-        # simple mean discharge metric
+        # discharge
         ref_mean = ref["discharge"].mean(dim="time")
         ref_mean.attrs["units"] = ref["discharge"].attrs["units"]
         ref_mean.name = "Mean Discharge global"
         mod_mean = mod["discharge"].mean(dim="time")
         mod_mean.attrs["units"] = mod["discharge"].attrs["units"]
         mod_mean.name = "Mean Discharge global"
-        score = np.exp(-np.abs(ref_mean - mod_mean) / ref_mean)
-        score.attrs["units"] = "1"
-        score.name = "Discharge Score global"
+
+        # Nash-Sutcliffe Efficiency
+        nse = 1 - ((mod["discharge"] - ref["discharge"]) ** 2).sum(dim="time") / (
+            (ref["discharge"] - ref_mean) ** 2
+        ).sum(dim="time")
+        nse = nse.clip(0, 1)
+        nse.name = "NSE Score global"
+        nse.attrs["units"] = "1"
+
+        # Kling-Gupta Efficiency
+        kge = 1 - np.sqrt(
+            (xr.corr(ref["discharge"], mod["discharge"]) - 1) ** 2
+            + (mod["discharge"].std() / ref["discharge"].std() - 1) ** 2
+            + (mod_mean / ref_mean - 1) ** 2
+        )
+        kge = kge.clip(0, 1)
+        kge.name = "KGE Score global"
+        kge.attrs["units"] = "1"
 
         # output to intermediate netcdf files
         if self.master:
@@ -282,7 +298,10 @@ class ConfUSGS(Confrontation):
         mod_mean.to_netcdf(
             _path(f"{self.name}_{model.name}.nc"), group="MeanState/scalars", mode="a"
         )
-        score.to_netcdf(
+        nse.to_netcdf(
+            _path(f"{self.name}_{model.name}.nc"), group="MeanState/scalars", mode="a"
+        )
+        kge.to_netcdf(
             _path(f"{self.name}_{model.name}.nc"), group="MeanState/scalars", mode="a"
         )
 
@@ -307,17 +326,38 @@ class ConfUSGS(Confrontation):
         # get the HTML page
         page = [page for page in self.layout.pages if "MeanState" in page.name][0]
 
-        # the figure size depends on how much time
-        page.addFigure("Discharge", "discharge", "MNAME_discharge.png")
-        nyears = float(ref["time"].max() - ref["time"].min()) * 1e-9 / 3600 / 24 / 365
-        fig, pax = plt.subplots(
-            figsize=(2 / 10 * nyears, 2), tight_layout=True, dpi=200
+        # time series plot
+        page.addFigure(
+            "Discharge",
+            "discharge",
+            "MNAME_global_discharge.png",
+            longname="Discharge Time Series",
         )
-        ref["discharge"].plot(ax=pax, color="k", label="USGS")
-        mod["discharge"].plot(ax=pax, color=model.color, label=model.name)
+        nyears = float(ref["time"].max() - ref["time"].min()) * 1e-9 / 3600 / 24 / 365
+        fig, pax = plt.subplots(figsize=(2 / 8 * nyears, 2), tight_layout=True, dpi=200)
+        ref["discharge"].plot(ax=pax, lw=1, color="k", label="USGS")
+        mod["discharge"].plot(ax=pax, lw=1, color=model.color, label=model.name)
         pax.set_xlabel("")
         pax.legend()
-        fig.savefig(_path(f"{model.name}_discharge.png"))
+        fig.savefig(_path(f"{model.name}_global_discharge.png"))
+        plt.close()
+
+        # scatter plot
+        ref, mod = xr.align(ref, mod)
+        page.addFigure(
+            "Discharge",
+            "scatter",
+            "MNAME_global_scatter.png",
+            longname="Discharge Scatter Plot",
+        )
+        nyears = float(ref["time"].max() - ref["time"].min()) * 1e-9 / 3600 / 24 / 365
+        fig, pax = plt.subplots(figsize=(5, 5), tight_layout=True, dpi=200)
+        pax.scatter(ref["discharge"], mod["discharge"], s=2, c=model.color)
+        vmax = max(ref["discharge"].max(), mod["discharge"].max())
+        pax.plot([0, vmax], [0, vmax], "--k")
+        pax.set_xlabel(f"USGS discharge [{ref['discharge'].attrs['units']}]")
+        pax.set_ylabel(f"{model.name} discharge [{mod['discharge'].attrs['units']}]")
+        fig.savefig(_path(f"{model.name}_global_scatter.png"))
         plt.close()
 
     def compositePlots(self):
