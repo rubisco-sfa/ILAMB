@@ -1,5 +1,16 @@
-"""."""
+"""The data used in this confrontation is queried from USGS servers. As part of the comparison, we compute two metrics to measure performance:
+
+1. Nash-Sutcliffe Efficiency (NSE)
+
+    ``NSE = 1 - SUM((mod - ref)^2) / SUM(ref - MEAN(ref))^2``
+
+2. Kling-Gupta Efficiency (KGE)
+
+    ``KGE = 1 - SQRT( (CORR(ref,mod)-1)^2 + (STD(mod)/STD(ref)-1)^2 + (MEAN(mod)/MEAN(ref)-1)^2 )``
+
+"""
 import os
+import re
 from functools import partial
 from typing import Any
 
@@ -16,6 +27,24 @@ from pynhd import NLDI, NHDPlusHR
 
 from . import Post as post
 from .Confrontation import Confrontation
+
+
+def markdown_to_html(doc):
+    """A very simple parser for rendering dosctrings in this module."""
+    style = """
+    <style type='text/css'>
+      p.code {font-family:courier, courier new, serif;}
+    </style>\n"""
+    lines = doc.split("\n")
+    for i, line in enumerate(lines):
+        match = re.search("``.*``", line)
+        if match:
+            span = list(match.span())
+            span[0] += 2
+            span[-1] -= 2
+            lines[i] = f'<p class="code">{line[slice(*span)]}</p>'
+    out = style + "<br>".join(lines)
+    return out
 
 
 def convert_unit(
@@ -178,7 +207,6 @@ class ConfUSGS(Confrontation):
         super(ConfUSGS, self).__init__(**keywords)
         os.system("rm dummy_source.nc")
 
-        self.name = "USGS"
         self.regions = ["global"]
         self.layout.regions = self.regions
         self.sitecode = keywords.get("sitecode", None)
@@ -209,7 +237,7 @@ class ConfUSGS(Confrontation):
         pages[-1].setRegions(self.regions)
         pages.append(post.HtmlPage("DataInformation", "Data Information"))
         pages[-1].setSections([])
-        pages[-1].text = "\n"
+        pages[-1].text = markdown_to_html(__doc__)
         self.layout = post.HtmlLayout(
             pages,
             self.longname,
