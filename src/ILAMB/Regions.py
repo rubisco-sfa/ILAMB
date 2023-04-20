@@ -6,7 +6,7 @@ from mpi4py import MPI
 
 import logging
 logger = logging.getLogger("%i" % MPI.COMM_WORLD.rank)
-                           
+
 class Regions(object):
     """A class for unifying the treatment of regions in ILAMB.
 
@@ -19,12 +19,12 @@ class Regions(object):
     """
     _regions = {}
     _sources = {}
-    
+
     @property
     def regions(self):
         """Returns a list of region identifiers."""
         return Regions._regions.keys()
-    
+
     def addRegionLatLonBounds(self,label,name,lats,lons,source="user-provided latlon bounds"):
         """Add a region by lat/lon bounds.
 
@@ -51,13 +51,13 @@ class Regions(object):
 
     def addRegionShapeFile(self, filename):
         """Add regions found in a Shapefile.
-       
+
         This routine will read region gemoetries from a Shapefile and
-	create ILAMB regions. Shapefiles provided can be in any
-	geospatial projection, however, they will all be projected to
-	standard EPSG 4326 latlon projection. Routine expects the
-	shapefile to provide 'label' attribute to populate attribute
-	'labels' for the region.
+        create ILAMB regions. Shapefiles provided can be in any
+        geospatial projection, however, they will all be projected to
+        standard EPSG 4326 latlon projection. Routine expects the
+        shapefile to provide 'label' attribute to populate attribute
+        'labels' for the region.
 
         """
         warnings.filterwarnings('ignore')
@@ -65,7 +65,7 @@ class Regions(object):
             import geopandas as gpd
         except ImportError:
             msg = "ILAMB Regions based on shapefiles requires the rasterio and geopandas modules"
-            raise ValueError(msg)            
+            raise ValueError(msg)
         vregions = gpd.read_file(filename)
         # check projection of the shapefile, if not EPSG 4326, reproject to 4326
         if vregions.crs != 4326:
@@ -82,10 +82,10 @@ class Regions(object):
             shape = vregions[vregions.value == c]
             Regions._regions[label.lower()] = [name, catid, shape]
             Regions._sources[label.lower()] = os.path.basename(filename)
-        warnings.filterwarnings('default')            
-        return regionnames 
+        warnings.filterwarnings('default')
+        return regionnames
 
-       
+
     def addRegionNetCDF4(self,filename):
         """Add regions found in a netCDF4 file.
 
@@ -167,7 +167,7 @@ class Regions(object):
             the long name of the region
         """
         return Regions._regions[label][0]
-    
+
     def getRegionSource(self,label):
         """Given the region label, return the source.
 
@@ -198,7 +198,7 @@ class Regions(object):
         mask : numpy.ndarray
             a boolean array appropriate for masking the input variable data
         """
-        
+
         if len(Regions._regions[label]) == 4:
             name,lat,lon,mask = Regions._regions[label]
             if lat.size == 4 and lon.size == 4:
@@ -214,7 +214,7 @@ class Regions(object):
 
         if len(Regions._regions[label]) == 3:
             # we are calculating area of a lat/lon projection in this
-            # routine. Suppress geopandas warning message 
+            # routine. Suppress geopandas warning message
             warnings.filterwarnings('ignore')
             try:
                 import rasterio
@@ -228,7 +228,7 @@ class Regions(object):
             # calculate nominal pixel area for the model var
             marea = res*res/100
             name,catid,shape = Regions._regions[label]
-            transform = rasterio.transform.from_bounds(var.lon.min(), 
+            transform = rasterio.transform.from_bounds(var.lon.min(),
                 var.lat.max(), var.lon.max(),
                 var.lat.min(), ncols, nrows)
             # create a generator with shapes to rasterize
@@ -258,7 +258,7 @@ class Regions(object):
             a boolean array appropriate for masking the input variable data
         """
         # we are calculating area of a lat/lon projection in this
-        # routine. Suppress geopandas warning message 
+        # routine. Suppress geopandas warning message
         warnings.filterwarnings('ignore')
         try:
             import rasterio
@@ -272,7 +272,7 @@ class Regions(object):
             res=(var.lat.max()-var.lat.min())/nrows
             marea = res*res
             name,catid,shape = Regions._regions[label]
-            transform = rasterio.transform.from_bounds(var.lon.min(), 
+            transform = rasterio.transform.from_bounds(var.lon.min(),
                 var.lat.max(), var.lon.max(),
                 var.lat.min(), ncols, nrows)
             gshape = list((geom, value) for geom, value in zip(shape.loc[shape.area >= marea].geometry, shape.value.unique()))
@@ -312,6 +312,22 @@ class Regions(object):
             keep *= (var.data.mask == False).any(axis=tuple(axes))
         if keep.sum() > 0: return True
         return False
+
+    def setGlobalRegion(self,label: str) -> None:
+        """Set the default 'global' region to be used in an ILAMB analysis.
+
+        Note that the previous region labeled as 'global' will be
+        discarded by the system.
+
+        Parameters
+        ----------
+        label
+            the label to set as 'global'
+
+        """
+        if label not in Regions._regions:
+            raise ValueError(f"The '{label}' label is not in ILAMB regions.")
+        Regions._regions['global'] = Regions._regions[label]
 
 if "global" not in Regions().regions:
 
