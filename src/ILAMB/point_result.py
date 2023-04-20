@@ -1,4 +1,4 @@
-"""A class for abstracting and managing ATS model results in the form of
+"""A class for abstracting and managing point model results in the form of
 observation point data."""
 
 import os
@@ -21,10 +21,10 @@ def is_binary_file(filename: str) -> bool:
 
 
 @dataclass
-class ATSPointResult:
-    """A class for abstracting and managing ATS model results."""
+class ModelPointResult:
+    """A class for abstracting and managing point model results."""
 
-    name: str = "ATS"
+    name: str = "none"
     color: tuple[float] = (0, 0, 0)
     synonyms: dict = field(init=False, repr=False, default_factory=dict)
     variables: pd.DataFrame = field(
@@ -158,5 +158,5 @@ class ATSPointResult:
     def extractTimeSeries(self, *args, **kwargs):
         """."""
         raise il.VarNotInModel(
-            "The ATS model object does not yet handle gridded output."
+            "The point model object does not yet handle gridded output."
         )

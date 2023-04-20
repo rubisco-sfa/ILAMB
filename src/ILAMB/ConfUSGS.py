@@ -191,6 +191,24 @@ def plot_usgs_site(sitecode: str, filename: str | None = None) -> None:
     plt.close()
 
 
+def aggregate_gridded_data(
+    dset: xr.Dataset, varname: str, mean: bool = False
+) -> pd.Series:
+    """."""
+    var = dset[varname]
+    measure = xr.where(var.notnull(), dset["area"] * dset["landfrac"], np.nan)
+    agg = (var * measure).sum(dim=["lat", "lon"])
+    if mean:
+        agg /= measure.sum()
+    out = pd.Series(agg, index=agg["time"])
+    out.attrs["unit"] = (
+        var.attrs["units"]
+        if mean
+        else str(Unit(var.attrs["units"]) * Unit(dset["area"].attrs["units"]))
+    )
+    return out
+
+
 class ConfUSGS(Confrontation):
     """An ILAMB confrontation which requires no source data specified and
     instead downloads sources from the specified `sitecode` from `time_start` to
@@ -269,10 +287,22 @@ class ConfUSGS(Confrontation):
         unit = row["Parameter Unit"]
         ref.attrs["unit"] = unit
         mod = model.get_variable(vname, self.sitecode)
-        mod = convert_unit(mod, ref.attrs["unit"])
+
+        # if the model returns a gridded object, try to aggregate
+        if isinstance(mod, xr.Dataset):
+            mod = aggregate_gridded_data(mod, vname)
+
         # merging into a combined dataframe where the index is the datetime will
         # automatically produce nan's where either source is lacking variables.
-        cmb = pd.DataFrame({"mod": mod, "ref": ref}).dropna()
+        mod = convert_unit(mod, ref.attrs["unit"])
+        try:
+            cmb = pd.DataFrame({"mod": mod, "ref": ref})
+        except TypeError:
+            # assuming that the error is calendar related in the model
+            mod.index = [pd.Timestamp(str(i)) for i in mod.index]
+            cmb = pd.DataFrame({"mod": mod, "ref": ref})
+        cmb = cmb.dropna()
+
         ref = xr.DataArray(
             cmb["ref"].values, coords=[("time", cmb.index.values)], dims="time"
         )

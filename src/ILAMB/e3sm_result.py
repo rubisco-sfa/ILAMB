@@ -23,9 +23,9 @@ class E3SMResult:
     color: tuple[float] = (0, 0, 0)
     synonyms: dict = field(init=False, repr=False, default_factory=dict)
     files: pd.DataFrame = field(init=False, repr=False, default_factory=lambda: None)
-    variables: set = field(init=False, repr=False, default_factory=set)
+    variables: dict = field(init=False, repr=False, default_factory=dict)
 
-    def find_files(self, path: Union[str, list[str]], pattern: str = ".*elm.h0.*nc"):
+    def find_files(self, path: Union[str, list[str]], pattern: str = ".h[0,1].*nc"):
         """Given a path or list of paths, find all files that match the given
         pattern."""
         model_files = []
@@ -37,16 +37,22 @@ class E3SMResult:
                     match = re.search(pattern, filename)
                     if not match:
                         continue
+                    freq = "D" if ".h1." in filename else "M"
                     filepath = os.path.join(root, filename)
                     with xr.open_dataset(filepath) as dset:
                         model_files.append(
                             {
                                 "tmin": dset["time"].min(),
                                 "tmax": dset["time"].max(),
+                                "frequency": freq,
                                 "path": filepath,
                             }
                         )
-                        self.variables = self.variables.union(dset.variables)
+                        if freq not in self.variables:
+                            self.variables[freq] = set()
+                        self.variables[freq] = self.variables[freq].union(
+                            dset.variables
+                        )
         self.files = pd.DataFrame(model_files)
         return self
 
@@ -54,13 +60,11 @@ class E3SMResult:
         self,
         vname: str,
         synonyms: Union[str, list[str]] = None,
-        time0: str = None,
-        timef: str = None,
-    ):
-        """Search the model database for the specified variable.
-
-        Assumes by the nature of h0 files that all variables are in all files
-        and that the variable you want is time dependent."""
+        time0: str | None = None,
+        timef: str | None = None,
+        frequency: str = "M",
+    ) -> xr.Dataset:
+        """Search the model database for the specified variable."""
         # Synonym handling, possibly move to a separate function
         possible = [vname]
         if isinstance(synonyms, str):
@@ -69,7 +73,7 @@ class E3SMResult:
             possible += synonyms
         possible_syms = [p for p in possible if p in self.synonyms]
         possible += [var for syms in possible_syms for var in self.synonyms[syms]]
-        found = [p for p in possible if p in self.variables]
+        found = [p for p in possible if p in self.variables[frequency]]
         if len(found) == 0:
             raise il.VarNotInModel(
                 f"Variable '{vname}' not found in model '{self.name}'"
@@ -77,7 +81,7 @@ class E3SMResult:
         found = found[0]
 
         # Figure out what files
-        files = self.files
+        files = self.files[self.files["frequency"] == frequency]
         if time0:
             files = files[files["tmin"] >= time0]
         if timef:
@@ -137,7 +141,10 @@ class E3SMResult:
 
     def add_synonym(self, elm_variable: str, other_variable: str):
         """Add synonyms, preference given to earlier definitions."""
-        assert elm_variable in self.variables
+        variables = set()
+        for freq in self.variables:
+            variables = variables.union(self.variables[freq])
+        assert elm_variable in variables
         if other_variable not in self.synonyms:
             self.synonyms[other_variable] = []
         self.synonyms[other_variable].append(elm_variable)

@@ -6,7 +6,7 @@ import mpi4py.rc; mpi4py.rc.threads = False
 import logging
 import yaml
 from ILAMB.ModelResult import ModelResult
-from ILAMB.ats_result import ATSPointResult
+from ILAMB.point_result import ModelPointResult
 from ILAMB.e3sm_result import E3SMResult
 from ILAMB.Scoreboard import Scoreboard
 from ILAMB.Regions import Regions
@@ -115,7 +115,7 @@ def InitializeModels(model_root,models=[],verbose=False,filter="",regex="",model
 def _parse_model_yaml(filename: str, cache_path: str = "./"):
     """Setup models using a yaml file."""
     model_classes = {
-        "ATSPointResult": ATSPointResult,
+        "ModelPointResult": ModelPointResult,
         "E3SMResult": E3SMResult,
         "ModelResult": ModelResult,
     }
