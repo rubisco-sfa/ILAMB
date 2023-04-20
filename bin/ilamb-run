@@ -57,7 +57,7 @@ def InitializeModels(model_root,models=[],verbose=False,filter="",regex="",model
        a list of the model results, sorted alphabetically by name
 
     """
-    # initialize the models    
+    # initialize the models
     M = []
     if len(model_year) != 2: model_year = None
     max_model_name_len = 0
@@ -79,7 +79,7 @@ def InitializeModels(model_root,models=[],verbose=False,filter="",regex="",model
             max_model_name_len = max(max_model_name_len,len(mname))
         break
     M = sorted(M,key=lambda m: m.name.upper())
-    
+
     # assign unique colors
     clrs = il.GenerateDistinctColors(len(M))
     for m in M:
@@ -93,7 +93,7 @@ def InitializeModels(model_root,models=[],verbose=False,filter="",regex="",model
             pkl_file = os.path.join(models_path,"%s.pkl" % m.name)
             with open(pkl_file,'wb') as out:
                 pickle.dump(m,out,pickle.HIGHEST_PROTOCOL)
-        
+
     # optionally output models which were found
     if rank == 0 and verbose:
         for m in M:
@@ -176,7 +176,7 @@ def ParseModelSetup(model_setup,models=[],verbose=False,filter="",regex="",model
             pkl_file = os.path.join(models_path,"%s.pkl" % m.name)
             with open(pkl_file,'wb') as out:
                 pickle.dump(m,out,pickle.HIGHEST_PROTOCOL)
-                
+
     # optionally output models which were found
     if rank == 0 and verbose:
         for m in M:
@@ -307,8 +307,8 @@ def BuildLocalWorkList(M,C,skip_cache=False):
     for c in C:
         for m in M:
             if skip_cache:
-                
-                # if we want to skip we have to check that it is complete                
+
+                # if we want to skip we have to check that it is complete
                 fname = os.path.join(c.output_path,"%s_%s.nc" % (c.name,m.name))
                 complete = False
                 if os.path.isfile(fname):
@@ -382,7 +382,7 @@ def WorkConfront(W,verbose=False,clean=False):
 
         # try to run the confrontation
         try:
-            t0 = time.time()            
+            t0 = time.time()
             c.confront(m)
             dt = time.time()-t0
             proc[rank] += dt
@@ -397,7 +397,7 @@ def WorkConfront(W,verbose=False,clean=False):
             logger.debug("[%s][%s]\n%s" % (c.longname,m.name,format_exc()))
             if verbose:
                 print(("    {0:>%d} {1:<%d} %s%s%s" % (maxCL,maxML,FAIL,ex.__class__.__name__,ENDC)).format(c.longname,m.name))
-                
+
 def WorkPost(M,C,W,S,verbose=False,skip_plots=False):
     """Performs the post-processing
 
@@ -442,7 +442,7 @@ def WorkPost(M,C,W,S,verbose=False,skip_plots=False):
                 sys.stdout.flush()
 
     sys.stdout.flush(); comm.Barrier()
-    
+
     for i,c in enumerate(C):
         try:
             c.compositePlots()
@@ -579,6 +579,8 @@ parser.add_argument('--rmse_score_basis', dest="rmse_score_basis", metavar='basi
                     help='base the RMSE score on the full time series with "series" or just the annual cycle with "cycle"')
 parser.add_argument('--df_errs', dest="df_errs", metavar='df_errs', type=str, default=None,
                     help='the pandas dataframe with the quantiles to use in scoring.')
+parser.add_argument('-g','--global_region', dest="global_region", type=str, default=None,
+                    help='the ILAMB region to be the default (global) analysis region.')
 args = parser.parse_args()
 if args.config is None:
     if rank == 0:
@@ -602,6 +604,8 @@ for region in args.regions:
     if region not in r.regions: missing.append(region)
 if len(missing) > 0:
     raise ValueError("Unable to find the following regions %s from the following list of possible regions %s" % (missing,r.regions))
+if args.global_region:
+    r.setGlobalRegion(args.global_region)
 
 # Setup study
 T0 = time.time()
@@ -628,7 +632,7 @@ except:
         print("Unable to read quantiles")
     comm.Abort(0)
 
-    
+
 if rank == 0 and not args.quiet: print("\nParsing config file %s...\n" % args.config[0])
 S = Scoreboard(args.config[0],
                regions   = args.regions,
@@ -687,11 +691,11 @@ WorkConfront(W,not args.quiet,args.clean)
 sys.stdout.flush(); comm.Barrier()
 
 if not args.skip_plots:
-    
+
     if rank==0 and not args.quiet: print("\nFinishing post-processing which requires collectives...\n")
 
     sys.stdout.flush(); comm.Barrier()
-    
+
     W = BuildLocalWorkList(M,C,skip_cache=False)
     WorkPost(M,C,W,S,not args.quiet)
 
@@ -719,7 +723,7 @@ if rank==0:
 if rank==0:
     S.dumpScores(M,"scores.csv")
     S.harvestInformation(M)
-    
+
 if (rank == 0              and
     ierr_reduced.max() > 0 and
     args.logging           and
