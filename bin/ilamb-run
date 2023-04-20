@@ -6,8 +6,14 @@ import mpi4py.rc; mpi4py.rc.threads = False
 import logging
 import yaml
 from ILAMB.ModelResult import ModelResult
-from ILAMB.point_result import ModelPointResult
-from ILAMB.e3sm_result import E3SMResult
+try:
+    from ILAMB.point_result import ModelPointResult
+except:
+    ModelPointResult = None
+try:
+    from ILAMB.e3sm_result import E3SMResult
+except:
+    E3SMResult = None
 from ILAMB.Scoreboard import Scoreboard
 from ILAMB.Regions import Regions
 from ILAMB import ilamblib as il
@@ -132,6 +138,9 @@ def _parse_model_yaml(filename: str, cache_path: str = "./"):
 
         # select the class type
         cls = model_classes[opts["type"]] if "type" in opts else ModelResult
+        if cls is None:
+            typ = opts["type"]
+            raise ValueError(f"The model type '{typ}' is not available") 
         fcns = dir(cls)
 
         # if the pickle file exists, just load it
