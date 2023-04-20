@@ -112,7 +112,7 @@ setup(
                       'cftime',
                       'tqdm',
                       'pyarrow',
-                      'yaml'],
+                      'pyyaml'],
     extras_require={
         "watershed": ["contextily",
                       "geopandas",
