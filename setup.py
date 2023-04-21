@@ -111,5 +111,12 @@ setup(
                       'scipy>=0.9.0',
                       'cftime',
                       'tqdm',
-                      'pyarrow']
+                      'pyarrow',
+                      'pyyaml'],
+    extras_require={
+        "watershed": ["contextily",
+                      "geopandas",
+                      "dataretrieval",
+                      "pynhd"],
+    },
 )

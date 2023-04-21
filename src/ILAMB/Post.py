@@ -619,7 +619,7 @@ class HtmlAllModelsPage(HtmlPage):
                 for section in page.sections:
                     if len(page.figures[section]) == 0: continue
                     for figure in page.figures[section]:
-                        if (figure.name in ["spatial_variance","compcycle","profile",
+                        if (figure.name in ["spatial_variance","compcycle","profile","site",
                                             "legend_spatial_variance","legend_compcycle"]): continue # ignores
                         if "benchmark" in figure.name:
                             if figure.name not in bench: bench.append(figure.name)
@@ -1214,7 +1214,8 @@ def CreateJSON(csv_file,M=None):
     for model in models:
         m = [m for m in M if m.name == model]
         if len(m) > 0:
-            nest[model] = {"Description":m[0].description,"Source":m[0].group}
+            nest[model] = {"Description":m[0].description if hasattr(m[0],"description") else "",
+                           "Source":m[0].group if hasattr(m[0],"group") else ""}
         else:
             nest[model] = {"Description":"","Source":""}
     out["DIMENSIONS"]["dimensions"]["model"] = nest

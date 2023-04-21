@@ -22,6 +22,9 @@ class VarNotMonthly(Exception):
 
 class VarNotInModel(Exception):
     def __str__(self): return "VarNotInModel"
+    
+class SiteNotInModel(Exception):
+    def __str__(self): return "SiteNotInModel"
 
 class VarsNotComparable(Exception):
     def __str__(self): return "VarNotComparable"

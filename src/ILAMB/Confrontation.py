@@ -491,6 +491,12 @@ class Confrontation(object):
                 vabs =  max(abs(limits[pname]["min"]),abs(limits[pname]["min"]))
                 limits[pname]["min"] = -vabs
                 limits[pname]["max"] =  vabs
+            if "shift" in pname:
+                limits[pname]["min"] = -6
+                limits[pname]["max"] = +6
+            if "phase" in pname:
+                limits[pname]["min"] = 0
+                limits[pname]["max"] = 365
 
             # if a score, force to be [0,1]
             if "score" in pname:

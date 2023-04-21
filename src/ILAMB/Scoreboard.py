@@ -13,6 +13,10 @@ from .ConfCO2 import ConfCO2
 from .ConfSoilCarbon import ConfSoilCarbon
 from .ConfUncertainty import ConfUncertainty
 from .ConfBurntArea import ConfBurntArea
+try:
+    from .ConfUSGS import ConfUSGS
+except:
+    ConfUSGS = None
 from .Regions import Regions
 import os,re
 from netCDF4 import Dataset
@@ -323,7 +327,8 @@ ConfrontationTypes = { None              : Confrontation,
                        "ConfCO2"         : ConfCO2,
                        "ConfSoilCarbon"  : ConfSoilCarbon,
                        "ConfUncertainty" : ConfUncertainty,
-                       "ConfBurntArea"   : ConfBurntArea}
+                       "ConfBurntArea"   : ConfBurntArea,
+                       "ConfUSGS"        : ConfUSGS }
 
 class Scoreboard():
     """
@@ -356,6 +361,8 @@ class Scoreboard():
             # pick the confrontation to use, is it a built-in confrontation?
             if node.ctype in ConfrontationTypes:
                 Constructor = ConfrontationTypes[node.ctype]
+                if Constructor is None:
+                    raise ValueError(f"The confrontation {node.ctype} is nto available.")
             else:
                 # try importing the confrontation
                 conf = __import__(node.ctype)
