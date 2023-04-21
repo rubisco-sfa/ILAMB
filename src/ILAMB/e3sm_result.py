@@ -60,8 +60,8 @@ class E3SMResult:
         self,
         vname: str,
         synonyms: Union[str, list[str]] = None,
-        time0: str | None = None,
-        timef: str | None = None,
+        time0: str = None,
+        timef: str = None,
         frequency: str = "M",
     ) -> xr.Dataset:
         """Search the model database for the specified variable."""
