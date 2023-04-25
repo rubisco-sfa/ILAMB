@@ -92,6 +92,7 @@ class ModelPointResult:
         vname: str,
         sitecode: str,
         synonyms: Union[str, list[str]] = None,
+        frequency: str = "ununsed",
     ):
         """Search the model database for the specified variable.
 

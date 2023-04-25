@@ -121,7 +121,7 @@ def add_global_attributes(filename: str, name: str, color: Any) -> None:
     dset.to_netcdf(filename, mode="a")
 
 
-def plot_usgs_site(sitecode: str, filename: str | None = None) -> None:
+def plot_usgs_site(sitecode: str, filename: str = None) -> None:
     """Plot the site in the context of CONUS and the immediate area.
 
     Parameters
@@ -132,8 +132,11 @@ def plot_usgs_site(sitecode: str, filename: str | None = None) -> None:
         The optional name in which to save the plot. Defaults to
         ``{sitecode}.png``.
     """
-    usa = gpd.read_file("USA_states_epsg4326.geojson")
-    usa = usa[~usa.NAME_1.isin(["Alaska", "Hawaii"])]
+    try:
+        usa = gpd.read_file("USA_states_epsg4326.geojson")
+        usa = usa[~usa.NAME_1.isin(["Alaska", "Hawaii"])]
+    except:
+        usa = None
 
     # We need to cache this information
     info = nwis.get_info(sites=sitecode)[0]
@@ -149,7 +152,8 @@ def plot_usgs_site(sitecode: str, filename: str | None = None) -> None:
 
     # Create the plots
     fig, axs = plt.subplots(1, 2, figsize=(figwidth, figheight), tight_layout=True)
-    usa.boundary.plot(edgecolor="k", linewidth=0.5, ax=axs[0], color=None)
+    if usa is not None:
+        usa.boundary.plot(edgecolor="k", linewidth=0.5, ax=axs[0], color=None)
     hucs.boundary.plot(
         ax=axs[1],
         edgecolor="k",
@@ -192,11 +196,19 @@ def plot_usgs_site(sitecode: str, filename: str | None = None) -> None:
 
 
 def aggregate_gridded_data(
-    dset: xr.Dataset, varname: str, mean: bool = False
+    dset: xr.Dataset, varname: str, basin: gpd.GeoDataFrame = None, mean: bool = False
 ) -> pd.Series:
     """."""
+
     var = dset[varname]
     measure = xr.where(var.notnull(), dset["area"] * dset["landfrac"], np.nan)
+    if basin is not None:  # if a basin is given, mask points outside
+        lon, lat = np.meshgrid(var["lon"], var["lat"])
+        gdf = gpd.GeoDataFrame(
+            geometry=gpd.points_from_xy(lon.flatten(), lat.flatten()), crs="EPSG:4326"
+        )
+        keep = gdf.within(basin.iloc[0]["geometry"]).to_numpy().reshape(lon.shape)
+        measure = xr.where(keep, measure, np.nan)
     agg = (var * measure).sum(dim=["lat", "lon"])
     if mean:
         agg /= measure.sum()
@@ -243,6 +255,7 @@ class ConfUSGS(Confrontation):
         except ValueError:
             name = self.name
         self.longname = name
+        self.contributing_area = NLDI().get_basins([self.sitecode]).to_crs("EPSG:4326")
 
         # Setup a html layout for generating web views of the results
         pages = []
@@ -286,11 +299,11 @@ class ConfUSGS(Confrontation):
         vname = row["Parameter Name/Description"].split(", ")[0].lower()
         unit = row["Parameter Unit"]
         ref.attrs["unit"] = unit
-        mod = model.get_variable(vname, self.sitecode)
+        mod = model.get_variable(vname, self.sitecode, frequency="D")
 
         # if the model returns a gridded object, try to aggregate
         if isinstance(mod, xr.Dataset):
-            mod = aggregate_gridded_data(mod, vname)
+            mod = aggregate_gridded_data(mod, vname, basin=self.contributing_area)
 
         # merging into a combined dataframe where the index is the datetime will
         # automatically produce nan's where either source is lacking variables.
