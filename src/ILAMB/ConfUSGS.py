@@ -121,7 +121,7 @@ def add_global_attributes(filename: str, name: str, color: Any) -> None:
     dset.to_netcdf(filename, mode="a")
 
 
-def plot_usgs_site(sitecode: str, filename: str | None = None) -> None:
+def plot_usgs_site(sitecode: str, filename: str = None) -> None:
     """Plot the site in the context of CONUS and the immediate area.
 
     Parameters
