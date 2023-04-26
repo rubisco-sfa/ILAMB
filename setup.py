@@ -100,7 +100,7 @@ setup(
     scripts=['bin/ilamb-run','bin/ilamb-fetch','bin/ilamb-mean','bin/ilamb-doctor','bin/ilamb-table',
              'bin/ilamb-setup'],
     zip_safe=False,
-    install_requires=['numpy>=1.11.0',
+    install_requires=['numpy>=1.11.0, != 1.24.3',
                       'pandas>=1.0.0',
                       'matplotlib>=2.2',
                       'cartopy>=0.17.0',
