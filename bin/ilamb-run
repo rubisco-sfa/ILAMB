@@ -130,6 +130,9 @@ def _parse_model_yaml(filename: str, cache_path: str = "./"):
         yml = yaml.safe_load(fin)
     for name, opts in yml.items():
 
+        if 'name' not in opts:
+            opts['name'] = name
+
         # if the model_year option is given, convert to lits of floats
         if "model_year" in opts:
             opts["model_year"] = [
@@ -140,7 +143,7 @@ def _parse_model_yaml(filename: str, cache_path: str = "./"):
         cls = model_classes[opts["type"]] if "type" in opts else ModelResult
         if cls is None:
             typ = opts["type"]
-            raise ValueError(f"The model type '{typ}' is not available") 
+            raise ValueError(f"The model type '{typ}' is not available")
         fcns = dir(cls)
 
         # if the pickle file exists, just load it
@@ -174,12 +177,12 @@ def _parse_model_yaml(filename: str, cache_path: str = "./"):
                     if key in opts
                 }
             )
-            
+
         # some model types allow you to specify snynonms
         if "add_synonym" in fcns and "synonyms" in opts:
             for mvar, syn in opts['synonyms'].items():
                 model.add_synonym(mvar,syn)
-            
+
         # cache the model result
         if "read_pickle" in fcns:
             model.to_pickle(cache)
@@ -212,6 +215,9 @@ def ParseModelSetup(model_setup,models=[],verbose=False,filter="",regex="",model
        a list of the model results, sorted alphabetically by name
 
     """
+    if rank == 0 and verbose: print("\nSetting up model results from %s\n" % model_setup)
+
+    # intercept if this is a yaml file
     if model_setup.endswith(".yaml"):
         M = _parse_model_yaml(model_setup, cache_path=models_path)
         if rank == 0 and verbose:
@@ -222,11 +228,10 @@ def ParseModelSetup(model_setup,models=[],verbose=False,filter="",regex="",model
                 comm.Barrier()
                 comm.Abort(0)
         return M
-    
+
     # initialize the models
     M = []
     max_model_name_len = 0
-    if rank == 0 and verbose: print("\nSetting up model results from %s\n" % model_setup)
     with open(model_setup) as f:
         for line in f.readlines():
             if line.strip().startswith("#"): continue
