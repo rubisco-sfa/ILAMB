@@ -201,7 +201,7 @@ class E3SMResult:
             * ns_to_d,
             lat=dset["lat"].to_numpy(),
             lon=dset["lon"].to_numpy(),
-            area=dset["area"],
+            area=dset["area"].to_numpy(),
         )
         return var
 
