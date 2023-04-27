@@ -83,6 +83,7 @@ class E3SMResult:
     synonyms: dict = field(init=False, repr=False, default_factory=dict)
     files: pd.DataFrame = field(init=False, repr=False, default_factory=lambda: None)
     variables: dict = field(init=False, repr=False, default_factory=dict)
+    unit_replace: dict = field(init=True, repr=False, default_factory=dict)
 
     def find_files(self, path: Union[str, list[str]], pattern: str = ".h[0,1].*nc"):
         """Given a path or list of paths, find all files that match the given
@@ -160,6 +161,14 @@ class E3SMResult:
             dset[var].attrs = rem_attrs[var]
         dset = dset.rename({found: vname})
 
+        # Sometimes units are incompatible with standards so allow for changing
+        # here.
+        if "units" in dset[vname].attrs:
+            for src, tar in self.unit_replace.items():
+                dset[vname].attrs["units"] = (
+                    dset[vname].attrs["units"].replace(src, tar)
+                )
+
         # At the time this was authored, the area variable in the output was
         # wrong and thus we overwrite here.
         dset = dset.drop("area")
@@ -192,7 +201,7 @@ class E3SMResult:
         var = Variable(
             name=vname,
             data=dset[vname].to_numpy(),
-            unit=dset[vname].attrs["units"].replace("gC", "g"),
+            unit=dset[vname].attrs["units"],
             time=(dset["time"] - cftime.DatetimeNoLeap(1850, 1, 1)).values.astype(float)
             * ns_to_d,
             time_bnds=(
