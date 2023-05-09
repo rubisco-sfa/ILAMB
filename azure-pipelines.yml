@@ -16,7 +16,7 @@ steps:
   displayName: 'Use Python $(python.version)'
 
 - script: |
-    sudo apt-get -y install libgeos-dev
+    sudo apt-get -y install libgeos-dev proj-bin
     python -m pip install --upgrade pip
     python -m pip install ./
     python -c "import ILAMB; print('ILAMB v%s successfully installed' % (ILAMB.__version__))"
