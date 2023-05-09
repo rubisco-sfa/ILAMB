@@ -16,9 +16,7 @@ steps:
   displayName: 'Use Python $(python.version)'
 
 - script: |
-    sudo add-apt-repository ppa:ubuntugis/ppa
-    sudo apt update
-    sudo apt-get -y install geos
+    sudo apt-get -y install libgeos-dev
     python -m pip install --upgrade pip
     python -m pip install ./
     python -c "import ILAMB; print('ILAMB v%s successfully installed' % (ILAMB.__version__))"
