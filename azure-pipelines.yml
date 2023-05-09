@@ -25,6 +25,7 @@ steps:
 
 - script: |
     cd test
+    export RDMAV_FORK_SAFE=1
     export ILAMB_ROOT=./
     make
   displayName: 'Run tests'
