@@ -27,5 +27,5 @@ steps:
     cd test
     export RDMAV_FORK_SAFE=1
     export ILAMB_ROOT=./
-    make
+    make NP=3
   displayName: 'Run tests'
