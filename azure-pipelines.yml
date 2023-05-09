@@ -1,6 +1,6 @@
 
 trigger:
-- azuretest
+- master
 
 pool:
   vmImage: 'ubuntu-latest'
@@ -27,5 +27,5 @@ steps:
     cd test
     export RDMAV_FORK_SAFE=1
     export ILAMB_ROOT=./
-    make NP=3
+    make
   displayName: 'Run tests'
