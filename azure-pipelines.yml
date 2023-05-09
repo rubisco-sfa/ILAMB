@@ -16,6 +16,8 @@ steps:
   displayName: 'Use Python $(python.version)'
 
 - script: |
+    sudo apt-get -y install python-software-properties
+    sudo add-apt-repository ppa:ubuntugis/ppa
     sudo apt-get -y install geos
     python -m pip install --upgrade pip
     python -m pip install ./
