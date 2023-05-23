@@ -118,7 +118,7 @@ def InitializeModels(model_root,models=[],verbose=False,filter="",regex="",model
     return M
 
 
-def _parse_model_yaml(filename: str, cache_path: str = "./"):
+def _parse_model_yaml(filename: str, cache_path: str = "./", only_models: list = []):
     """Setup models using a yaml file."""
     model_classes = {
         "ModelPointResult": ModelPointResult,
@@ -130,6 +130,10 @@ def _parse_model_yaml(filename: str, cache_path: str = "./"):
         yml = yaml.safe_load(fin)
     for name, opts in yml.items():
 
+        # optionally filter models
+        if len(only_models) > 0 and name not in only_models:
+            continue
+        
         if 'name' not in opts:
             opts['name'] = name
 
@@ -223,7 +227,7 @@ def ParseModelSetup(model_setup,models=[],verbose=False,filter="",regex="",model
 
     # intercept if this is a yaml file
     if model_setup.endswith(".yaml"):
-        M = _parse_model_yaml(model_setup, cache_path=models_path)
+        M = _parse_model_yaml(model_setup, cache_path=models_path, only_models=models)
         if rank == 0 and verbose:
             for m in M:
                 print(("    {0:>45}").format(m.name))
