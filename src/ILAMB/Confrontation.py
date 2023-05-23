@@ -435,13 +435,17 @@ class Confrontation(object):
         # these should be weeded out. If the plotting phase occurs in
         # the same run as the analysis phase, this is not needed.
         if benchmark_file:
-            with Dataset(benchmark_file[0]) as dset: Vs = getVariableList(dset.groups["MeanState"])
+            with Dataset(benchmark_file[0]) as dset:
+                if "MeanState" in dset.groups:
+                    Vs = getVariableList(dset.groups["MeanState"])
+                else:
+                    Vs = []
             Vs = [v for v in Vs if "timeint" in v]
             if Vs:
                 self.pruneRegions(Variable(filename = benchmark_file[0],
                                            variable_name = Vs[0],
                                            groupname = "MeanState"))
-        
+
         # Determine the min/max of variables over all models
         limits = {}
         for fname in filelist:
