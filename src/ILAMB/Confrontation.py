@@ -151,7 +151,7 @@ class Confrontation(object):
         self.study_limits   = []
         self.cweight        = 1
         self.scale_factor   = float(keywords.get("scale_factor",1.))
-        
+
         # Make sure the source data exists
 
         if not os.path.isfile(self.source):
@@ -189,7 +189,7 @@ class Confrontation(object):
                 tdata = cf.num2date(tdata,units=t.units,calendar=t.calendar)
                 y0 = tdata[0].year
                 yf = tdata[1].year
-                
+
         if self.hasSites:
             pages.append(post.HtmlSitePlotsPage("SitePlots","Site Plots"))
             pages[-1].setHeader("CNAME / RNAME / MNAME")
@@ -230,7 +230,7 @@ class Confrontation(object):
                 return len(order)
             attrs = dset.ncattrs()
             attrs = sorted(attrs,key=_attribute_sort)
-            
+
             for attr in attrs:
                 try:
                     val = dset.getncattr(attr)
@@ -300,7 +300,17 @@ class Confrontation(object):
         # slice to compare against models
         if "depth" in self.keywords and obs.layered:
             obs.trim(d=[self.keywords['depth']-0.01,self.keywords['depth']+0.01])
-        
+            if obs.depth.size > 1:
+                obs = obs.integrateInDepth(mean=True)
+                shp = list(obs.data.shape)
+                shp.insert(1,1)
+                obs.data.shape = shp
+                obs.depth = np.asarray([self.keywords['depth']])
+                obs.depth_bnds = np.asarray([[self.keywords['depth']-0.01,
+                                              self.keywords['depth']+0.01]])
+                obs.layered = True
+                obs.name = self.variable
+
         # Try to extract a commensurate quantity from the model
         mod = m.extractTimeSeries(self.variable,
                                   alt_vars     = self.alternate_vars,
@@ -502,7 +512,7 @@ class Confrontation(object):
             if "score" in pname:
                 limits[pname]["min"] = 0
                 limits[pname]["max"] = 1
-                
+
             limits[pname]["cmap"] = opts["cmap"]
             if limits[pname]["cmap"] == "choose": limits[pname]["cmap"] = self.cmap
             if "score" in pname:
@@ -936,7 +946,7 @@ class Confrontation(object):
             return Variable(filename      = filename,
                             groupname     = "MeanState",
                             variable_name = key[0])
-        
+
         # If there are no relationships to analyze, get out of here
         if self.relationships is None: return
 
@@ -990,7 +1000,7 @@ class Confrontation(object):
                         if a.ndata and     b.ndata: assert(np.allclose(a.lat,b.lat)*np.allclose(a.lon,b.lon))
                         if a.ndata and not b.ndata: src[j] = b.extractDatasites(a.lat,a.lon)
                 ref_ind,ref_dep,com_ind,com_dep = src
-                
+
                 # create relationships
                 ref = Relationship(ref_ind,ref_dep,order=1)
                 com = Relationship(com_ind,com_dep,order=1)
@@ -1027,7 +1037,7 @@ class Confrontation(object):
                 for region in self.regions:
 
                     ref.makeComparable(com,region=region)
-                    
+
                     # Make the plots
                     fig,ax = plt.subplots(figsize=(6,5.25),tight_layout=True)
                     ref.plotDistribution(ax,region=region)
