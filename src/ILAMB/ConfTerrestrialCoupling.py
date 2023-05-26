@@ -62,8 +62,47 @@ class ConfTerrestrialCoupling(Confrontation):
             time_bnds=tbnds,
         )
 
-        # just for testing
-        mod = deepcopy(obs)
-        mod.data += obs.data.max() * 0.1 * (np.random.rand(*mod.data.shape) - 0.5)
-
+        # load the model result
+        mod_ds = {}
+        units = {}
+        lat = xr.DataArray(obs.lat, dims="SITE")
+        lon = xr.DataArray(obs.lon, dims="SITE")
+        for vname in ["mrsos", "hfls"]:
+            var = xr.open_mfdataset(m.variables[vname])
+            cal = var["time"].values[0].__class__
+            t0 = tmin.dt.day
+            tf = tmax.dt.day
+            if cal.__name__ == "Datetime360Day":
+                if t0 == 31:
+                    t0 = 30
+                if tf == 31:
+                    tf = 30
+            units[vname] = var[vname].attrs["units"]
+            var = var.sel(
+                time=slice(
+                    cal(tmin.dt.year, tmin.dt.month, t0),
+                    cal(tmax.dt.year, tmax.dt.month, tf),
+                ),
+            )
+            var = var.sel(lat=lat, lon=lon, method="nearest")
+            var.load()
+            mod_ds[vname] = (["time", "SITE"], var[vname].data)
+        mod_ds = xr.Dataset(
+            data_vars=mod_ds,
+            coords={"time": var["time"].data, "SITE": var["SITE"].data},
+        )
+        for var, unit in units.items():
+            mod_ds[var].attrs["units"] = unit
+        mod_ds = compute_coupling_index(mod_ds, "mrsos", "hfls")
+        data = np.ma.masked_invalid(mod_ds["ci"].to_numpy())
+        mod = Variable(
+            name="ci",
+            data=data.reshape((1,) + data.shape),
+            unit=mod_ds["ci"].attrs["units"],
+            lat=lat.to_numpy(),
+            lon=lon.to_numpy(),
+            ndata=len(lat),
+            time=tbnds.mean(axis=1),
+            time_bnds=tbnds,
+        )
         return obs, mod
