@@ -912,7 +912,7 @@ def Score(var,normalizer):
     name =     name.replace("iav" ,"iav_score")
     np.seterr(over='ignore',under='ignore')
     data = np.exp(-np.abs(var.data/normalizer.data))
-    data[data<1e-16] = 0.
+    data = (data<1e-16)*0 + (data>=1e-16)*data
     np.seterr(over='raise',under='raise')
     return Variable(name  = name,
                     data  = data,
@@ -1100,7 +1100,7 @@ def AnalysisMeanStateSites(ref,com,**keywords):
     else:
         msg = f"[{name}] Bias scored using Collier2018"
         logger.info(msg)
-        bias_score_map = Score(bias,crms)
+        bias_score_map = Score(bias,crms if REF.time.size > 1 else REF_timeint)
     
     if not skip_rmse:
         cCOM = Variable(name = "centralized %s" % COM.name, unit = COM.unit,
