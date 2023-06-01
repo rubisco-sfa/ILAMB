@@ -1,45 +1,81 @@
 """."""
-from copy import deepcopy
+import os
 
 import numpy as np
 import xarray as xr
+from typing import Tuple
+import datetime
 
 from .Confrontation import Confrontation
 from .Variable import Variable
 
 
-def compute_coupling_index(dset: xr.Dataset, control: str, respond: str) -> xr.Dataset:
-    """Return the dataset with the coupling index added.
+def coupling_index(control: xr.DataArray, respond: xr.DataArray) -> xr.DataArray:
+    """Return the coupling index in units of the responding variable.
 
     Parameters
     ----------
-    dset
-        The dataset containing DataArray's labeled `control` and `respond`
     control
-        The name of the controlling variable
+        The controlling variable
     respond
-        The name of the responding variable, the index will be in the units of
+        The responding variable, the index will be in the units of
         this variable.
+
     """
-    assert control in dset
-    assert respond in dset
-    ssn = dset.sel(time=dset["time.season"] == "JJA")
-    dset["ci"] = xr.cov(ssn[control], ssn[respond], dim="time") / ssn[control].std(
-        dim="time"
-    )
-    dset["ci"].attrs["units"] = dset[respond].attrs["units"]
-    return dset
+    control, response = xr.align(control, respond, join="override")
+    control = control.sel(time=control["time.season"] == "JJA")
+    respond = respond.sel(time=respond["time.season"] == "JJA")
+    cov = xr.cov(control, respond, dim="time")
+    std = control.std(dim="time")
+    cov.load()
+    std.load()
+    coupling = cov/std
+    coupling.attrs = {"long_name": "Coupling index", "units": respond.attrs["units"]}
+    coupling.load()
+    return coupling
+
+
+def max_time_bounds(*dss):
+    """."""
+    t0 = []
+    tf = []
+    for ds in dss:
+        if "time" not in ds:
+            continue
+        time = ds["time"].attrs["bounds"] if "bounds" in ds["time"].attrs else "time"
+        time = ds[time] if time in ds else ds["time"]
+        t0.append(time.min())
+        tf.append(time.max())
+    t0 = max(t0)
+    tf = min(tf)
+    return t0, tf
 
 
 class ConfTerrestrialCoupling(Confrontation):
+    def __init__(self, **keywords):
+        super(ConfTerrestrialCoupling, self).__init__(**keywords)
+        for srcname in ["mrsos_source", "hfss_source"]:
+            src = self.keywords.get(srcname, None)
+            if src is None:
+                continue
+            self.keywords[srcname] = os.path.join(os.environ["ILAMB_ROOT"], src)
+
     def stageData(self, m):
-        # eventually we need mrsos_source and hfls_source
-        obs_ds = xr.open_dataset(self.source)
-        obs_ds = compute_coupling_index(obs_ds, "mrsos", "hfls")
+
+        # read in reference data and find maximal overlap
+        mrsos_obs = xr.open_dataset(
+            self.keywords.get("mrsos_source", self.source), chunks=dict(time=1800)
+        )
+        hfss_obs = xr.open_dataset(
+            self.keywords.get("hfss_source", self.source), chunks=dict(time=1800)
+        )
+        tmin, tmax = max_time_bounds(mrsos_obs, hfss_obs)
+        if len(mrsos_obs['time']) != len(hfss_obs['time']):            
+            mrsos_obs = mrsos_obs.sel(time=slice(tmin, tmax))
+            hfss_obs = hfss_obs.sel(time=slice(tmin, tmax))
+        ci_obs = coupling_index(mrsos_obs["mrsos"], hfss_obs["hfss"])
 
         # for backwards compatibility, now convert to ILAMB object
-        tmin = obs_ds["time"].min()
-        tmax = obs_ds["time"].max()
         tbnds = np.asarray(
             [
                 [
@@ -49,25 +85,28 @@ class ConfTerrestrialCoupling(Confrontation):
             ],
             dtype=float,
         )
+        ndata = len(ci_obs['SITE']) if 'SITE' in ci_obs.dims else None
+        data = np.ma.masked_invalid(ci_obs.to_numpy())
+        if len(data.mask)==1: data.mask = np.zeros_like(data)
+        data = data.reshape((1,)+data.shape)
         obs = Variable(
             name="ci",
-            data=np.ma.masked_array(
-                obs_ds["ci"].to_numpy(), mask=np.zeros_like(obs_ds["ci"])
-            ).reshape((1, -1)),
-            unit=obs_ds["ci"].attrs["units"],
-            ndata=len(obs_ds["SITE"]),
-            lat=obs_ds["lat"].to_numpy(),
-            lon=obs_ds["lon"].to_numpy(),
+            data=data,
+            unit=ci_obs.attrs["units"],
+            ndata=ndata,
+            lat=mrsos_obs["lat"].to_numpy(),
+            lon=mrsos_obs["lon"].to_numpy(),
             time=tbnds.mean(axis=1),
             time_bnds=tbnds,
         )
-
+        print(obs)
+        
         # load the model result
         mod_ds = {}
         units = {}
         lat = xr.DataArray(obs.lat, dims="SITE")
         lon = xr.DataArray(obs.lon, dims="SITE")
-        for vname in ["mrsos", "hfls"]:
+        for vname in ["mrsos", "hfss"]:
             var = xr.open_mfdataset(m.variables[vname])
             cal = var["time"].values[0].__class__
             t0 = tmin.dt.day
@@ -93,12 +132,12 @@ class ConfTerrestrialCoupling(Confrontation):
         )
         for var, unit in units.items():
             mod_ds[var].attrs["units"] = unit
-        mod_ds = compute_coupling_index(mod_ds, "mrsos", "hfls")
-        data = np.ma.masked_invalid(mod_ds["ci"].to_numpy())
+        ci_mod = coupling_index(mod_ds["mrsos"], mod_ds["hfss"])
+        data = np.ma.masked_invalid(ci_mod.to_numpy())
         mod = Variable(
             name="ci",
             data=data.reshape((1,) + data.shape),
-            unit=mod_ds["ci"].attrs["units"],
+            unit=ci_mod.attrs["units"],
             lat=lat.to_numpy(),
             lon=lon.to_numpy(),
             ndata=len(lat),
