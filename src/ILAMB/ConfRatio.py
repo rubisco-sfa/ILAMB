@@ -31,7 +31,10 @@ def variable_ratio(num: Variable, den: Variable):
 
 
 class ConfRatio(Confrontation):
-    """."""
+    """.
+    * over_regions, a list of regions overwhich to compute averages, could be basins here
+    * mask_lower_percentile = 0.05, would create a mask of the lower end of the denominator and intepolate the mask to the model
+    """
 
     def __init__(self, **keywords):
         required_keys = [
@@ -47,6 +50,7 @@ class ConfRatio(Confrontation):
             keywords[key] = os.path.join(os.environ["ILAMB_ROOT"], keywords[key])
         keywords["source"] = keywords["numerator_source"]
         keywords["skip_cycle"] = True
+        keywords["skip_sd"] = True
         keywords["rmse_score_basis"] = "series"
         self.source = keywords["numerator_source"]
         super().__init__(**keywords)
