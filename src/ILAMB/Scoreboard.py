@@ -14,6 +14,7 @@ from .ConfSoilCarbon import ConfSoilCarbon
 from .ConfUncertainty import ConfUncertainty
 from .ConfBurntArea import ConfBurntArea
 from .ConfDepthGradient import ConfDepthGradient
+from .ConfContentChange import ConfContentChange
 
 try:
     from .ConfUSGS import ConfUSGS
@@ -331,7 +332,8 @@ ConfrontationTypes = { None              : Confrontation,
                        "ConfUncertainty" : ConfUncertainty,
                        "ConfBurntArea"   : ConfBurntArea,
                        "ConfUSGS"        : ConfUSGS,
-                       "ConfDepthGradient": ConfDepthGradient
+                       "ConfDepthGradient": ConfDepthGradient,
+                       "ConfContentChange": ConfContentChange
                       }
 
 class Scoreboard():
