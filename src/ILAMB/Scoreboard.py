@@ -14,6 +14,10 @@ from .ConfSoilCarbon import ConfSoilCarbon
 from .ConfUncertainty import ConfUncertainty
 from .ConfBurntArea import ConfBurntArea
 from .ConfGSNF import ConfGSNF
+try:
+    from .ConfUSGS import ConfUSGS
+except:
+    ConfUSGS = None
 from .Regions import Regions
 import os,re
 from netCDF4 import Dataset
@@ -164,6 +168,7 @@ def ParseScoreboardConfigureFile(filename):
     for line in open(filename).readlines():
         line = line.strip()
         if line.startswith("#"): continue
+        line = line[:line.index("#")] if "#" in line else line
         m1 = re.search(r"\[h(\d):\s+(.*)\]",line)
         m2 = re.search(r"\[(.*)\]",line)
         m3 = re.search(r"(.*)=(.*)",line)
@@ -324,7 +329,9 @@ ConfrontationTypes = { None              : Confrontation,
                        "ConfSoilCarbon"  : ConfSoilCarbon,
                        "ConfUncertainty" : ConfUncertainty,
                        "ConfBurntArea"   : ConfBurntArea,
-                       "ConfGSNF"        : ConfGSNF}
+                       "ConfGSNF"        : ConfGSNF,
+                       "ConfUSGS"        : ConfUSGS }
+
 
 class Scoreboard():
     """
@@ -357,6 +364,8 @@ class Scoreboard():
             # pick the confrontation to use, is it a built-in confrontation?
             if node.ctype in ConfrontationTypes:
                 Constructor = ConfrontationTypes[node.ctype]
+                if Constructor is None:
+                    raise ValueError(f"The confrontation {node.ctype} is nto available.")
             else:
                 # try importing the confrontation
                 conf = __import__(node.ctype)
