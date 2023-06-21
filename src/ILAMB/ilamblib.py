@@ -22,7 +22,7 @@ class VarNotMonthly(Exception):
 
 class VarNotInModel(Exception):
     def __str__(self): return "VarNotInModel"
-    
+
 class SiteNotInModel(Exception):
     def __str__(self): return "SiteNotInModel"
 
@@ -303,7 +303,7 @@ def GetTime(var,t0=None,tf=None,convert_calendar=True,ignore_time_array=True):
     except:
         msg = "Error in computing the datum: t.units = %s, t.calendar = %s" % (t.units,t.calendar)
         raise ValueError(msg)
-        
+
     if ((abs(datum_shift) > 60) or (convert_calendar and t.calendar != "noleap")):
         T  = cf.num2date(T ,units=t.units,calendar=t.calendar)
         TB = cf.num2date(TB,units=t.units,calendar=t.calendar)
@@ -684,7 +684,7 @@ def FromNetCDF4(filename,variable_name,alternate_vars=[],t0=None,tf=None,group=N
 
     # Copy attributes into a dictionary
     attr = { attr: var.getncattr(attr) for attr in var.ncattrs() }
-    
+
     # Check on dimensions
     time_name  = [name for name in var.dimensions if "time" in name.lower()]
     lat_name   = [name for name in var.dimensions if "lat"  in name.lower()]
@@ -702,10 +702,11 @@ def FromNetCDF4(filename,variable_name,alternate_vars=[],t0=None,tf=None,group=N
         i,j = var.dimensions[-2],var.dimensions[-1]
         if i in missed: missed.pop(missed.index(i))
         if j in missed: missed.pop(missed.index(j))
-        i = grp.variables[i]
-        j = grp.variables[j]
-        if (np.issubdtype(i.dtype,np.integer) and
-            np.issubdtype(j.dtype,np.integer)): shp = [len(i),len(j)]
+        if i in grp.variables and j in grp.variables:
+            i = grp.variables[i]
+            j = grp.variables[j]
+            if (np.issubdtype(i.dtype,np.integer) and
+                np.issubdtype(j.dtype,np.integer)): shp = [len(i),len(j)]
 
     # Lat/lon might just be sizes
     if (len(lat_name) == 1 and len(lon_name) == 1):
@@ -738,6 +739,15 @@ def FromNetCDF4(filename,variable_name,alternate_vars=[],t0=None,tf=None,group=N
         if len(lon_name) > 1:
             tmp_name = [name for name in lon_name if np.any([name in attr for attr in attrs])]
             if len(tmp_name) > 0: lon_name = tmp_name
+
+    # A final attempt to figure out what dimensions the data is
+    if (shp is None and
+        not lat_name and
+        not lon_name and
+        'coordinates' in var.ncattrs()):
+        dims = var.getncattr("coordinates").split()
+        lat_name = [dims[0]]
+        lon_name = [dims[1]]
 
     # Lat dimension
     if len(lat_name) == 1:
@@ -841,7 +851,7 @@ def FromNetCDF4(filename,variable_name,alternate_vars=[],t0=None,tf=None,group=N
             if "lon" in key: lon_name.append(key)
             if "altitude" in key: depth_name = key
         if len(lat_name) > 1: lat_name = [n for n in lat_name if grp.variables[n].dimensions[0] in var.dimensions]
-        if len(lon_name) > 1: lon_name = [n for n in lon_name if grp.variables[n].dimensions[0] in var.dimensions]        
+        if len(lon_name) > 1: lon_name = [n for n in lon_name if grp.variables[n].dimensions[0] in var.dimensions]
         if len(lat_name) > 0: lat   = grp.variables[lat_name[0]][...]
         if len(lon_name) > 0: lon   = grp.variables[lon_name[0]][...]
         if depth_name is not None: depth = grp.variables[depth_name][...]
@@ -1036,11 +1046,11 @@ def AnalysisMeanStateSites(ref,com,**keywords):
     skip_rmse         = keywords.get("skip_rmse"        ,False)
     skip_iav          = keywords.get("skip_iav"         ,True )
     skip_cycle        = keywords.get("skip_cycle"       ,False)
-    df_errs           = keywords.get("df_errs"          ,None)    
+    df_errs           = keywords.get("df_errs"          ,None)
     ILAMBregions      = Regions()
     normalizer        = None
     name = ref.name
-    
+
     # Convert str types to booleans
     if type(skip_rmse) == type(""):
         skip_rmse = (skip_rmse.lower() == "true")
@@ -1048,7 +1058,7 @@ def AnalysisMeanStateSites(ref,com,**keywords):
         skip_iav  = (skip_iav .lower() == "true")
     if type(skip_cycle) == type(""):
         skip_cycle = (skip_cycle.lower() == "true")
-        
+
     # Only study the annual cycle if it makes sense
     if    not ref.monthly: skip_cycle = True
     if ref.time.size < 12: skip_cycle = True
@@ -1077,7 +1087,7 @@ def AnalysisMeanStateSites(ref,com,**keywords):
 
     if df_errs is not None and name in df_errs['variable'].unique():
         values = []
-        mask = []    
+        mask = []
         for region in df_errs.region.unique():
             val = df_errs.loc[
                 (df_errs['variable'] == name)
@@ -1101,7 +1111,7 @@ def AnalysisMeanStateSites(ref,com,**keywords):
         msg = f"[{name}] Bias scored using Collier2018"
         logger.info(msg)
         bias_score_map = Score(bias,crms)
-    
+
     if not skip_rmse:
         cCOM = Variable(name = "centralized %s" % COM.name, unit = COM.unit,
                         data = np.ma.masked_array(COM.data-COM_timeint.data[np.newaxis,...],mask=COM.data.mask),
@@ -1114,7 +1124,7 @@ def AnalysisMeanStateSites(ref,com,**keywords):
 
         if df_errs is not None and name in df_errs['variable'].unique():
             values = []
-            mask = []    
+            mask = []
             for region in df_errs.region.unique():
                 val = df_errs.loc[
                     (df_errs['variable'] == name)
@@ -1133,7 +1143,7 @@ def AnalysisMeanStateSites(ref,com,**keywords):
             with np.errstate(under='ignore'):
                 rmse_score_map.data = (1 - crmse.data/rmse_score_map.data).clip(0, 1)
             rmse_score_map.unit = "1"
-            rmse_score_map.name = "rmsescore_map_of_%s" % name        
+            rmse_score_map.name = "rmsescore_map_of_%s" % name
         else:
             msg = f"[{name}] RMSE scored using Collier2018"
             logger.info(msg)
@@ -1231,10 +1241,10 @@ def AnalysisMeanStateSites(ref,com,**keywords):
     # Unit conversions
     def _convert(var,unit):
         if type(var) == type({}):
-            for key in var.keys(): var[key].convert(unit)                
+            for key in var.keys(): var[key].convert(unit)
         else:
             var.convert(unit)
-            
+
     if table_unit is not None:
         for var in [ref_period_mean,com_period_mean,ref_union_mean,com_union_mean,ref_comp_mean,com_comp_mean]:
             _convert(var,table_unit)
@@ -1371,7 +1381,7 @@ def AnalysisMeanStateSpace(ref,com,**keywords):
     df_errs           = keywords.get("df_errs"          ,None)
     ILAMBregions      = Regions()
     spatial           = ref.spatial
-    
+
     # Convert str types to booleans
     if type(skip_rmse) == type(""):
         skip_rmse = (skip_rmse.lower() == "true")
@@ -1399,7 +1409,7 @@ def AnalysisMeanStateSpace(ref,com,**keywords):
     unit  = REF.unit
     area  = REF.area
     ndata = REF.ndata
-            
+
     # Find the mean values over the time period
     if ref_timeint is None:
         ref_timeint = ref.integrateInTime(mean=True).convert(plot_unit)
@@ -1576,7 +1586,7 @@ def AnalysisMeanStateSpace(ref,com,**keywords):
     if skip_rmse: del cREF
     if df_errs is not None and name in df_errs['variable'].unique():
         values = []
-        mask = []    
+        mask = []
         for region in df_errs.region.unique():
             val = df_errs.loc[
                 (df_errs['variable'] == name)
@@ -1601,7 +1611,7 @@ def AnalysisMeanStateSpace(ref,com,**keywords):
         logger.info(msg)
         bias_score_map = Score(bias,REF_std if REF.time.size > 1 else REF_timeint)
         bias_score_map.data.mask = (ref_and_com==False) # for some reason I need to explicitly force the mask
-        
+
     if dataset is not None:
         bias.name = "bias_map_of_%s" % name
         bias.toNetCDF4(dataset,group="MeanState")
@@ -1638,7 +1648,7 @@ def AnalysisMeanStateSpace(ref,com,**keywords):
                         time = COM.time, time_bnds = COM.time_bnds,
                         lat  = lat, lat_bnds = lat_bnds, lon = lon, lon_bnds = lon_bnds,
                         area = COM.area, ndata = COM.ndata).convert(plot_unit)
-        
+
         try:
             import psutil
             comm = MPI.COMM_WORLD
@@ -1650,14 +1660,14 @@ def AnalysisMeanStateSpace(ref,com,**keywords):
             logger.info(msg)
         except:
             pass
-        
+
         del COM
         crmse = cREF.rmse(cCOM).convert(plot_unit)
         del cREF,cCOM
 
         if df_errs is not None and name in df_errs['variable'].unique():
             values = []
-            mask = []    
+            mask = []
             for region in df_errs.region.unique():
                 val = df_errs.loc[
                     (df_errs['variable'] == name)
@@ -1681,7 +1691,7 @@ def AnalysisMeanStateSpace(ref,com,**keywords):
             msg = f"[{name}] RMSE scored using Collier2018"
             logger.info(msg)
             rmse_score_map = Score(crmse,REF_std)
-        
+
         if dataset is not None:
             rmse.name = "rmse_map_of_%s" % name
             crmse.name = "rmse_map_of_%s" % name
@@ -1711,7 +1721,7 @@ def AnalysisMeanStateSpace(ref,com,**keywords):
         crmse = ref_dtcycle.rmse(com_dtcycle).convert(plot_unit)
         if df_errs is not None and name in df_errs['variable'].unique():
             values = []
-            mask = []    
+            mask = []
             for region in df_errs.region.unique():
                 val = df_errs.loc[
                     (df_errs['variable'] == name)
@@ -1734,7 +1744,7 @@ def AnalysisMeanStateSpace(ref,com,**keywords):
         else:
             msg = f"[{name}] RMSE scored using Collier2018"
             logger.info(msg)
-            rmse_score_map = Score(crmse,REF_std)        
+            rmse_score_map = Score(crmse,REF_std)
 
         if dataset is not None:
             rmse.name = "rmse_map_of_%s" % name
@@ -1749,7 +1759,7 @@ def AnalysisMeanStateSpace(ref,com,**keywords):
                 rmse_score.name = "RMSE Score %s" % region
                 rmse_score.toNetCDF4(dataset,group="MeanState")
         del rmse,crmse,rmse_score_map
-        
+
     return
 
 def ClipTime(v,t0,tf):
@@ -1833,7 +1843,7 @@ def MakeComparable(ref,com,**keywords):
     prune_sites = keywords.get("prune_sites",False)
     site_atol   = keywords.get("site_atol",0.25)
     allow_diff_times = keywords.get("allow_diff_times",False)
-    
+
     # If one variable is temporal, then they both must be
     if ref.temporal != com.temporal:
         msg  = "%s Datasets are not uniformly temporal: " % logstring
@@ -1971,7 +1981,7 @@ def MakeComparable(ref,com,**keywords):
             t0  = max(t0,com.time_bnds[ 0,0])
             tf  = min(tf,com.time_bnds[-1,1])
             ref = ref.trim(t=[t0,tf])
-        
+
         # Check that we now are on the same time intervals
         if not allow_diff_times:
             if ref.time.size != com.time.size:

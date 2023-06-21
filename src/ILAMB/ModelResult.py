@@ -286,6 +286,11 @@ class ModelResult():
                                convert_calendar = convert_calendar,
                                t0             = initial_time - self.shift,
                                tf             = final_time   - self.shift)
+                # hack to avoid an issue where an unstructured grid
+                # has an area and then when ILAMB interpolates it
+                # passes areas that are the wrong shape.
+                if not np.allclose(var.area.shape,[var.lat.size,var.lon.size]):
+                    var.area = il.CellAreas(None,None,lat_bnds=var.lat_bnds,lon_bnds=var.lon_bnds)
                 if var.time is None: continue
                 tmin = min(tmin,var.time_bnds.min())
                 tmax = max(tmax,var.time_bnds.max())

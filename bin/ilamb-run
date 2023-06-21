@@ -23,7 +23,8 @@ from mpi4py import MPI
 import numpy as np
 import datetime,glob
 from netCDF4 import Dataset
-import pylab as plt
+import matplotlib.pyplot as plt
+import matplotlib.colors as clr
 import re
 import pandas as pd
 import inspect
@@ -94,8 +95,7 @@ def InitializeModels(model_root,models=[],verbose=False,filter="",regex="",model
     # assign unique colors
     clrs = il.GenerateDistinctColors(len(M))
     for m in M:
-        clr     = clrs.pop(0)
-        m.color = clr
+        m.color = clrs.pop(0)
 
     # save model objects as pickle files
     comm.Barrier()
@@ -118,7 +118,7 @@ def InitializeModels(model_root,models=[],verbose=False,filter="",regex="",model
     return M
 
 
-def _parse_model_yaml(filename: str, cache_path: str = "./"):
+def _parse_model_yaml(filename: str, cache_path: str = "./", only_models: list = []):
     """Setup models using a yaml file."""
     model_classes = {
         "ModelPointResult": ModelPointResult,
@@ -130,6 +130,10 @@ def _parse_model_yaml(filename: str, cache_path: str = "./"):
         yml = yaml.safe_load(fin)
     for name, opts in yml.items():
 
+        # optionally filter models
+        if len(only_models) > 0 and name not in only_models:
+            continue
+        
         if 'name' not in opts:
             opts['name'] = name
 
@@ -191,6 +195,10 @@ def _parse_model_yaml(filename: str, cache_path: str = "./"):
                 pickle.dump(model, fin)
 
         models.append(model)
+
+    for model in models:
+        if isinstance(model.color,str) and model.color.startswith("#"):
+            model.color = clr.hex2color(model.color)
     return models
 
 def ParseModelSetup(model_setup,models=[],verbose=False,filter="",regex="",models_path="./"):
@@ -219,7 +227,7 @@ def ParseModelSetup(model_setup,models=[],verbose=False,filter="",regex="",model
 
     # intercept if this is a yaml file
     if model_setup.endswith(".yaml"):
-        M = _parse_model_yaml(model_setup, cache_path=models_path)
+        M = _parse_model_yaml(model_setup, cache_path=models_path, only_models=models)
         if rank == 0 and verbose:
             for m in M:
                 print(("    {0:>45}").format(m.name))
@@ -266,8 +274,7 @@ def ParseModelSetup(model_setup,models=[],verbose=False,filter="",regex="",model
     # assign unique colors
     clrs = il.GenerateDistinctColors(len(M))
     for m in M:
-        clr     = clrs.pop(0)
-        m.color = clr
+        m.color = clrs.pop(0)
 
     # save model objects as pickle files
     comm.Barrier()

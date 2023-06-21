@@ -13,6 +13,8 @@ from .ConfCO2 import ConfCO2
 from .ConfSoilCarbon import ConfSoilCarbon
 from .ConfUncertainty import ConfUncertainty
 from .ConfBurntArea import ConfBurntArea
+from .ConfDepthGradient import ConfDepthGradient
+from .ConfContentChange import ConfContentChange
 from .ConfGSNF import ConfGSNF
 try:
     from .ConfUSGS import ConfUSGS
@@ -168,7 +170,7 @@ def ParseScoreboardConfigureFile(filename):
     for line in open(filename).readlines():
         line = line.strip()
         if line.startswith("#"): continue
-        line = line[:line.index("#")] if "#" in line else line
+        line = line[:line.index("#")] if ("#" in line and "bgcolor" not in line) else line
         m1 = re.search(r"\[h(\d):\s+(.*)\]",line)
         m2 = re.search(r"\[(.*)\]",line)
         m3 = re.search(r"(.*)=(.*)",line)
@@ -329,6 +331,8 @@ ConfrontationTypes = { None              : Confrontation,
                        "ConfSoilCarbon"  : ConfSoilCarbon,
                        "ConfUncertainty" : ConfUncertainty,
                        "ConfBurntArea"   : ConfBurntArea,
+                       "ConfDepthGradient": ConfDepthGradient,
+                       "ConfContentChange": ConfContentChange,
                        "ConfGSNF"        : ConfGSNF,
                        "ConfUSGS"        : ConfUSGS }
 
