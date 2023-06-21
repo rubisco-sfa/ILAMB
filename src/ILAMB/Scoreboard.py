@@ -15,7 +15,7 @@ from .ConfUncertainty import ConfUncertainty
 from .ConfBurntArea import ConfBurntArea
 from .ConfDepthGradient import ConfDepthGradient
 from .ConfContentChange import ConfContentChange
-
+from .ConfGSNF import ConfGSNF
 try:
     from .ConfUSGS import ConfUSGS
 except:
@@ -331,10 +331,11 @@ ConfrontationTypes = { None              : Confrontation,
                        "ConfSoilCarbon"  : ConfSoilCarbon,
                        "ConfUncertainty" : ConfUncertainty,
                        "ConfBurntArea"   : ConfBurntArea,
-                       "ConfUSGS"        : ConfUSGS,
                        "ConfDepthGradient": ConfDepthGradient,
-                       "ConfContentChange": ConfContentChange
-                      }
+                       "ConfContentChange": ConfContentChange,
+                       "ConfGSNF"        : ConfGSNF,
+                       "ConfUSGS"        : ConfUSGS }
+
 
 class Scoreboard():
     """
