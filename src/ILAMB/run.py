@@ -1,10 +1,12 @@
-from .ModelResult import ModelResult
+import logging
 import os
 import pickle
-from mpi4py import MPI
-import logging
-from . import ilamblib as il
 from traceback import format_exc
+
+from mpi4py import MPI
+
+from ILAMB import ilamblib as il
+from ILAMB.ModelResult import ModelResult
 
 logger = logging.getLogger("%i" % MPI.COMM_WORLD.rank)
 
@@ -174,8 +176,7 @@ def ParseModelSetup(
                         model_year=model_year,
                     )
                 except Exception as ex:
-                    if log:
-                        logger.debug("[%s]" % mname, format_exc())
+                    logger.debug("[%s]" % mname, format_exc())
                     continue
             M.append(m)
 

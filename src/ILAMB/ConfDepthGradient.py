@@ -1,7 +1,7 @@
 import numpy as np
 
-from .Confrontation import Confrontation
-from .Variable import Variable
+from ILAMB.Confrontation import Confrontation
+from ILAMB.Variable import Variable
 
 
 def compute_depth_gradient(

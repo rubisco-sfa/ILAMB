@@ -1,7 +1,8 @@
-from .Confrontation import Confrontation
-from .Variable import Variable
-from . import ilamblib as il
 import numpy as np
+
+from ILAMB import ilamblib as il
+from ILAMB.Confrontation import Confrontation
+from ILAMB.Variable import Variable
 
 
 class ConfBurntArea(Confrontation):

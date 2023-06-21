@@ -1,12 +1,13 @@
-from .Confrontation import Confrontation
 import cartopy.crs as ccrs
 import cartopy.feature as cfeature
-from .Variable import Variable
-from .Post import ColorBar
 import matplotlib.pyplot as plt
-from netCDF4 import Dataset
-from . import ilamblib as il
 import numpy as np
+from netCDF4 import Dataset
+
+from ILAMB import ilamblib as il
+from ILAMB.Confrontation import Confrontation
+from ILAMB.Post import ColorBar
+from ILAMB.Variable import Variable
 
 
 def _ALTFromTSL(tsl, dmax=3.5, dres=0.01, Teps=273.15):
@@ -46,7 +47,6 @@ def _ALTFromTSL(tsl, dmax=3.5, dres=0.01, Teps=273.15):
 
 class ConfPermafrost(Confrontation):
     def __init__(self, **keywords):
-
         # Ugly, but this is how we call the Confrontation constructor
         super(ConfPermafrost, self).__init__(**keywords)
 
@@ -69,7 +69,6 @@ class ConfPermafrost(Confrontation):
             )
 
     def stageData(self, m):
-
         obs = Variable(filename=self.source, variable_name="permafrost_extent")
 
         # These parameters may be changed from the configure file
@@ -105,7 +104,6 @@ class ConfPermafrost(Confrontation):
         return obs, mod
 
     def confront(self, m):
-
         obs, mod = self.stageData(m)
         obs_area = obs.integrateInSpace().convert("1e6 km2")
         mod_area = mod.integrateInSpace().convert("1e6 km2")
@@ -268,7 +266,6 @@ class ConfPermafrost(Confrontation):
             results.close()
 
     def modelPlots(self, m):
-
         fname = "%s/%s_%s.nc" % (self.output_path, self.name, m.name)
         try:
             mod = Variable(

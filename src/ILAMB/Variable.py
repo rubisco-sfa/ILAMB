@@ -1,14 +1,14 @@
-from .constants import mid_months, bnd_months
-from .Regions import Regions
-import matplotlib.colors as colors
 import cartopy.crs as ccrs
 import cartopy.feature as cfeature
-from pylab import get_cmap
-from cf_units import Unit
-from . import ilamblib as il
-from . import Post as post
-import numpy as np
+import matplotlib.colors as colors
 import matplotlib.pyplot as plt
+import numpy as np
+from cf_units import Unit
+from pylab import get_cmap
+
+from ILAMB import ilamblib as il
+from ILAMB.constants import bnd_months, mid_months
+from ILAMB.Regions import Regions
 
 
 def _shiftLon(lon):
@@ -215,7 +215,6 @@ class Variable:
                 self.data = self.data.reshape(self.data.shape[:-2] + (1,))
 
         if self.spatial is False:
-
             # Shift possible values on [0,360] to [-180,180]
             if self.lon is not None:
                 self.lon = _shiftLon(self.lon)
@@ -223,7 +222,6 @@ class Variable:
                 self.lon_bnds = _shiftLon(self.lon_bnds)
 
         else:
-
             # Exception for CABLE, flips if monotonically decreasing
             if np.all(np.diff(self.lat) < 0):
                 self.lat = self.lat[::-1]
@@ -408,7 +406,6 @@ class Variable:
         name = self.name + "_integrated_over_time"
 
         if mean:
-
             # divide thru by the non-masked amount of time, the units
             # can remain as input because we integrate over time and
             # then divide by the time interval in the same units
@@ -425,7 +422,6 @@ class Variable:
             np.seterr(over="raise", under="raise")
 
         else:
-
             # if not a mean, we need to potentially handle unit conversions
             unit0 = Unit("d") * unit
             unit = Unit(unit0.format().split()[-1])
@@ -595,7 +591,6 @@ class Variable:
         name = self.name + "_integrated_over_depth"
 
         if mean:
-
             # divide thru by the non-masked amount of time, the units
             # can remain as input because we integrate over time and
             # then divide by the time interval in the same units
@@ -609,7 +604,6 @@ class Variable:
             np.seterr(over="raise", under="raise")
 
         else:
-
             # if not a mean, we need to potentially handle unit conversions
             unit0 = Unit("m") * unit
             unit = Unit(unit0.format().split()[-1])
@@ -726,12 +720,10 @@ class Variable:
             name = name.replace("space", region)
         unit = Unit(self.unit)
         if mean:
-
             # we have already divided thru by the non-masked area in
             # units of m^2, which are the same units of the integrand.
             name += "_and_divided_by_area"
         else:
-
             # if not a mean, we need to potentially handle unit conversions
             unit *= Unit("m2")
 
@@ -1227,7 +1219,6 @@ class Variable:
 
         grp = dset
         if self.data.size == 1:
-
             # we are writing out a scalar so we add it into a special
             # subgroup for scalars
             if "scalars" not in dset.groups:
@@ -1328,7 +1319,6 @@ class Variable:
         rem_mask = None
         r = Regions()
         if self.temporal and not self.spatial:
-
             ticks = keywords.get("ticks", None)
             ticklabels = keywords.get("ticklabels", None)
             t = self.time / 365.0 + 1850
@@ -1354,7 +1344,6 @@ class Variable:
                 ax.set_ylim(vmin, vmax)
 
         elif not self.temporal:
-
             # mask out areas outside our region
             rem_mask = np.copy(self.data.mask)
             self.data.mask += r.getMask(region, self)
@@ -1362,7 +1351,6 @@ class Variable:
             # determine the plotting extents
             percent_pad = 0.2
             if self.ndata is None:
-
                 lat_empty = np.where(self.data.mask.all(axis=-1) == False)[0]
                 lon_empty = np.where(self.data.mask.all(axis=-2) == False)[0]
                 extents = [

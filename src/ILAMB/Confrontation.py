@@ -1,19 +1,21 @@
-from . import ilamblib as il
-from .Variable import *
-from .Relationship import Relationship
-from .Regions import Regions
-from .constants import space_opts, time_opts, mid_months, bnd_months
-import os, glob, re
-from netCDF4 import Dataset
-from . import Post as post
-import pylab as plt
-from matplotlib.colors import LogNorm
-from mpl_toolkits.axes_grid1 import make_axes_locatable
-from mpi4py import MPI
-from sympy import sympify
-import cftime as cf
-
+import glob
 import logging
+import os
+import re
+
+import cftime as cf
+import numpy as np
+import pylab as plt
+from mpi4py import MPI
+from netCDF4 import Dataset
+from sympy import sympify
+
+from ILAMB import Post as post
+from ILAMB import ilamblib as il
+from ILAMB.constants import space_opts, time_opts
+from ILAMB.Regions import Regions
+from ILAMB.Relationship import Relationship
+from ILAMB.Variable import Variable
 
 logger = logging.getLogger("%i" % MPI.COMM_WORLD.rank)
 
@@ -92,7 +94,6 @@ def parse_bibtex(string):
 
 
 def create_data_header(attr, val):
-
     vals = val.split(";")
     html = "<p><dl><dt><b>&nbsp;&nbsp;%s:</dt></b>" % (attr.capitalize())
     for v in vals:
@@ -149,7 +150,6 @@ class Confrontation(object):
     """
 
     def __init__(self, **keywords):
-
         # Initialize
         self.master = True
         self.name = keywords.get("name", None)
@@ -433,7 +433,6 @@ class Confrontation(object):
         mod_file = os.path.join(self.output_path, "%s_%s.nc" % (self.name, m.name))
         obs_file = os.path.join(self.output_path, "%s_Benchmark.nc" % (self.name,))
         with il.FileContextManager(self.master, mod_file, obs_file) as fcm:
-
             # Encode some names and colors
             fcm.mod_dset.setncatts(
                 {
@@ -593,7 +592,6 @@ class Confrontation(object):
 
         # Second pass to plot legends (FIX: only for master?)
         for pname in limits.keys():
-
             try:
                 opts = space_opts[pname]
             except:
@@ -760,7 +758,6 @@ class Confrontation(object):
             models.append(dataset.getncattr("name"))
             colors.append(dataset.getncattr("color"))
             for region in self.regions:
-
                 if region not in cycle:
                     cycle[region] = []
                 key = [
@@ -921,7 +918,6 @@ class Confrontation(object):
             variables = getVariableList(group)
             color = dataset.getncattr("color")
             for vname in variables:
-
                 # is this a variable we need to plot?
                 pname = vname.split("_")[0]
                 if group.variables[vname][...].size <= 1:
@@ -931,7 +927,6 @@ class Confrontation(object):
                 )
 
                 if (var.spatial or (var.ndata is not None)) and not var.temporal:
-
                     # grab plotting options
                     if pname not in self.limits.keys():
                         continue
@@ -970,7 +965,6 @@ class Confrontation(object):
                     if self.master and (
                         pname == "timeint" or pname == "phase" or pname == "iav"
                     ):
-
                         opts = space_opts[pname]
 
                         # add to html layout
@@ -1004,7 +998,6 @@ class Confrontation(object):
                             plt.close()
 
                 if not (var.spatial or (var.ndata is not None)) and var.temporal:
-
                     # grab the benchmark dataset to plot along with
                     try:
                         obs = Variable(
@@ -1112,7 +1105,6 @@ class Confrontation(object):
             return
 
         for page in self.layout.pages:
-
             # build the metric dictionary
             metrics = {}
             page.models = []
@@ -1213,7 +1205,6 @@ class Confrontation(object):
         with Dataset(
             os.path.join(self.output_path, "%s_%s.nc" % (self.name, m.name)), mode="r+"
         ) as results:
-
             # Grab/create a relationship and scalars group
             group = None
             if "Relationships" not in results.groups:
@@ -1227,7 +1218,6 @@ class Confrontation(object):
 
             # for each relationship...
             for c in self.relationships:
-
                 # try to get the independent data from the model and obs
                 try:
                     ref_ind = _retrieveData(
@@ -1297,7 +1287,6 @@ class Confrontation(object):
                     "/", "|"
                 )  # we want the source too, but netCDF doesn't like the '/'
                 for region in self.regions:
-
                     ref.makeComparable(com, region=region)
 
                     # Make the plots

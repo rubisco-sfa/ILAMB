@@ -1,12 +1,12 @@
-from .Confrontation import Confrontation
-from .Variable import Variable
-from netCDF4 import Dataset
-from . import ilamblib as il
-import numpy as np
+import logging
 import os
+
+import numpy as np
 from mpi4py import MPI
 
-import logging
+from ILAMB import ilamblib as il
+from ILAMB.Confrontation import Confrontation
+from ILAMB.Variable import Variable
 
 logger = logging.getLogger("%i" % MPI.COMM_WORLD.rank)
 
@@ -45,7 +45,6 @@ class ConfEvapFraction(Confrontation):
         self.derived = "hfss + hfls"  # just for ilamb-doctor to detect required symbols
 
     def stageData(self, m):
-
         energy_threshold = float(self.keywords.get("energy_threshold", 20.0))  # W m-2
 
         # Handle obs data
@@ -171,7 +170,6 @@ class ConfEvapFraction(Confrontation):
         mod_file = os.path.join(self.output_path, "%s_%s.nc" % (self.name, m.name))
         obs_file = os.path.join(self.output_path, "%s_Benchmark.nc" % (self.name,))
         with il.FileContextManager(self.master, mod_file, obs_file) as fcm:
-
             # Encode some names and colors
             fcm.mod_dset.setncatts(
                 {

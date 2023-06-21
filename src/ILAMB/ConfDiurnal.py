@@ -1,16 +1,17 @@
-from .Confrontation import Confrontation
-from .Confrontation import getVariableList
-import matplotlib.pyplot as plt
-from . import Post as post
-from scipy.interpolate import CubicSpline
-from .Variable import Variable
-from netCDF4 import Dataset
-from . import ilamblib as il
-import numpy as np
-import os, glob
-from .constants import lbl_months, bnd_months
-from cf_units import Unit
+import glob
+import os
+
 import cftime
+import matplotlib.pyplot as plt
+import numpy as np
+from cf_units import Unit
+from netCDF4 import Dataset
+
+from ILAMB import Post as post
+from ILAMB import ilamblib as il
+from ILAMB.Confrontation import Confrontation
+from ILAMB.constants import bnd_months, lbl_months
+from ILAMB.Variable import Variable
 
 
 def _meanDiurnalCycle(var, n):
@@ -113,7 +114,6 @@ class ConfDiurnal(Confrontation):
     """A confrontation for examining the diurnal"""
 
     def __init__(self, **keywords):
-
         # Calls the regular constructor
         super(ConfDiurnal, self).__init__(**keywords)
 
@@ -142,7 +142,6 @@ class ConfDiurnal(Confrontation):
         self.layout = post.HtmlLayout(pages, self.longname)
 
     def stageData(self, m):
-
         obs = Variable(
             filename=self.source,
             variable_name=self.variable,
@@ -181,7 +180,6 @@ class ConfDiurnal(Confrontation):
         return obs, mod
 
     def confront(self, m):
-
         # get the HTML page
         page = [page for page in self.layout.pages if "MeanState" in page.name][0]
 
@@ -207,7 +205,6 @@ class ConfDiurnal(Confrontation):
         Smod = {}
         omask = np.zeros(obs.time.size, dtype=int)
         for y in Y:
-
             # datum for this year
             datum = cftime.date2num(cftime.datetime(y, 1, 1), "days since 1850-1-1")
 
@@ -362,7 +359,6 @@ class ConfDiurnal(Confrontation):
             results.setncattr("complete", 1)
 
     def determinePlotLimits(self):
-
         self.limits = {}
         self.limits["season"] = 0.0
         for fname in glob.glob(os.path.join(self.output_path, "*.nc")):
@@ -382,7 +378,6 @@ class ConfDiurnal(Confrontation):
                         )
 
     def modelPlots(self, m):
-
         bname = "%s/%s_Benchmark.nc" % (self.output_path, self.name)
         fname = "%s/%s_%s.nc" % (self.output_path, self.name, m.name)
         if not os.path.isfile(bname):
@@ -411,7 +406,6 @@ class ConfDiurnal(Confrontation):
         plots.sort()
 
         for plot in plots:
-
             obs = Variable(filename=bname, variable_name=plot, groupname="MeanState")
             mod = Variable(filename=fname, variable_name=plot, groupname="MeanState")
 

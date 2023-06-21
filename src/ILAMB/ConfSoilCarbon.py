@@ -1,10 +1,12 @@
-from .Confrontation import Confrontation
-from .Variable import Variable
-from .Relationship import Relationship
-import matplotlib.pyplot as plt
-from netCDF4 import Dataset
-import numpy as np
 import os
+
+import matplotlib.pyplot as plt
+import numpy as np
+from netCDF4 import Dataset
+
+from ILAMB.Confrontation import Confrontation
+from ILAMB.Relationship import Relationship
+from ILAMB.Variable import Variable
 
 
 def getSource(vname, filename, unit):
@@ -52,7 +54,6 @@ class ConfSoilCarbon(Confrontation):
         pass
 
     def confront(self, m):
-
         # Constants
         soilc_threshold = 1e-12  # kg m-2
         npp_threshold = 1e-4  # kg m-2 yr-1
@@ -271,7 +272,6 @@ class ConfSoilCarbon(Confrontation):
         pass
 
     def modelPlots(self, m):
-
         # Outputs and plots
         page = [page for page in self.layout.pages if "MeanState" in page.name][0]
         if self.master:

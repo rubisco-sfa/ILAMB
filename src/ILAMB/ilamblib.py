@@ -1,16 +1,17 @@
-from scipy.interpolate import NearestNDInterpolator
-from .constants import mid_months, bnd_months
-from .Regions import Regions
-from netCDF4 import Dataset
-from datetime import datetime
-from cf_units import Unit
+import logging
+import os
+import re
 from copy import deepcopy
-from mpi4py import MPI
-import numpy as np
-import logging, re, os
+
 import cftime as cf
-import pandas as pd
-from pkg_resources import parse_version, get_distribution
+import numpy as np
+from cf_units import Unit
+from mpi4py import MPI
+from netCDF4 import Dataset
+from pkg_resources import get_distribution, parse_version
+from scipy.interpolate import NearestNDInterpolator
+
+from ILAMB.Regions import Regions
 
 logger = logging.getLogger("%i" % MPI.COMM_WORLD.rank)
 
@@ -415,7 +416,7 @@ def CellAreas(lat, lon, lat_bnds=None, lon_bnds=None):
     areas : numpy.ndarray
         a 2D array of cell areas in [m2]
     """
-    from .constants import earth_rad
+    from ILAMB.constants import earth_rad
 
     if lat_bnds is not None and lon_bnds is not None:
         return earth_rad**2 * np.outer(
@@ -584,7 +585,7 @@ def SympifyWithArgsUnits(expression, args, units):
         variables written in the input expression
 
     """
-    from sympy import sympify, postorder_traversal
+    from sympy import postorder_traversal, sympify
 
     expression = sympify(expression)
 
@@ -602,7 +603,6 @@ def SympifyWithArgsUnits(expression, args, units):
     for expr in postorder_traversal(expression):
         ekey = str(expr)
         if expr.is_Add:
-
             # if there are scalars in the expression, these will not
             # be in the units dictionary. Add them and give them an
             # implicit unit of 1
@@ -619,13 +619,11 @@ def SympifyWithArgsUnits(expression, args, units):
             units[ekey] = "%s" % (units[key0])
 
         elif expr.is_Pow:
-
             # if raising to a power, just create the new unit
             keys = [str(arg) for arg in expr.args]
             units[ekey] = "(%s)%s" % (units[keys[0]], keys[1])
 
         elif expr.is_Mul:
-
             # just create the new unit
             keys = [str(arg) for arg in expr.args]
             units[ekey] = " ".join(
@@ -667,78 +665,6 @@ def ExtendAnnualCycle(time, cycle_data, cycle_time):
     ind = np.abs((time[:, np.newaxis] % 365) - (cycle_time % 365)).argmin(axis=1)
     assert (ind.max() < 12) * (ind.min() >= 0)
     return cycle_data[ind]
-
-
-def _shiftDatum(t, datum, calendar):
-    return date2num(
-        num2date(t[...], datum, calendar=calendar),
-        "days since 1850-1-1",
-        calendar=calendar,
-    )
-
-
-def _removeLeapDay(t, v, datum=None, calendar=None, t0=None, tf=None):
-    """
-    Shifts the datum and removes leap day if present.
-
-    Parameters
-    ----------
-    t : netCDF4._netCDF4.Variable
-        the variable representing time in any calendar with any datum
-    v : netCDF4._netCDF4.Variable
-        the variable representing the data
-    datum : str, optional
-        the datum to which we will shift the variable
-    t0 : float, optional
-        the initial time in 'days since 1850-1-1'
-    tf : float, optional
-        the final time in 'days since 1850-1-1'
-    """
-    datum0 = "days since 1850-1-1"
-    if calendar is None:
-        if "calendar" in t.ncattrs():
-            calendar = t.calendar
-    if datum is None:
-        if "units" in t.ncattrs():
-            datum = t.units
-
-    # shift their datum to our datum
-    tdata = _shiftDatum(t, datum, calendar)
-    if tdata.ndim > 1:
-        tdata = tdata[:, 0]
-
-    # convert the time array to datetime objects in the native calendar
-    T = num2date(tdata, "days since 1850-1-1", calendar=calendar)
-
-    # find a boolean array which is true where time values are on leap day
-    leap_day = np.asarray(
-        [1 if (x.month == 2 and x.day == 29) else 0 for x in T], dtype=bool
-    )
-
-    # then we need to shift the times by the times we will remove
-    dt = np.hstack(
-        [0, np.diff(tdata)]
-    )  # assumes that the time is at the beginning of the interval
-    tdata -= (leap_day * dt).cumsum()  # shift by removed time
-    t_index = np.where(leap_day == False)[0]  # indices that we keep
-    tdata = tdata[t_index]  # remove leap day
-
-    # finally we need to shift by the number of leap days since our new datum
-    tdata -= date2num(T[0], "days since 1850-1-1", calendar) - date2num(
-        T[0], "days since 1850-1-1", "noleap"
-    )
-
-    # where do we slice the array
-    begin = 0
-    end = t.size
-    if t0 is not None:
-        begin = max(tdata.searchsorted(t0) - 1, begin)
-    if tf is not None:
-        end = min(tdata.searchsorted(tf) + 1, end)
-    tdata = tdata[begin:end]
-    vdata = v[t_index, ...][begin:end, ...]  # not as memory efficient as it could be
-
-    return tdata, vdata
 
 
 def FromNetCDF4(
@@ -869,7 +795,6 @@ def FromNetCDF4(
 
     # If these were sizes, then we need to find the correct 2D lat/lon arrays
     if shp is not None:
-
         # We want to remove any false positives we might find. I don't
         # want to consider variables which are 'bounds' or dimensions
         # of others, nor those that don't have the correct shape.
@@ -1187,7 +1112,7 @@ def Score(var, normalizer):
     normalizer : ILAMB.Variable.Variable
         The variable by which we normalize
     """
-    from .Variable import Variable
+    from ILAMB.Variable import Variable
 
     name = var.name.replace("bias", "bias_score")
     name = name.replace("diff", "diff_score")
@@ -1231,9 +1156,9 @@ def ComposeSpatialGrids(var1, var2):
         a 1D array of longitudes of cell centroids
     """
     if not var1.spatial:
-        il.NotSpatialVariable()
+        NotSpatialVariable()
     if not var2.spatial:
-        il.NotSpatialVariable()
+        NotSpatialVariable()
 
     def _make_bnds(x):
         bnds = np.zeros(x.size + 1)
@@ -1263,7 +1188,7 @@ def ScoreSeasonalCycle(phase_shift):
     Possible remove this function as we do not compute other score
     components via a ilamblib function.
     """
-    from .Variable import Variable
+    from ILAMB.Variable import Variable
 
     return Variable(
         data=(1 + np.cos(np.abs(phase_shift.data) / 365 * 2 * np.pi)) * 0.5,
@@ -1329,7 +1254,7 @@ def AnalysisMeanStateSites(ref, com, **keywords):
 
     """
 
-    from .Variable import Variable
+    from ILAMB.Variable import Variable
 
     regions = keywords.get("regions", ["global"])
     dataset = keywords.get("dataset", None)
@@ -1781,7 +1706,7 @@ def AnalysisMeanStateSpace(ref, com, **keywords):
         the unit to use when displaying output on plots on the HTML page
 
     """
-    from .Variable import Variable
+    from ILAMB.Variable import Variable
 
     regions = keywords.get("regions", ["global"])
     dataset = keywords.get("dataset", None)
@@ -1857,11 +1782,9 @@ def AnalysisMeanStateSpace(ref, com, **keywords):
     ref_not_com = (REF_timeint.data.mask == False) * (COM_timeint.data.mask == True)
     com_not_ref = (REF_timeint.data.mask == True) * (COM_timeint.data.mask == False)
     if benchmark_dataset is not None:
-
         ref_timeint.name = "timeint_of_%s" % name
         ref_timeint.toNetCDF4(benchmark_dataset, group="MeanState")
         for region in regions:
-
             # reference period mean on original grid
             ref_period_mean = ref_timeint.integrateInSpace(
                 region=region, mean=space_mean
@@ -1870,11 +1793,9 @@ def AnalysisMeanStateSpace(ref, com, **keywords):
             ref_period_mean.toNetCDF4(benchmark_dataset, group="MeanState")
 
     if dataset is not None:
-
         com_timeint.name = "timeint_of_%s" % name
         com_timeint.toNetCDF4(dataset, group="MeanState")
         for region in regions:
-
             # reference period mean on intersection of land
             ref_union_mean = (
                 Variable(
@@ -2522,7 +2443,6 @@ def MakeComparable(ref, com, **keywords):
     # If the datasets are both spatial, ensure that both represent the
     # same spatial area and trim the datasets if not.
     if ref.spatial and com.spatial:
-
         lat_bnds = (
             max(ref.lat_bnds[0, 0], com.lat_bnds[0, 0], extents[0, 0]),
             min(ref.lat_bnds[-1, 1], com.lat_bnds[-1, 1], extents[0, 1]),
@@ -2583,7 +2503,6 @@ def MakeComparable(ref, com, **keywords):
             logger.info(msg)
 
     if ref.temporal:
-
         # If the reference time scale is significantly larger than the
         # comparison, coarsen the comparison
         if np.log10(ref.dt / com.dt) > 0.5:
@@ -2603,7 +2522,6 @@ def MakeComparable(ref, com, **keywords):
         com = ClipTime(com, t0, tf)
 
         if clip_ref:
-
             # We will clip the reference dataset too
             t0 = max(t0, com.time_bnds[0, 0])
             tf = min(tf, com.time_bnds[-1, 1])
@@ -2612,12 +2530,10 @@ def MakeComparable(ref, com, **keywords):
         # Check that we now are on the same time intervals
         if not allow_diff_times:
             if ref.time.size != com.time.size:
-
                 # Special case - it frequently works out that we are 1
                 # time interval off for some reason. For now, we will
                 # detect this and push a fix.
                 if ref.time.size == (com.time.size + 1):
-
                     if (
                         np.abs(com.time[0] - ref.time[1])
                         / (ref.time_bnds[0, 1] - ref.time_bnds[0, 0])
@@ -2645,7 +2561,6 @@ def MakeComparable(ref, com, **keywords):
                 raise VarsNotComparable()
 
     if ref.layered:
-
         # Try to resolve if the layers from the two quantities are
         # different
         if ref.depth.size == com.depth.size == 1:
@@ -2689,7 +2604,7 @@ def CombineVariables(V):
     v : ILAMB.Variable.Variable
         the merged variable
     """
-    from .Variable import Variable
+    from ILAMB.Variable import Variable
 
     # checks on data
     assert type(V) == type([])
@@ -2822,7 +2737,6 @@ def LandLinInterMissingValues(mdata):
 
 class FileContextManager:
     def __init__(self, master, mod_results, obs_results):
-
         self.master = master
         self.mod_results = mod_results
         self.obs_results = obs_results
@@ -2830,7 +2744,6 @@ class FileContextManager:
         self.obs_dset = None
 
     def __enter__(self):
-
         # Open the file on entering, both if you are the master
         self.mod_dset = Dataset(self.mod_results, mode="w")
         if self.master:
@@ -2838,7 +2751,6 @@ class FileContextManager:
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
-
         # Always close the file(s) on exit
         self.mod_dset.close()
         if self.master:

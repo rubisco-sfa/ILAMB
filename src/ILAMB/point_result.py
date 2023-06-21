@@ -10,7 +10,7 @@ from typing import Union
 import pandas as pd
 from dataretrieval import nwis
 
-from . import ilamblib as il
+from ILAMB import ilamblib as il
 
 
 def is_binary_file(filename: str) -> bool:

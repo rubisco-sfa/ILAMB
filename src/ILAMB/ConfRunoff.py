@@ -1,20 +1,21 @@
-from .Confrontation import Confrontation
-from .Regions import Regions
-from .Variable import Variable
-from netCDF4 import Dataset
-from . import ilamblib as il
-from . import Post as post
-import pylab as plt
-import numpy as np
 import os
+
+import numpy as np
+import pylab as plt
 from cf_units import Unit
+from netCDF4 import Dataset
+
+from ILAMB import Post as post
+from ILAMB import ilamblib as il
+from ILAMB.Confrontation import Confrontation
+from ILAMB.Regions import Regions
+from ILAMB.Variable import Variable
 
 
 class ConfRunoff(Confrontation):
     """A confrontation for examining the runoff in 50 of the world's largest river basins."""
 
     def __init__(self, **keywords):
-
         # Ugly, but this is how we call the Confrontation constructor
         super(ConfRunoff, self).__init__(**keywords)
 
@@ -218,7 +219,6 @@ class ConfRunoff(Confrontation):
             results.close()
 
     def modelPlots(self, m):
-
         # some of the plots can be generated using the standard
         # routine, with some modifications
         super(ConfRunoff, self).modelPlots(m)
@@ -237,7 +237,6 @@ class ConfRunoff(Confrontation):
         obs = Variable(filename=bname, variable_name="runoff", groupname="MeanState")
         mod = Variable(filename=fname, variable_name="runoff", groupname="MeanState")
         for i, basin in enumerate(self.basins):
-
             page.addFigure(
                 "Spatially integrated regional mean",
                 basin,

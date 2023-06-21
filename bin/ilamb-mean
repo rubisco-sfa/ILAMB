@@ -2,18 +2,19 @@
 """
 Computes a multimodel mean.
 """
-from ILAMB.Scoreboard import Scoreboard
-from ILAMB.constants import bnd_months
-from ILAMB.Variable import Variable
-import ILAMB.ilamblib as il
-from netCDF4 import Dataset
-from sympy import sympify
-import ILAMB.run as r
-import numpy as np
 import argparse
+import os
 import pickle
 import sys
-import os
+
+import ILAMB.ilamblib as il
+import ILAMB.run as r
+import numpy as np
+from ILAMB.constants import bnd_months
+from ILAMB.Scoreboard import Scoreboard
+from ILAMB.Variable import Variable
+from netCDF4 import Dataset
+from sympy import sympify
 
 
 def Interpolate(v, t, d, lat, lon):
@@ -30,7 +31,6 @@ def Interpolate(v, t, d, lat, lon):
 
 
 def MultiModelMean(M, vname, wgt_file=None, maxV=20):
-
     wgts = None
     if wgt_file is not None:
         with open(wgt_file[0], "rb") as f:

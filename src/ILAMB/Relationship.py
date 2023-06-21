@@ -1,9 +1,9 @@
-from .Regions import Regions
 import numpy as np
-import matplotlib.pyplot as plt
 from matplotlib.colors import LogNorm
 from mpl_toolkits.axes_grid1 import make_axes_locatable
-from .Post import UnitStringToMatplotlib
+
+from ILAMB.Post import UnitStringToMatplotlib
+from ILAMB.Regions import Regions
 
 
 class Relationship(object):

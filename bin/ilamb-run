@@ -6,6 +6,7 @@ import mpi4py.rc
 
 mpi4py.rc.threads = False
 import logging
+
 import yaml
 from ILAMB.ModelResult import ModelResult
 
@@ -17,22 +18,27 @@ try:
     from ILAMB.e3sm_result import E3SMResult
 except:
     E3SMResult = None
-from ILAMB.Scoreboard import Scoreboard
-from ILAMB.Regions import Regions
-from ILAMB import ilamblib as il
-from traceback import format_exc
-import os, time, sys, argparse, pickle
-from mpi4py import MPI
-import numpy as np
-import datetime, glob
-from netCDF4 import Dataset
-import matplotlib.pyplot as plt
-import matplotlib.colors as clr
-import re
-import pandas as pd
+import argparse
+import datetime
+import glob
 import inspect
+import os
+import pickle
+import re
+import sys
+import time
+from traceback import format_exc
 
+import matplotlib.colors as clr
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+from ILAMB import ilamblib as il
 from ILAMB.Post import RegisterCustomColormaps
+from ILAMB.Regions import Regions
+from ILAMB.Scoreboard import Scoreboard
+from mpi4py import MPI
+from netCDF4 import Dataset
 
 if "wetdry" not in plt.colormaps():
     RegisterCustomColormaps()
@@ -155,7 +161,6 @@ def _parse_model_yaml(filename: str, cache_path: str = "./", only_models: list =
     with open(filename, encoding="utf-8") as fin:
         yml = yaml.safe_load(fin)
     for name, opts in yml.items():
-
         # optionally filter models
         if len(only_models) > 0 and name not in only_models:
             continue
@@ -307,8 +312,7 @@ def ParseModelSetup(
                         group=mgrp,
                     )
                 except Exception as ex:
-                    if log:
-                        logger.debug("[%s]" % mname, format_exc())
+                    logger.debug("[%s]" % mname, format_exc())
                     continue
             M.append(m)
 
@@ -466,7 +470,6 @@ def BuildLocalWorkList(M, C, skip_cache=False):
     for c in C:
         for m in M:
             if skip_cache:
-
                 # if we want to skip we have to check that it is complete
                 fname = os.path.join(c.output_path, "%s_%s.nc" % (c.name, m.name))
                 complete = False
@@ -1065,7 +1068,6 @@ sys.stdout.flush()
 comm.Barrier()
 
 if not args.skip_plots:
-
     if rank == 0 and not args.quiet:
         print("\nFinishing post-processing which requires collectives...\n")
 

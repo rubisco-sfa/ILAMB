@@ -1,34 +1,38 @@
-from .Confrontation import Confrontation
-from .ConfNBP import ConfNBP
-from .ConfTWSA import ConfTWSA
-from .ConfRunoff import ConfRunoff
-from .ConfBasin import ConfBasin
-from .ConfEvapFraction import ConfEvapFraction
-from .ConfIOMB import ConfIOMB
-from .ConfDiurnal import ConfDiurnal
-from .ConfPermafrost import ConfPermafrost
-from .ConfAlbedo import ConfAlbedo
-from .ConfSWE import ConfSWE
-from .ConfCO2 import ConfCO2
-from .ConfSoilCarbon import ConfSoilCarbon
-from .ConfUncertainty import ConfUncertainty
-from .ConfBurntArea import ConfBurntArea
-from .ConfDepthGradient import ConfDepthGradient
-from .ConfContentChange import ConfContentChange
-from .ConfGSNF import ConfGSNF
+from ILAMB.ConfAlbedo import ConfAlbedo
+from ILAMB.ConfBasin import ConfBasin
+from ILAMB.ConfBurntArea import ConfBurntArea
+from ILAMB.ConfCO2 import ConfCO2
+from ILAMB.ConfContentChange import ConfContentChange
+from ILAMB.ConfDepthGradient import ConfDepthGradient
+from ILAMB.ConfDiurnal import ConfDiurnal
+from ILAMB.ConfEvapFraction import ConfEvapFraction
+from ILAMB.ConfGSNF import ConfGSNF
+from ILAMB.ConfIOMB import ConfIOMB
+from ILAMB.ConfNBP import ConfNBP
+from ILAMB.ConfPermafrost import ConfPermafrost
+from ILAMB.Confrontation import Confrontation
+from ILAMB.ConfRunoff import ConfRunoff
+from ILAMB.ConfSoilCarbon import ConfSoilCarbon
+from ILAMB.ConfSWE import ConfSWE
+from ILAMB.ConfTWSA import ConfTWSA
+from ILAMB.ConfUncertainty import ConfUncertainty
 
 try:
-    from .ConfUSGS import ConfUSGS
+    from ILAMB.ConfUSGS import ConfUSGS
 except:
     ConfUSGS = None
-from .Regions import Regions
-import os, re
-from netCDF4 import Dataset
-import numpy as np
-from .Post import HarvestScalarDatabase, CreateJSON
-from .ilamblib import MisplacedData
-import glob, json
+import glob
+import json
+import os
+import re
 from copy import deepcopy
+
+import numpy as np
+from netCDF4 import Dataset
+
+from ILAMB.ilamblib import MisplacedData
+from ILAMB.Post import CreateJSON, HarvestScalarDatabase
+from ILAMB.Regions import Regions
 
 global_print_node_string = ""
 global_confrontation_list = []
@@ -427,7 +431,6 @@ class Scoreboard:
         rmse_score_basis="cycle",
         df_errs=None,
     ):
-
         if "ILAMB_ROOT" not in os.environ:
             raise ValueError("You must set the environment variable 'ILAMB_ROOT'")
         self.build_dir = build_dir
@@ -485,7 +488,6 @@ class Scoreboard:
                     )
 
             except MisplacedData:
-
                 if master and verbose:
                     longname = node.output_path
                     longname = longname.replace("//", "/").replace(self.build_dir, "")
@@ -532,7 +534,6 @@ class Scoreboard:
         return global_confrontation_list
 
     def createJSON(self, M, filename="scalars.json"):
-
         global scalars
         global models
         global global_scores
@@ -609,7 +610,7 @@ class Scoreboard:
 	      return children;
 	  }
 	  $('.parent').on('click', function() {
-	      var children = getH1Children($(this));	 
+	      var children = getH1Children($(this));
 	      $.each(children, function() {
 		  $(this).toggle();
 	      })
@@ -624,7 +625,7 @@ class Scoreboard:
       });
 
       function pageLoad() {
-	  
+
 	  $("table").delegate('td','mouseover mouseleave', function(e) {
 	      var table = document.getElementById("scoresTable");
 	      if (e.type == 'mouseover') {
@@ -639,7 +640,7 @@ class Scoreboard:
 
 	  colorTable();
       }
-      
+
       function printRow(table,row,array,cmap) {
 	  if(typeof array == 'undefined'){
 	      for(var i = 1, col; col = table.rows[row].cells[i]; i++) {
@@ -664,16 +665,16 @@ class Scoreboard:
 	      table.rows[row].cells[col+1].style.backgroundColor = clr;
 	  }
       }
-      
+
       function colorTable() {
-	  	  
+
         $.getJSON("scalars.json", function(data) {
           var scalars = data;
 	  var scalar_option = document.getElementById("ScalarOption");
           var region_option = document.getElementById("RegionOption");
 	  var scalar_name   = scalar_option.options[scalar_option.selectedIndex].value;
 	  scalar_name  += " " + region_option.options[region_option.selectedIndex].value;
-	  
+
 	  var PuOr = ['#b35806','#e08214','#fdb863','#fee0b6','#f7f7f7','#d8daeb','#b2abd2','#8073ac','#542788'];
 	  var GnRd = ['#b2182b','#d6604d','#f4a582','#fddbc7','#f7f7f7','#d9f0d3','#a6dba0','#5aae61','#1b7837'];
 	  var cmap = GnRd;
@@ -706,7 +707,7 @@ class Scoreboard:
 	  for(var col=0;col<cmap.length;col++){
 	      table.rows[row].cells[col].style.backgroundColor = cmap[col];
 	  }
-	});  
+	});
       }
     </script>
     <style type="text/css">
@@ -747,11 +748,11 @@ class Scoreboard:
           border: 2px solid;
       }
     </style>
-    
+
   </head>
   <body onload="pageLoad()">
 
-    <div data-role="page" id="MeanState">      
+    <div data-role="page" id="MeanState">
       <div data-role="header" data-position="fixed" data-tap-toggle="false">
         <h1>%s</h1>
       </div>
@@ -797,7 +798,7 @@ class Scoreboard:
 	  <label for="colorblind" >Colorblind colors</label>
 	</fieldset>
       </form>
-      
+
       <center>
 	<table class="table-header-rotated" id="scoresTable">
 	  <thead>
@@ -900,7 +901,7 @@ class Scoreboard:
 	  </tbody>
 	</table>
 
-	
+
 	<p>Relative Scale
 	<table class="table-header-rotated" id="scoresLegend">
 	  <tbody>
@@ -1001,13 +1002,13 @@ class Scoreboard:
              <input type="checkbox" class="scacol" value='scacol' id="checkboxsca">
              <span class="el-checkbox-style  pull-right"></span>
           </label>
-          <select class="select-choice-sca" id="select-choice-mini-sca" style="width:75%"> 
+          <select class="select-choice-sca" id="select-choice-mini-sca" style="width:75%">
              <option value="0" selected> Not normalized </option>
              <option value="1"> Normalized [x-mean(x)]/sigma(x) </option>
              <option value="2"> Normalized [-1:1] </option>
              <option value="3"> Normalized [ 0:1] </option>
           </select>
-          <select class="select-choice-map" id="select-choice-mini-map" style="width:75%"> 
+          <select class="select-choice-map" id="select-choice-mini-map" style="width:75%">
              <option value="0" selected> ILAMB color mapping </option>
              <option value="1"> Linear color mapping </option>
              <option value="2"> Linear color mapping reverse </option>
@@ -1016,12 +1017,12 @@ class Scoreboard:
       <hr>
       <section class="menu-section">
           <h3 class="menu-section-title">Examples</h3>
-          <select class="select-choice-ex" id="select-choice-mini-ex" style="width:75%"> 
+          <select class="select-choice-ex" id="select-choice-mini-ex" style="width:75%">
              <option value="cmec_ilamb_example_addsource.json"> CMEC ILAMB</option>
              <option value="pmp_enso_tel.json"> CMEC PMP</option>
           </select>
           <h3 class="menu-section-title">Logo</h3>
-          <select class="select-choice-logo" id="select-choice-mini-logo" style="width:75%"> 
+          <select class="select-choice-logo" id="select-choice-mini-logo" style="width:75%">
              <option value="rubisco_logo.png"> RUBISCO</option>
              <option value="cmec_logo.png"> CMEC</option>
              <option value="pmp_logo.png"> PMP</option>
@@ -1072,7 +1073,7 @@ class Scoreboard:
         <h1 class="title">LMT Unified Dashboard</h1>
       </header>
       <section style="text-align:center">
-        <input name="file" id="file" type="file" onchange="loadlocJson()"/> 
+        <input name="file" id="file" type="file" onchange="loadlocJson()"/>
       </section>
       <section>
         <div class="tabDiv" id="mytab">
@@ -1124,7 +1125,6 @@ class Scoreboard:
 
 
 def GenerateRelationshipTree(S, M):
-
     # Create a tree which mimics the scoreboard for relationships, but
     # we need
     #

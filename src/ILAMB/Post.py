@@ -1,15 +1,17 @@
-import pylab as plt
-import numpy as np
-from .constants import space_opts, time_opts
-from .Regions import Regions
-import re
-from matplotlib.colors import LinearSegmentedColormap
-import os
-from netCDF4 import Dataset
-import pandas as pd
-import json
 import glob
+import json
+import os
 import pickle
+import re
+
+import numpy as np
+import pandas as pd
+import pylab as plt
+from matplotlib.colors import LinearSegmentedColormap
+from netCDF4 import Dataset
+
+from ILAMB.constants import space_opts, time_opts
+from ILAMB.Regions import Regions
 
 
 def UseLatexPltOptions(fsize=18):
@@ -116,9 +118,9 @@ def TaylorDiagram(stddev, corrcoef, refstd, fig, colors, normalize=True):
         disable to skip normalization of the standard deviation
 
     """
-    from matplotlib.projections import PolarAxes
     import mpl_toolkits.axisartist.floating_axes as FA
     import mpl_toolkits.axisartist.grid_finder as GF
+    from matplotlib.projections import PolarAxes
 
     # define transform
     tr = PolarAxes.PolarTransform()
@@ -193,7 +195,6 @@ class HtmlFigure:
         width=None,
         br=False,
     ):
-
         self.name = name
         self.pattern = pattern
         self.side = side
@@ -232,7 +233,6 @@ class HtmlFigure:
         return code
 
     def __str__(self):
-
         opts = "width = %d" % self.width if self.width else ""
         cls = "break" if self.br else "container"
         code = """
@@ -312,7 +312,6 @@ class HtmlPage(object):
         self.inserts = []
 
     def __str__(self):
-
         r = Regions()
 
         def _sortFigures(figure):
@@ -756,7 +755,6 @@ class HtmlPage(object):
         self.regions = SortRegions(regions)
 
     def setMetrics(self, metric_dict):
-
         # Sorting function
         def _sortMetrics(name, priority=self.priority):
             val = 1.0
@@ -805,14 +803,12 @@ class HtmlPage(object):
 
 class HtmlAllModelsPage(HtmlPage):
     def __init__(self, name, title):
-
         super(HtmlAllModelsPage, self).__init__(name, title)
         self.plots = None
         self.nobench = None
         self.nolegend = []
 
     def _populatePlots(self):
-
         self.plots = []
         bench = []
         for page in self.pages:
@@ -845,7 +841,6 @@ class HtmlAllModelsPage(HtmlPage):
         ]
 
     def __str__(self):
-
         if self.plots is None:
             self._populatePlots()
         r = Regions()
@@ -961,7 +956,6 @@ class HtmlAllModelsPage(HtmlPage):
         return head, "", ""
 
     def head(self):
-
         if self.plots is None:
             self._populatePlots()
 
@@ -1045,11 +1039,9 @@ class HtmlAllModelsPage(HtmlPage):
 
 class HtmlSitePlotsPage(HtmlPage):
     def __init__(self, name, title):
-
         super(HtmlSitePlotsPage, self).__init__(name, title)
 
     def __str__(self):
-
         # setup page navigation
         code = """
     <div data-role="page" id="%s">
@@ -1122,7 +1114,6 @@ class HtmlSitePlotsPage(HtmlPage):
         self.models.sort()
 
     def googleScript(self):
-
         callback = "%sMap()" % (self.name)
         head = """
       function %sMap() {
@@ -1186,7 +1177,6 @@ class HtmlSitePlotsPage(HtmlPage):
 
 class HtmlLayout:
     def __init__(self, pages, cname, years=None):
-
         self.pages = pages
         self.cname = cname.replace("/", " / ")
         if years is not None:

@@ -1,10 +1,10 @@
-import os
-from netCDF4 import Dataset
-import numpy as np
-import warnings
-from mpi4py import MPI
-
 import logging
+import os
+import warnings
+
+import numpy as np
+from mpi4py import MPI
+from netCDF4 import Dataset
 
 logger = logging.getLogger("%i" % MPI.COMM_WORLD.rank)
 
@@ -367,7 +367,6 @@ class Regions(object):
 
 
 if "global" not in Regions().regions:
-
     # Populate some regions
     r = Regions()
     src = "ILAMB internal"

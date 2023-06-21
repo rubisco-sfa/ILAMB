@@ -1,12 +1,14 @@
-from .Confrontation import Confrontation
-from .Variable import Variable
-from .Regions import Regions
-from . import Post as post
-from . import ilamblib as il
+import os
+import re
+
 import matplotlib.pyplot as plt
 import numpy as np
-import re
-import os
+
+from ILAMB import Post as post
+from ILAMB import ilamblib as il
+from ILAMB.Confrontation import Confrontation
+from ILAMB.Regions import Regions
+from ILAMB.Variable import Variable
 
 
 def AnalysisUncertaintySpatial(ref, com, **keywords):
@@ -62,11 +64,9 @@ def AnalysisUncertaintySpatial(ref, com, **keywords):
     ref_not_com = (REF_timeint.data.mask == False) * (COM_timeint.data.mask == True)
     com_not_ref = (REF_timeint.data.mask == True) * (COM_timeint.data.mask == False)
     if benchmark_dataset is not None:
-
         ref_timeint.name = "timeint_of_%s" % name
         ref_timeint.toNetCDF4(benchmark_dataset, group="MeanState")
         for region in regions:
-
             # reference period mean on original grid
             ref_period_mean = ref_timeint.integrateInSpace(
                 region=region, mean=space_mean
@@ -75,11 +75,9 @@ def AnalysisUncertaintySpatial(ref, com, **keywords):
             ref_period_mean.toNetCDF4(benchmark_dataset, group="MeanState")
 
     if dataset is not None:
-
         com_timeint.name = "timeint_of_%s" % name
         com_timeint.toNetCDF4(dataset, group="MeanState")
         for region in regions:
-
             # reference period mean on intersection of land
             ref_union_mean = (
                 Variable(
@@ -312,7 +310,6 @@ def AnalysisUncertaintySpatial(ref, com, **keywords):
 
 class ConfUncertainty(Confrontation):
     def confront(self, m):
-
         # parse options
         expert_uncertainty = self.keywords.get("expert_uncertainty", None)
         use_expert = self.keywords.get("use_expert", "False").lower() == "true"
@@ -323,7 +320,6 @@ class ConfUncertainty(Confrontation):
         mod_file = os.path.join(self.output_path, "%s_%s.nc" % (self.name, m.name))
         ref_file = os.path.join(self.output_path, "%s_Benchmark.nc" % (self.name,))
         with il.FileContextManager(self.master, mod_file, ref_file) as fcm:
-
             # Encode some names and colors
             fcm.mod_dset.setncatts(
                 {

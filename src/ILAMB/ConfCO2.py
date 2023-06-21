@@ -1,18 +1,20 @@
-from .Confrontation import Confrontation, create_data_header
-from scipy.interpolate import CubicSpline
+import copy
+import os
+
 import cartopy.crs as ccrs
 import cartopy.feature as cfeature
-from .Variable import Variable
-from .Regions import Regions
-from .constants import mid_months, lbl_months, bnd_months
-from . import Post as post
-from . import ilamblib as il
-from netCDF4 import Dataset
-import pylab as plt
 import numpy as np
-import os
-import copy
-from . import ccgfilt
+import pylab as plt
+from netCDF4 import Dataset
+from scipy.interpolate import CubicSpline
+
+from ILAMB import Post as post
+from ILAMB import ccgfilt
+from ILAMB import ilamblib as il
+from ILAMB.Confrontation import Confrontation, create_data_header
+from ILAMB.constants import bnd_months, lbl_months, mid_months
+from ILAMB.Regions import Regions
+from ILAMB.Variable import Variable
 
 
 def _phaseWellDefined(t, v):
@@ -111,7 +113,6 @@ class ConfCO2(Confrontation):
     """ """
 
     def __init__(self, **keywords):
-
         # Ugly, but this is how we call the Confrontation constructor
         super(ConfCO2, self).__init__(**keywords)
         self.regions = ["global"]
@@ -202,7 +203,6 @@ class ConfCO2(Confrontation):
             self.lbls = [self.lbls[i] for i in self.map]
 
     def emulatedModelResult(self, m, obs):
-
         # Emulation parameters
         emulated_flux = self.keywords.get("emulated_flux", "nbp")
         spinup = 12
@@ -287,7 +287,6 @@ class ConfCO2(Confrontation):
         return mod
 
     def stageData(self, m):
-
         # Get the observational data
         obs = Variable(
             filename=self.source,
@@ -599,7 +598,6 @@ class ConfCO2(Confrontation):
         return oiav, miav
 
     def confront(self, m):
-
         # Grab the data
         obs, mod = self.stageData(m)
 
@@ -849,7 +847,6 @@ class ConfCO2(Confrontation):
         ccgModSmooth.name = "ccgSmooth"
 
         for ss in range(0, mod.ndata):
-
             whrData = np.where(mod.data[:, ss].mask == False)
 
             if len(whrData) > 0:
@@ -1018,7 +1015,6 @@ class ConfCO2(Confrontation):
             results.setncattr("complete", 1)
 
     def modelPlots(self, m):
-
         # Check that the required intermediate files are present
         bname = "%s/%s_Benchmark.nc" % (self.output_path, self.name)
         fname = "%s/%s_%s.nc" % (self.output_path, self.name, m.name)
@@ -1063,7 +1059,6 @@ class ConfCO2(Confrontation):
         lw = 1.0
         bndmonths = np.asarray(bnd_months, dtype=float) / 365.0
         for site_id, site in zip(inds, lbls):
-
             # Initialize site info
             band = self.lat_bands.searchsorted(obs.lat[site_id])
             section = "Latitude Band %d to %d [ppm]" % (

@@ -1,19 +1,21 @@
-from .Confrontation import getVariableList
-from .Confrontation import Confrontation
-from .constants import earth_rad, mid_months, lbl_months, bnd_months
-from .Variable import Variable
-from .Regions import Regions
-from . import ilamblib as il
-from . import Post as post
-from netCDF4 import Dataset
+import glob
+import logging
+import os
+import re
 from copy import deepcopy
-import pylab as plt
+
 import numpy as np
-import os, glob, re
+import pylab as plt
+from mpi4py import MPI
+from netCDF4 import Dataset
 from sympy import sympify
 
-from mpi4py import MPI
-import logging
+from ILAMB import Post as post
+from ILAMB import ilamblib as il
+from ILAMB.Confrontation import Confrontation, getVariableList
+from ILAMB.constants import bnd_months, earth_rad, lbl_months, mid_months
+from ILAMB.Regions import Regions
+from ILAMB.Variable import Variable
 
 logger = logging.getLogger("%i" % MPI.COMM_WORLD.rank)
 
@@ -113,7 +115,6 @@ def CycleBias(ref, com):
 
 class ConfIOMB(Confrontation):
     def __init__(self, **keywords):
-
         # Calls the regular constructor
         super(ConfIOMB, self).__init__(**keywords)
 
@@ -168,7 +169,6 @@ class ConfIOMB(Confrontation):
         self.layout = post.HtmlLayout(pages, self.longname)
 
     def stageData(self, m):
-
         mem_slab = self.keywords.get("mem_slab", 100000.0)  # Mb
 
         # peak at the reference dataset without reading much into memory
@@ -265,7 +265,6 @@ class ConfIOMB(Confrontation):
         # if the reference is a climatology, then build a model climatology in slabs
         info = ""
         if climatology:
-
             # how many slabs
             ns = int(np.floor(mod_mem / mem_slab)) + 1
             ns = min(max(1, ns), mod_nt)
@@ -287,7 +286,6 @@ class ConfIOMB(Confrontation):
             data = None
             dnum = None
             for i in range(ns):
-
                 v = m.extractTimeSeries(
                     self.variable,
                     alt_vars=self.alternate_vars,
@@ -343,7 +341,6 @@ class ConfIOMB(Confrontation):
 
         # if obs is historical, then we yield slabs of both
         else:
-
             obs_mem *= (mod_tf - mod_t0) / (tf - t0)
             mod_t0 = max(mod_t0, t0)
             mod_tf = min(mod_tf, tf)
@@ -363,7 +360,6 @@ class ConfIOMB(Confrontation):
             obs_tb = None
             mod_tb = None
             for i in range(ns):
-
                 # get reference variable
                 obs = Variable(
                     filename=self.source,
@@ -419,7 +415,6 @@ class ConfIOMB(Confrontation):
         mod_file = os.path.join(self.output_path, "%s_%s.nc" % (self.name, m.name))
         obs_file = os.path.join(self.output_path, "%s_Benchmark.nc" % (self.name,))
         with il.FileContextManager(self.master, mod_file, obs_file) as fcm:
-
             # Encode some names and colors
             fcm.mod_dset.setncatts(
                 {
@@ -457,7 +452,6 @@ class ConfIOMB(Confrontation):
             unit = None
             max_obs = -1e20
             for obs, mod in self.stageData(m):
-
                 # if the data has no depth, we assume it is surface
                 if not obs.layered:
                     obs = _addDepth(obs)
@@ -471,7 +465,6 @@ class ConfIOMB(Confrontation):
 
                 # mean lat/lon slices at various depths
                 for depth in self.depths:
-
                     dlbl = "%d" % depth
                     z = obs.integrateInDepth(
                         z0=depth - 1.0, zf=depth + 1, mean=True
@@ -554,7 +547,6 @@ class ConfIOMB(Confrontation):
             large_bias = float(self.keywords.get("large_bias", 0.1 * max_obs))
 
             for dlbl in obs_timeint.keys():
-
                 # period means and bias
                 obs_tmp = il.CombineVariables(obs_timeint[dlbl]).integrateInTime(
                     mean=True
@@ -585,7 +577,6 @@ class ConfIOMB(Confrontation):
                         bias_score.toNetCDF4(fcm.mod_dset, group="MeanState")
 
                 for region in self.regions:
-
                     sval = mod_tmp.integrateInSpace(region=region, mean=True)
                     sval.name = "Period Mean at %s %s" % (dlbl, region)
                     sval.toNetCDF4(fcm.mod_dset, group="MeanState")
@@ -710,7 +701,6 @@ class ConfIOMB(Confrontation):
                         plt.close()
 
         for region in self.regions:
-
             vname = "timelonint_of_%s_over_%s" % (self.variable, region)
             if vname in variables:
                 var0 = Variable(
@@ -914,7 +904,6 @@ class ConfIOMB(Confrontation):
                         plt.close()
 
         for region in self.regions:
-
             vname = "timelonint_of_%s_over_%s" % (self.variable, region)
             if vname in variables:
                 var0 = Variable(
@@ -1018,7 +1007,6 @@ class ConfIOMB(Confrontation):
                 plt.close()
 
     def determinePlotLimits(self):
-
         # Pick limit type
         max_str = "up99"
         min_str = "dn99"
@@ -1099,7 +1087,6 @@ class ConfIOMB(Confrontation):
             "rmse": "YlOrRd",
         }
         for pname in limits.keys():
-
             base_pname = pname
             m = re.search("(\D+)\d+", pname)
             if m:

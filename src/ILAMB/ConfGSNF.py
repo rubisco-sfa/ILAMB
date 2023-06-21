@@ -6,10 +6,11 @@ from copy import deepcopy
 from functools import partial
 
 import numpy as np
-from .Confrontation import Confrontation
-from .Variable import Variable
 from netCDF4 import Dataset
 from scipy.interpolate import CubicSpline
+
+from ILAMB.Confrontation import Confrontation
+from ILAMB.Variable import Variable
 
 
 class ConfGSNF(Confrontation):
@@ -17,7 +18,6 @@ class ConfGSNF(Confrontation):
     [paper](https://doi.org/10.1029/2022GB007520)."""
 
     def __init__(self, **keywords):
-
         super(ConfGSNF, self).__init__(**keywords)
 
         # overwrite some of the constructor with our info

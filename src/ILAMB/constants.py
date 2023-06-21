@@ -1,6 +1,5 @@
-from numpy import asarray, ones, copy as npcopy
-from matplotlib.colors import from_levels_and_colors
-from .Regions import Regions
+from numpy import asarray, ones
+from numpy import copy as npcopy
 
 __all__ = [
     "spm",

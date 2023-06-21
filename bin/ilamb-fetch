@@ -1,12 +1,16 @@
 #!/usr/bin/env python
-import hashlib, argparse, os, sys
+import argparse
+import hashlib
+import os
+import sys
+
 import requests
-from tqdm import tqdm
 
 # Here I am disabling warnings as they pollute long download
 # screens. However, I am passing a more readable warning to the user
 # instructing them.
 from requests.packages.urllib3.exceptions import InsecureRequestWarning
+from tqdm import tqdm
 
 requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 
@@ -30,7 +34,6 @@ def filehash(filepath):
 
 
 def GenerateSha1sumFile(root, suffix=".nc"):
-
     lines = ""
     for topdir, dirs, files in os.walk(root):
         if topdir.startswith("_"):
@@ -48,7 +51,6 @@ def GenerateSha1sumFile(root, suffix=".nc"):
 
 
 def CheckSha1sumFile(sha1sumfile, root):
-
     needs_updating = []
     with open(sha1sumfile) as f:
         lines = f.readlines()

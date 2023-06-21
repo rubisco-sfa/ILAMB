@@ -1,12 +1,13 @@
-from .Confrontation import Confrontation
-from .Variable import Variable
-from netCDF4 import Dataset
-from copy import deepcopy
-from . import ilamblib as il
-import pylab as plt
-from . import Post as post
+import glob
+import os
+
 import numpy as np
-import os, glob
+import pylab as plt
+from netCDF4 import Dataset
+
+from ILAMB import Post as post
+from ILAMB.Confrontation import Confrontation
+from ILAMB.Variable import Variable
 
 
 def SpaceLabels(y, ymin, maxit=1000):
@@ -28,7 +29,6 @@ class ConfNBP(Confrontation):
     """A confrontation for examining the global net ecosystem carbon balance."""
 
     def __init__(self, **keywords):
-
         # Ugly, but this is how we call the Confrontation constructor
         super(ConfNBP, self).__init__(**keywords)
 
@@ -212,7 +212,6 @@ class ConfNBP(Confrontation):
         results.close()
 
     def compositePlots(self):
-
         # we want to run the original and also this additional plot
         super(ConfNBP, self).compositePlots()
 
@@ -270,7 +269,6 @@ class ConfNBP(Confrontation):
 
         # composite accumulation plots
         if len(accum) > 1:
-
             # play with the limits
             bnd = (
                 accum["Benchmark"].data_bnds
@@ -324,7 +322,6 @@ class ConfNBP(Confrontation):
 
 
 def NBPplot(V, vmin, vmax, colors, fname):
-
     keys = V.keys()
     Y = []
     L = []

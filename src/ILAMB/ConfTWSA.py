@@ -1,19 +1,20 @@
-from .Confrontation import Confrontation
-import matplotlib.pyplot as plt
-from .Variable import Variable
-from .Regions import Regions
-from netCDF4 import Dataset
-from . import ilamblib as il
-from . import Post as post
-import numpy as np
 import os
+
+import matplotlib.pyplot as plt
+import numpy as np
+from netCDF4 import Dataset
+
+from ILAMB import Post as post
+from ILAMB import ilamblib as il
+from ILAMB.Confrontation import Confrontation
+from ILAMB.Regions import Regions
+from ILAMB.Variable import Variable
 
 
 class ConfTWSA(Confrontation):
     """A confrontation for examining the terrestrial water storage anomaly."""
 
     def __init__(self, **keywords):
-
         # Ugly, but this is how we call the Confrontation constructor
         super(ConfTWSA, self).__init__(**keywords)
 
@@ -257,7 +258,6 @@ class ConfTWSA(Confrontation):
         )
 
     def modelPlots(self, m):
-
         # some of the plots can be generated using the standard
         # routine, with some modifications
         super(ConfTWSA, self).modelPlots(m)
@@ -280,7 +280,6 @@ class ConfTWSA(Confrontation):
         obs = Variable(filename=bname, variable_name="twsa", groupname="MeanState")
         mod = Variable(filename=fname, variable_name="twsa", groupname="MeanState")
         for i, basin in enumerate(self.basins):
-
             page.addFigure(
                 "Spatially integrated regional mean",
                 basin,

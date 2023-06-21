@@ -1,11 +1,14 @@
-from .Variable import Variable
-from netCDF4 import Dataset
-from . import ilamblib as il
-from cf_units import Unit
-import numpy as np
-import glob, os, re
-from mpi4py import MPI
 import logging
+import os
+import re
+
+import numpy as np
+from cf_units import Unit
+from mpi4py import MPI
+from netCDF4 import Dataset
+
+from ILAMB import ilamblib as il
+from ILAMB.Variable import Variable
 
 logger = logging.getLogger("%i" % MPI.COMM_WORLD.rank)
 
