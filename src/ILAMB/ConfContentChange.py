@@ -1,8 +1,8 @@
 """blah"""
 import numpy as np
 
-from .Confrontation import Confrontation
-from .Variable import Variable
+from ILAMB.Confrontation import Confrontation
+from ILAMB.Variable import Variable
 
 
 def _insert_dummy_time(var):
@@ -41,5 +41,5 @@ class ConfContentChange(Confrontation):
 
         obs = _insert_dummy_time(obs)
         mod = _insert_dummy_time(mod)
-        
+
         return obs, mod

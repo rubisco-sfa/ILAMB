@@ -1,4 +1,4 @@
-Copyright 2022, The ILAMB Consortium
+Copyright 2023, The ILAMB Consortium
 
 Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
 

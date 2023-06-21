@@ -25,8 +25,8 @@ from cf_units import Unit
 from dataretrieval import nwis
 from pynhd import NLDI, NHDPlusHR
 
-from . import Post as post
-from .Confrontation import Confrontation
+from ILAMB import Post as post
+from ILAMB.Confrontation import Confrontation
 
 
 def markdown_to_html(doc):

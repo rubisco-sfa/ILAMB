@@ -1,4 +1,3 @@
-
 """
 Class for computing the curve fitting/smoothing technique used by Thoning et al 1989.
 
@@ -25,12 +24,12 @@ from scipy import fftpack
 import numpy
 import copy
 
-#--------------------------------------------------
+# --------------------------------------------------
 # Define the function we are trying to fit
 # This is a combination of a polynomial and harmonic function
-#--------------------------------------------------
+# --------------------------------------------------
 def fitFunc(params, x, numpoly, numharm):
-    """ Calculate the function at time x with coefficients given in params.
+    """Calculate the function at time x with coefficients given in params.
     This is a combination of a polynomial with numpoly coefficients, and
     a sin/cosine harmonic with numharm coefficients.
     e.g., with numpoly=3 and numharm=2:
@@ -42,45 +41,49 @@ def fitFunc(params, x, numpoly, numharm):
 
     # polynomial part
     # we need to reverse the order of the polynomial coefficients for input into polyval
-    p = numpy.polyval(params[numpoly-1::-1], x)
+    p = numpy.polyval(params[numpoly - 1 :: -1], x)
 
     # get harmonic part of function
     s = harmonics(params, x, numpoly, numharm)
 
-    return p+s
+    return p + s
 
-#--------------------------------------------------
+
+# --------------------------------------------------
 def harmonics(params, x, numpoly, numharm):
-    """ calculate the harmonic part of the function at time x """
+    """calculate the harmonic part of the function at time x"""
 
     # harmonic part
-    pi2 = 2*pi*x
+    pi2 = 2 * pi * x
     if numharm > 0:
         # create an array s of correct size by explicitly evaluating first harmonic
-        s = params[numpoly]*numpy.sin(pi2) + params[numpoly+1]*numpy.cos(pi2)
+        s = params[numpoly] * numpy.sin(pi2) + params[numpoly + 1] * numpy.cos(pi2)
 
         # do additional harmonics (nharm > 1)
         for i in range(1, numharm):
-            ix = 2*i + numpoly    # index into params for harmonic coefficients
-            s += params[ix]*numpy.sin((i+1)*pi2) + params[ix+1]*numpy.cos((i+1)*pi2)
+            ix = 2 * i + numpoly  # index into params for harmonic coefficients
+            s += params[ix] * numpy.sin((i + 1) * pi2) + params[ix + 1] * numpy.cos(
+                (i + 1) * pi2
+            )
 
-        n = numpoly + 2*numharm
+        n = numpoly + 2 * numharm
         if n < len(params):
-            s = (1+params[n]*x) * s        # amplitude gain factor
+            s = (1 + params[n] * x) * s  # amplitude gain factor
 
         return s
     else:
         return 0
 
 
-#--------------------------------------------------
+# --------------------------------------------------
 def errfunc(p, x, y, numpoly, numharm):
-    """ function to calc the difference between input values and function """
+    """function to calc the difference between input values and function"""
     return y - fitFunc(p, x, numpoly, numharm)
 
-#--------------------------------------------------
+
+# --------------------------------------------------
 def partial(n, x, numpoly):
-    """ calculate partial derivative of function with respect to parameter n at time x """
+    """calculate partial derivative of function with respect to parameter n at time x"""
 
     if n < numpoly:
         if n == 0:
@@ -88,9 +91,9 @@ def partial(n, x, numpoly):
         else:
             p = pow(x, float(n))
     else:
-        ix = (n-numpoly)/2 + 1
+        ix = (n - numpoly) / 2 + 1
         xx = ix * 2 * pi * x
-        if (n-numpoly) % 2 == 0:
+        if (n - numpoly) % 2 == 0:
             p = sin(xx)
         else:
             p = cos(xx)
@@ -98,7 +101,7 @@ def partial(n, x, numpoly):
     return p
 
 
-#--------------------------------------------------
+# --------------------------------------------------
 class ccgFilter(object):
     """
 
@@ -243,7 +246,20 @@ class ccgFilter(object):
 
     """
 
-    def __init__(self, xp, yp, shortterm=80, longterm=667, sampleinterval=0, numpolyterms=3, numharmonics=4, timezero=-1, gap=0, use_gain_factor=False, debug=False):
+    def __init__(
+        self,
+        xp,
+        yp,
+        shortterm=80,
+        longterm=667,
+        sampleinterval=0,
+        numpolyterms=3,
+        numharmonics=4,
+        timezero=-1,
+        gap=0,
+        use_gain_factor=False,
+        debug=False,
+    ):
 
         t0 = datetime.datetime.now()
 
@@ -261,8 +277,8 @@ class ccgFilter(object):
         else:
             b = numpy.array(yp.tolist())
         self.yp = b[c]
-    #    self.xp = numpy.array(xp)
-    #    self.yp = numpy.array(yp)
+        #    self.xp = numpy.array(xp)
+        #    self.yp = numpy.array(yp)
         self.np = len(xp)
 
         # Calculate the average time interval between data points.
@@ -274,13 +290,13 @@ class ccgFilter(object):
             sdiff = 0
             tx = self.xp[0]
             for i in range(1, self.np):
-                if self.xp[i]-tx > 0.002739:
-                    diff = self.xp[i]-tx
+                if self.xp[i] - tx > 0.002739:
+                    diff = self.xp[i] - tx
                     sdiff += diff
                     sd += 1
                 tx = self.xp[i]
 
-            avginterval = sdiff/sd * 365
+            avginterval = sdiff / sd * 365
 
             if avginterval > 1:
                 self.sampleinterval = round(avginterval, 0)
@@ -291,18 +307,17 @@ class ccgFilter(object):
         else:
             self.sampleinterval = sampleinterval
 
-        self.dinterval = self.sampleinterval/365.0 # sample interval in decimal years
+        self.dinterval = self.sampleinterval / 365.0  # sample interval in decimal years
 
         # If the data is actually an average over a relatively large time period,
         # such as annual averages, change the number of harmonics to an appropriate value.
-        nh = int(365.0/(self.sampleinterval*2))
+        nh = int(365.0 / (self.sampleinterval * 2))
         if nh < numharmonics:
             self.numharm = nh
             if debug:
                 print("changed numharmonics to ", numharmonics)
         else:
             self.numharm = numharmonics
-
 
         self.use_gain_factor = use_gain_factor
         self.shortterm = shortterm
@@ -315,7 +330,7 @@ class ccgFilter(object):
         else:
             self.timezero = timezero
         self.debug = debug
-        self.numpm = self.numpoly + 2*self.numharm
+        self.numpm = self.numpoly + 2 * self.numharm
 
         # apply filter to data
         self._filter_data(gap)
@@ -330,18 +345,20 @@ class ccgFilter(object):
         if self.debug:
             print("mean, rsd about smooth curve is", self.rmean, self.rsd2)
 
-
         t1 = datetime.datetime.now()
         if self.debug:
-            print("Total time elapsed: ", t1-t0)
+            print("Total time elapsed: ", t1 - t0)
 
-    #------------------------------------------------------------
+    # ------------------------------------------------------------
     def _filter_data(self, gap):
-        """ Perform the curve fitting/filtering """
+        """Perform the curve fitting/filtering"""
 
         if self.debug:
             print("=== Inside filter_data. ===")
-            print("  Number of points = %d, Sample Interval = %f days, %f years" % (self.np, self.sampleinterval, self.dinterval))
+            print(
+                "  Number of points = %d, Sample Interval = %f days, %f years"
+                % (self.np, self.sampleinterval, self.dinterval)
+            )
             print("  Cutoff 1 = %d, Cutoff 2 = %d" % (self.shortterm, self.longterm))
             print("  Numpoly = %d, Numharm = %d" % (self.numpoly, self.numharm))
             print("  Time zero = %f" % self.timezero)
@@ -351,27 +368,33 @@ class ccgFilter(object):
         # Remove the timezero value from the x data so that coefficients will be relative to the timezero date
         work = self.xp - self.timezero
 
-
         # Fit the function to the data
-        pm = [1.0] * self.numpm        # initial parameter values set to 1
-        if self.use_gain_factor:    # add amplitude gain factor parameter with initial value of 0
+        pm = [1.0] * self.numpm  # initial parameter values set to 1
+        if (
+            self.use_gain_factor
+        ):  # add amplitude gain factor parameter with initial value of 0
             pm.append(0)
             self.numpm += 1
-        self.params, self.covar, info, mesg, ier = optimize.leastsq(errfunc, pm, full_output=1, args=(work, self.yp, self.numpoly, self.numharm))
+        self.params, self.covar, info, mesg, ier = optimize.leastsq(
+            errfunc, pm, full_output=1, args=(work, self.yp, self.numpoly, self.numharm)
+        )
         if self.debug:
             print("  Finished leastsq")
             for i in range(self.numpm):
                 print("    param[%d] = %e" % (i, self.params[i]))
 
-
         #  calculate residuals from fit
         self.resid = self.yp - fitFunc(self.params, work, self.numpoly, self.numharm)
         rmean = numpy.mean(self.resid)
         self.rsd1 = numpy.std(self.resid, ddof=1)
-        self.chisq = numpy.sum(self.resid*self.resid)/(self.np - self.numpm)    # reduced chi square
+        self.chisq = numpy.sum(self.resid * self.resid) / (
+            self.np - self.numpm
+        )  # reduced chi square
         if self.debug:
             print("  Finished residuals")
-            print("    rmean = %e, rsd = %e, chisq = %e" % (rmean, self.rsd1, self.chisq))
+            print(
+                "    rmean = %e, rsd = %e, chisq = %e" % (rmean, self.rsd1, self.chisq)
+            )
 
         # from http://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.leastsq.html#scipy.optimize.leastsq
         # "This matrix must be multiplied by the residual variance to get the covariance of the parameter estimates - see curve_fit."
@@ -384,17 +407,15 @@ class ccgFilter(object):
             print("  variance is", self._varnce())
             print("  Function variance is", self.funcvar)
 
-
         # fit linear line to ends of residual data
         # subtract this from residuals so ends are ~ near 0
         ca, cb = self._adjustend(work, self.resid, self.longterm)
-        resid = self.resid - (ca + cb*work)
+        resid = self.resid - (ca + cb * work)
         if self.debug:
             print("  Finished adjustend")
             print("    ca = %e, cb = %e" % (ca, cb))
             print("    x[0] = %e, x[%d] = %e" % (work[0], self.np, work[-1]))
             print("    resid[0] = %e, resid[%d] = %e" % (resid[0], self.np, resid[-1]))
-
 
         # Interpolate data at evenly spaced intervals (self.sampleinterval)
         self.xinterp, yinterp = self._lin_interp(work, resid, gap)
@@ -403,16 +424,18 @@ class ccgFilter(object):
         if self.debug:
             print("  Interpolated points.")
             print("    Number of interpolated points: %d" % (self.ninterp))
-            print("    xinterp[np-1] = %e, x[0] = %e" % (self.xinterp[-1], self.xinterp[0]))
+            print(
+                "    xinterp[np-1] = %e, x[0] = %e"
+                % (self.xinterp[-1], self.xinterp[0])
+            )
             print("    yinterp[np-1] = %e, y[0] = %e" % (yinterp[-1], yinterp[0]))
-
 
         # do fft on interpolated data
         # we'll zero pad the data to an even power of 2
         # This makes it the same method used in c version.
         n2 = int(pow(2, ceil(log(yinterp.size, 2))))
         zzz = numpy.zeros(n2)
-        nstart = int((n2 - yinterp.size)/2)
+        nstart = int((n2 - yinterp.size) / 2)
         nend = nstart + yinterp.size
         zzz[nstart:nend] = yinterp
 
@@ -424,8 +447,7 @@ class ccgFilter(object):
         a = self._freq_filter(fft, self.dinterval, self.shortterm)
         yfilt = fftpack.irfft(a)
         shortTimeSeries = copy.deepcopy(yfilt)
-        self.smooth = yfilt[nstart:nend] + ca + cb*self.xinterp
-
+        self.smooth = yfilt[nstart:nend] + ca + cb * self.xinterp
 
         # do long term filter
         if self.debug:
@@ -433,44 +455,43 @@ class ccgFilter(object):
         a = self._freq_filter(fft, self.dinterval, self.longterm)
         yfilt = fftpack.irfft(a)
         longTimeSeries = copy.deepcopy(yfilt)
-        self.trend = yfilt[nstart:nend] + ca + cb*self.xinterp
-        #print("fft:")
-        #print(len(fft))
-        #print("shortTimeSeries:")
-        #print(len(shortTimeSeries))
-        #print("longTimeSeries:")
-        #print(len(longTimeSeries))
+        self.trend = yfilt[nstart:nend] + ca + cb * self.xinterp
+        # print("fft:")
+        # print(len(fft))
+        # print("shortTimeSeries:")
+        # print(len(shortTimeSeries))
+        # print("longTimeSeries:")
+        # print(len(longTimeSeries))
 
         # add linear fit and timezero back in to interpolated values
-        self.yinterp = yinterp + ca + cb*self.xinterp
+        self.yinterp = yinterp + ca + cb * self.xinterp
         self.xinterp = self.xinterp + self.timezero
 
-
-    #------------------------------------------------------------
+    # ------------------------------------------------------------
     def _adjustend(self, x, y, cutoff):
-        """ Determine the slope of the data based on just the ends, i.e. 1/4 of the cutoff """
+        """Determine the slope of the data based on just the ends, i.e. 1/4 of the cutoff"""
 
         # check if length of data is too short to adjust
-        if x[-1] - x[0] < cutoff/365.0:
+        if x[-1] - x[0] < cutoff / 365.0:
             return 0, 0
 
         # length of data to use is 1/4 of cutoff length
-        c = cutoff/365.0/4.0
+        c = cutoff / 365.0 / 4.0
 
-        z = numpy.where( (x<=x[0]+c) | (x>=x[-1]-c) )
+        z = numpy.where((x <= x[0] + c) | (x >= x[-1] - c))
 
         slope, intercept, r_value, p_value, std_err = stats.linregress(x[z], y[z])
         return intercept, slope
 
-    #------------------------------------------------------------
+    # ------------------------------------------------------------
     def _lin_interp(self, x, y, gap):
-        """ Linear interpolate between input data to get equally spaced values
+        """Linear interpolate between input data to get equally spaced values
         at every sample interval.
         """
 
         # calculate the x values for evenly spaced data at the specified sampling interval
-        xi = numpy.arange(x[0], x[-1]+self.dinterval/2, self.dinterval)
-        xi[-1] = x[-1]        # make sure last point is equal to last data point
+        xi = numpy.arange(x[0], x[-1] + self.dinterval / 2, self.dinterval)
+        xi[-1] = x[-1]  # make sure last point is equal to last data point
 
         # if there are multiple y data points at a single x value, then average them
         # to get only 1 y data point for each x
@@ -484,13 +505,13 @@ class ccgFilter(object):
                 ys += yp
                 ns += 1
             else:
-                ya = ys/ns
+                ya = ys / ns
                 xx.append(xt)
                 yy.append(ya)
                 ys = yp
                 ns = 1
             xt = xp
-        ya = ys/ns
+        ya = ys / ns
         xx.append(xt)
         yy.append(ya)
 
@@ -506,26 +527,25 @@ class ccgFilter(object):
         else:
             n = len(xx)
             ni = len(xi)
-            yi = numpy.zeros( (ni) )
+            yi = numpy.zeros((ni))
             j = 0
             for i in range(ni):
                 while xi[i] >= xx[j]:
                     j += 1
-                    if j >= n-1:
+                    if j >= n - 1:
                         break
 
                 j -= 1
-                if (xx[j+1] - xx[j]) > gap/365.0: #  8*self.dinterval:
+                if (xx[j + 1] - xx[j]) > gap / 365.0:  #  8*self.dinterval:
                     yi[i] = 0
                 else:
                     yi[i] = f(xi[i])
 
-
         return xi, yi
 
-    #------------------------------------------------------------
+    # ------------------------------------------------------------
     def _freq_filter(self, fft, dinterv, cutoff):
-        """ Apply low-pass filter to fft data.
+        """Apply low-pass filter to fft data.
         Multiply each discrete frequency in fft by a
         low-pass filter function value set by the value 'cutoff'
         input:
@@ -535,13 +555,12 @@ class ccgFilter(object):
         """
 
         n2 = len(fft)
-        cf = cutoff/365.0    # convert cutoff to years
-        cutoff2 = 1.0/cf    # change to cycles/year
+        cf = cutoff / 365.0  # convert cutoff to years
+        cutoff2 = 1.0 / cf  # change to cycles/year
 
-        freq = fftpack.rfftfreq(n2, dinterv)    # get array of frequencies
-        rw = self._vfilt(freq, cutoff2, 6)    # get filter value at frequencies
-        filt = fft*rw                # apply filter values to fft
-
+        freq = fftpack.rfftfreq(n2, dinterv)  # get array of frequencies
+        rw = self._vfilt(freq, cutoff2, 6)  # get filter value at frequencies
+        filt = fft * rw  # apply filter values to fft
 
         return filt
 
@@ -571,9 +590,9 @@ class ccgFilter(object):
     #
     #    return filt
 
-    #------------------------------------------------------------
+    # ------------------------------------------------------------
     def _vfilt(self, freq, sigma, power):
-        """ vectorized version of getting filter value at a frequency
+        """vectorized version of getting filter value at a frequency
         input:
             freq - array of frequencies
             sigma - cutoff value in cycles/year
@@ -585,15 +604,14 @@ class ccgFilter(object):
         numpy seems to handle it internally anyway
         """
 
-        z = numpy.power((freq/sigma), power)
+        z = numpy.power((freq / sigma), power)
         z = numpy.clip(z, 0, 20.0)
         f = 1.0 / numpy.power(2.0, z)
         return f
 
-
-    #------------------------------------------------------------
+    # ------------------------------------------------------------
     def _compute_deriv(self):
-        """ Compute derivative of trend.
+        """Compute derivative of trend.
         This is the derivative of self.trend + derivative of polynomial part of the function
         """
 
@@ -603,28 +621,26 @@ class ccgFilter(object):
 
         # compute derivative of polynomial at each interpolated data point
         # we need to reverse order of polynomial coefficients for input into poly1d
-        poly = numpy.poly1d(self.params[self.numpoly-1::-1])
+        poly = numpy.poly1d(self.params[self.numpoly - 1 :: -1])
         pd = numpy.polyder(poly)
         self.deriv += pd(self.xinterp - self.timezero)
 
-    #------------------------------------------------------------
+    # ------------------------------------------------------------
     def _varnce(self, poly=False):
-        """ calculate variance of mean response, using equations from
+        """calculate variance of mean response, using equations from
         https://en.wikipedia.org/wiki/Mean_and_predicted_response
         """
 
         # use first data point
-    #    x = self.xp[0] - self.timezero
+        #    x = self.xp[0] - self.timezero
         x = numpy.mean(self.xp - self.timezero)
         C = self.covar
 
-
         # calculate partial derivatives of function with respect to the parameters
-        if poly:   # polynomial only
+        if poly:  # polynomial only
             numparam = self.numpoly
-        else:       # entire function, poly + harmonics
+        else:  # entire function, poly + harmonics
             numparam = self.numpm
-
 
         dfdp = []
         for i in range(numparam):
@@ -635,12 +651,11 @@ class ccgFilter(object):
             for k in range(numparam):
                 df2 += dfdp[j] * dfdp[k] * C[j, k]
 
-
         return df2
 
-    #------------------------------------------------------------
+    # ------------------------------------------------------------
     def _filtvar(self, which):
-        """ calculate the filter variance at cutoff f """
+        """calculate the filter variance at cutoff f"""
 
         # First step: Compute weights of filter by filtering a single
         # point in the middle of zero values (impulse response)
@@ -650,15 +665,15 @@ class ccgFilter(object):
         else:
             cutoff = self.longterm
 
-        n0 = 4 * int(cutoff/365.0/self.dinterval)
+        n0 = 4 * int(cutoff / 365.0 / self.dinterval)
 
-    #    z = 1
-    #    while pow(2, z) < n0:
-    #        z += 1
-    #    n0 = pow(2, z)
+        #    z = 1
+        #    while pow(2, z) < n0:
+        #        z += 1
+        #    n0 = pow(2, z)
 
-        ytemp = numpy.zeros( (n0) )
-        ytemp[int(n0/2)] = 1.0
+        ytemp = numpy.zeros((n0))
+        ytemp[int(n0 / 2)] = 1.0
 
         # do fft
         fft = fftpack.rfft(ytemp)
@@ -671,7 +686,7 @@ class ccgFilter(object):
         weights = fftpack.irfft(a)
 
         # Compute sum of squares of weights
-        ssw = numpy.sum(weights*weights)
+        ssw = numpy.sum(weights * weights)
         if self.debug:
             print("ssw =", ssw)
 
@@ -688,33 +703,34 @@ class ccgFilter(object):
 
         # Compute lag 1 auto covariance
         # http://itl.nist.gov/div898/handbook/eda/section3/eda35c.htm
-        sm = numpy.sum( (yy[0:-1]-rmean) * (yy[1:]-rmean) )
-        cor = sm / (n-1) / (rsd*rsd)    # equivalent to sm/numpy.sum(numpy.square(yy-rmean))
+        sm = numpy.sum((yy[0:-1] - rmean) * (yy[1:] - rmean))
+        cor = (
+            sm / (n - 1) / (rsd * rsd)
+        )  # equivalent to sm/numpy.sum(numpy.square(yy-rmean))
 
         if self.debug:
             print("cor is", cor)
 
-
         # Compute auto covariances
         # r(k) = r(1)^k
         sm = 0.0
-        for i in range(n0-1):
-            for j in range(i+1, n0):
-                r = pow(cor, j-i)
-                if r < 1e-5: break # speed things up by ignoring really small values
-                sm += r*weights[i]*weights[j]
+        for i in range(n0 - 1):
+            for j in range(i + 1, n0):
+                r = pow(cor, j - i)
+                if r < 1e-5:
+                    break  # speed things up by ignoring really small values
+                sm += r * weights[i] * weights[j]
 
-
-        var = rsd*rsd*(ssw+2*sm)
+        var = rsd * rsd * (ssw + 2 * sm)
 
         if self.debug:
             print("sm is", sm, "var is ", var)
 
         return var
 
-    #------------------------------------------------------------
+    # ------------------------------------------------------------
     def stats(self):
-        """ Generate statistics about the curve fitting. """
+        """Generate statistics about the curve fitting."""
 
         outs = ""
         if self.np == 0:
@@ -724,12 +740,12 @@ class ccgFilter(object):
         # calculate variance of each filter
         varf1 = self._filtvar("short")
         varf2 = self._filtvar("long")
-    #        GetCalendarDate(self.timezero, &year, &month, &day, &hour, &minute, &second);
+        #        GetCalendarDate(self.timezero, &year, &month, &day, &hour, &minute, &second);
 
         outs += "*****  Filter Statistics.  *****\n"
 
         outs += "Beginning date:                 %.6f\n" % self.xp[0]
-        outs += "Ending date:                    %.6f\n" % self.xp[self.np-1]
+        outs += "Ending date:                    %.6f\n" % self.xp[self.np - 1]
 
         outs += "Number of data points:          %d\n\n" % self.np
 
@@ -742,20 +758,30 @@ class ccgFilter(object):
         outs += "Parameter          Value          Standard Deviation\n"
         outs += " Polynomial\n"
         for i in range(self.numpm):
-            if i == self.numpoly: outs += " Harmonics\n"
-            if i == self.numpoly + 2*self.numharm: outs += " Amplitude Gain Factor\n"
+            if i == self.numpoly:
+                outs += " Harmonics\n"
+            if i == self.numpoly + 2 * self.numharm:
+                outs += " Amplitude Gain Factor\n"
             outs += "%5d %20.6f %20.6f\n" % (i, self.params[i], sqrt(self.covar[i][i]))
 
         outs += "------------------------------------------------------\n"
         outs += "Harmonic   Amplitude  Std. Dev.    Phase (degrees)  Std. Dev.\n"
-        for i in range(1, self.numharm+1):
-            ix = 2*(i-1)+self.numpoly
+        for i in range(1, self.numharm + 1):
+            ix = 2 * (i - 1) + self.numpoly
             a = self.params[ix]
-            b = self.params[ix+1]
-            c = a*a+b*b
-            siga = (a*a*self.covar[ix][ix]+b*b*self.covar[ix+1][ix+1])/c
-            sigtheta = (b*b*self.covar[ix][ix]+a*a*self.covar[ix+1][ix+1])/(c*c)
-            outs += "%5d %11.2f %10.2f %16.2f %12.2f\n" % (i, sqrt(c), sqrt(siga), atan2(b, a)*180/pi, sqrt(sigtheta)*180.0/pi)
+            b = self.params[ix + 1]
+            c = a * a + b * b
+            siga = (a * a * self.covar[ix][ix] + b * b * self.covar[ix + 1][ix + 1]) / c
+            sigtheta = (
+                b * b * self.covar[ix][ix] + a * a * self.covar[ix + 1][ix + 1]
+            ) / (c * c)
+            outs += "%5d %11.2f %10.2f %16.2f %12.2f\n" % (
+                i,
+                sqrt(c),
+                sqrt(siga),
+                atan2(b, a) * 180 / pi,
+                sqrt(sigtheta) * 180.0 / pi,
+            )
 
         outs += "------------------------------------------------------\n"
         outs += "Full covariance matrix:\n"
@@ -778,19 +804,27 @@ class ccgFilter(object):
         outs += "Polynomial Standard Deviation:        %8.4f\n" % sqrt(self.polyvar)
         outs += "Short Term Filter Standard Deviation: %8.4f\n" % sqrt(varf1)
         outs += "Long  Term Filter Standard Deviation: %8.4f\n" % sqrt(varf2)
-        outs += "Smoothed curve Standard Deviation:    %8.4f\n" % sqrt(varf1 + self.funcvar)
-        outs += "Trend curve Standard Deviation:       %8.4f\n" % sqrt(varf2 + self.polyvar)
-        outs += "Detrended Cycle Standard Deviation:   %8.4f\n" % sqrt(varf2 + varf1 + 2*self.funcvar)
-        outs += "Growth Rate Standard Deviation:       %8.4f\n" % sqrt(2*(varf2 + self.polyvar))
+        outs += "Smoothed curve Standard Deviation:    %8.4f\n" % sqrt(
+            varf1 + self.funcvar
+        )
+        outs += "Trend curve Standard Deviation:       %8.4f\n" % sqrt(
+            varf2 + self.polyvar
+        )
+        outs += "Detrended Cycle Standard Deviation:   %8.4f\n" % sqrt(
+            varf2 + varf1 + 2 * self.funcvar
+        )
+        outs += "Growth Rate Standard Deviation:       %8.4f\n" % sqrt(
+            2 * (varf2 + self.polyvar)
+        )
         outs += "\n"
 
         outs += "Residual standard deviation about smooth curve: %f\n" % self.rsd2
 
         return outs
 
-    #------------------------------------------------------------
+    # ------------------------------------------------------------
     def getAmplitudes(self):
-        """ Get amplitudes of seasonal cycle for each year.
+        """Get amplitudes of seasonal cycle for each year.
         The amplitude is from the detrended data, which is the
         harmonic part of function + smooth curve - trend curve.
         Find max and min values of this for each year, save the values
@@ -802,7 +836,9 @@ class ccgFilter(object):
         """
 
         # get harmonic part of function at interpolated data points
-        ycycle = harmonics(self.params, self.xinterp-self.timezero, self.numpoly, self.numharm)
+        ycycle = harmonics(
+            self.params, self.xinterp - self.timezero, self.numpoly, self.numharm
+        )
 
         # added short term smoothed data
         ycycle = ycycle + self.smooth - self.trend
@@ -833,9 +869,9 @@ class ccgFilter(object):
 
         return amps
 
-    #------------------------------------------------------------
+    # ------------------------------------------------------------
     def getFunctionValue(self, x):
-        """ Determine the value of the function at time x.
+        """Determine the value of the function at time x.
         x can be either a single point or a list
         """
 
@@ -843,11 +879,11 @@ class ccgFilter(object):
             xp = numpy.array(x)
         else:
             xp = x
-        return fitFunc(self.params, xp-self.timezero, self.numpoly, self.numharm)
+        return fitFunc(self.params, xp - self.timezero, self.numpoly, self.numharm)
 
-    #------------------------------------------------------------
+    # ------------------------------------------------------------
     def getSmoothValue(self, x):
-        """ Return the 'smoothed' data at time x
+        """Return the 'smoothed' data at time x
         This is the function plus the smoothed residuals.
         """
 
@@ -859,9 +895,9 @@ class ccgFilter(object):
 
         return yi
 
-    #------------------------------------------------------------
+    # ------------------------------------------------------------
     def getTrendValue(self, x):
-        """ Return the 'trend' of the data at time x
+        """Return the 'trend' of the data at time x
         This is the polynomial part of the function plus the trend of the residuals.
         i.e., poly plus the long term filter of the residuals
         """
@@ -874,9 +910,9 @@ class ccgFilter(object):
 
         return yi
 
-    #------------------------------------------------------------
+    # ------------------------------------------------------------
     def getPolyValue(self, x):
-        """ Get the values of the polynomial part of the function time x
+        """Get the values of the polynomial part of the function time x
 
         Returns
         -------
@@ -885,13 +921,13 @@ class ccgFilter(object):
 
         xa = numpy.array(x)
 
-        p = numpy.polyval(self.params[self.numpoly-1::-1], xa-self.timezero)
+        p = numpy.polyval(self.params[self.numpoly - 1 :: -1], xa - self.timezero)
 
         return p
 
-    #------------------------------------------------------------
+    # ------------------------------------------------------------
     def getHarmonicValue(self, x):
-        """ Get the values of the harmonic part of the function time x
+        """Get the values of the harmonic part of the function time x
 
         Returns
         -------
@@ -901,27 +937,27 @@ class ccgFilter(object):
         xa = numpy.array(x)
 
         # get harmonic part of function at x
-        y = harmonics(self.params, xa-self.timezero, self.numpoly, self.numharm)
+        y = harmonics(self.params, xa - self.timezero, self.numpoly, self.numharm)
 
         return y
 
-    #------------------------------------------------------------
+    # ------------------------------------------------------------
     def getGrowthRateValue(self, x):
-        """ Get the values of the derivative of the trend
+        """Get the values of the derivative of the trend
 
         Returns
         -------
         A numpy 1d array with the growth rate values at the given x
         """
 
-        f = interpolate.interp1d(self.xinterp, self.deriv) # , bounds_error=False)
+        f = interpolate.interp1d(self.xinterp, self.deriv)  # , bounds_error=False)
         yi = f(x)
 
         return yi
 
-    #------------------------------------------------------------
+    # ------------------------------------------------------------
     def getFilterResponse(self, cutoff):
-        """ Get the filter response for a range of frequencies.
+        """Get the filter response for a range of frequencies.
         Input
         -----
             cutoff - cutoff value in days for the filter
@@ -934,18 +970,17 @@ class ccgFilter(object):
         Range of frequencies is 0 to 2*cutoff frequency, in 1000 steps
         """
 
-        fmax = (365.0/float(cutoff)) * 2
-        cf = cutoff/365.0
-        cutoff2 = 1.0/cf
+        fmax = (365.0 / float(cutoff)) * 2
+        cf = cutoff / 365.0
+        cutoff2 = 1.0 / cf
         freq = numpy.linspace(0, fmax, 1000)
-        rw = self._vfilt(freq, cutoff2, 6)    # get filter value at frequencies
+        rw = self._vfilt(freq, cutoff2, 6)  # get filter value at frequencies
 
         return freq, rw
 
-
-    #------------------------------------------------------------
+    # ------------------------------------------------------------
     def getMonthlyMeans(self, data=None):
-        """ Get monthly mean values from the smoothed curve
+        """Get monthly mean values from the smoothed curve
         Note: first and last months could be incomplete
 
         Returns
@@ -982,16 +1017,15 @@ class ccgFilter(object):
 
         return data
 
-    #------------------------------------------------------------
+    # ------------------------------------------------------------
     def getAnnualMeans(self, data=None):
-        """ Get annual mean values from the smoothed curve
+        """Get annual mean values from the smoothed curve
         Note: first and last years could be incomplete
 
         Returns
         --------
         A list of tuples, each tuple has 4 values (year, value, std. deviation, n)
         """
-
 
         if data is None:
             ysmooth = self.getSmoothValue(self.xinterp)
@@ -1002,22 +1036,26 @@ class ccgFilter(object):
         lastyear = int(self.xinterp[-1])
 
         data = []
-        for year in range(firstyear, lastyear+1):
-            w = numpy.where( (self.xinterp >= float(year)) & (self.xinterp < float(year+1)))
+        for year in range(firstyear, lastyear + 1):
+            w = numpy.where(
+                (self.xinterp >= float(year)) & (self.xinterp < float(year + 1))
+            )
             mean = numpy.mean(ysmooth[w])
             std = numpy.std(ysmooth[w], ddof=1)
             data.append((year, mean, std, len(w[0])))
 
         return data
 
-    #------------------------------------------------------------
+    # ------------------------------------------------------------
     def getTrendCrossingDates(self):
-        """ Get the dates when the smoothed curve crosses the trend curve.
+        """Get the dates when the smoothed curve crosses the trend curve.
         That is, when the detrended smooth seasonal cycle crosses 0.
         """
 
         # get harmonic part of function at interpolated data points
-        ycycle = harmonics(self.params, self.xinterp-self.timezero, self.numpoly, self.numharm)
+        ycycle = harmonics(
+            self.params, self.xinterp - self.timezero, self.numpoly, self.numharm
+        )
 
         # added short term smoothed data
         ycycle = ycycle + self.smooth - self.trend
@@ -1034,21 +1072,19 @@ class ccgFilter(object):
 
             ty = y
 
-
         return (tcup, tcdown)
 
-
-    #------------------------------------------------------------
+    # ------------------------------------------------------------
     def calendarDate(self, decyear):
-        """ Convert decimal date to calendar components """
+        """Convert decimal date to calendar components"""
 
         dyr = int(decyear)
         fyr = decyear - dyr
 
         if dyr % 4 == 0:
-            nsec = fyr * (366*86400)
+            nsec = fyr * (366 * 86400)
         else:
-            nsec = fyr * (365*86400)
+            nsec = fyr * (365 * 86400)
 
         nsec = round(nsec, 0)
 

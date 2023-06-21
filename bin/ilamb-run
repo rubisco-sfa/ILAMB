@@ -2,10 +2,14 @@
 """
 Runs an ILAMB study.
 """
-import mpi4py.rc; mpi4py.rc.threads = False
+import mpi4py.rc
+
+mpi4py.rc.threads = False
 import logging
+
 import yaml
 from ILAMB.ModelResult import ModelResult
+
 try:
     from ILAMB.point_result import ModelPointResult
 except:
@@ -14,23 +18,30 @@ try:
     from ILAMB.e3sm_result import E3SMResult
 except:
     E3SMResult = None
-from ILAMB.Scoreboard import Scoreboard
-from ILAMB.Regions import Regions
-from ILAMB import ilamblib as il
-from traceback import format_exc
-import os,time,sys,argparse,pickle
-from mpi4py import MPI
-import numpy as np
-import datetime,glob
-from netCDF4 import Dataset
-import matplotlib.pyplot as plt
-import matplotlib.colors as clr
-import re
-import pandas as pd
+import argparse
+import datetime
+import glob
 import inspect
+import os
+import pickle
+import re
+import sys
+import time
+from traceback import format_exc
 
+import matplotlib.colors as clr
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+from ILAMB import ilamblib as il
 from ILAMB.Post import RegisterCustomColormaps
-if "wetdry" not in plt.colormaps(): RegisterCustomColormaps()
+from ILAMB.Regions import Regions
+from ILAMB.Scoreboard import Scoreboard
+from mpi4py import MPI
+from netCDF4 import Dataset
+
+if "wetdry" not in plt.colormaps():
+    RegisterCustomColormaps()
 import platform
 
 # MPI stuff
@@ -41,11 +52,21 @@ proc = np.zeros(size)
 ierr = np.zeros(size)
 
 # Some color constants for printing to the terminal
-OK   = '\033[92m'
-FAIL = '\033[91m'
-ENDC = '\033[0m'
+OK = "\033[92m"
+FAIL = "\033[91m"
+ENDC = "\033[0m"
 
-def InitializeModels(model_root,models=[],verbose=False,filter="",regex="",model_year=[],log=True,models_path="./"):
+
+def InitializeModels(
+    model_root,
+    models=[],
+    verbose=False,
+    filter="",
+    regex="",
+    model_year=[],
+    log=True,
+    models_path="./",
+):
     """Initializes a list of models
 
     Initializes a list of models where each model is the subdirectory
@@ -71,26 +92,36 @@ def InitializeModels(model_root,models=[],verbose=False,filter="",regex="",model
     """
     # initialize the models
     M = []
-    if len(model_year) != 2: model_year = None
+    if len(model_year) != 2:
+        model_year = None
     max_model_name_len = 0
-    if rank == 0 and verbose: print("\nSearching for model results in %s\n" % model_root)
+    if rank == 0 and verbose:
+        print("\nSearching for model results in %s\n" % model_root)
     for subdir, dirs, files in os.walk(model_root):
         for mname in dirs:
-            if len(models) > 0 and mname not in models: continue
-            pkl_file = os.path.join(models_path,"%s.pkl" % mname)
+            if len(models) > 0 and mname not in models:
+                continue
+            pkl_file = os.path.join(models_path, "%s.pkl" % mname)
             if os.path.isfile(pkl_file):
-                with open(pkl_file,'rb') as infile:
+                with open(pkl_file, "rb") as infile:
                     m = pickle.load(infile)
             else:
                 try:
-                    m = ModelResult(os.path.join(subdir,mname), modelname = mname, filter=filter, regex=regex, model_year = model_year)
+                    m = ModelResult(
+                        os.path.join(subdir, mname),
+                        modelname=mname,
+                        filter=filter,
+                        regex=regex,
+                        model_year=model_year,
+                    )
                 except Exception as ex:
-                    if log: logger.debug("[%s]" % mname,format_exc())
+                    if log:
+                        logger.debug("[%s]" % mname, format_exc())
                     continue
             M.append(m)
-            max_model_name_len = max(max_model_name_len,len(mname))
+            max_model_name_len = max(max_model_name_len, len(mname))
         break
-    M = sorted(M,key=lambda m: m.name.upper())
+    M = sorted(M, key=lambda m: m.name.upper())
 
     # assign unique colors
     clrs = il.GenerateDistinctColors(len(M))
@@ -101,9 +132,9 @@ def InitializeModels(model_root,models=[],verbose=False,filter="",regex="",model
     comm.Barrier()
     if rank == 0:
         for m in M:
-            pkl_file = os.path.join(models_path,"%s.pkl" % m.name)
-            with open(pkl_file,'wb') as out:
-                pickle.dump(m,out,pickle.HIGHEST_PROTOCOL)
+            pkl_file = os.path.join(models_path, "%s.pkl" % m.name)
+            with open(pkl_file, "wb") as out:
+                pickle.dump(m, out, pickle.HIGHEST_PROTOCOL)
 
     # optionally output models which were found
     if rank == 0 and verbose:
@@ -111,7 +142,8 @@ def InitializeModels(model_root,models=[],verbose=False,filter="",regex="",model
             print(("    {0:>45}").format(m.name))
 
     if len(M) == 0:
-        if verbose and rank == 0: print("No model results found")
+        if verbose and rank == 0:
+            print("No model results found")
         comm.Barrier()
         comm.Abort(0)
 
@@ -129,13 +161,12 @@ def _parse_model_yaml(filename: str, cache_path: str = "./", only_models: list =
     with open(filename, encoding="utf-8") as fin:
         yml = yaml.safe_load(fin)
     for name, opts in yml.items():
-
         # optionally filter models
         if len(only_models) > 0 and name not in only_models:
             continue
-        
-        if 'name' not in opts:
-            opts['name'] = name
+
+        if "name" not in opts:
+            opts["name"] = name
 
         # if the model_year option is given, convert to lits of floats
         if "model_year" in opts:
@@ -184,8 +215,8 @@ def _parse_model_yaml(filename: str, cache_path: str = "./", only_models: list =
 
         # some model types allow you to specify snynonms
         if "add_synonym" in fcns and "synonyms" in opts:
-            for mvar, syn in opts['synonyms'].items():
-                model.add_synonym(mvar,syn)
+            for mvar, syn in opts["synonyms"].items():
+                model.add_synonym(mvar, syn)
 
         # cache the model result
         if "read_pickle" in fcns:
@@ -197,11 +228,14 @@ def _parse_model_yaml(filename: str, cache_path: str = "./", only_models: list =
         models.append(model)
 
     for model in models:
-        if isinstance(model.color,str) and model.color.startswith("#"):
+        if isinstance(model.color, str) and model.color.startswith("#"):
             model.color = clr.hex2color(model.color)
     return models
 
-def ParseModelSetup(model_setup,models=[],verbose=False,filter="",regex="",models_path="./"):
+
+def ParseModelSetup(
+    model_setup, models=[], verbose=False, filter="", regex="", models_path="./"
+):
     """Initializes a list of models
 
     Initializes a list of models where each model is the subdirectory
@@ -223,7 +257,8 @@ def ParseModelSetup(model_setup,models=[],verbose=False,filter="",regex="",model
        a list of the model results, sorted alphabetically by name
 
     """
-    if rank == 0 and verbose: print("\nSetting up model results from %s\n" % model_setup)
+    if rank == 0 and verbose:
+        print("\nSetting up model results from %s\n" % model_setup)
 
     # intercept if this is a yaml file
     if model_setup.endswith(".yaml"):
@@ -242,32 +277,42 @@ def ParseModelSetup(model_setup,models=[],verbose=False,filter="",regex="",model
     max_model_name_len = 0
     with open(model_setup) as f:
         for line in f.readlines():
-            if line.strip().startswith("#"): continue
-            line       = line.split(",")
-            mname      = None
-            mdir       = None
+            if line.strip().startswith("#"):
+                continue
+            line = line.split(",")
+            mname = None
+            mdir = None
             model_year = None
-            mgrp       = ""
+            mgrp = ""
             if len(line) >= 2:
-                mname  = line[0].strip()
-                mdir   = line[1].strip()
+                mname = line[0].strip()
+                mdir = line[1].strip()
                 # if mdir not a directory, then maybe path is relative to ILAMB_ROOT
                 if not os.path.isdir(mdir):
-                    mdir = os.path.join(os.environ["ILAMB_ROOT"],mdir).strip()
-                if len(line) == 3: mgrp = line[2].strip()
+                    mdir = os.path.join(os.environ["ILAMB_ROOT"], mdir).strip()
+                if len(line) == 3:
+                    mgrp = line[2].strip()
             if len(line) == 4:
-                model_year = [float(line[2].strip()),float(line[3].strip())]
-            max_model_name_len = max(max_model_name_len,len(mname))
-            if (len(models) > 0 and mname not in models) or (mname is None): continue
-            pkl_file = os.path.join(models_path,"%s.pkl" % mname)
+                model_year = [float(line[2].strip()), float(line[3].strip())]
+            max_model_name_len = max(max_model_name_len, len(mname))
+            if (len(models) > 0 and mname not in models) or (mname is None):
+                continue
+            pkl_file = os.path.join(models_path, "%s.pkl" % mname)
             if os.path.isfile(pkl_file):
-                with open(pkl_file,'rb') as infile:
+                with open(pkl_file, "rb") as infile:
                     m = pickle.load(infile)
             else:
                 try:
-                    m = ModelResult(mdir, modelname = mname, filter=filter, regex=regex, model_year = model_year, group = mgrp)
+                    m = ModelResult(
+                        mdir,
+                        modelname=mname,
+                        filter=filter,
+                        regex=regex,
+                        model_year=model_year,
+                        group=mgrp,
+                    )
                 except Exception as ex:
-                    if log: logger.debug("[%s]" % mname,format_exc())
+                    logger.debug("[%s]" % mname, format_exc())
                     continue
             M.append(m)
 
@@ -280,9 +325,9 @@ def ParseModelSetup(model_setup,models=[],verbose=False,filter="",regex="",model
     comm.Barrier()
     if rank == 0:
         for m in M:
-            pkl_file = os.path.join(models_path,"%s.pkl" % m.name)
-            with open(pkl_file,'wb') as out:
-                pickle.dump(m,out,pickle.HIGHEST_PROTOCOL)
+            pkl_file = os.path.join(models_path, "%s.pkl" % m.name)
+            with open(pkl_file, "wb") as out:
+                pickle.dump(m, out, pickle.HIGHEST_PROTOCOL)
 
     # optionally output models which were found
     if rank == 0 and verbose:
@@ -290,11 +335,13 @@ def ParseModelSetup(model_setup,models=[],verbose=False,filter="",regex="",model
             print(("    {0:>45}").format(m.name))
 
     if len(M) == 0:
-        if verbose and rank == 0: print("No model results found")
+        if verbose and rank == 0:
+            print("No model results found")
         comm.Barrier()
         comm.Abort(0)
 
     return M
+
 
 def InitializeRegions(filenames):
     """Initialize regions from a list of files.
@@ -322,13 +369,17 @@ def InitializeRegions(filenames):
         except IOError:
             for line in open(filename):
                 line = line.strip()
-                if line.startswith("#"): continue
+                if line.startswith("#"):
+                    continue
                 line = line.split(",")
                 if len(line) == 6:
-                    r.addRegionLatLonBounds(line[0].strip(),
-                                            line[1].strip(),
-                                            [float(line[2]),float(line[3])],
-                                            [float(line[4]),float(line[5])])
+                    r.addRegionLatLonBounds(
+                        line[0].strip(),
+                        line[1].strip(),
+                        [float(line[2]), float(line[3])],
+                        [float(line[4]), float(line[5])],
+                    )
+
 
 def MatchRelationshipConfrontation(C):
     """Match relationship strings to confrontation longnames
@@ -350,8 +401,9 @@ def MatchRelationshipConfrontation(C):
         the same list with relationships linked to confrontations
     """
     for c in C:
-        if c.relationships is None: continue
-        for i,longname in enumerate(c.relationships):
+        if c.relationships is None:
+            continue
+        for i, longname in enumerate(c.relationships):
             found = False
             for cor in C:
                 if longname.lower() == cor.longname.lower():
@@ -359,7 +411,8 @@ def MatchRelationshipConfrontation(C):
                     found = True
     return C
 
-def FilterConfrontationList(C,match_list):
+
+def FilterConfrontationList(C, match_list):
     """Filter the confrontation list
 
     Filter the confrontation list by requiring that at least one
@@ -378,14 +431,17 @@ def FilterConfrontationList(C,match_list):
     Cf : list of ILAMB.Confrontation.Confrontation
         the list of filtered confrontations
     """
-    if len(match_list) == 0: return C
+    if len(match_list) == 0:
+        return C
     Cf = []
     for c in C:
         for match in match_list:
-            if match in c.longname: Cf.append(c)
+            if match in c.longname:
+                Cf.append(c)
     return Cf
 
-def BuildLocalWorkList(M,C,skip_cache=False):
+
+def BuildLocalWorkList(M, C, skip_cache=False):
     """Build the local work list
 
     We enumerate a list of work by taking combinations of model
@@ -414,42 +470,43 @@ def BuildLocalWorkList(M,C,skip_cache=False):
     for c in C:
         for m in M:
             if skip_cache:
-
                 # if we want to skip we have to check that it is complete
-                fname = os.path.join(c.output_path,"%s_%s.nc" % (c.name,m.name))
+                fname = os.path.join(c.output_path, "%s_%s.nc" % (c.name, m.name))
                 complete = False
                 if os.path.isfile(fname):
                     try:
                         with Dataset(fname) as dset:
                             if "complete" in dset.ncattrs():
-                                if dset.complete: complete = True
+                                if dset.complete:
+                                    complete = True
                     except:
                         pass
                 if not complete:
                     os.system("rm -f %s" % fname)
-                    W.append([m,c])
+                    W.append([m, c])
             else:
-                W.append([m,c])
+                W.append([m, c])
 
-
-    wpp    = float(len(W))/size
-    begin  = int(round( rank   *wpp))
-    end    = int(round((rank+1)*wpp))
+    wpp = float(len(W)) / size
+    begin = int(round(rank * wpp))
+    end = int(round((rank + 1) * wpp))
     localW = W[begin:end]
 
     # Determine who is the master of each confrontation
     for c in C:
-        sendbuf = np.zeros(size,dtype='int')
+        sendbuf = np.zeros(size, dtype="int")
         for w in localW:
-            if c is w[1]: sendbuf[rank] += 1
+            if c is w[1]:
+                sendbuf[rank] += 1
         recvbuf = None
-        if rank == 0: recvbuf = np.empty([size, sendbuf.size],dtype='int')
-        comm.Gather(sendbuf,recvbuf,root=0)
+        if rank == 0:
+            recvbuf = np.empty([size, sendbuf.size], dtype="int")
+        comm.Gather(sendbuf, recvbuf, root=0)
         if rank == 0:
             numc = recvbuf.sum(axis=1)
         else:
-            numc = np.empty(size,dtype='int')
-        comm.Bcast(numc,root=0)
+            numc = np.empty(size, dtype="int")
+        comm.Bcast(numc, root=0)
         if rank == numc.argmax():
             c.master = True
         else:
@@ -457,7 +514,8 @@ def BuildLocalWorkList(M,C,skip_cache=False):
 
     return localW
 
-def WorkConfront(W,verbose=False,clean=False):
+
+def WorkConfront(W, verbose=False, clean=False):
     """Performs the confrontation analysis
 
     For each model-confrontation pair (m,c) in the input work list,
@@ -474,16 +532,25 @@ def WorkConfront(W,verbose=False,clean=False):
         enable to perform the confrontation again, overwriting previous results
 
     """
-    maxCL = 45; maxML = 20
+    maxCL = 45
+    maxML = 20
 
     # Run analysis on your local work model-confrontation pairs
-    for i,w in enumerate(W):
-        m,c = w
+    for i, w in enumerate(W):
+        m, c = w
 
         # if the results file exists, skip this confrontation unless we want to clean
-        if os.path.isfile(os.path.join(c.output_path,"%s_%s.nc" % (c.name,m.name))) and clean is False:
+        if (
+            os.path.isfile(os.path.join(c.output_path, "%s_%s.nc" % (c.name, m.name)))
+            and clean is False
+        ):
             if verbose:
-                print(("    {0:>%d} {1:<%d} %sUsingCachedData%s " % (maxCL,maxML,OK,ENDC)).format(c.longname,m.name))
+                print(
+                    (
+                        "    {0:>%d} {1:<%d} %sUsingCachedData%s "
+                        % (maxCL, maxML, OK, ENDC)
+                    ).format(c.longname, m.name)
+                )
                 sys.stdout.flush()
             continue
 
@@ -491,21 +558,32 @@ def WorkConfront(W,verbose=False,clean=False):
         try:
             t0 = time.time()
             c.confront(m)
-            dt = time.time()-t0
+            dt = time.time() - t0
             proc[rank] += dt
             if verbose:
-                dt = datetime.timedelta(seconds=max(1,int(np.round(dt))))
-                print(("    {0:>%d} {1:<%d} %sCompleted%s {2:>8}" % (maxCL,maxML,OK,ENDC)).format(c.longname,m.name,str(dt)))
+                dt = datetime.timedelta(seconds=max(1, int(np.round(dt))))
+                print(
+                    (
+                        "    {0:>%d} {1:<%d} %sCompleted%s {2:>8}"
+                        % (maxCL, maxML, OK, ENDC)
+                    ).format(c.longname, m.name, str(dt))
+                )
                 sys.stdout.flush()
 
         # if things do not work out, print the exception so the user has some idea
         except Exception as ex:
             ierr[rank] = 1
-            logger.debug("[%s][%s]\n%s" % (c.longname,m.name,format_exc()))
+            logger.debug("[%s][%s]\n%s" % (c.longname, m.name, format_exc()))
             if verbose:
-                print(("    {0:>%d} {1:<%d} %s%s%s" % (maxCL,maxML,FAIL,ex.__class__.__name__,ENDC)).format(c.longname,m.name))
+                print(
+                    (
+                        "    {0:>%d} {1:<%d} %s%s%s"
+                        % (maxCL, maxML, FAIL, ex.__class__.__name__, ENDC)
+                    ).format(c.longname, m.name)
+                )
 
-def WorkPost(M,C,W,S,verbose=False,skip_plots=False):
+
+def WorkPost(M, C, W, S, verbose=False, skip_plots=False):
     """Performs the post-processing
 
     Determines plot limits across all models, makes plots, generates
@@ -526,52 +604,68 @@ def WorkPost(M,C,W,S,verbose=False,skip_plots=False):
     skip_plots : bool, optional
         enable to skip plotting
     """
-    maxCL = 45; maxML = 20
-    for c in C: c.determinePlotLimits()
-    for i,w in enumerate(W):
-        m,c = w
+    maxCL = 45
+    maxML = 20
+    for c in C:
+        c.determinePlotLimits()
+    for i, w in enumerate(W):
+        m, c = w
         try:
             t0 = time.time()
             c.modelPlots(m)
             c.sitePlots(m)
             c.computeOverallScore(m)
-            dt = time.time()-t0
+            dt = time.time() - t0
             proc[rank] += dt
             if verbose:
-                dt = datetime.timedelta(seconds=max(1,int(np.round(dt))))
-                print(("    {0:>%d} {1:<%d} %sCompleted%s {2:>8}" % (maxCL,maxML,OK,ENDC)).format(c.longname,m.name,str(dt)))
+                dt = datetime.timedelta(seconds=max(1, int(np.round(dt))))
+                print(
+                    (
+                        "    {0:>%d} {1:<%d} %sCompleted%s {2:>8}"
+                        % (maxCL, maxML, OK, ENDC)
+                    ).format(c.longname, m.name, str(dt))
+                )
                 sys.stdout.flush()
         except Exception as ex:
             ierr[rank] = 1
-            logger.debug("[%s][%s]\n%s" % (c.longname,m.name,format_exc()))
+            logger.debug("[%s][%s]\n%s" % (c.longname, m.name, format_exc()))
             if verbose:
-                print(("    {0:>%d} {1:<%d} %s%s%s" % (maxCL,maxML,FAIL,ex.__class__.__name__,ENDC)).format(c.longname,m.name))
+                print(
+                    (
+                        "    {0:>%d} {1:<%d} %s%s%s"
+                        % (maxCL, maxML, FAIL, ex.__class__.__name__, ENDC)
+                    ).format(c.longname, m.name)
+                )
                 sys.stdout.flush()
 
-    sys.stdout.flush(); comm.Barrier()
+    sys.stdout.flush()
+    comm.Barrier()
 
-    for i,c in enumerate(C):
+    for i, c in enumerate(C):
         try:
             c.compositePlots()
         except Exception as ex:
             ierr[rank] = 1
-            logger.debug("[compositePlots][%s]\n%s" % (c.longname,format_exc()))
+            logger.debug("[compositePlots][%s]\n%s" % (c.longname, format_exc()))
         c.generateHtml()
 
-    sys.stdout.flush(); comm.Barrier()
+    sys.stdout.flush()
+    comm.Barrier()
 
-def RestrictiveModelExtents(M,eps=2.):
-    extents0 = np.asarray([[-90.,+90.],[-180.,+180.]])
-    extents  = extents0.copy()
+
+def RestrictiveModelExtents(M, eps=2.0):
+    extents0 = np.asarray([[-90.0, +90.0], [-180.0, +180.0]])
+    extents = extents0.copy()
     for m in M:
-        if not hasattr(m,"extents"):
+        if not hasattr(m, "extents"):
             continue
         for i in range(2):
-            extents[i,0] = max(extents[i,0],m.extents[i,0])
-            extents[i,1] = min(extents[i,1],m.extents[i,1])
-    diff    = np.abs(extents0-extents)
-    extents = (diff<=eps)*extents0 + (diff>eps)*extents
+            extents[i, 0] = max(extents[i, 0], m.extents[i, 0])
+            extents[i, 1] = min(extents[i, 1], m.extents[i, 1])
+    diff = np.abs(extents0 - extents)
+    extents = (diff <= eps) * extents0 + (diff > eps) * extents
     return extents
+
 
 class MPIFileHandler(logging.FileHandler):
     """
@@ -580,26 +674,29 @@ class MPIFileHandler(logging.FileHandler):
     https://gist.github.com/chengdi123000/42ec8ed2cbef09ee050766c2f25498cb
 
     """
-    def __init__(self,
-                 filename,
-                 mode=MPI.MODE_WRONLY|MPI.MODE_CREATE|MPI.MODE_APPEND ,
-                 encoding='utf-8',
-                 delay=False,
-                 comm=MPI.COMM_WORLD ):
+
+    def __init__(
+        self,
+        filename,
+        mode=MPI.MODE_WRONLY | MPI.MODE_CREATE | MPI.MODE_APPEND,
+        encoding="utf-8",
+        delay=False,
+        comm=MPI.COMM_WORLD,
+    ):
         self.baseFilename = os.path.abspath(filename)
         self.mode = mode
         self.encoding = encoding
         self.comm = comm
         if delay:
-            #We don't open the stream, but we still need to call the
-            #Handler constructor to set level, formatter, lock etc.
+            # We don't open the stream, but we still need to call the
+            # Handler constructor to set level, formatter, lock etc.
             logging.Handler.__init__(self)
             self.stream = None
         else:
-           logging.StreamHandler.__init__(self, self._open())
+            logging.StreamHandler.__init__(self, self._open())
 
     def _open(self):
-        stream = MPI.File.Open( self.comm, self.baseFilename, self.mode )
+        stream = MPI.File.Open(self.comm, self.baseFilename, self.mode)
         stream.Set_atomicity(True)
         return stream
 
@@ -622,8 +719,8 @@ class MPIFileHandler(logging.FileHandler):
         try:
             msg = self.format(record)
             stream = self.stream
-            stream.Write_shared((msg+self.terminator).encode(self.encoding))
-            #self.flush()
+            stream.Write_shared((msg + self.terminator).encode(self.encoding))
+            # self.flush()
         except Exception:
             self.handleError(record)
 
@@ -633,103 +730,251 @@ class MPIFileHandler(logging.FileHandler):
             self.stream.Close()
             self.stream = None
 
+
 def ParseRunOptions(filename):
     run_opts = {}
     for line in open(filename).readlines():
         line = line.strip()
         if line.startswith("#!"):
-            m3 = re.search(r"#!(.*)=(.*)",line)
+            m3 = re.search(r"#!(.*)=(.*)", line)
             if m3:
                 keyword = m3.group(1).strip()
-                value   = m3.group(2).strip().replace('"','')
+                value = m3.group(2).strip().replace('"', "")
                 run_opts[keyword] = value
     return run_opts
 
+
 parser = argparse.ArgumentParser(description=__doc__)
-parser.add_argument('--model_root', dest="model_root", metavar='root', type=str, nargs=1, default=["./"],
-                    help='root at which to search for models')
-parser.add_argument('--config', dest="config", metavar='config', type=str, nargs=1,
-                    help='path to configuration file to use')
-parser.add_argument('--models', dest="models", metavar='m', type=str, nargs='+',default=[],
-                    help='specify which models to run, list model names with no quotes and only separated by a space.')
-parser.add_argument('--model_year', dest="model_year", metavar='y0 yf', type=int, nargs='+',default=[],
-                    help='set to shift model years, "--model_year y0 yf" will shift years from y0 to yf')
-parser.add_argument('--study_limits', dest="study_limits", metavar='y0 yf', type=int, nargs='+',default=[],
-                    help='set study period, "--study_limits y0 yf" will limit run from y0 thru yf')
-parser.add_argument('--confrontations', dest="confront", metavar='c', type=str, nargs='+',default=[],
-                    help='specify which confrontations to run, list confrontation names with no quotes and only separated by a space.')
-parser.add_argument('--regions', dest="regions", metavar='r', type=str, nargs='+',default=['global'],
-                    help='specify which regions to compute over')
-parser.add_argument('--clean', dest="clean", action="store_true",
-                    help='enable to remove analysis files and recompute')
-parser.add_argument('--disable_logging', dest="logging", action="store_false",
-                    help='disables logging')
-parser.add_argument('-q','--quiet', dest="quiet", action="store_true",
-                    help='enable to silence screen output')
-parser.add_argument('--filter', dest="filter", metavar='filter', type=str, nargs=1, default=[""],
-                    help='a string which much be in the model filenames')
-parser.add_argument('--regex', dest="regex", metavar='regex', type=str, nargs=1, default=[""],
-                    help='a regular expression which filenames must conform to in order to be included')
-parser.add_argument('--build_dir', dest="build_dir", metavar='build_dir', type=str, nargs=1,default=["./_build"],
-                    help='path of where to save the output')
-parser.add_argument('--define_regions', dest="define_regions", type=str, nargs='+',default=[],
-                    help='list files containing user-defined regions')
-parser.add_argument('--model_setup', dest="model_setup", type=str, nargs='+',default=None,
-                    help='list files model setup information')
-parser.add_argument('--skip_plots', dest="skip_plots", action="store_true",
-                    help='enable to skip the plotting phase')
-parser.add_argument('--rel_only', dest="rel_only", action="store_true",
-                    help='enable only display relative differences in overall scores')
-parser.add_argument('--mem_per_pair', dest="mem_per_pair", metavar='MEM', type=float, default=100000.,
-                    help='maximum memory for IOMB model-confrontation pairs')
-parser.add_argument('--title', dest="run_title", metavar='title', type=str, nargs=1,
-                    help='title of the study to use in the HTML output')
-parser.add_argument('--rmse_score_basis', dest="rmse_score_basis", metavar='basis', type=str, default="cycle",
-                    help='base the RMSE score on the full time series with "series" or just the annual cycle with "cycle"')
-parser.add_argument('--df_errs', dest="df_errs", metavar='df_errs', type=str, default=None,
-                    help='the pandas dataframe with the quantiles to use in scoring.')
-parser.add_argument('-g','--global_region', dest="global_region", type=str, default=None,
-                    help='the ILAMB region to be the default (global) analysis region.')
+parser.add_argument(
+    "--model_root",
+    dest="model_root",
+    metavar="root",
+    type=str,
+    nargs=1,
+    default=["./"],
+    help="root at which to search for models",
+)
+parser.add_argument(
+    "--config",
+    dest="config",
+    metavar="config",
+    type=str,
+    nargs=1,
+    help="path to configuration file to use",
+)
+parser.add_argument(
+    "--models",
+    dest="models",
+    metavar="m",
+    type=str,
+    nargs="+",
+    default=[],
+    help="specify which models to run, list model names with no quotes and only separated by a space.",
+)
+parser.add_argument(
+    "--model_year",
+    dest="model_year",
+    metavar="y0 yf",
+    type=int,
+    nargs="+",
+    default=[],
+    help='set to shift model years, "--model_year y0 yf" will shift years from y0 to yf',
+)
+parser.add_argument(
+    "--study_limits",
+    dest="study_limits",
+    metavar="y0 yf",
+    type=int,
+    nargs="+",
+    default=[],
+    help='set study period, "--study_limits y0 yf" will limit run from y0 thru yf',
+)
+parser.add_argument(
+    "--confrontations",
+    dest="confront",
+    metavar="c",
+    type=str,
+    nargs="+",
+    default=[],
+    help="specify which confrontations to run, list confrontation names with no quotes and only separated by a space.",
+)
+parser.add_argument(
+    "--regions",
+    dest="regions",
+    metavar="r",
+    type=str,
+    nargs="+",
+    default=["global"],
+    help="specify which regions to compute over",
+)
+parser.add_argument(
+    "--clean",
+    dest="clean",
+    action="store_true",
+    help="enable to remove analysis files and recompute",
+)
+parser.add_argument(
+    "--disable_logging", dest="logging", action="store_false", help="disables logging"
+)
+parser.add_argument(
+    "-q",
+    "--quiet",
+    dest="quiet",
+    action="store_true",
+    help="enable to silence screen output",
+)
+parser.add_argument(
+    "--filter",
+    dest="filter",
+    metavar="filter",
+    type=str,
+    nargs=1,
+    default=[""],
+    help="a string which much be in the model filenames",
+)
+parser.add_argument(
+    "--regex",
+    dest="regex",
+    metavar="regex",
+    type=str,
+    nargs=1,
+    default=[""],
+    help="a regular expression which filenames must conform to in order to be included",
+)
+parser.add_argument(
+    "--build_dir",
+    dest="build_dir",
+    metavar="build_dir",
+    type=str,
+    nargs=1,
+    default=["./_build"],
+    help="path of where to save the output",
+)
+parser.add_argument(
+    "--define_regions",
+    dest="define_regions",
+    type=str,
+    nargs="+",
+    default=[],
+    help="list files containing user-defined regions",
+)
+parser.add_argument(
+    "--model_setup",
+    dest="model_setup",
+    type=str,
+    nargs="+",
+    default=None,
+    help="list files model setup information",
+)
+parser.add_argument(
+    "--skip_plots",
+    dest="skip_plots",
+    action="store_true",
+    help="enable to skip the plotting phase",
+)
+parser.add_argument(
+    "--rel_only",
+    dest="rel_only",
+    action="store_true",
+    help="enable only display relative differences in overall scores",
+)
+parser.add_argument(
+    "--mem_per_pair",
+    dest="mem_per_pair",
+    metavar="MEM",
+    type=float,
+    default=100000.0,
+    help="maximum memory for IOMB model-confrontation pairs",
+)
+parser.add_argument(
+    "--title",
+    dest="run_title",
+    metavar="title",
+    type=str,
+    nargs=1,
+    help="title of the study to use in the HTML output",
+)
+parser.add_argument(
+    "--rmse_score_basis",
+    dest="rmse_score_basis",
+    metavar="basis",
+    type=str,
+    default="cycle",
+    help='base the RMSE score on the full time series with "series" or just the annual cycle with "cycle"',
+)
+parser.add_argument(
+    "--df_errs",
+    dest="df_errs",
+    metavar="df_errs",
+    type=str,
+    default=None,
+    help="the pandas dataframe with the quantiles to use in scoring.",
+)
+parser.add_argument(
+    "-g",
+    "--global_region",
+    dest="global_region",
+    type=str,
+    default=None,
+    help="the ILAMB region to be the default (global) analysis region.",
+)
 args = parser.parse_args()
 if args.config is None:
     if rank == 0:
-        print("\nError: You must specify a configuration file using the option --config\n")
+        print(
+            "\nError: You must specify a configuration file using the option --config\n"
+        )
     comm.Barrier()
     comm.Abort(1)
 
 # Additional options could be in the configure file
 run_opts = ParseRunOptions(args.config[0])
 for key in run_opts:
-    if key in ['define_regions']:
-        define_regions = [os.path.join(os.environ['ILAMB_ROOT'],r) for r in run_opts[key].split(",")]
+    if key in ["define_regions"]:
+        define_regions = [
+            os.path.join(os.environ["ILAMB_ROOT"], r) for r in run_opts[key].split(",")
+        ]
         args.__dict__[key] += define_regions
-assert args.rmse_score_basis in ['series','cycle']
+assert args.rmse_score_basis in ["series", "cycle"]
 
 # Setup regions
 r = Regions()
 InitializeRegions(args.define_regions)
 missing = []
 for region in args.regions:
-    if region not in r.regions: missing.append(region)
+    if region not in r.regions:
+        missing.append(region)
 if len(missing) > 0:
-    raise ValueError("Unable to find the following regions %s from the following list of possible regions %s" % (missing,r.regions))
+    raise ValueError(
+        "Unable to find the following regions %s from the following list of possible regions %s"
+        % (missing, r.regions)
+    )
 if args.global_region:
     r.setGlobalRegion(args.global_region)
 
 # Setup study
 T0 = time.time()
-if rank==0:
-    if not os.path.isdir(args.build_dir[0]): os.makedirs(args.build_dir[0])
+if rank == 0:
+    if not os.path.isdir(args.build_dir[0]):
+        os.makedirs(args.build_dir[0])
 if args.model_setup is None:
-    M = InitializeModels(args.model_root[0],
-                         args.models,
-                         not args.quiet,
-                         filter=args.filter[0],
-                         regex=args.regex[0],
-                         model_year=args.model_year,
-                         models_path=args.build_dir[0])
+    M = InitializeModels(
+        args.model_root[0],
+        args.models,
+        not args.quiet,
+        filter=args.filter[0],
+        regex=args.regex[0],
+        model_year=args.model_year,
+        models_path=args.build_dir[0],
+    )
 else:
-    M = ParseModelSetup(args.model_setup[0],args.models,not args.quiet,filter=args.filter[0],models_path=args.build_dir[0])
+    M = ParseModelSetup(
+        args.model_setup[0],
+        args.models,
+        not args.quiet,
+        filter=args.filter[0],
+        models_path=args.build_dir[0],
+    )
 
 
 try:
@@ -737,106 +982,142 @@ try:
     if args.df_errs is not None:
         df_errs = pd.read_parquet(args.df_errs)
 except:
-    if rank==0:
+    if rank == 0:
         print("Unable to read quantiles")
     comm.Abort(0)
 
 
-if rank == 0 and not args.quiet: print("\nParsing config file %s...\n" % args.config[0])
-S = Scoreboard(args.config[0],
-               regions   = args.regions,
-               master    = rank==0,
-               verbose   = not args.quiet,
-               build_dir = args.build_dir[0],
-               extents   = RestrictiveModelExtents(M),
-               rel_only  = args.rel_only,
-               mem_per_pair = args.mem_per_pair,
-               run_title = args.run_title,
-               rmse_score_basis = args.rmse_score_basis,
-               df_errs = df_errs)
-C  = MatchRelationshipConfrontation(S.list())
+if rank == 0 and not args.quiet:
+    print("\nParsing config file %s...\n" % args.config[0])
+S = Scoreboard(
+    args.config[0],
+    regions=args.regions,
+    master=rank == 0,
+    verbose=not args.quiet,
+    build_dir=args.build_dir[0],
+    extents=RestrictiveModelExtents(M),
+    rel_only=args.rel_only,
+    mem_per_pair=args.mem_per_pair,
+    run_title=args.run_title,
+    rmse_score_basis=args.rmse_score_basis,
+    df_errs=df_errs,
+)
+C = MatchRelationshipConfrontation(S.list())
 if len(args.study_limits) == 2:
     args.study_limits[1] += 1
-    for c in C: c.study_limits = (np.asarray(args.study_limits)-1850)*365.
-Cf = FilterConfrontationList(C,args.confront)
-if rank == 0: os.system("cp %s %s" % (args.config[0],os.path.join(args.build_dir[0],"ilamb.cfg")))
+    for c in C:
+        c.study_limits = (np.asarray(args.study_limits) - 1850) * 365.0
+Cf = FilterConfrontationList(C, args.confront)
+if rank == 0:
+    os.system(
+        "cp %s %s" % (args.config[0], os.path.join(args.build_dir[0], "ilamb.cfg"))
+    )
 
 # Setup logging
-logger    = logging.getLogger("%i" % comm.rank)
-logname   = ""
-formatter = logging.Formatter('[%(levelname)s][%(name)s][%(funcName)s]%(message)s')
+logger = logging.getLogger("%i" % comm.rank)
+logname = ""
+formatter = logging.Formatter("[%(levelname)s][%(name)s][%(funcName)s]%(message)s")
 logger.setLevel(logging.DEBUG)
 if args.logging:
-    logname = '%s/ILAMB%02d.log' % (S.build_dir,len(glob.glob("%s/*.log" % S.build_dir))+1)
+    logname = "%s/ILAMB%02d.log" % (
+        S.build_dir,
+        len(glob.glob("%s/*.log" % S.build_dir)) + 1,
+    )
     mh = MPIFileHandler(logname)
     mh.setFormatter(formatter)
     logger.addHandler(mh)
 
 if rank == 0:
     logger.info(" " + " ".join(platform.uname()))
-    for key in ["ILAMB","numpy","matplotlib","netCDF4","cf_units","sympy","mpi4py"]:
-        pkg  = __import__(key)
+    for key in [
+        "ILAMB",
+        "numpy",
+        "matplotlib",
+        "netCDF4",
+        "cf_units",
+        "sympy",
+        "mpi4py",
+    ]:
+        pkg = __import__(key)
         try:
             path = pkg.__path__[0]
         except:
             path = key
-        logger.info(" %s (%s)" % (path,pkg.__version__))
+        logger.info(" %s (%s)" % (path, pkg.__version__))
     logger.info(" %s" % datetime.datetime.now())
 
 if rank == 0 and not args.quiet and len(Cf) != len(C):
     print("\nWe filtered some confrontations, actually running...\n")
-    for c in Cf: print(("    {0:>45}").format(c.longname))
+    for c in Cf:
+        print(("    {0:>45}").format(c.longname))
 C = Cf
 
-sys.stdout.flush(); comm.Barrier()
+sys.stdout.flush()
+comm.Barrier()
 
-if rank==0 and not args.quiet: print("\nRunning model-confrontation pairs...\n")
+if rank == 0 and not args.quiet:
+    print("\nRunning model-confrontation pairs...\n")
 
-sys.stdout.flush(); comm.Barrier()
+sys.stdout.flush()
+comm.Barrier()
 
-W = BuildLocalWorkList(M,C,skip_cache=True)
-WorkConfront(W,not args.quiet,args.clean)
+W = BuildLocalWorkList(M, C, skip_cache=True)
+WorkConfront(W, not args.quiet, args.clean)
 
-sys.stdout.flush(); comm.Barrier()
+sys.stdout.flush()
+comm.Barrier()
 
 if not args.skip_plots:
+    if rank == 0 and not args.quiet:
+        print("\nFinishing post-processing which requires collectives...\n")
 
-    if rank==0 and not args.quiet: print("\nFinishing post-processing which requires collectives...\n")
+    sys.stdout.flush()
+    comm.Barrier()
 
-    sys.stdout.flush(); comm.Barrier()
+    W = BuildLocalWorkList(M, C, skip_cache=False)
+    WorkPost(M, C, W, S, not args.quiet)
 
-    W = BuildLocalWorkList(M,C,skip_cache=False)
-    WorkPost(M,C,W,S,not args.quiet)
-
-if rank==0:
+if rank == 0:
     S.createHtml(M)
     S.createUDDashboard()
 
-sys.stdout.flush(); comm.Barrier()
+sys.stdout.flush()
+comm.Barrier()
 
 # Runtime information
 proc_reduced = np.zeros(proc.shape)
 ierr_reduced = np.zeros(ierr.shape)
-comm.Reduce(proc,proc_reduced,root=0)
-comm.Reduce(ierr,ierr_reduced,root=0)
-if size > 1: logger.info("[process time] %.1f s" % proc[rank])
-if rank==0:
-    logger.info("[total time] %.1f s" % (time.time()-T0))
+comm.Reduce(proc, proc_reduced, root=0)
+comm.Reduce(ierr, ierr_reduced, root=0)
+if size > 1:
+    logger.info("[process time] %.1f s" % proc[rank])
+if rank == 0:
+    logger.info("[total time] %.1f s" % (time.time() - T0))
     if size > 1:
         if proc_reduced.min() > 1e-6:
-            logger.info("[process balance] %.2f" % (proc_reduced.max()/proc_reduced.min()))
+            logger.info(
+                "[process balance] %.2f" % (proc_reduced.max() / proc_reduced.min())
+            )
         else:
             logger.info("[process balance] nan")
-        logger.info("[parallel efficiency] %.0f%%" % (100.*proc_reduced.sum()/float(size)/(time.time()-T0)))
+        logger.info(
+            "[parallel efficiency] %.0f%%"
+            % (100.0 * proc_reduced.sum() / float(size) / (time.time() - T0))
+        )
 
-if rank==0:
-    S.dumpScores(M,"scores.csv")
+if rank == 0:
+    S.dumpScores(M, "scores.csv")
     S.harvestInformation(M)
 
-if (rank == 0              and
-    ierr_reduced.max() > 0 and
-    args.logging           and
-    not args.quiet):
-    print("\nErrors occurred in the run, please consult %s for more detailed information" % logname)
+if rank == 0 and ierr_reduced.max() > 0 and args.logging and not args.quiet:
+    print(
+        "\nErrors occurred in the run, please consult %s for more detailed information"
+        % logname
+    )
 
-if rank==0 and not args.quiet: print("\nCompleted in {0:>8}\n".format(str(datetime.timedelta(seconds=int(np.round((time.time()-T0)))))))
+if rank == 0 and not args.quiet:
+    print(
+        "\nCompleted in {0:>8}\n".format(
+            str(datetime.timedelta(seconds=int(np.round((time.time() - T0)))))
+        )
+    )

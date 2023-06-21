@@ -12,8 +12,8 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
-from . import ilamblib as il
-from .Variable import Variable
+from ILAMB import ilamblib as il
+from ILAMB.Variable import Variable
 
 
 def compute_cell_measures(dset: xr.Dataset) -> xr.DataArray:

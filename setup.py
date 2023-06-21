@@ -1,47 +1,49 @@
 #!/usr/bin/env python
-from setuptools import setup
-from codecs import open
-import subprocess
 import os
+import subprocess
+from codecs import open
 
-VERSION    = '2.6'
+from setuptools import setup
+
+VERSION = "2.6"
+
 
 def git_version():
     """
     Return the sha1 of local git HEAD as a string.
     """
+
     def _minimal_ext_cmd(cmd):
         # construct minimal environment
         env = {}
-        for k in ['SYSTEMROOT', 'PATH', 'PYTHONPATH']:
+        for k in ["SYSTEMROOT", "PATH", "PYTHONPATH"]:
             v = os.environ.get(k)
             if v is not None:
                 env[k] = v
         # LANGUAGE is used on win32
-        env['LANGUAGE'] = 'C'
-        env['LANG'] = 'C'
-        env['LC_ALL'] = 'C'
-        out = subprocess.Popen(
-            cmd,
-            stdout=subprocess.PIPE,
-            env=env
-        ).communicate()[0]
+        env["LANGUAGE"] = "C"
+        env["LANG"] = "C"
+        env["LC_ALL"] = "C"
+        out = subprocess.Popen(cmd, stdout=subprocess.PIPE, env=env).communicate()[0]
         return out
+
     try:
-        out = _minimal_ext_cmd(['git', 'rev-parse', 'HEAD'])
-        git_revision = out.strip().decode('ascii')
+        out = _minimal_ext_cmd(["git", "rev-parse", "HEAD"])
+        git_revision = out.strip().decode("ascii")
     except OSError:
         git_revision = "unknown-git"
     return git_revision
 
+
 def write_text(filename, text):
     try:
-        with open(filename, 'w') as a:
+        with open(filename, "w") as a:
             a.write(text)
     except Exception as e:
         print(e)
-        
-def write_version_py(filename=os.path.join('src/ILAMB', 'generated_version.py')):
+
+
+def write_version_py(filename=os.path.join("src/ILAMB", "generated_version.py")):
     cnt = """
 # THIS FILE IS GENERATED FROM ILAMB SETUP.PY
 short_version = '%(version)s'
@@ -54,69 +56,74 @@ if not release:
     version = full_version
 """
     FULL_VERSION = VERSION
-    if os.path.isdir('.git'):
+    if os.path.isdir(".git"):
         GIT_REVISION = git_version()
-        ISRELEASED   = False
+        ISRELEASED = False
     else:
         GIT_REVISION = "RELEASE"
-        ISRELEASED   = True
+        ISRELEASED = True
 
-    FULL_VERSION += '.dev-' + GIT_REVISION
-    text = cnt % {'version': VERSION,
-                  'full_version': FULL_VERSION,
-                  'git_revision': GIT_REVISION,
-                  'isrelease': str(ISRELEASED)}
+    FULL_VERSION += ".dev-" + GIT_REVISION
+    text = cnt % {
+        "version": VERSION,
+        "full_version": FULL_VERSION,
+        "git_revision": GIT_REVISION,
+        "isrelease": str(ISRELEASED),
+    }
     write_text(filename, text)
 
-    
+
 here = os.path.abspath(os.path.dirname(__file__))
-with open(os.path.join(here, 'README.rst'), encoding='utf-8') as f:
+with open(os.path.join(here, "README.rst"), encoding="utf-8") as f:
     long_description = f.read()
 
-write_version_py()    
+write_version_py()
 setup(
-    name='ILAMB',
+    name="ILAMB",
     version=VERSION,
-    description='The International Land Model Benchmarking Package',
+    description="The International Land Model Benchmarking Package",
     long_description=long_description,
-    url='https://github.com/rubisco-sfa/ILAMB.git',
-    author='Nathan Collier',
-    author_email='nathaniel.collier@gmail.com',
-    #license='MIT',
+    url="https://github.com/rubisco-sfa/ILAMB.git",
+    author="Nathan Collier",
+    author_email="nathaniel.collier@gmail.com",
+    license="BSD-3-Clause",
     classifiers=[
-        'Development Status :: 5 - Production/Stable',
-        'Intended Audience :: Science/Research',
-        'Topic :: Scientific/Engineering',
-        #'License :: OSI Approved :: MIT License',
-        'Operating System :: MacOS',
-        'Operating System :: POSIX',
-        'Operating System :: POSIX :: Linux',
-        'Programming Language :: Python :: 3',
+        "Development Status :: 5 - Production/Stable",
+        "Intended Audience :: Science/Research",
+        "Topic :: Scientific/Engineering",
+        "License :: OSI Approved :: BSD-3-Clause",
+        "Operating System :: MacOS",
+        "Operating System :: POSIX",
+        "Operating System :: POSIX :: Linux",
+        "Programming Language :: Python :: 3",
     ],
-    keywords=['benchmarking','earth system modeling','climate modeling','model intercomparison'],
-    packages=['ILAMB'],
-    package_dir={'' : 'src'},
-    package_data={'ILAMB' : ['data/*.cfg','data/*.parquet']},
-    scripts=['bin/ilamb-run','bin/ilamb-fetch','bin/ilamb-mean','bin/ilamb-doctor','bin/ilamb-table',
-             'bin/ilamb-setup'],
+    keywords=[
+        "benchmarking",
+        "earth system modeling",
+        "climate modeling",
+        "model intercomparison",
+    ],
+    packages=["ILAMB"],
+    package_dir={"": "src"},
+    package_data={"ILAMB": ["data/*.cfg", "data/*.parquet"]},
+    scripts=["bin/ilamb-run", "bin/ilamb-fetch", "bin/ilamb-mean", "bin/ilamb-setup"],
     zip_safe=False,
-    install_requires=['numpy>=1.11.0, != 1.24.3',
-                      'pandas>=1.0.0',
-                      'matplotlib>=2.2',
-                      'cartopy>=0.17.0',
-                      'netCDF4>=1.1.4',
-                      'cf_units>=2.0.0',
-                      'sympy>=0.7.6',
-                      'mpi4py>=1.3.1',
-                      'scipy>=0.9.0',
-                      'cftime',
-                      'tqdm',
-                      'pyarrow',
-                      'pyyaml'],
+    install_requires=[
+        "numpy>=1.11.0, != 1.24.3",
+        "pandas>=1.0.0",
+        "matplotlib>=2.2",
+        "cartopy>=0.17.0",
+        "netCDF4>=1.1.4",
+        "cf_units>=2.0.0",
+        "sympy>=0.7.6",
+        "mpi4py>=1.3.1",
+        "scipy>=0.9.0",
+        "cftime",
+        "tqdm",
+        "pyarrow",
+        "pyyaml",
+    ],
     extras_require={
-        "watershed": ["contextily",
-                      "geopandas",
-                      "dataretrieval",
-                      "pynhd"],
+        "watershed": ["contextily", "geopandas", "dataretrieval", "pynhd"],
     },
 )

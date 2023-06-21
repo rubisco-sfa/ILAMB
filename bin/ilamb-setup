@@ -1,14 +1,16 @@
 #!/usr/bin/env python
 """Cartopy needs to download assets when it plots. If you first launch
 ilamb-run in parallel the server blocks your downloads and then
-plotting will fail. 
+plotting will fail.
 """
-import matplotlib.pyplot as plt
+import os
+
 import cartopy.crs as ccrs
 import cartopy.feature as cfeature
-import os
-fig,ax = plt.subplots(subplot_kw={'projection':ccrs.Robinson()})
-ax.add_feature(cfeature.NaturalEarthFeature('physical','land','110m'))
-ax.add_feature(cfeature.NaturalEarthFeature('physical','ocean','110m'))
+import matplotlib.pyplot as plt
+
+fig, ax = plt.subplots(subplot_kw={"projection": ccrs.Robinson()})
+ax.add_feature(cfeature.NaturalEarthFeature("physical", "land", "110m"))
+ax.add_feature(cfeature.NaturalEarthFeature("physical", "ocean", "110m"))
 fig.savefig("junk.png")
 os.system("rm junk.png")

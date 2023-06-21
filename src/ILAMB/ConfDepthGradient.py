@@ -1,7 +1,8 @@
 import numpy as np
 
-from .Confrontation import Confrontation
-from .Variable import Variable
+from ILAMB.Confrontation import Confrontation
+from ILAMB.Variable import Variable
+
 
 def compute_depth_gradient(
     var: Variable, depth_min: float = 200, depth_max: float = 1000
@@ -37,10 +38,10 @@ def compute_depth_gradient(
         lon_bnds=mean.lon_bnds,
     )
 
+
 class ConfDepthGradient(Confrontation):
-        
-    def stageData(self,m):
-        obs, mod = super(ConfDepthGradient,self).stageData(m)
+    def stageData(self, m):
+        obs, mod = super(ConfDepthGradient, self).stageData(m)
         obs = compute_depth_gradient(obs)
         mod = compute_depth_gradient(mod)
         return obs, mod
