@@ -1,27 +1,5 @@
-from ILAMB.ConfAlbedo import ConfAlbedo
-from ILAMB.ConfBasin import ConfBasin
-from ILAMB.ConfBurntArea import ConfBurntArea
-from ILAMB.ConfCO2 import ConfCO2
-from ILAMB.ConfContentChange import ConfContentChange
-from ILAMB.ConfDepthGradient import ConfDepthGradient
-from ILAMB.ConfDiurnal import ConfDiurnal
-from ILAMB.ConfEvapFraction import ConfEvapFraction
-from ILAMB.ConfGSNF import ConfGSNF
-from ILAMB.ConfIOMB import ConfIOMB
-from ILAMB.ConfNBP import ConfNBP
-from ILAMB.ConfPermafrost import ConfPermafrost
-from ILAMB.Confrontation import Confrontation
-from ILAMB.ConfRunoff import ConfRunoff
-from ILAMB.ConfSoilCarbon import ConfSoilCarbon
-from ILAMB.ConfSWE import ConfSWE
-from ILAMB.ConfTWSA import ConfTWSA
-from ILAMB.ConfUncertainty import ConfUncertainty
-
-try:
-    from ILAMB.ConfUSGS import ConfUSGS
-except:
-    ConfUSGS = None
 import glob
+import importlib
 import json
 import os
 import re
@@ -30,9 +8,45 @@ from copy import deepcopy
 import numpy as np
 from netCDF4 import Dataset
 
+import ILAMB
+from ILAMB.Confrontation import Confrontation
 from ILAMB.ilamblib import MisplacedData
 from ILAMB.Post import CreateJSON, HarvestScalarDatabase
 from ILAMB.Regions import Regions
+
+
+def get_confrontation_files():
+    """Return Confrontation child classes and their installed location."""
+    conf_files = {}
+    pkg_root = ILAMB.__path__[0]
+    for root, _, files in os.walk(pkg_root):
+        for file in files:
+            if not file.endswith(".py"):
+                continue
+            with open(os.path.join(root, file)) as fin:
+                match = re.search("class\s(.*)\(Confrontation\):", fin.read())
+                if match:
+                    conf_files[match.group(1)] = os.path.join(pkg_root, root, file)
+    return conf_files
+
+
+def dynamic_import(module_name, py_path):
+    """Import the modules given the full path."""
+    module_spec = importlib.util.spec_from_file_location(module_name, py_path)
+    module = importlib.util.module_from_spec(module_spec)
+    try:
+        module_spec.loader.exec_module(module)
+    except:
+        return None
+    return module.__dict__[module_name]
+
+
+# Dynamically import all confrontation types
+ConfrontationTypes = {
+    None: Confrontation,
+}
+for ctype, path in get_confrontation_files().items():
+    ConfrontationTypes[ctype] = dynamic_import(ctype, path)
 
 global_print_node_string = ""
 global_confrontation_list = []
@@ -387,29 +401,6 @@ def CompositeScores(tree, M):
             np.seterr(over="raise", under="raise")
 
     TraversePostorder(tree, _loadScores)
-
-
-ConfrontationTypes = {
-    None: Confrontation,
-    "ConfNBP": ConfNBP,
-    "ConfTWSA": ConfTWSA,
-    "ConfRunoff": ConfRunoff,
-    "ConfBasin": ConfBasin,
-    "ConfEvapFraction": ConfEvapFraction,
-    "ConfIOMB": ConfIOMB,
-    "ConfDiurnal": ConfDiurnal,
-    "ConfPermafrost": ConfPermafrost,
-    "ConfAlbedo": ConfAlbedo,
-    "ConfSWE": ConfSWE,
-    "ConfCO2": ConfCO2,
-    "ConfSoilCarbon": ConfSoilCarbon,
-    "ConfUncertainty": ConfUncertainty,
-    "ConfBurntArea": ConfBurntArea,
-    "ConfDepthGradient": ConfDepthGradient,
-    "ConfContentChange": ConfContentChange,
-    "ConfGSNF": ConfGSNF,
-    "ConfUSGS": ConfUSGS,
-}
 
 
 class Scoreboard:
