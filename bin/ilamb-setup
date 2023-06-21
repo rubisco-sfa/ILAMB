@@ -7,8 +7,9 @@ import matplotlib.pyplot as plt
 import cartopy.crs as ccrs
 import cartopy.feature as cfeature
 import os
-fig,ax = plt.subplots(subplot_kw={'projection':ccrs.Robinson()})
-ax.add_feature(cfeature.NaturalEarthFeature('physical','land','110m'))
-ax.add_feature(cfeature.NaturalEarthFeature('physical','ocean','110m'))
+
+fig, ax = plt.subplots(subplot_kw={"projection": ccrs.Robinson()})
+ax.add_feature(cfeature.NaturalEarthFeature("physical", "land", "110m"))
+ax.add_feature(cfeature.NaturalEarthFeature("physical", "ocean", "110m"))
 fig.savefig("junk.png")
 os.system("rm junk.png")

@@ -11,6 +11,7 @@ from .Variable import Variable
 from netCDF4 import Dataset
 from scipy.interpolate import CubicSpline
 
+
 class ConfGSNF(Confrontation):
     """Implements the growing season net flux (GSNF) metric described in this
     [paper](https://doi.org/10.1029/2022GB007520)."""
@@ -35,7 +36,7 @@ class ConfGSNF(Confrontation):
             m.extractTimeSeries(
                 model_flux,
                 expression=model_flux,
-                initial_time=(2000 - 1850) * 365, # earlier so CMIP5 will be included
+                initial_time=(2000 - 1850) * 365,  # earlier so CMIP5 will be included
                 final_time=(2017 - 1850) * 365,
             )
             .trim(lat=[20, 90])
@@ -58,7 +59,7 @@ class ConfGSNF(Confrontation):
         def _carbon(var):
             """Compute total carbon but only where flux is positive"""
             var = deepcopy(var)
-            var.data = -var.data.clip(var.data.min(),0)
+            var.data = -var.data.clip(var.data.min(), 0)
             var = var.integrateInTime()
             var.convert("Pg")
             var.name = "Growing Season Net Flux"
@@ -66,19 +67,21 @@ class ConfGSNF(Confrontation):
 
         def _seasonality(var):
             """Get timing of the season beginning, ending, and maximum"""
-            x = np.hstack([var.time  % 365, (var.time[0] % 365) + 365])
+            x = np.hstack([var.time % 365, (var.time[0] % 365) + 365])
             y = np.hstack([var.data, var.data[0]])
             cs = CubicSpline(x, y, bc_type="periodic")
             season_endpoints = [round(r) for r in cs.roots() if (r > 0 and r <= 365)]
-            assert(len(season_endpoints)==2)
+            assert len(season_endpoints) == 2
             season_max = cs(range(365)).argmin()
             assert season_max > season_endpoints[0]
             assert season_max < season_endpoints[1]
             out = [
-                Variable(name="Season Begin global",unit="d",data=season_endpoints[0]),
-                Variable(name="Season End global",unit="d",data=season_endpoints[1]),
-                Variable(name="Season Max global",unit="d",data=season_max)
-                ]
+                Variable(
+                    name="Season Begin global", unit="d", data=season_endpoints[0]
+                ),
+                Variable(name="Season End global", unit="d", data=season_endpoints[1]),
+                Variable(name="Season Max global", unit="d", data=season_max),
+            ]
             return out
 
         # total carbon
@@ -88,9 +91,11 @@ class ConfGSNF(Confrontation):
         # seasonality, score is normalized by 2 months
         obs_season = _seasonality(obs)
         mod_season = _seasonality(mod)
-        score = [1-(np.abs(m.data-o.data)/60) for o,m in zip(obs_season,mod_season)]
+        score = [
+            1 - (np.abs(m.data - o.data) / 60) for o, m in zip(obs_season, mod_season)
+        ]
         mod_season.append(
-            Variable(name="Season Score global",unit="1",data=np.array(score).mean())
+            Variable(name="Season Score global", unit="1", data=np.array(score).mean())
         )
 
         # simple score of total carbon based on relative error

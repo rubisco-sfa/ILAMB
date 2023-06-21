@@ -5,20 +5,30 @@ from ILAMB.ModelResult import ModelResult
 from ILAMB.Scoreboard import Scoreboard
 from ILAMB.Regions import Regions
 from ILAMB import ilamblib as il
-import os,time,sys,argparse
+import os, time, sys, argparse
 import numpy as np
-import datetime,glob
+import datetime, glob
 import pickle
 from sympy import sympify
 from netCDF4 import Dataset
 
 # Some color constants for printing to the terminal
-OK   = '\033[92m'
-FAIL = '\033[91m'
-ENDC = '\033[0m'
+OK = "\033[92m"
+FAIL = "\033[91m"
+ENDC = "\033[0m"
 rank = 0
 
-def InitializeModels(model_root,models=[],verbose=False,filter="",regex="",model_year=[],log=True,models_path="./"):
+
+def InitializeModels(
+    model_root,
+    models=[],
+    verbose=False,
+    filter="",
+    regex="",
+    model_year=[],
+    log=True,
+    models_path="./",
+):
     """Initializes a list of models
 
     Initializes a list of models where each model is the subdirectory
@@ -42,54 +52,68 @@ def InitializeModels(model_root,models=[],verbose=False,filter="",regex="",model
        a list of the model results, sorted alphabetically by name
 
     """
-    # initialize the models    
+    # initialize the models
     M = []
-    if len(model_year) != 2: model_year = None
+    if len(model_year) != 2:
+        model_year = None
     max_model_name_len = 0
-    if rank == 0 and verbose: print("\nSearching for model results in %s\n" % model_root)
+    if rank == 0 and verbose:
+        print("\nSearching for model results in %s\n" % model_root)
     for subdir, dirs, files in os.walk(model_root):
         for mname in dirs:
-            if len(models) > 0 and mname not in models: continue
-            pkl_file = os.path.join(models_path,"%s.pkl" % mname)
+            if len(models) > 0 and mname not in models:
+                continue
+            pkl_file = os.path.join(models_path, "%s.pkl" % mname)
             if os.path.isfile(pkl_file):
-                with open(pkl_file,'rb') as infile:
+                with open(pkl_file, "rb") as infile:
                     m = pickle.load(infile)
             else:
                 try:
-                    m = ModelResult(os.path.join(subdir,mname), modelname = mname, filter=filter, regex=regex, model_year = model_year)
+                    m = ModelResult(
+                        os.path.join(subdir, mname),
+                        modelname=mname,
+                        filter=filter,
+                        regex=regex,
+                        model_year=model_year,
+                    )
                 except Exception as ex:
-                    if log: logger.debug("[%s]" % mname,format_exc())
+                    if log:
+                        logger.debug("[%s]" % mname, format_exc())
                     continue
             M.append(m)
-            max_model_name_len = max(max_model_name_len,len(mname))
+            max_model_name_len = max(max_model_name_len, len(mname))
         break
-    M = sorted(M,key=lambda m: m.name.upper())
-    
+    M = sorted(M, key=lambda m: m.name.upper())
+
     # assign unique colors
     clrs = il.GenerateDistinctColors(len(M))
     for m in M:
-        clr     = clrs.pop(0)
+        clr = clrs.pop(0)
         m.color = clr
 
     # save model objects as pickle files
     if rank == 0:
         for m in M:
-            pkl_file = os.path.join(models_path,"%s.pkl" % m.name)
-            with open(pkl_file,'wb') as out:
-                pickle.dump(m,out,pickle.HIGHEST_PROTOCOL)
-        
+            pkl_file = os.path.join(models_path, "%s.pkl" % m.name)
+            with open(pkl_file, "wb") as out:
+                pickle.dump(m, out, pickle.HIGHEST_PROTOCOL)
+
     # optionally output models which were found
     if rank == 0 and verbose:
         for m in M:
             print(("    {0:>45}").format(m.name))
 
     if len(M) == 0:
-        if verbose and rank == 0: print("No model results found")
+        if verbose and rank == 0:
+            print("No model results found")
         sys.exit()
-        
+
     return M
 
-def ParseModelSetup(model_setup,models=[],verbose=False,filter="",regex="",models_path="./"):
+
+def ParseModelSetup(
+    model_setup, models=[], verbose=False, filter="", regex="", models_path="./"
+):
     """Initializes a list of models
 
     Initializes a list of models where each model is the subdirectory
@@ -114,142 +138,231 @@ def ParseModelSetup(model_setup,models=[],verbose=False,filter="",regex="",model
     # initialize the models
     M = []
     max_model_name_len = 0
-    if rank == 0 and verbose: print("\nSetting up model results from %s\n" % model_setup)
+    if rank == 0 and verbose:
+        print("\nSetting up model results from %s\n" % model_setup)
     with open(model_setup) as f:
         for line in f.readlines():
-            if line.strip().startswith("#"): continue
-            line       = line.split(",")
-            mname      = None
-            mdir       = None
+            if line.strip().startswith("#"):
+                continue
+            line = line.split(",")
+            mname = None
+            mdir = None
             model_year = None
             if len(line) >= 2:
-                mname  = line[0].strip()
-                mdir   = line[1].strip()
+                mname = line[0].strip()
+                mdir = line[1].strip()
                 # if mdir not a directory, then maybe path is relative to ILAMB_ROOT
                 if not os.path.isdir(mdir):
-                    mdir = os.path.join(os.environ["ILAMB_ROOT"],mdir).strip()
+                    mdir = os.path.join(os.environ["ILAMB_ROOT"], mdir).strip()
             if len(line) == 4:
-                model_year = [float(line[2].strip()),float(line[3].strip())]
-            max_model_name_len = max(max_model_name_len,len(mname))
-            if (len(models) > 0 and mname not in models) or (mname is None): continue
-            pkl_file = os.path.join(models_path,"%s.pkl" % mname)
+                model_year = [float(line[2].strip()), float(line[3].strip())]
+            max_model_name_len = max(max_model_name_len, len(mname))
+            if (len(models) > 0 and mname not in models) or (mname is None):
+                continue
+            pkl_file = os.path.join(models_path, "%s.pkl" % mname)
             if os.path.isfile(pkl_file):
-                with open(pkl_file,'rb') as infile:
+                with open(pkl_file, "rb") as infile:
                     m = pickle.load(infile)
             else:
                 try:
-                    m = ModelResult(mdir, modelname = mname, filter=filter, regex=regex, model_year = model_year)
+                    m = ModelResult(
+                        mdir,
+                        modelname=mname,
+                        filter=filter,
+                        regex=regex,
+                        model_year=model_year,
+                    )
                 except Exception as ex:
-                    if log: logger.debug("[%s]" % mname,format_exc())
+                    if log:
+                        logger.debug("[%s]" % mname, format_exc())
                     continue
             M.append(m)
 
     # assign unique colors
     clrs = il.GenerateDistinctColors(len(M))
     for m in M:
-        clr     = clrs.pop(0)
+        clr = clrs.pop(0)
         m.color = clr
 
     # save model objects as pickle files
     if rank == 0:
         for m in M:
-            pkl_file = os.path.join(models_path,"%s.pkl" % m.name)
-            with open(pkl_file,'wb') as out:
-                pickle.dump(m,out,pickle.HIGHEST_PROTOCOL)
-                
+            pkl_file = os.path.join(models_path, "%s.pkl" % m.name)
+            with open(pkl_file, "wb") as out:
+                pickle.dump(m, out, pickle.HIGHEST_PROTOCOL)
+
     # optionally output models which were found
     if rank == 0 and verbose:
         for m in M:
             print(("    {0:>45}").format(m.name))
 
     if len(M) == 0:
-        if verbose and rank == 0: print("No model results found")
+        if verbose and rank == 0:
+            print("No model results found")
         sys.exit()
-        
+
     return M
 
+
 parser = argparse.ArgumentParser(description=__doc__)
-parser.add_argument('--model_root', dest="model_root", metavar='root', type=str, nargs=1, default=["./"],
-                    help='root at which to search for models')
-parser.add_argument('--model_setup', dest="model_setup", type=str, nargs='+',default=None,
-                    help='list files model setup information')
-parser.add_argument('--config', dest="config", metavar='config', type=str, nargs=1,
-                    help='path to configuration file to use')
-parser.add_argument('--models', dest="models", metavar='m', type=str, nargs='+',default=[],
-                    help='specify which models to run, list model names with no quotes and only separated by a space.')
-parser.add_argument('--model_year', dest="model_year", metavar='y0 yf', type=int, nargs='+',default=[],
-                    help='set to shift model years, "--model_year y0 yf" will shift years from y0 to yf')
-parser.add_argument('--confrontations', dest="confront", metavar='c', type=str, nargs='+',default=[],
-                    help='specify which confrontations to run, list confrontation names with no quotes and only separated by a space.')
-parser.add_argument('-q','--quiet', dest="quiet", action="store_true",
-                    help='enable to silence screen output')
-parser.add_argument('--filter', dest="filter", metavar='filter', type=str, nargs=1, default=[""],
-                    help='a string which much be in the model filenames')
-parser.add_argument('--build_dir', dest="build_dir", metavar='build_dir', type=str, nargs=1,default=["./_build"],
-                    help='path of where to save the output')
+parser.add_argument(
+    "--model_root",
+    dest="model_root",
+    metavar="root",
+    type=str,
+    nargs=1,
+    default=["./"],
+    help="root at which to search for models",
+)
+parser.add_argument(
+    "--model_setup",
+    dest="model_setup",
+    type=str,
+    nargs="+",
+    default=None,
+    help="list files model setup information",
+)
+parser.add_argument(
+    "--config",
+    dest="config",
+    metavar="config",
+    type=str,
+    nargs=1,
+    help="path to configuration file to use",
+)
+parser.add_argument(
+    "--models",
+    dest="models",
+    metavar="m",
+    type=str,
+    nargs="+",
+    default=[],
+    help="specify which models to run, list model names with no quotes and only separated by a space.",
+)
+parser.add_argument(
+    "--model_year",
+    dest="model_year",
+    metavar="y0 yf",
+    type=int,
+    nargs="+",
+    default=[],
+    help='set to shift model years, "--model_year y0 yf" will shift years from y0 to yf',
+)
+parser.add_argument(
+    "--confrontations",
+    dest="confront",
+    metavar="c",
+    type=str,
+    nargs="+",
+    default=[],
+    help="specify which confrontations to run, list confrontation names with no quotes and only separated by a space.",
+)
+parser.add_argument(
+    "-q",
+    "--quiet",
+    dest="quiet",
+    action="store_true",
+    help="enable to silence screen output",
+)
+parser.add_argument(
+    "--filter",
+    dest="filter",
+    metavar="filter",
+    type=str,
+    nargs=1,
+    default=[""],
+    help="a string which much be in the model filenames",
+)
+parser.add_argument(
+    "--build_dir",
+    dest="build_dir",
+    metavar="build_dir",
+    type=str,
+    nargs=1,
+    default=["./_build"],
+    help="path of where to save the output",
+)
 
 args = parser.parse_args()
 if args.config is None:
     print("\nError: You must specify a configuration file using the option --config\n")
     sys.exit(1)
-    
-if args.model_setup is None:
-    M = InitializeModels(args.model_root[0],
-                         args.models,
-                         not args.quiet,
-                         filter=args.filter[0],
-                         regex=args.regex[0],
-                         model_year=args.model_year,
-                         models_path=args.build_dir[0])
-else:
-    M = ParseModelSetup(args.model_setup[0],args.models,not args.quiet,filter=args.filter[0],models_path=args.build_dir[0])
 
-S = Scoreboard(args.config[0],
-               verbose   = True,
-               build_dir = args.build_dir[0])
+if args.model_setup is None:
+    M = InitializeModels(
+        args.model_root[0],
+        args.models,
+        not args.quiet,
+        filter=args.filter[0],
+        regex=args.regex[0],
+        model_year=args.model_year,
+        models_path=args.build_dir[0],
+    )
+else:
+    M = ParseModelSetup(
+        args.model_setup[0],
+        args.models,
+        not args.quiet,
+        filter=args.filter[0],
+        models_path=args.build_dir[0],
+    )
+
+S = Scoreboard(args.config[0], verbose=True, build_dir=args.build_dir[0])
 
 maxM = 0
 maxC = 0
-for m in M: maxM = max(maxM,len(m.name))
-for c in S.list(): maxC = max(maxC,len(c.longname))
+for m in M:
+    maxM = max(maxM, len(m.name))
+for c in S.list():
+    maxC = max(maxC, len(c.longname))
 
 for m in M:
     model = ("[{0:>%d}]" % maxM).format(m.name)
-    missing = [v for v in ["areacella","sftlf"] if v not in m.variables]
-    if len(missing) > 0: print("%s%s missing all of [%s]" % (model," "*(maxC+2),",".join(missing)))
+    missing = [v for v in ["areacella", "sftlf"] if v not in m.variables]
+    if len(missing) > 0:
+        print("%s%s missing all of [%s]" % (model, " " * (maxC + 2), ",".join(missing)))
     for c in S.list():
         conf = ("[{0:>%d}]" % maxC).format(c.longname)
-        ors = [c.variable,] + c.alternate_vars
-        ands = [] if c.derived is None else [str(s) for s in sympify(c.derived).free_symbols]
+        ors = [
+            c.variable,
+        ] + c.alternate_vars
+        ands = (
+            []
+            if c.derived is None
+            else [str(s) for s in sympify(c.derived).free_symbols]
+        )
         ok = False
         # does the model have one of the alternate variables?
         for v in ors:
-            if v in m.variables: ok = True
+            if v in m.variables:
+                ok = True
         # if not, does the model have all of the free symbols of the derived expression?
         if not ok and len(ands) > 0:
             ok = all([v in m.variables for v in ands])
         # if not, then this is a problem and report
         if not ok:
             tail = "missing one of [%s]" % (",".join(ors))
-            if len(ands)>0: tail += " or all of [%s]" % (",".join(ands))
-            print("%s%s %s" % (model,conf,tail))
+            if len(ands) > 0:
+                tail += " or all of [%s]" % (",".join(ands))
+            print("%s%s %s" % (model, conf, tail))
         else:
-            # if the model has all the variables, it may have still failed, check for a score    
-            fname = os.path.join(c.output_path,"%s_%s.nc" % (c.name,m.name))
+            # if the model has all the variables, it may have still failed, check for a score
+            fname = os.path.join(c.output_path, "%s_%s.nc" % (c.name, m.name))
             if not os.path.isfile(fname):
-                print("%s%s %s" % (model,conf,"no output file"))
+                print("%s%s %s" % (model, conf, "no output file"))
                 continue
             with Dataset(fname) as dset:
                 if dset.complete == 0:
-                    print("%s%s %s" % (model,conf,"file present but not complete"))
+                    print("%s%s %s" % (model, conf, "file present but not complete"))
                     continue
                 try:
-                    v = dset.groups["MeanState"].groups["scalars"].variables["Overall Score global"]
+                    v = (
+                        dset.groups["MeanState"]
+                        .groups["scalars"]
+                        .variables["Overall Score global"]
+                    )
                 except:
-                    print("%s%s %s" % (model,conf,"failed to find the overall score"))
+                    print("%s%s %s" % (model, conf, "failed to find the overall score"))
                     continue
                 if np.isnan(v[...].data).any():
-                    print("%s%s %s" % (model,conf,"overall score is Nan"))
-                    
-
-            
+                    print("%s%s %s" % (model, conf, "overall score is Nan"))

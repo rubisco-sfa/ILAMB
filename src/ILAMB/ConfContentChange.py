@@ -41,5 +41,5 @@ class ConfContentChange(Confrontation):
 
         obs = _insert_dummy_time(obs)
         mod = _insert_dummy_time(mod)
-        
+
         return obs, mod

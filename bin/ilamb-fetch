@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-import hashlib,argparse,os,sys
+import hashlib, argparse, os, sys
 import requests
 from tqdm import tqdm
 
@@ -7,17 +7,20 @@ from tqdm import tqdm
 # screens. However, I am passing a more readable warning to the user
 # instructing them.
 from requests.packages.urllib3.exceptions import InsecureRequestWarning
+
 requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
+
 
 def BuildDirectories(filepath):
     d = os.path.dirname(filepath)
     if not os.path.isdir(d):
         os.makedirs(d)
-        
+
+
 def filehash(filepath):
-    blocksize = 64*1024
+    blocksize = 64 * 1024
     sha = hashlib.sha1()
-    with open(filepath, 'rb') as fp:
+    with open(filepath, "rb") as fp:
         while True:
             data = fp.read(blocksize)
             if not data:
@@ -25,126 +28,174 @@ def filehash(filepath):
             sha.update(data)
     return sha.hexdigest()
 
-def GenerateSha1sumFile(root,suffix=".nc"):
-    
+
+def GenerateSha1sumFile(root, suffix=".nc"):
+
     lines = ""
     for topdir, dirs, files in os.walk(root):
-        if topdir.startswith(  "_"): continue
-        if topdir.startswith("./_"): continue        
+        if topdir.startswith("_"):
+            continue
+        if topdir.startswith("./_"):
+            continue
         for fpath in [os.path.join(topdir, f) for f in files]:
-            if not fpath.endswith(suffix): continue
+            if not fpath.endswith(suffix):
+                continue
             size = os.path.getsize(fpath)
             sha = filehash(fpath)
             name = os.path.relpath(fpath, root)
-            lines += '%s  %s\n' % (sha,name)
+            lines += "%s  %s\n" % (sha, name)
     return lines
 
-def CheckSha1sumFile(sha1sumfile,root):
+
+def CheckSha1sumFile(sha1sumfile, root):
 
     needs_updating = []
     with open(sha1sumfile) as f:
         lines = f.readlines()
         for line in lines:
             line = line.split()
-            sha1sum,filename = line
-            fpath = os.path.join(root,filename)
+            sha1sum, filename = line
+            fpath = os.path.join(root, filename)
             if os.path.isfile(fpath):
-                if sha1sum != filehash(fpath): needs_updating.append(filename)
+                if sha1sum != filehash(fpath):
+                    needs_updating.append(filename)
             else:
                 needs_updating.append(filename)
     return needs_updating
 
+
 # default value is ILAMB_ROOT if set
 local_root = "./"
-if "ILAMB_ROOT" in os.environ: local_root = os.environ["ILAMB_ROOT"]
+if "ILAMB_ROOT" in os.environ:
+    local_root = os.environ["ILAMB_ROOT"]
 
 # parse options
 parser = argparse.ArgumentParser(description=__doc__)
-parser.add_argument('--local_root', dest="local_root", metavar="PATH", type=str, default=local_root,
-                    help='Location on your system.')
-parser.add_argument('--remote_root', dest="remote_root", metavar="PATH", type=str, default="https://www.ilamb.org/ILAMB-Data/",
-                    help='Location on the remote system.')
-parser.add_argument('-c', '--create', dest="create", action="store_true",
-                    help='Enable to create a sha1sum check file of the contents of the local root')
-parser.add_argument('--no-check-certificate', dest="check", action="store_true",
-                    help='Enable to skip checking authenticity of the downloaded certificate')
-parser.add_argument('-y', dest="auto_accept", action="store_true",
-                    help='Enable to automatically accept the query to download files')
+parser.add_argument(
+    "--local_root",
+    dest="local_root",
+    metavar="PATH",
+    type=str,
+    default=local_root,
+    help="Location on your system.",
+)
+parser.add_argument(
+    "--remote_root",
+    dest="remote_root",
+    metavar="PATH",
+    type=str,
+    default="https://www.ilamb.org/ILAMB-Data/",
+    help="Location on the remote system.",
+)
+parser.add_argument(
+    "-c",
+    "--create",
+    dest="create",
+    action="store_true",
+    help="Enable to create a sha1sum check file of the contents of the local root",
+)
+parser.add_argument(
+    "--no-check-certificate",
+    dest="check",
+    action="store_true",
+    help="Enable to skip checking authenticity of the downloaded certificate",
+)
+parser.add_argument(
+    "-y",
+    dest="auto_accept",
+    action="store_true",
+    help="Enable to automatically accept the query to download files",
+)
 args = parser.parse_args()
 
 # use create mode if you want to make a checksum file of a directory
 if args.create:
-    with open(args.local_root + "/SHA1SUM",mode="w") as f:
+    with open(args.local_root + "/SHA1SUM", mode="w") as f:
         f.write(GenerateSha1sumFile(args.local_root))
     sys.exit()
-    
-print("\nComparing remote location:\n\n\t%s\n\nTo local location:\n\n\t%s" % (args.remote_root,args.local_root))
+
+print(
+    "\nComparing remote location:\n\n\t%s\n\nTo local location:\n\n\t%s"
+    % (args.remote_root, args.local_root)
+)
 
 # download and build the sha1sum check files
 try:
-    resp = requests.get(args.remote_root + "/SHA1SUM", verify= (not args.check))
+    resp = requests.get(args.remote_root + "/SHA1SUM", verify=(not args.check))
 except requests.exceptions.SSLError:
-    print("""
+    print(
+        """
 SSLError: The certificate from the remote site you contacted could not
 be verified. If you trust this site (for example if you are connecting
 to our server https://www.ilamb.org) then you may rerun ilamb-fetch
 with the --no-check-certificate option which will bypass the
 certificate check step.
-""")
+"""
+    )
     sys.exit(1)
 
-with open(args.local_root  + "/SHA1SUM", "wb") as f:
+with open(args.local_root + "/SHA1SUM", "wb") as f:
     f.write(resp.content)
-if "404 Not Found" in open(args.local_root  + "/SHA1SUM").read():
-    raise ValueError("Could not find the sha1 sum file: %s" % (args.remote_root + "/SHA1SUM"))
-needs_updating = CheckSha1sumFile(args.local_root  + "/SHA1SUM",args.local_root)
+if "404 Not Found" in open(args.local_root + "/SHA1SUM").read():
+    raise ValueError(
+        "Could not find the sha1 sum file: %s" % (args.remote_root + "/SHA1SUM")
+    )
+needs_updating = CheckSha1sumFile(args.local_root + "/SHA1SUM", args.local_root)
 
 if len(needs_updating) == 0:
     print("\nAll your data is up-to-date and clean.\n")
-    os.system("rm -f " + args.local_root  + "/SHA1SUM")
+    os.system("rm -f " + args.local_root + "/SHA1SUM")
     sys.exit()
 
 print("\nI found the following files which are missing, out of date, or corrupt:\n")
 
 for key in needs_updating:
-    print("\t%s%s" % (args.local_root,key))
+    print("\t%s%s" % (args.local_root, key))
 
 if args.auto_accept:
-    reply = 'y'
+    reply = "y"
 else:
-    reply = str(input('\nCalculate Total Download size? [y/n] ')).lower().strip()
+    reply = str(input("\nCalculate Total Download size? [y/n] ")).lower().strip()
 
 if reply[0] == "y":
     total_download_size = 0
     with tqdm(total=len(needs_updating)) as pbar:
         for key in needs_updating:
-            resp = requests.get(args.remote_root + "/" + key, stream=True, verify=(not args.check))
-            total_download_size += int(resp.headers.get('content-length'))
+            resp = requests.get(
+                args.remote_root + "/" + key, stream=True, verify=(not args.check)
+            )
+            total_download_size += int(resp.headers.get("content-length"))
             pbar.update(1)
     print("\nTotal download size: %6.1f MB" % (total_download_size / 1e6))
 
 if args.auto_accept:
-    reply = 'y'
+    reply = "y"
 else:
-    reply = str(input('\nDownload replacements? [y/n] ')).lower().strip()
-if reply[0] == 'y':
+    reply = str(input("\nDownload replacements? [y/n] ")).lower().strip()
+if reply[0] == "y":
     print(" ")
     for key in needs_updating:
-        print("\tDownloading %s/%s..." % (args.remote_root,key))
-        BuildDirectories(args.local_root  + "/" + key)
-        resp = requests.get(args.remote_root + "/" + key, stream=True, verify=(not args.check))
-        total_size = int(resp.headers.get('content-length'))
+        print("\tDownloading %s/%s..." % (args.remote_root, key))
+        BuildDirectories(args.local_root + "/" + key)
+        resp = requests.get(
+            args.remote_root + "/" + key, stream=True, verify=(not args.check)
+        )
+        total_size = int(resp.headers.get("content-length"))
         initial_pos = 0
-        file = args.local_root  + "/" + key
+        file = args.local_root + "/" + key
         with open(file, "wb") as f:
-            with tqdm(total=total_size,
-                      unit='B', unit_scale=True, desc=file,
-                      initial=initial_pos, ascii=True) as pbar:
+            with tqdm(
+                total=total_size,
+                unit="B",
+                unit_scale=True,
+                desc=file,
+                initial=initial_pos,
+                ascii=True,
+            ) as pbar:
                 for ch in resp.iter_content(chunk_size=1024):
                     if ch:
                         f.write(ch)
                         pbar.update(len(ch))
     print("\nDownload complete. Rerun ilamb-fetch to check file integrity.\n")
-    
-os.system("rm -f " + args.local_root  + "/SHA1SUM")
 
+os.system("rm -f " + args.local_root + "/SHA1SUM")
