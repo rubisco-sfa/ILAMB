@@ -32,7 +32,7 @@ def git_version():
         git_revision = out.strip().decode("ascii")
     except OSError:
         git_revision = "unknown-git"
-    return git_revision
+    return git_revision[:7]
 
 
 def write_text(filename, text):
