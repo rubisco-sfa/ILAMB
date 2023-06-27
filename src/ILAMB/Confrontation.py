@@ -585,7 +585,7 @@ class Confrontation(object):
 
         # For those limits which we built up data across all models, compute the percentiles
         for pname in limits.keys():
-            if "data" in limits[pname]:
+            if "data" in limits[pname] and len(limits[pname]["data"]) > 0:
                 limits[pname]["min"], limits[pname]["max"] = np.percentile(
                     limits[pname]["data"], [1, 99]
                 )
