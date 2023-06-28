@@ -91,7 +91,7 @@ setup(
         "Development Status :: 5 - Production/Stable",
         "Intended Audience :: Science/Research",
         "Topic :: Scientific/Engineering",
-        "License :: OSI Approved :: BSD-3-Clause",
+        "License :: OSI Approved :: BSD License",
         "Operating System :: MacOS",
         "Operating System :: POSIX",
         "Operating System :: POSIX :: Linux",
