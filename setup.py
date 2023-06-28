@@ -32,7 +32,7 @@ def git_version():
         git_revision = out.strip().decode("ascii")
     except OSError:
         git_revision = "unknown-git"
-    return git_revision
+    return git_revision[:7]
 
 
 def write_text(filename, text):
@@ -74,7 +74,7 @@ if not release:
 
 
 here = os.path.abspath(os.path.dirname(__file__))
-with open(os.path.join(here, "README.rst"), encoding="utf-8") as f:
+with open(os.path.join(here, "README.md"), encoding="utf-8") as f:
     long_description = f.read()
 
 write_version_py()
@@ -91,7 +91,7 @@ setup(
         "Development Status :: 5 - Production/Stable",
         "Intended Audience :: Science/Research",
         "Topic :: Scientific/Engineering",
-        "License :: OSI Approved :: BSD-3-Clause",
+        "License :: OSI Approved :: BSD License",
         "Operating System :: MacOS",
         "Operating System :: POSIX",
         "Operating System :: POSIX :: Linux",

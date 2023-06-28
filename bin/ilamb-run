@@ -219,11 +219,12 @@ def _parse_model_yaml(filename: str, cache_path: str = "./", only_models: list =
                 model.add_synonym(mvar, syn)
 
         # cache the model result
-        if "read_pickle" in fcns:
-            model.to_pickle(cache)
-        else:
-            with open(cache, mode="wb") as fin:
-                pickle.dump(model, fin)
+        if rank == 0:
+            if "read_pickle" in fcns:
+                model.to_pickle(cache)
+            else:
+                with open(cache, mode="wb") as fin:
+                    pickle.dump(model, fin)
 
         models.append(model)
 
