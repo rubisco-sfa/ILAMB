@@ -1,48 +1,149 @@
+from copy import deepcopy
+
 import cartopy.crs as ccrs
 import cartopy.feature as cfeature
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib import colors
 from netCDF4 import Dataset
 
 from ILAMB import ilamblib as il
 from ILAMB.Confrontation import Confrontation
-from ILAMB.Post import ColorBar
 from ILAMB.Variable import Variable
 
+FIGURE_DPI = 100
 
-def _ALTFromTSL(tsl, dmax=3.5, dres=0.01, Teps=273.15):
-    """ """
-    from scipy.interpolate import interp1d
 
-    # find the annual cycle
-    mask = tsl.data.mask.all(axis=(0, 1))
-    area = tsl.area
-    tsl = tsl.annualCycle()
+def permafrost_extent_slater2013(
+    tsl: Variable, dmax: float = 3.5, Teps: float = 273.15
+) -> Variable:
+    """Return the estimated permafrost extent.
 
-    # which month is the mean soil temperature maximum?
-    T = tsl.data.mean(axis=1).argmax(axis=0)
-    T = T[np.newaxis, np.newaxis, ...] * np.ones((1,) + tsl.data.shape[-3:], dtype=int)
-    D, X, Y = np.ix_(
-        np.arange(tsl.data.shape[1]),
-        np.arange(tsl.data.shape[2]),
-        np.arange(tsl.data.shape[3]),
+    From Slater2013, "If soil at a depth within 3.5 m of the surface (based on the lower
+    boundary of a model's soil layers) maintains a temperature of 0°C or less for the
+    present and prior year, it is considered to contain permafrost."
+
+    Parameters
+    ----------
+    tsl
+        The soil temperatures in [K].
+    dmax
+        The maximum depth to consider in [m].
+    Teps
+        The temperature threshold to use to indicate permafrost [K].
+
+    """
+    tsl = tsl.trim(d=[0, dmax])
+    # First we compute the maximum annual temperature for all depth/lat/lon and check if
+    # it is below the temperature threshold.
+    ext = tsl.data.reshape((-1, 12) + tsl.data.shape[-3:]).max(axis=1) < Teps
+    # If the difference is 0, then consecutive entries are the same and we have a
+    # repeated year. If the ext itself is also 1, then we have a repeated year of
+    # permafrost. If this is true at all in the time and depth dimension, we flag this
+    # gridcell as permafrosted.
+    ext = ((np.diff(ext, axis=0) == 0) * (ext[1:] == 1)).any(axis=(0, 1))
+    # Now mask out the un-permarosted areas
+    ext = np.ma.masked_values(ext, False).astype(float)
+    ext = Variable(
+        name="permafrost_extent",
+        unit="1",
+        data=ext,
+        lat=tsl.lat,
+        lat_bnds=tsl.lat_bnds,
+        lon=tsl.lon,
+        lon_bnds=tsl.lon_bnds,
     )
-    d = tsl.depth
-    tsl = tsl.data[T, D, X, Y]
-    tsl = tsl.reshape(tsl.shape[-3:])
+    return ext
 
-    # now we interpolate to find a more precise active layer thickness
-    D = np.arange(0, dmax + 0.1 * dres, dres)
-    TSL = interp1d(d, tsl, axis=0, fill_value="extrapolate")
-    TSL = TSL(D)
 
-    # the active layer thickness is then the sum of all level
-    # thicknesses whose temperature is greater than the threshold.
-    ALT = np.ma.masked_array(
-        (TSL > Teps).sum(axis=0) * dres, mask=mask + (TSL > Teps).all(axis=0)
+def add_continent_shading(ax):
+    """Add shading to the matplotlib axis."""
+    ax.add_feature(
+        cfeature.NaturalEarthFeature(
+            "physical", "land", "110m", edgecolor="face", facecolor="0.875"
+        ),
+        zorder=-1,
     )
+    ax.add_feature(
+        cfeature.NaturalEarthFeature(
+            "physical", "ocean", "110m", edgecolor="face", facecolor="0.750"
+        ),
+        zorder=-1,
+    )
+    ax.set_global()
 
-    return ALT
+
+def plot_extent(var: Variable, filename: str) -> None:
+    var.data = np.ma.masked_values(var.data, 0)
+    fig, ax = plt.subplots(
+        figsize=(10, 12),
+        dpi=FIGURE_DPI,
+        subplot_kw={
+            "projection": ccrs.Orthographic(central_latitude=90, central_longitude=180)
+        },
+        tight_layout=True,
+    )
+    vals = np.unique(var.data.compressed())
+    if vals.size == 1:
+        lbls = ["           Permafrost Extent"]
+    elif vals.size == 2:
+        lbls = ["Continuous Permafrost", "Discontinuous Permafrost"]
+    else:
+        raise ValueError()
+    norm_bins = np.sort(vals) + 0.5
+    norm_bins = np.insert(norm_bins, 0, np.min(norm_bins) - 1.0)
+    pcm = ax.pcolormesh(
+        np.hstack([var.lon_bnds[:, 0], var.lon_bnds[-1, -1]]),
+        np.hstack([var.lat_bnds[:, 0], var.lat_bnds[-1, -1]]),
+        var.data,
+        cmap=plt.get_cmap("Blues_r", 4),
+        norm=colors.BoundaryNorm(norm_bins, vals.size, clip=True),
+        transform=ccrs.PlateCarree(),
+    )
+    add_continent_shading(ax)
+    cb = fig.colorbar(pcm, location="bottom", pad=0.07)
+    cb.set_ticks(vals, labels=lbls)
+    cb.ax.tick_params(rotation=90, labelsize=18)
+    fig.savefig(filename, dpi="figure")
+    plt.close()
+
+
+def plot_bias(var: Variable, filename: str) -> None:
+    nm = 2
+    fig, ax = plt.subplots(
+        figsize=(10, 12),
+        dpi=FIGURE_DPI,
+        subplot_kw={
+            "projection": ccrs.Orthographic(central_latitude=+90, central_longitude=180)
+        },
+        tight_layout=True,
+    )
+    cm = plt.get_cmap("bwr", 2 * nm + 1)
+    norm_bins = np.sort(list(range(-nm, nm + 1))) + 0.5
+    norm_bins = np.insert(norm_bins, 0, np.min(norm_bins) - 1.0)
+    norm = colors.BoundaryNorm(norm_bins, 2 * nm + 1, clip=True)
+    pcm = ax.pcolormesh(
+        np.hstack([var.lon_bnds[:, 0], var.lon_bnds[-1, -1]]),
+        np.hstack([var.lat_bnds[:, 0], var.lat_bnds[-1, -1]]),
+        var.data,
+        cmap=cm,
+        norm=norm,
+        transform=ccrs.PlateCarree(),
+    )
+    add_continent_shading(ax)
+    cb = fig.colorbar(pcm, location="bottom", pad=0.07)
+    cb.set_ticks(
+        list(range(-nm, nm + 1)),
+        labels=[
+            "Overlap Continuous",
+            "   Overlap Discontinuous",
+            "Excess Area",
+            "Missed Discontinuous",
+            "Missed Continuous",
+        ],
+    )
+    cb.ax.tick_params(rotation=90, labelsize=18)
+    fig.savefig(filename, dpi="figure")
 
 
 class ConfPermafrost(Confrontation):
@@ -54,205 +155,185 @@ class ConfPermafrost(Confrontation):
         self.layout
         self.regions = ["global"]
         self.layout.regions = self.regions
-        self.weight = {"Missed Score": 1.0, "Excess Score": 1.0}
+        self.weight = {
+            "Missed Continuous Score": 2.0,
+            "Missed Discontinuous Score": 1.0,
+            "Excess Score": 3.0,
+        }
         for page in self.layout.pages:
             page.setMetricPriority(
                 [
                     "Total Area",
-                    "Overlap Area",
-                    "Missed Area",
+                    "Overlap Continuous Area",
+                    "Overlap Discontinuous Area",
+                    "Missed Continuous Area",
+                    "Missed Discontinuous Area",
                     "Excess Area",
-                    "Missed Score",
+                    "Missed Continuous Score",
+                    "Missed Discontinuous Score",
                     "Excess Score",
                     "Overall Score",
                 ]
             )
 
     def stageData(self, m):
+        """Return the observation and model permafrost extent."""
         obs = Variable(filename=self.source, variable_name="permafrost_extent")
-
-        # These parameters may be changed from the configure file
-        y0 = float(
-            self.keywords.get("y0", 1970.0)
-        )  # [yr]      beginning year to include in analysis
-        yf = float(
-            self.keywords.get("yf", 2000.0)
-        )  # [yr]      end year to include in analysis
-        dmax = float(
-            self.keywords.get("dmax", 3.5)
-        )  # [m]       consider layers where depth in is the range [0,dmax]
-        Teps = float(
-            self.keywords.get("Teps", 273.15)
-        )  # [K]       temperature below which we assume permafrost occurs
-
-        t0 = (y0 - 1850.0) * 365.0
-        tf = (yf + 1 - 1850.0) * 365.0
-        mod = m.extractTimeSeries(self.variable, initial_time=t0, final_time=tf)
-        mod.trim(
-            t=[t0, tf], lat=[max(obs.lat.min(), mod.lat.min()), 90], d=[0, dmax]
-        )  # .annualCycle()
-
-        alt = _ALTFromTSL(mod)
-        mod = Variable(
-            name="permafrost_extent",
-            unit="1",
-            data=np.ma.masked_array((alt >= 0).astype(float), mask=alt.mask),
-            lat=mod.lat,
-            lon=mod.lon,
-            area=mod.area,
+        if obs.temporal:
+            obs = obs.integrateInTime(mean=True)
+        obs.name = "permafrost_extent"
+        y0 = float(self.keywords.get("y0", 1985.0))
+        yf = float(self.keywords.get("yf", 2005.0))
+        dmax = float(self.keywords.get("dmax", 3.5))
+        Teps = float(self.keywords.get("Teps", 273.15))
+        tsl = m.extractTimeSeries(
+            "tsl", initial_time=(y0 - 1850) * 365, final_time=(yf - 1850) * 365
         )
+        tsl = tsl.trim(lat=[max(obs.lat.min(), tsl.lat.min()), 90])
+
+        # estimate extent from the soil temperatures
+        mod = permafrost_extent_slater2013(tsl, dmax=dmax, Teps=Teps)
+
+        # mask out where modeled land fraction is less than 30%
+        with np.errstate(under="ignore"):
+            mod.data.mask += (
+                tsl.area.data / il.CellAreas(None, None, tsl.lat_bnds, tsl.lon_bnds)
+            ) < 0.3
+
+        # mask out reference values which are marked as glaciers
+        mod.data.mask += (
+            Variable(
+                unit="1",
+                data=((~obs.data.mask) * (obs.data.data == 0)),
+                lat=obs.lat,
+                lat_bnds=obs.lat_bnds,
+                lon=obs.lon,
+                lon_bnds=obs.lon_bnds,
+            )
+            .interpolate(lat=mod.lat, lon=mod.lon)
+            .data.data
+        )
+        obs.data.mask += obs.data.data == 0
         return obs, mod
 
     def confront(self, m):
+        """."""
+
+        def _area_bias(bias: Variable, flag: int) -> Variable:
+            var = deepcopy(bias)
+            var.data = var.data == flag
+            return var.integrateInSpace().convert("1e6 km2").data
+
         obs, mod = self.stageData(m)
-        obs_area = obs.integrateInSpace().convert("1e6 km2")
-        mod_area = mod.integrateInSpace().convert("1e6 km2")
 
-        # Interpolate to a composed grid
+        # compose the grids and then just use standard numpy arrays for comparisons
         lat, lon, lat_bnds, lon_bnds = il._composeGrids(obs, mod)
-        OBS = obs.interpolate(lat=lat, lon=lon, lat_bnds=lat_bnds, lon_bnds=lon_bnds)
-        MOD = mod.interpolate(lat=lat, lon=lon, lat_bnds=lat_bnds, lon_bnds=lon_bnds)
+        obs_c = obs.interpolate(lat=lat, lon=lon, lat_bnds=lat_bnds, lon_bnds=lon_bnds)
+        mod_c = mod.interpolate(lat=lat, lon=lon, lat_bnds=lat_bnds, lon_bnds=lon_bnds)
+        mask = obs_c.data.mask * mod_c.data.mask
+        obs_c = obs_c.data.data
+        mod_c = mod_c.data.data
 
-        # Compute the different extent areas
-        o_mask = OBS.data.mask
-        o_land = (OBS.area > 1e-12) * (o_mask == 0)
-        o_data = np.copy(OBS.data.data)
-        o_data[np.where(OBS.data.mask)] = 0.0
-
-        m_mask = MOD.data.mask
-        m_land = MOD.area > 1e-12
-        m_data = np.copy(MOD.data.data)
-        m_data[np.where(MOD.data.mask)] = 0.0
-
-        o_and_m = (np.abs(o_data - 1) < 1e-12) * (np.abs(m_data - 1) < 1e-12)
-        o_not_m_land = (
-            (np.abs(o_data - 1) < 1e-12) * (np.abs(m_data) < 1e-12) * (m_land == 0)
-        )
-        o_not_m_miss = (
-            (np.abs(o_data - 1) < 1e-12) * (np.abs(m_data) < 1e-12) * (m_land == 1)
-        )
-        o_zones = 1.0 * o_and_m
-        o_zones += 2.0 * o_not_m_land
-        o_zones += 4.0 * o_not_m_miss
-        o_zones = np.ma.masked_array(o_zones, mask=o_mask)
-
-        m_and_o = (np.abs(m_data - 1) < 1e-12) * (np.abs(o_data - 1) < 1e-12)
-        m_not_o_land = (
-            (np.abs(m_data - 1) < 1e-12) * (np.abs(o_data) < 1e-12) * (o_land == 0)
-        )
-        m_not_o_miss = (
-            (np.abs(m_data - 1) < 1e-12) * (np.abs(o_data) < 1e-12) * (o_land == 1)
-        )
-        m_zones = 1.0 * m_and_o
-        m_zones += 2.0 * m_not_o_land
-        m_zones += 4.0 * m_not_o_miss
-        m_zones = np.ma.masked_array(m_zones, mask=m_mask)
-
-        zones = 1.0 * o_and_m
-        zones += 2.0 * o_not_m_miss
-        zones += 4.0 * m_not_o_miss
-        zones += 8.0 * m_not_o_land
-        zones = np.ma.masked_less(zones, 1)
-        for i, u in enumerate(np.unique(zones.compressed())):
-            zones[np.where(zones == u)] = i
-
-        # compute the intersection of obs and mod
-        obs_and_mod = Variable(
-            name="obs_and_mod",
+        # build up the 'bias' array
+        data = np.zeros(obs_c.shape)
+        data[...] = np.nan
+        data[(obs_c == 0) * (mod_c > 0)] = 0  # excess
+        nm = 2
+        for i in range(1, nm + 1):
+            data[(obs_c == i) * (mod_c > 0)] = i - (nm + 1)  # missed
+            data[(obs_c == i) * (mod_c < 1)] = (nm + 1) - i  # intersection
+        bias = Variable(
+            name="bias",
             unit="1",
-            data=np.ma.masked_values(zones == 0, 0).astype(float),
+            data=np.ma.masked_array(data, mask=mask),
             lat=lat,
             lon=lon,
-            area=MOD.area,
         )
 
-        # compute the obs that is not the mod
-        data = (OBS.data.mask == 0) * (MOD.data.mask == 1)
-        obs_not_mod = Variable(
-            name="obs_not_mod",
-            unit="1",
-            data=np.ma.masked_values(zones == 1, 0).astype(float),
-            lat=lat,
-            lon=lon,
-            area=OBS.area,
-        )
+        # scalar areas
+        area_obs = obs.integrateInSpace().convert("1e6 km2")
+        area_mod = mod.integrateInSpace().convert("1e6 km2")
+        area_obs.name = "Total Area global"
+        area_mod.name = "Total Area global"
+        area_excess = _area_bias(bias, 0)
 
-        # compute the mod that is not the obs
-        data = (OBS.data.mask == 1) * (MOD.data.mask == 0)
-        mod_not_obs = Variable(
-            name="mod_not_obs",
-            unit="1",
-            data=np.ma.masked_values(zones == 2, 0).astype(float),
-            lat=lat,
-            lon=lon,
-            area=MOD.area,
-        )
+        # scores
+        both = {}
+        missed = {}
+        score_missed = {}
+        area_both = 0.0
+        for ptype, pflag in zip(["d", "c"], [1, 2]):
+            both[ptype] = _area_bias(bias, -pflag)
+            missed[ptype] = _area_bias(bias, pflag)
+            score_missed[ptype] = both[ptype] / (both[ptype] + missed[ptype])
+            area_both += both[ptype]
+        score_excess = both[ptype] / area_mod.data
 
-        # compute the mod that is not the obs but because of land representation
-        data = (OBS.data.mask == 1) * (MOD.data.mask == 0)
-        mod_not_obs_land = Variable(
-            name="mod_not_obs_land",
-            unit="1",
-            data=np.ma.masked_values(zones == 3, 0).astype(float),
-            lat=lat,
-            lon=lon,
-            area=MOD.area,
-        )
-
-        # compute areas
-        obs_and_mod_area = obs_and_mod.integrateInSpace().convert("1e6 km2")
-        obs_not_mod_area = obs_not_mod.integrateInSpace().convert("1e6 km2")
-        mod_not_obs_area = mod_not_obs.integrateInSpace().convert("1e6 km2")
-        mod_not_obs_land_area = mod_not_obs_land.integrateInSpace().convert("1e6 km2")
-
-        # determine score
-        obs_score = Variable(
-            name="Missed Score global",
-            unit="1",
-            data=obs_and_mod_area.data
-            / (obs_and_mod_area.data + obs_not_mod_area.data),
-        )
-        mod_score = Variable(
-            name="Excess Score global",
-            unit="1",
-            data=obs_and_mod_area.data
-            / (obs_and_mod_area.data + mod_not_obs_area.data),
-        )
-
-        # Write to datafiles --------------------------------------
-
-        obs_area.name = "Total Area"
-        mod_area.name = "Total Area"
-        obs_and_mod_area.name = "Overlap Area"
-        obs_not_mod_area.name = "Missed Area"
-        mod_not_obs_area.name = "Excess Area"
-        mod_not_obs_land_area.name = "Excess Area (Land Representation)"
-
-        results = Dataset(
+        with Dataset(
             "%s/%s_%s.nc" % (self.output_path, self.name, m.name), mode="w"
-        )
-        results.setncatts(
-            {"name": m.name, "color": m.color, "complete": 0, "weight": self.cweight}
-        )
-        mod.toNetCDF4(results, group="MeanState")
-        obs_and_mod.toNetCDF4(results, group="MeanState")
-        obs_not_mod.toNetCDF4(results, group="MeanState")
-        mod_not_obs.toNetCDF4(results, group="MeanState")
-        mod_not_obs_land.toNetCDF4(results, group="MeanState")
-        mod_area.toNetCDF4(results, group="MeanState")
-        obs_and_mod_area.toNetCDF4(results, group="MeanState")
-        obs_not_mod_area.toNetCDF4(results, group="MeanState")
-        mod_not_obs_area.toNetCDF4(results, group="MeanState")
-        mod_not_obs_land_area.toNetCDF4(results, group="MeanState")
-        obs_score.toNetCDF4(results, group="MeanState")
-        mod_score.toNetCDF4(results, group="MeanState")
-        results.setncattr("complete", 1)
-        results.close()
-
-        if self.master:
-            results = Dataset(
-                "%s/%s_Benchmark.nc" % (self.output_path, self.name), mode="w"
+        ) as results:
+            results.setncatts(
+                {
+                    "name": m.name,
+                    "color": m.color,
+                    "complete": 0,
+                    "weight": self.cweight,
+                }
             )
+            for var in [
+                mod,
+                bias,
+                area_mod,
+                Variable(
+                    name="Overlap Continuous Area global",
+                    unit="1e6 km2",
+                    data=both["c"],
+                ),
+                Variable(
+                    name="Overlap Discontinuous Area global",
+                    unit="1e6 km2",
+                    data=both["d"],
+                ),
+                Variable(
+                    name="Missed Continuous Area global",
+                    unit="1e6 km2",
+                    data=missed["c"],
+                ),
+                Variable(
+                    name="Missed Discontinuous Area global",
+                    unit="1e6 km2",
+                    data=missed["d"],
+                ),
+                Variable(
+                    name="Excess Area global",
+                    unit="1e6 km2",
+                    data=area_excess,
+                ),
+                Variable(
+                    name="Missed Continuous Score global",
+                    unit="1",
+                    data=score_missed["c"],
+                ),
+                Variable(
+                    name="Missed Discontinuous Score global",
+                    unit="1",
+                    data=score_missed["d"],
+                ),
+                Variable(
+                    name="Excess Score global",
+                    unit="1",
+                    data=score_excess,
+                ),
+            ]:
+                var.toNetCDF4(results, group="MeanState")
+            results.setncattr("complete", 1)
+
+        if not self.master:
+            return
+
+        with Dataset(
+            f"{self.output_path}/{self.name}_Benchmark.nc", mode="w"
+        ) as results:
             results.setncatts(
                 {
                     "name": "Benchmark",
@@ -261,21 +342,12 @@ class ConfPermafrost(Confrontation):
                     "complete": 0,
                 }
             )
-            obs_area.toNetCDF4(results, group="MeanState")
+            area_obs.toNetCDF4(results, group="MeanState")
             results.setncattr("complete", 1)
-            results.close()
 
     def modelPlots(self, m):
-        fname = "%s/%s_%s.nc" % (self.output_path, self.name, m.name)
-        try:
-            mod = Variable(
-                filename=fname, variable_name="permafrost_extent", groupname="MeanState"
-            )
-        except:
-            return
-
+        # Add the figures to the html output page
         page = [page for page in self.layout.pages if "MeanState" in page.name][0]
-
         page.addFigure(
             "Temporally integrated period mean",
             "benchmark_timeint",
@@ -295,149 +367,28 @@ class ConfPermafrost(Confrontation):
             "bias",
             "MNAME_global_bias.png",
             side="BIAS",
-            legend=True,
+            legend=False,
         )
 
-        fig, ax = plt.subplots(
-            figsize=(10, 10),
-            dpi=60,
-            subplot_kw={
-                "projection": ccrs.Orthographic(
-                    central_latitude=+90, central_longitude=180
-                )
-            },
+        # model extent
+        fname = f"{self.output_path}/{self.name}_{m.name}.nc"
+        mod = Variable(
+            filename=fname, variable_name="permafrost_extent", groupname="MeanState"
         )
-        lat = np.hstack([mod.lat_bnds[:, 0], mod.lat_bnds[-1, -1]])
-        lon = np.hstack([mod.lon_bnds[:, 0], mod.lon_bnds[-1, -1]])
-        ax.pcolormesh(
-            lon,
-            lat,
-            np.ma.masked_values(mod.data, 0),
-            cmap="Blues",
-            vmin=0,
-            vmax=2,
-            transform=ccrs.PlateCarree(),
-        )
-        ax.add_feature(
-            cfeature.NaturalEarthFeature(
-                "physical", "land", "110m", edgecolor="face", facecolor="0.875"
-            ),
-            zorder=-1,
-        )
-        ax.add_feature(
-            cfeature.NaturalEarthFeature(
-                "physical", "ocean", "110m", edgecolor="face", facecolor="0.750"
-            ),
-            zorder=-1,
-        )
-        plt.savefig(
-            "%s/%s_global_timeint.png" % (self.output_path, m.name), dpi="figure"
-        )
-        plt.close()
+        plot_extent(mod, f"{self.output_path}/{m.name}_global_timeint.png")
 
-        tmp = Variable(
-            filename=fname, variable_name="obs_not_mod", groupname="MeanState"
-        )
-        bias = np.zeros(tmp.data.shape)
-        bias[...] = np.NAN
-        bias[tmp.data.mask == 0] = -1.0
-        tmp = Variable(
-            filename=fname, variable_name="obs_and_mod", groupname="MeanState"
-        )
-        bias[tmp.data.mask == 0] = 0.0
-        tmp = Variable(
-            filename=fname, variable_name="mod_not_obs", groupname="MeanState"
-        )
-        bias[tmp.data.mask == 0] = +1.0
-        bias = np.ma.masked_invalid(bias)
+        # model bias
+        bias = Variable(filename=fname, variable_name="bias", groupname="MeanState")
+        plot_bias(bias, f"{self.output_path}/{m.name}_global_bias.png")
 
-        cmap = plt.get_cmap("bwr", 3)
-        fig, ax = plt.subplots(
-            figsize=(10, 10),
-            dpi=60,
-            subplot_kw={
-                "projection": ccrs.Orthographic(
-                    central_latitude=+90, central_longitude=180
-                )
-            },
-        )
-        lat = np.hstack([tmp.lat_bnds[:, 0], tmp.lat_bnds[-1, -1]])
-        lon = np.hstack([tmp.lon_bnds[:, 0], tmp.lon_bnds[-1, -1]])
-        ax.pcolormesh(
-            lon,
-            lat,
-            bias,
-            cmap=cmap,
-            vmin=-1.5,
-            vmax=+1.5,
-            transform=ccrs.PlateCarree(),
-        )
-        ax.add_feature(
-            cfeature.NaturalEarthFeature(
-                "physical", "land", "110m", edgecolor="face", facecolor="0.875"
-            ),
-            zorder=-1,
-        )
-        ax.add_feature(
-            cfeature.NaturalEarthFeature(
-                "physical", "ocean", "110m", edgecolor="face", facecolor="0.750"
-            ),
-            zorder=-1,
-        )
-        plt.savefig("%s/%s_global_bias.png" % (self.output_path, m.name), dpi="figure")
-        plt.close()
+        if not self.master:
+            return
 
-        if self.master:
-            obs = Variable(filename=self.source, variable_name="permafrost_extent")
-            # plot result
+        # obs extent
+        obs = Variable(filename=self.source, variable_name="permafrost_extent")
+        if obs.temporal:
+            obs = obs.integrateInTime(mean=True)
+        plot_extent(obs, f"{self.output_path}/Benchmark_global_timeint.png")
 
-            fig, ax = plt.subplots(
-                figsize=(10, 10),
-                dpi=60,
-                subplot_kw={
-                    "projection": ccrs.Orthographic(
-                        central_latitude=+90, central_longitude=180
-                    )
-                },
-            )
-            lat = np.hstack([obs.lat_bnds[:, 0], obs.lat_bnds[-1, -1]])
-            lon = np.hstack([obs.lon_bnds[:, 0], obs.lon_bnds[-1, -1]])
-            ax.pcolormesh(
-                lon,
-                lat,
-                np.ma.masked_values(obs.data, 0),
-                cmap="Blues",
-                vmin=0,
-                vmax=2,
-                transform=ccrs.PlateCarree(),
-            )
-            ax.add_feature(
-                cfeature.NaturalEarthFeature(
-                    "physical", "land", "110m", edgecolor="face", facecolor="0.875"
-                ),
-                zorder=-1,
-            )
-            ax.add_feature(
-                cfeature.NaturalEarthFeature(
-                    "physical", "ocean", "110m", edgecolor="face", facecolor="0.750"
-                ),
-                zorder=-1,
-            )
-            plt.savefig(
-                "%s/Benchmark_global_timeint.png" % (self.output_path), dpi="figure"
-            )
-            plt.close()
-
-            # plot legend for bias
-            fig, ax = plt.subplots(figsize=(6.8, 0.8), tight_layout=True)
-            ColorBar(
-                ax,
-                vmin=-1.5,
-                vmax=+1.5,
-                cmap=cmap,
-                ticks=[-1, 0, 1],
-                ticklabels=["Missed Area", "Shared Area", "Excess Area"],
-                label="",
-            )
-            fig.savefig("%s/legend_%s.png" % (self.output_path, "bias"))
-            plt.close()
+    def compositePlots(self):
+        pass
