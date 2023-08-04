@@ -147,7 +147,7 @@ def plot_bias(var: Variable, filename: str) -> None:
     )
     cb.ax.tick_params(rotation=90, labelsize=18)
     fig.savefig(filename, dpi="figure")
-
+    plt.close()
 
 class ConfPermafrost(Confrontation):
     def __init__(self, **keywords):
