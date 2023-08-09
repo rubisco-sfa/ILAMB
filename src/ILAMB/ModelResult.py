@@ -112,16 +112,35 @@ class ModelResult:
         return s
 
     def _findVariables(self):
-        """Loops through the netCDF4 files in a model's path and builds a dictionary of which variables are in which files."""
+        """Loops through the netCDF4 files in a model's path and builds a dictionary of
+        which variables are in which files."""
 
-        def _get(key, dset):
-            dim_name = key
-            try:
-                v = dset.variables[key]
-                dim_bnd_name = v.getncattr("bounds")
-            except:
-                dim_bnd_name = None
-            return dim_name, dim_bnd_name
+        def _update_info(pathName: str, variables: dict[str], names: dict[str]):
+            dataset = Dataset(pathName)
+            # we do not require files to follow a CMOR protocol, but if they do we will
+            # harvest some model information
+            exp_id = None
+            src_id = None
+            if "experiment_id" in dataset.ncattrs():
+                exp_id = dataset.experiment_id
+            if "source_id" in dataset.ncattrs():
+                src_id = dataset.source_id
+            # populate dictionary for which variables are in which files
+            for key in dataset.variables.keys():
+                if key not in variables:
+                    variables[key] = []
+                variables[key].append(pathName)
+                v = dataset.variables[key]
+                # as before, these attributes are not required, but if present we will
+                # populate a name dictionary only used when printing the model
+                if key not in names:
+                    if "long_name" in v.ncattrs():
+                        names[key] = v.long_name
+                        continue
+                    if "standard_name" in v.ncattrs():
+                        names[key] = v.standard_name
+                        continue
+            return variables, names, exp_id, src_id
 
         variables = {}
         names = {}
@@ -129,46 +148,32 @@ class ModelResult:
         experiment_id = None
         source_id = None
         for path in paths:
-            for subdir, dirs, files in os.walk(path, followlinks=True):
+            if path.endswith(".nc"):
+                try:
+                    out = _update_info(path, variables, names)
+                    variables, names, experiment_id, source_id = out
+                except (OSError, FileNotFoundError):
+                    logger.debug("[%s] Error opening file %s" % (self.name, path))
+                    continue
+            for subdir, _, files in os.walk(path, followlinks=True):
                 for fileName in files:
                     if not fileName.endswith(".nc"):
                         continue
                     if self.filter not in fileName:
                         continue
-                    if self.regex is not "":
+                    if self.regex != "":
                         m = re.search(self.regex, fileName)
                         if not m:
                             continue
                     pathName = os.path.join(subdir, fileName)
-
                     try:
-                        dataset = Dataset(pathName)
-                    except:
+                        out = _update_info(pathName, variables, names)
+                        variables, names, experiment_id, source_id = out
+                    except (OSError, FileNotFoundError):
                         logger.debug(
                             "[%s] Error opening file %s" % (self.name, pathName)
                         )
                         continue
-
-                    # harvest some model information
-                    if experiment_id is None and "experiment_id" in dataset.ncattrs():
-                        experiment_id = dataset.experiment_id
-                    if source_id is None and "source_id" in dataset.ncattrs():
-                        source_id = dataset.source_id
-
-                    # populate dictionary for which variables are in which files
-                    for key in dataset.variables.keys():
-                        if key not in variables:
-                            variables[key] = []
-                        variables[key].append(pathName)
-
-                        v = dataset.variables[key]
-                        if key not in names:
-                            if "long_name" in v.ncattrs():
-                                names[key] = v.long_name
-                                continue
-                            if "standard_name" in v.ncattrs():
-                                names[key] = v.standard_name
-                                continue
 
         # modify the description if none exists
         if self.description == "":
