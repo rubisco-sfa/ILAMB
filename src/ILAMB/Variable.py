@@ -316,6 +316,19 @@ class Variable:
 
         return s
 
+    def __repr__(self):
+        return self.__str__()
+
+    def getTimeExtent(self):
+        if not self.temporal:
+            raise il.NotTemporalVariable()
+        tmin = self.time.min()
+        tmax = self.time.max()
+        if self.time_bnds is not None:
+            tmin = min(tmin, self.time_bnds.min())
+            tmax = max(tmax, self.time_bnds.max())
+        return tmin, tmax
+
     def nbytes(self):
         r"""Estimate the memory usage of a variable in bytes."""
         nbytes = 0.0
