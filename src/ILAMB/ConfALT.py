@@ -154,6 +154,13 @@ def active_layer_thickness(tsl: Variable, Teps: float = 273.15) -> Variable:
         The temperature threshold to use to indicate activity [K].
 
     """
+    # Only use whole years
+    begin = np.argmin(tsl.time[:11] % 365)
+    end = begin + int(tsl.time[begin:].size / 12.0) * 12
+    tsl.time = tsl.time[begin:end]
+    tsl.time_bnds = tsl.time_bnds[begin:end]
+    tsl.data = tsl.data[begin:end]
+
     # Compute the annual max soil temperature at every depth/lat/lon. Note that this
     # approach will not return a single month where you have a maximum nor will it catch
     # places where you may have a few frozen layers encased in a larger active region.
@@ -257,7 +264,10 @@ class ConfALT(Confrontation):
             mask_ref=True,
             clip_ref=True,
             extents=self.extents,
-            logstring="[%s][%s]" % (self.longname, m.name),
+            logstring=f"[{self.longname}][{m.name}]",
         )
         mod.convert(obs.unit)
         return obs, mod
+
+    def determinePlotLimits(self):
+        super().determinePlotLimits()
