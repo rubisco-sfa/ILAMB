@@ -200,10 +200,14 @@ def ExpandDepths(node):
 
     # we need to replace 'node' with a list of nodes
     replace_node = []
+    int_depths = np.allclose(depths, depths.astype(int).astype(float))
     for d in depths:
         depth_node = deepcopy(node)
         depth_node.__dict__.pop("depths")
-        depth_node.name += " %dm" % d
+        if int_depths:
+            depth_node.name += f" {d:d}m"
+        else:
+            depth_node.name += f" {d:.2f}m"
         for c, _ in enumerate(depth_node.children):
             depth_node.children[c].depth = d
         replace_node.append(depth_node)
