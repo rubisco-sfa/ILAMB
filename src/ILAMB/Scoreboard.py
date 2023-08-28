@@ -196,7 +196,7 @@ def ExpandDepths(node):
         return
     if "depths" not in node.__dict__:
         return
-    depths = [float(d) for d in node.__dict__["depths"].split(",")]
+    depths = np.array([float(d) for d in node.__dict__["depths"].split(",")])
 
     # we need to replace 'node' with a list of nodes
     replace_node = []
