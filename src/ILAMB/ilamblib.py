@@ -350,14 +350,6 @@ def GetTime(var, t0=None, tf=None, convert_calendar=True, ignore_time_array=True
     if ignore_time_array:
         T = TB.mean(axis=1)
 
-    # Are the time intervals consecutively
-    if not np.allclose(TB[1:, 0], TB[:-1, 1]):
-        msg = "Time intervals defined in %s:%s are not continuous" % (
-            dset.filepath(),
-            time_bnds_name,
-        )
-        raise ValueError(msg)
-
     # Do the times lie in the bounds
     TF = (T >= TB[:, 0]) * (T <= TB[:, 1])
     if not TF.all():
