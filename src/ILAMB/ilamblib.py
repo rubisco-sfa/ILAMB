@@ -266,7 +266,7 @@ def GetTime(var, t0=None, tf=None, convert_calendar=True, ignore_time_array=True
 
     # Get parent dataset/group
     dset = var.group()
-    vname = "%s:%s" % (dset.filepath(), var.name)
+    vname = f"{dset.filepath()}:{var.name}"
     CB = None
 
     # What is the time dimension called in the dataset/variable?
@@ -274,23 +274,23 @@ def GetTime(var, t0=None, tf=None, convert_calendar=True, ignore_time_array=True
     if len(time_name) == 0:
         return None, None, None, None, None, None
     elif len(time_name) > 1:
-        msg = "Ambiguous 'time' dimension in the variable %s, one of these [%s]" % (
+        msg = "Ambiguous 'time' dimension in the variable {}, one of these [{}]".format(
             vname,
             ",".join(time_name),
         )
-        raise IOError(msg)
+        raise OSError(msg)
     time_name = time_name[0]
     t = dset.variables[time_name]
 
     # Check for units on time
     if "units" not in t.ncattrs():
-        msg = "No units given in the time variable in %s:%s" % (
+        msg = "No units given in the time variable in {}:{}".format(
             dset.filepath(),
             time_name,
         )
         raise ValueError(msg)
     if "calendar" not in t.ncattrs():
-        msg = "No calendar given in the time variable in %s:%s" % (
+        msg = "No calendar given in the time variable in {}:{}".format(
             dset.filepath(),
             time_name,
         )
@@ -300,11 +300,8 @@ def GetTime(var, t0=None, tf=None, convert_calendar=True, ignore_time_array=True
     time_bnds_name = t.bounds if "bounds" in t.ncattrs() else None
     if time_bnds_name is not None:
         if time_bnds_name not in dset.variables.keys():
-            msg = (
-                "Time bounds specified in %s as %s, but not a variable in the dataset, found these [%s]"
-                % (time_name, time_bnds_name, dset.variables.keys())
-            )
-            raise IOError(msg)
+            msg = f"Time bounds specified in {time_name} as {time_bnds_name}, but not a variable in the dataset, found these [{dset.variables.keys()}]"
+            raise OSError(msg)
         tb = dset.variables[time_bnds_name][...]
     else:
         tb = CreateTimeBounds(t, alpha=GuessAlpha(t))
@@ -312,15 +309,12 @@ def GetTime(var, t0=None, tf=None, convert_calendar=True, ignore_time_array=True
     if "climatology" in t.ncattrs():
         clim_name = t.climatology
         if clim_name not in dset.variables.keys():
-            msg = (
-                "Climatology bounds specified in %s as %s, but not a variable in the dataset, found these [%s]"
-                % (time_name, clim_name, dset.variables.keys())
-            )
-            raise IOError(msg)
+            msg = f"Climatology bounds specified in {time_name} as {clim_name}, but not a variable in the dataset, found these [{dset.variables.keys()}]"
+            raise OSError(msg)
         CB = dset.variables[clim_name][...]
         if not np.allclose(CB.shape, [12, 2]):
             msg = "ILAMB only supports annual cycle style climatologies"
-            raise IOError(msg)
+            raise OSError(msg)
         CB = np.round(CB[0, :] / 365.0 + 1850.0)
 
     # Convert the input beginning/ending time to the current calendar/datum
@@ -367,7 +361,7 @@ def GetTime(var, t0=None, tf=None, convert_calendar=True, ignore_time_array=True
             - cf.num2date(0, t.units, calendar=t.calendar)
         ).total_seconds()
     except:
-        msg = "Error in computing the datum: t.units = %s, t.calendar = %s" % (
+        msg = "Error in computing the datum: t.units = {}, t.calendar = {}".format(
             t.units,
             t.calendar,
         )
@@ -613,7 +607,7 @@ def SympifyWithArgsUnits(expression, args, units):
         elif expr.is_Pow:
             # if raising to a power, just create the new unit
             keys = [str(arg) for arg in expr.args]
-            units[ekey] = "(%s)%s" % (units[keys[0]], keys[1])
+            units[ekey] = f"({units[keys[0]]}){keys[1]}"
 
         elif expr.is_Mul:
             # just create the new unit
@@ -737,7 +731,9 @@ def FromNetCDF4(
     if not found:
         alternate_vars.insert(0, variable_name)
         raise RuntimeError(
-            "Unable to find [%s] in the file: %s" % (",".join(alternate_vars), filename)
+            "Unable to find [{}] in the file: {}".format(
+                ",".join(alternate_vars), filename
+            )
         )
 
     # Copy attributes into a dictionary
@@ -856,8 +852,9 @@ def FromNetCDF4(
             lat_bnd_name = None
     elif len(lat_name) >= 1:
         raise ValueError(
-            "Ambiguous choice of values for the latitude dimension [%s] in %s"
-            % (",".join(lat_name), filename)
+            "Ambiguous choice of values for the latitude dimension [{}] in {}".format(
+                ",".join(lat_name), filename
+            )
         )
     else:
         lat_name = None
@@ -878,8 +875,9 @@ def FromNetCDF4(
             lon_bnd_name = None
     elif len(lon_name) >= 1:
         raise ValueError(
-            "Ambiguous choice of values for the longitude dimension [%s] in %s"
-            % (",".join(lon_name), filename)
+            "Ambiguous choice of values for the longitude dimension [{}] in {}".format(
+                ",".join(lon_name), filename
+            )
         )
     else:
         lon_name = None
@@ -890,8 +888,9 @@ def FromNetCDF4(
         data_name = data_name[0]
     elif len(data_name) >= 1:
         raise ValueError(
-            "Ambiguous choice of values for the data dimension [%s] in %s"
-            % (",".join(data_name), filename)
+            "Ambiguous choice of values for the data dimension [{}] in {}".format(
+                ",".join(data_name), filename
+            )
         )
     else:
         data_name = None
@@ -912,8 +911,9 @@ def FromNetCDF4(
             depth_bnd_name = None
     elif len(missed) >= 1:
         raise ValueError(
-            "Ambiguous choice of values for the layered dimension [%s] in %s"
-            % (",".join(missed), filename)
+            "Ambiguous choice of values for the layered dimension [{}] in {}".format(
+                ",".join(missed), filename
+            )
         )
     else:
         depth_name = None
@@ -968,8 +968,7 @@ def FromNetCDF4(
                 or Unit(dunit).is_convertible(Unit("Pa"))
             ):
                 raise ValueError(
-                    "Units [%s] not compatible with [m,Pa] of the layered dimension [%s] in %s"
-                    % (dunit, depth_name, filename)
+                    f"Units [{dunit}] not compatible with [m,Pa] of the layered dimension [{depth_name}] in {filename}"
                 )
             if Unit(dunit).is_convertible(Unit("m")):
                 depth = Unit(dunit).convert(depth, Unit("m"), inplace=True)
@@ -1323,6 +1322,7 @@ def AnalysisMeanStateSites(ref, com, **keywords):
             if len(val) > 0:
                 mask.append(ILAMBregions.getMask(region, bias))
                 values.append((~mask[-1]) * float(val))
+
         bias_score_map = deepcopy(bias)
         bias_score_map.data = np.ma.masked_array(
             np.array(values).sum(axis=0), mask=np.array(mask).all(axis=0)
@@ -1526,9 +1526,9 @@ def AnalysisMeanStateSites(ref, com, **keywords):
             )
 
         ref_period_mean[region].name = "Period Mean (original grids) %s" % (region)
-        ref_spaceint[region].name = "spaceint_of_%s_over_%s" % (ref.name, region)
+        ref_spaceint[region].name = f"spaceint_of_{ref.name}_over_{region}"
         com_period_mean[region].name = "Period Mean (original grids) %s" % (region)
-        com_spaceint[region].name = "spaceint_of_%s_over_%s" % (ref.name, region)
+        com_spaceint[region].name = f"spaceint_of_{ref.name}_over_{region}"
         bias_val[region].name = "Bias %s" % (region)
         bias_score[region].name = "Bias Score %s" % (region)
         if not skip_rmse:
@@ -1537,10 +1537,10 @@ def AnalysisMeanStateSites(ref, com, **keywords):
         if not skip_iav:
             iav_score[region].name = "Interannual Variability Score %s" % (region)
         if not skip_cycle:
-            ref_mean_cycle[region].name = "cycle_of_%s_over_%s" % (ref.name, region)
-            ref_dtcycle[region].name = "dtcycle_of_%s_over_%s" % (ref.name, region)
-            com_mean_cycle[region].name = "cycle_of_%s_over_%s" % (ref.name, region)
-            com_dtcycle[region].name = "dtcycle_of_%s_over_%s" % (ref.name, region)
+            ref_mean_cycle[region].name = f"cycle_of_{ref.name}_over_{region}"
+            ref_dtcycle[region].name = f"dtcycle_of_{ref.name}_over_{region}"
+            com_mean_cycle[region].name = f"cycle_of_{ref.name}_over_{region}"
+            com_dtcycle[region].name = f"dtcycle_of_{ref.name}_over_{region}"
             shift[region].name = "Phase Shift %s" % (region)
             shift_score[region].name = "Seasonal Cycle Score %s" % (region)
 
@@ -1709,6 +1709,7 @@ def AnalysisMeanStateSpace(ref, com, **keywords):
     skip_rmse = keywords.get("skip_rmse", False)
     skip_iav = keywords.get("skip_iav", True)
     skip_cycle = keywords.get("skip_cycle", False)
+    skip_sd = keywords.get("skip_sd", False)
     ref_timeint = keywords.get("ref_timeint", None)
     com_timeint = keywords.get("com_timeint", None)
     rmse_score_basis = keywords.get("rmse_score_basis", "cycle")
@@ -1879,17 +1880,18 @@ def AnalysisMeanStateSpace(ref, com, **keywords):
         normalizer.mask = ~ref_and_com
 
     # Spatial Distribution: scalars and scores
-    if dataset is not None:
-        for region in regions:
-            space_std, space_cor, sd_score = REF_timeint.spatialDistribution(
-                COM_timeint, region=region
-            )
-            sd_score.name = "Spatial Distribution Score %s" % region
-            sd_score.toNetCDF4(
-                dataset,
-                group="MeanState",
-                attributes={"std": space_std.data, "R": space_cor.data},
-            )
+    if not skip_sd:
+        if dataset is not None:
+            for region in regions:
+                space_std, space_cor, sd_score = REF_timeint.spatialDistribution(
+                    COM_timeint, region=region
+                )
+                sd_score.name = "Spatial Distribution Score %s" % region
+                sd_score.toNetCDF4(
+                    dataset,
+                    group="MeanState",
+                    attributes={"std": space_std.data, "R": space_cor.data},
+                )
 
     # Cycle: maps, scalars, and scores
     if not skip_cycle:
@@ -1909,11 +1911,11 @@ def AnalysisMeanStateSpace(ref, com, **keywords):
             ref_maxt_map.toNetCDF4(benchmark_dataset, group="MeanState")
             for region in regions:
                 ref_mean_cycle = ref_cycle.integrateInSpace(region=region, mean=True)
-                ref_mean_cycle.name = "cycle_of_%s_over_%s" % (name, region)
+                ref_mean_cycle.name = f"cycle_of_{name}_over_{region}"
                 ref_mean_cycle.toNetCDF4(benchmark_dataset, group="MeanState")
                 ref_dtcycle = deepcopy(ref_mean_cycle)
                 ref_dtcycle.data -= ref_mean_cycle.data.mean()
-                ref_dtcycle.name = "dtcycle_of_%s_over_%s" % (name, region)
+                ref_dtcycle.name = f"dtcycle_of_{name}_over_{region}"
                 ref_dtcycle.toNetCDF4(benchmark_dataset, group="MeanState")
         if dataset is not None:
             com_maxt_map.toNetCDF4(dataset, group="MeanState")
@@ -1921,11 +1923,11 @@ def AnalysisMeanStateSpace(ref, com, **keywords):
             shift_score_map.toNetCDF4(dataset, group="MeanState")
             for region in regions:
                 com_mean_cycle = com_cycle.integrateInSpace(region=region, mean=True)
-                com_mean_cycle.name = "cycle_of_%s_over_%s" % (name, region)
+                com_mean_cycle.name = f"cycle_of_{name}_over_{region}"
                 com_mean_cycle.toNetCDF4(dataset, group="MeanState")
                 com_dtcycle = deepcopy(com_mean_cycle)
                 com_dtcycle.data -= com_mean_cycle.data.mean()
-                com_dtcycle.name = "dtcycle_of_%s_over_%s" % (name, region)
+                com_dtcycle.name = f"dtcycle_of_{name}_over_{region}"
                 com_dtcycle.toNetCDF4(dataset, group="MeanState")
                 shift = shift_map.integrateInSpace(
                     region=region, mean=True, intabs=True
@@ -2081,12 +2083,12 @@ def AnalysisMeanStateSpace(ref, com, **keywords):
         if benchmark_dataset is not None:
             for region in regions:
                 ref_spaceint = REF.integrateInSpace(region=region, mean=True)
-                ref_spaceint.name = "spaceint_of_%s_over_%s" % (name, region)
+                ref_spaceint.name = f"spaceint_of_{name}_over_{region}"
                 ref_spaceint.toNetCDF4(benchmark_dataset, group="MeanState")
         if dataset is not None:
             for region in regions:
                 com_spaceint = COM.integrateInSpace(region=region, mean=True)
-                com_spaceint.name = "spaceint_of_%s_over_%s" % (name, region)
+                com_spaceint.name = f"spaceint_of_{name}_over_{region}"
                 com_spaceint.toNetCDF4(dataset, group="MeanState")
 
     # RMSE: maps, scalars, and scores
@@ -2175,7 +2177,7 @@ def AnalysisMeanStateSpace(ref, com, **keywords):
         del rmse, crmse, rmse_score_map
 
     # RMSE based on annual cycle
-    if (not skip_rmse) and (rmse_score_basis == "cycle"):
+    if (not skip_rmse) and (not skip_cycle) and (rmse_score_basis == "cycle"):
         ref_cycle = REF.annualCycle()
         ref_dtcycle = deepcopy(ref_cycle)
         com_cycle = COM.annualCycle()
@@ -2317,7 +2319,7 @@ def MakeComparable(ref, com, **keywords):
     # If one variable is temporal, then they both must be
     if ref.temporal != com.temporal:
         msg = "%s Datasets are not uniformly temporal: " % logstring
-        msg += "reference = %s, comparison = %s" % (ref.temporal, com.temporal)
+        msg += f"reference = {ref.temporal}, comparison = {com.temporal}"
         logger.debug(msg)
         raise VarsNotComparable()
 
@@ -2347,7 +2349,7 @@ def MakeComparable(ref, com, **keywords):
             com.data = com.data.reshape(shp)
         else:
             msg = "%s Datasets are not uniformly layered: " % logstring
-            msg += "reference = %s, comparison = %s" % (ref.layered, com.layered)
+            msg += f"reference = {ref.layered}, comparison = {com.layered}"
             logger.debug(msg)
             raise NotLayeredVariable()
 
@@ -2410,9 +2412,9 @@ def MakeComparable(ref, com, **keywords):
                 "%s Datasets represent sites, but the locations are different: "
                 % logstring
             )
-            msg += "maximum difference lat = %.2f, lon = %.2f" % (
-                np.abs((ref.lat - com.lat)).max(),
-                np.abs((ref.lon - com.lon)).max(),
+            msg += "maximum difference lat = {:.2f}, lon = {:.2f}".format(
+                np.abs(ref.lat - com.lat).max(),
+                np.abs(ref.lon - com.lon).max(),
             )
             logger.debug(msg)
             raise VarsNotComparable()

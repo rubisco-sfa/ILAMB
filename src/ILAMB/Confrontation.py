@@ -38,7 +38,7 @@ def getVariableList(dataset):
 
 def replace_url(string):
     url = re.findall(
-        "http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+~]|[!*\(\), ]|(?:%[0-9a-fA-F][0-9a-fA-F]))+",
+        "http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+~]|[!*\\(\\), ]|(?:%[0-9a-fA-F][0-9a-fA-F]))+",
         string,
     )
     for u in url:
@@ -47,19 +47,19 @@ def replace_url(string):
         u_text = u_text.replace("https://doi.org/", "doi:")
         u_text = u_text.replace("http://doi.org/doi:", "doi:")
         u_text = u_text.replace("http://doi.org/", "doi:")
-        string = string.replace(u, "<a href='%s'>%s</a>" % (u, u_text))
+        string = string.replace(u, f"<a href='{u}'>{u_text}</a>")
     # if no https link was found, then it may be a doi link which we
     # want to hyperlink appropriately
     if len(url) == 0:
         url = re.findall(
-            "doi:(?:[a-zA-Z]|[0-9]|[$-_@.&+~]|[!*\(\), ]|(?:%[0-9a-fA-F][0-9a-fA-F]))+",
+            "doi:(?:[a-zA-Z]|[0-9]|[$-_@.&+~]|[!*\\(\\), ]|(?:%[0-9a-fA-F][0-9a-fA-F]))+",
             string,
         )
         for u in url:
             # if doi is in a text reference, it ends with a period that we do not want
             u = u.strip(".")
             u_link = u.replace("doi:", "https://doi.org/")
-            string = string.replace(u, "<a href='%s'>%s</a>" % (u_link, u))
+            string = string.replace(u, f"<a href='{u_link}'>{u}</a>")
     return string
 
 
@@ -106,7 +106,7 @@ def create_data_header(attr, val):
     return html
 
 
-class Confrontation(object):
+class Confrontation:
     """A generic class for confronting model results with observational data.
 
     This class is meant to provide the user with a simple way to
@@ -381,7 +381,7 @@ class Confrontation(object):
             mask_ref=True,
             clip_ref=True,
             extents=self.extents,
-            logstring="[%s][%s]" % (self.longname, m.name),
+            logstring=f"[{self.longname}][{m.name}]",
         )
 
         # Check the order of magnitude of the data and convert to help avoid roundoff errors
@@ -430,8 +430,8 @@ class Confrontation(object):
         # Grab the data
         obs, mod = self.stageData(m)
 
-        mod_file = os.path.join(self.output_path, "%s_%s.nc" % (self.name, m.name))
-        obs_file = os.path.join(self.output_path, "%s_Benchmark.nc" % (self.name,))
+        mod_file = os.path.join(self.output_path, f"{self.name}_{m.name}.nc")
+        obs_file = os.path.join(self.output_path, f"{self.name}_Benchmark.nc")
         with il.FileContextManager(self.master, mod_file, obs_file) as fcm:
             # Encode some names and colors
             fcm.mod_dset.setncatts(
@@ -457,6 +457,7 @@ class Confrontation(object):
             skip_rmse = self.keywords.get("skip_rmse", False)
             skip_iav = self.keywords.get("skip_iav", True)
             skip_cycle = self.keywords.get("skip_cycle", False)
+            skip_sd = self.keywords.get("skip_sd", False)
             rmse_score_basis = self.keywords.get("rmse_score_basis", "cycle")
             if obs.spatial:
                 il.AnalysisMeanStateSpace(
@@ -471,6 +472,7 @@ class Confrontation(object):
                     skip_rmse=skip_rmse,
                     skip_iav=skip_iav,
                     skip_cycle=skip_cycle,
+                    skip_sd=skip_sd,
                     mass_weighting=mass_weighting,
                     rmse_score_basis=rmse_score_basis,
                     df_errs=self.df_errs,
@@ -494,7 +496,7 @@ class Confrontation(object):
             fcm.mod_dset.setncattr("complete", 1)
             if self.master:
                 fcm.obs_dset.setncattr("complete", 1)
-        logger.info("[%s][%s] Success" % (self.longname, m.name))
+        logger.info(f"[{self.longname}][{m.name}] Success")
 
     def determinePlotLimits(self):
         """Determine the limits of all plots which are inclusive of all ranges.
@@ -707,7 +709,7 @@ class Confrontation(object):
                 scores["Overall Score %s" % region] = overall_score
             return scores
 
-        fname = os.path.join(self.output_path, "%s_%s.nc" % (self.name, m.name))
+        fname = os.path.join(self.output_path, f"{self.name}_{m.name}.nc")
         if not os.path.isfile(fname):
             return
         with Dataset(fname, mode="r+") as dataset:
@@ -904,7 +906,7 @@ class Confrontation(object):
         """
         self._relationship(m)
         bname = os.path.join(self.output_path, "%s_Benchmark.nc" % (self.name))
-        fname = os.path.join(self.output_path, "%s_%s.nc" % (self.name, m.name))
+        fname = os.path.join(self.output_path, f"{self.name}_{m.name}.nc")
         if not os.path.isfile(bname):
             return
         if not os.path.isfile(fname):
@@ -956,7 +958,7 @@ class Confrontation(object):
                         fig.savefig(
                             os.path.join(
                                 self.output_path,
-                                "%s_%s_%s.png" % (m.name, region, pname),
+                                f"{m.name}_{region}_{pname}.png",
                             )
                         )
                         plt.close()
@@ -992,7 +994,7 @@ class Confrontation(object):
                             fig.savefig(
                                 os.path.join(
                                     self.output_path,
-                                    "Benchmark_%s_%s.png" % (region, pname),
+                                    f"Benchmark_{region}_{pname}.png",
                                 )
                             )
                             plt.close()
@@ -1050,12 +1052,12 @@ class Confrontation(object):
                         fig.savefig(
                             os.path.join(
                                 self.output_path,
-                                "%s_%s_%s.png" % (m.name, region, pname),
+                                f"{m.name}_{region}_{pname}.png",
                             )
                         )
                         plt.close()
 
-        logger.info("[%s][%s] Success" % (self.longname, m.name))
+        logger.info(f"[{self.longname}][{m.name}] Success")
 
     def sitePlots(self, m):
         """ """
@@ -1065,7 +1067,7 @@ class Confrontation(object):
         obs, mod = self.stageData(m)
         for i in range(obs.ndata):
             fig, ax = plt.subplots(figsize=(6.8, 2.8), tight_layout=True)
-            tmask = np.where(mod.data.mask[:, i] == False)[0]
+            tmask = np.where(mod.data.mask[:, i] is False)[0]
             if tmask.size > 0:
                 tmin, tmax = tmask[[0, -1]]
             else:
@@ -1086,7 +1088,8 @@ class Confrontation(object):
             ax.set_ylabel(post.UnitStringToMatplotlib(mod.unit))
             fig.savefig(
                 os.path.join(
-                    self.output_path, "%s_%s_%s.png" % (m.name, self.lbls[i], "time")
+                    self.output_path,
+                    "{}_{}_{}.png".format(m.name, self.lbls[i], "time"),
                 )
             )
             plt.close()
@@ -1146,8 +1149,9 @@ class Confrontation(object):
                             var = grp.variables[vname]
                             if "global" not in metrics[mname]:
                                 logger.debug(
-                                    "[%s][%s] 'global' not in region list = [%s]"
-                                    % (self.longname, mname, ",".join(self.regions))
+                                    "[{}][{}] 'global' not in region list = [{}]".format(
+                                        self.longname, mname, ",".join(self.regions)
+                                    )
                                 )
                                 raise ValueError()
                             metrics[mname]["global"][vname] = Variable(
@@ -1191,19 +1195,21 @@ class Confrontation(object):
         # Try to get the dependent data from the model and obs
         try:
             ref_dep = _retrieveData(
-                os.path.join(self.output_path, "%s_%s.nc" % (self.name, "Benchmark"))
+                os.path.join(
+                    self.output_path, "{}_{}.nc".format(self.name, "Benchmark")
+                )
             )
             com_dep = _retrieveData(
-                os.path.join(self.output_path, "%s_%s.nc" % (self.name, m.name))
+                os.path.join(self.output_path, f"{self.name}_{m.name}.nc")
             )
             dep_name = self.longname.split("/")[0]
-            ref_dep.name = "%s/%s" % (dep_name, self.name)
-            com_dep.name = "%s/%s" % (dep_name, m.name)
+            ref_dep.name = f"{dep_name}/{self.name}"
+            com_dep.name = f"{dep_name}/{m.name}"
         except:
             return
 
         with Dataset(
-            os.path.join(self.output_path, "%s_%s.nc" % (self.name, m.name)), mode="r+"
+            os.path.join(self.output_path, f"{self.name}_{m.name}.nc"), mode="r+"
         ) as results:
             # Grab/create a relationship and scalars group
             group = None
@@ -1221,14 +1227,16 @@ class Confrontation(object):
                 # try to get the independent data from the model and obs
                 try:
                     ref_ind = _retrieveData(
-                        os.path.join(c.output_path, "%s_%s.nc" % (c.name, "Benchmark"))
+                        os.path.join(
+                            c.output_path, "{}_{}.nc".format(c.name, "Benchmark")
+                        )
                     )
                     com_ind = _retrieveData(
-                        os.path.join(c.output_path, "%s_%s.nc" % (c.name, m.name))
+                        os.path.join(c.output_path, f"{c.name}_{m.name}.nc")
                     )
                     ind_name = c.longname.split("/")[0]
-                    ref_ind.name = "%s/%s" % (ind_name, c.name)
-                    com_ind.name = "%s/%s" % (ind_name, m.name)
+                    ref_ind.name = f"{ind_name}/{c.name}"
+                    com_ind.name = f"{ind_name}/{m.name}"
                 except:
                     continue
 
@@ -1295,7 +1303,7 @@ class Confrontation(object):
                     fig.savefig(
                         os.path.join(
                             self.output_path,
-                            "%s_%s_rel_%s.png" % ("Benchmark", region, ind_name),
+                            "{}_{}_rel_{}.png".format("Benchmark", region, ind_name),
                         )
                     )
                     plt.close()
@@ -1305,7 +1313,7 @@ class Confrontation(object):
                     fig.savefig(
                         os.path.join(
                             self.output_path,
-                            "%s_%s_rel_%s.png" % (m.name, region, ind_name),
+                            f"{m.name}_{region}_rel_{ind_name}.png",
                         )
                     )
                     plt.close()
@@ -1316,14 +1324,14 @@ class Confrontation(object):
                     fig.savefig(
                         os.path.join(
                             self.output_path,
-                            "%s_%s_rel_func_%s.png" % (m.name, region, ind_name),
+                            f"{m.name}_{region}_rel_func_{ind_name}.png",
                         )
                     )
                     plt.close()
 
                     # Score the distribution
                     score = ref.scoreHellinger(com, region=region)
-                    sname = "%s Hellinger Distance %s" % (longname, region)
+                    sname = f"{longname} Hellinger Distance {region}"
                     if sname in scalars.variables:
                         scalars.variables[sname][0] = score
                     else:
@@ -1333,7 +1341,7 @@ class Confrontation(object):
 
                     # Score the functional response
                     score = ref.scoreRMSE(com, region=region)
-                    sname = "%s Score %s" % (longname, region)
+                    sname = f"{longname} Score {region}"
                     if sname in scalars.variables:
                         scalars.variables[sname][0] = score
                     else:
