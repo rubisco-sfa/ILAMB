@@ -440,7 +440,7 @@ class Variable:
             unit = Unit(unit0.format().split()[-1])
 
             if not isinstance(integral.mask, np.ndarray):
-                if integral.mask == True:
+                if integral.mask is True:
                     integral = np.ma.masked_array(
                         data=integral.data, mask=np.ones(integral.shape, dtype="bool")
                     )
@@ -588,7 +588,7 @@ class Variable:
         ind = np.ix_(*args)
 
         # approximate the integral by nodal integration (rectangle rule)
-        shp = self.data[ind].shape
+        self.data[ind].shape
         np.seterr(over="ignore", under="ignore")
         integral = (self.data[ind] * dz).sum(axis=axis)
         np.seterr(over="raise", under="raise")
@@ -694,7 +694,9 @@ class Variable:
         """
 
         def _integrate(var, areas):
-            op = lambda x: x
+            def op(x):
+                return x
+
             if intabs:
                 op = np.abs
             assert var.shape[-2:] == areas.shape
@@ -766,7 +768,10 @@ class Variable:
         """
         if self.ndata is None:
             raise il.NotDatasiteVariable()
-        op = lambda x: x
+
+        def op(x):
+            return x
+
         if intabs:
             op = np.abs
         rem_mask = np.copy(self.data.mask)
@@ -931,9 +936,9 @@ class Variable:
             return bnds
 
         assert Unit(var.unit) == Unit(self.unit)
-        assert self.temporal == False
+        assert self.temporal is False
         assert self.ndata == var.ndata
-        assert self.layered == False
+        assert self.layered is False
         # Perform a check on the spatial grid. If it is the exact same
         # grid, there is no need to interpolate.
         same_grid = False
@@ -1021,7 +1026,6 @@ class Variable:
             return self
         src_unit = Unit(self.unit)
         tar_unit = Unit(unit)
-        mask = self.data.mask
         mass_density = Unit("kg m-3")
         molar_density = Unit("g mol-1")
         if ((src_unit / tar_unit) / mass_density).is_dimensionless():
@@ -1087,7 +1091,7 @@ class Variable:
                         bnd_name = time_name.replace("time", "time_bnds")
                         T.setncattr("bounds", bnd_name)
                         if "nb" not in dset.dimensions.keys():
-                            D = dset.createDimension("nb", size=2)
+                            dset.createDimension("nb", size=2)
                         if bnd_name not in dset.variables.keys():
                             B = dset.createVariable(
                                 bnd_name, "double", (time_name, "nb")
@@ -1119,7 +1123,7 @@ class Variable:
                         bnd_name = lat_name.replace("lat", "lat_bnds")
                         Y.setncattr("bounds", bnd_name)
                         if "nb" not in dset.dimensions.keys():
-                            D = dset.createDimension("nb", size=2)
+                            dset.createDimension("nb", size=2)
                         if bnd_name not in dset.variables.keys():
                             B = dset.createVariable(
                                 bnd_name, "double", (lat_name, "nb")
@@ -1151,7 +1155,7 @@ class Variable:
                         bnd_name = lon_name.replace("lon", "lon_bnds")
                         X.setncattr("bounds", bnd_name)
                         if "nb" not in dset.dimensions.keys():
-                            D = dset.createDimension("nb", size=2)
+                            dset.createDimension("nb", size=2)
                         if bnd_name not in dset.variables.keys():
                             B = dset.createVariable(
                                 bnd_name, "double", (lon_name, "nb")
@@ -1196,7 +1200,7 @@ class Variable:
                         bnd_name = layer_name.replace("layer", "layer_bnds")
                         Z.setncattr("bounds", bnd_name)
                         if "nb" not in dataset.dimensions.keys():
-                            D = dataset.createDimension("nb", size=2)
+                            dataset.createDimension("nb", size=2)
                         if bnd_name not in dataset.variables.keys():
                             B = dataset.createVariable(
                                 bnd_name, "double", (layer_name, "nb")
@@ -1324,8 +1328,8 @@ class Variable:
         vmax = keywords.get("vmax", data.max() + pad)
         region = keywords.get("region", "global")
         cmap = keywords.get("cmap", "jet")
-        land = keywords.get("land", 0.875)
-        water = keywords.get("water", 0.750)
+        keywords.get("land", 0.875)
+        keywords.get("water", 0.750)
         pad = keywords.get("pad", 5.0)
         cbar = keywords.get("cbar", False)
 
@@ -1364,8 +1368,8 @@ class Variable:
             # determine the plotting extents
             percent_pad = 0.2
             if self.ndata is None:
-                lat_empty = np.where(self.data.mask.all(axis=-1) == False)[0]
-                lon_empty = np.where(self.data.mask.all(axis=-2) == False)[0]
+                lat_empty = np.where(self.data.mask.all(axis=-1) is False)[0]
+                lon_empty = np.where(self.data.mask.all(axis=-2) is False)[0]
                 extents = [
                     self.lon_bnds[lon_empty[0], 0],
                     self.lon_bnds[lon_empty[-1], 1],
@@ -1395,7 +1399,7 @@ class Variable:
                     extents[1] += dx
 
                     # find the middle centroid by mean angle
-                    lons = self.lon[np.where(self.data.mask.all(axis=-2) == False)[0]]
+                    lons = self.lon[np.where(self.data.mask.all(axis=-2) is False)[0]]
                     lons = lons / 360 * 2 * np.pi
                     lon_mid = (
                         np.arctan2(np.sin(lons).mean(), np.cos(lons).mean())
@@ -1641,7 +1645,7 @@ class Variable:
             shift = e1.spatialDifference(e2)
         else:
             data = e2.data - e1.data
-            mask = e1.data.mask + e2.data.mask
+            e1.data.mask + e2.data.mask
             shift = Variable(
                 data=data, unit=e1.unit, ndata=e1.ndata, lat=e1.lat, lon=e1.lon
             )
@@ -1987,7 +1991,7 @@ class Variable:
             the spatial distribution score
 
         """
-        assert self.temporal == var.temporal == False
+        assert self.temporal == var.temporal is False
 
         r = Regions()
 
@@ -2086,6 +2090,7 @@ class Variable:
             lat=self.lat,
             lon=self.lon,
             area=self.area,
+            depth=self.depth,
             depth_bnds=self.depth_bnds,
         )
 
