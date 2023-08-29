@@ -297,19 +297,19 @@ class Variable:
             layer = " (%d)" % (self.depth.size)
         s = "Variable: %s\n" % self.name
         s += "-" * (len(self.name) + 10) + "\n"
-        s += "{0:>20}: ".format("unit") + self.unit + "\n"
-        s += "{0:>20}: ".format("isTemporal") + str(self.temporal) + time + "\n"
-        s += "{0:>20}: ".format("isSpatial") + str(self.spatial) + space + "\n"
-        s += "{0:>20}: ".format("isLayered") + str(self.layered) + layer + "\n"
-        s += "{0:>20}: ".format("nDatasites") + ndata + "\n"
-        s += "{0:>20}: ".format("dataShape") + "%s\n" % (self.data.shape,)
+        s += "{:>20}: ".format("unit") + self.unit + "\n"
+        s += "{:>20}: ".format("isTemporal") + str(self.temporal) + time + "\n"
+        s += "{:>20}: ".format("isSpatial") + str(self.spatial) + space + "\n"
+        s += "{:>20}: ".format("isLayered") + str(self.layered) + layer + "\n"
+        s += "{:>20}: ".format("nDatasites") + ndata + "\n"
+        s += "{:>20}: ".format("dataShape") + f"{self.data.shape}\n"
         np.seterr(over="ignore", under="ignore")
-        s += "{0:>20}: ".format("dataMax") + "%e\n" % self.data.max()
-        s += "{0:>20}: ".format("dataMin") + "%e\n" % self.data.min()
-        s += "{0:>20}: ".format("dataMean") + "%e\n" % self.data.mean()
+        s += "{:>20}: ".format("dataMax") + "%e\n" % self.data.max()
+        s += "{:>20}: ".format("dataMin") + "%e\n" % self.data.min()
+        s += "{:>20}: ".format("dataMean") + "%e\n" % self.data.mean()
         np.seterr(over="warn", under="warn")
         if self.cbounds is not None:
-            s += "{0:>20}: ".format("climatology") + "%d thru %d\n" % (
+            s += "{:>20}: ".format("climatology") + "%d thru %d\n" % (
                 self.cbounds[0],
                 self.cbounds[1],
             )
@@ -505,7 +505,7 @@ class Variable:
             ]
             data[i] = op(self.data[ind, ...], axis=0)
         return Variable(
-            name="%s_%s" % (op.__name__, self.name),
+            name=f"{op.__name__}_{self.name}",
             unit=self.unit,
             time=time,
             time_bnds=intervals,
@@ -791,7 +791,7 @@ class Variable:
             time_bnds=self.time_bnds,
             depth=self.depth,
             depth_bnds=self.depth_bnds,
-            name="mean_%s%s" % (self.name, rname),
+            name=f"mean_{self.name}{rname}",
         )
 
     def annualCycle(self):
@@ -858,7 +858,7 @@ class Variable:
         return Variable(
             data=data,
             unit="d",
-            name="time_of_%s_%s" % (etype, self.name),
+            name=f"time_of_{etype}_{self.name}",
             lat=self.lat,
             lat_bnds=self.lat_bnds,
             lon=self.lon,
@@ -959,7 +959,7 @@ class Variable:
                 lon=var.lon,
                 lon_bnds=var.lon_bnds,
                 ndata=var.ndata,
-                name="%s_minus_%s" % (var.name, self.name),
+                name=f"{var.name}_minus_{self.name}",
             )
         else:
             if not self.spatial:
@@ -987,7 +987,7 @@ class Variable:
                 lat_bnd=lat_bnd,
                 lon=lon,
                 lon_bnd=lon_bnd,
-                name="%s_minus_%s" % (var.name, self.name),
+                name=f"{var.name}_minus_{self.name}",
             )
         return diff
 
@@ -1300,7 +1300,7 @@ class Variable:
         lw : float, optional
             The line width to use when plotting
         alpha : float, optional
-            The degree of transparency when plotting, alpha \in [0,1]
+            The degree of transparency when plotting, alpha \\in [0,1]
         color : str or RGB tuple, optional
             The color to plot with in line plots
         label : str, optional
@@ -1561,7 +1561,7 @@ class Variable:
 
                 if self.data.ndim == 3:
                     halo = il.LandLinInterMissingValues(self.data)
-                    data = np.ma.zeros((self.data.shape[:-2] + (lat.size, lon.size)))
+                    data = np.ma.zeros(self.data.shape[:-2] + (lat.size, lon.size))
                     for i in range(self.data.shape[0]):
                         dint = RectBivariateSpline(
                             self.lat, self.lon, halo[i, ...], kx=1, ky=1
@@ -1735,7 +1735,7 @@ class Variable:
         return Variable(
             data=r,
             unit="1",
-            name="%s_correlation_of_%s" % (ctype, self.name),
+            name=f"{ctype}_correlation_of_{self.name}",
             time=out_time,
             time_bnds=out_time_bnds,
             ndata=out_ndata,
@@ -2041,12 +2041,12 @@ class Variable:
             score = np.asarray([0.0])
         std = Variable(
             data=std,
-            name="normalized_spatial_std_of_%s_over_%s" % (self.name, region),
+            name=f"normalized_spatial_std_of_{self.name}_over_{region}",
             unit="1",
         )
         score = Variable(
             data=score,
-            name="spatial_distribution_score_of_%s_over_%s" % (self.name, region),
+            name=f"spatial_distribution_score_of_{self.name}_over_{region}",
             unit="1",
         )
         return std, R, score
@@ -2195,6 +2195,8 @@ class Variable:
             ind = np.where(keep)[0]
             self.depth_bnds = self.depth_bnds[ind, :]
             self.depth = self.depth[ind]
-            self.data = self.data[..., ind, :, :]
-
+            if self.temporal:
+                self.data = self.data[:, ind]
+            else:
+                self.data = self.data[ind]
         return self
