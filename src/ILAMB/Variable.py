@@ -319,6 +319,59 @@ class Variable:
     def __repr__(self):
         return self.__str__()
 
+    def getSpaceExtent(self, percent_pad: float = 0.2):
+        def _default_extents(var):
+            extents = [
+                var.lon.min(),
+                var.lon.max(),
+                var.lat.min(),
+                var.lat.max(),
+            ]
+            dx = percent_pad * (extents[1] - extents[0])
+            dy = percent_pad * (extents[3] - extents[2])
+            extents[0] = max(extents[0] - dx, -180)
+            extents[1] = min(extents[1] + dx, +180)
+            extents[2] = max(extents[2] - dy, -90)
+            extents[3] = min(extents[3] + dy, +90)
+            return extents
+
+        if self.ndata is not None:
+            return _default_extents(self)
+
+        try:
+            lat_empty = np.where(self.data.mask.all(axis=-1) is False)[0]
+            lon_empty = np.where(self.data.mask.all(axis=-2) is False)[0]
+            extents = [
+                self.lon_bnds[lon_empty[0], 0],
+                self.lon_bnds[lon_empty[-1], 1],
+                self.lat_bnds[lat_empty[0], 0],
+                self.lat_bnds[lat_empty[-1], 1],
+            ]
+            dx = percent_pad * (extents[1] - extents[0])
+            dy = percent_pad * (extents[3] - extents[2])
+            extents[0] = max(extents[0] - dx, -180)
+            extents[1] = min(extents[1] + dx, +180)
+            extents[2] = max(extents[2] - dy, -90)
+            extents[3] = min(extents[3] + dy, +90)
+
+            # ...but the data might cross the dateline, but not be global
+            if (
+                lon_empty[0] == 0
+                and lon_empty[-1] == (self.lon.size - 1)
+                and np.diff(lon_empty).max() > 0.5 * self.lon.size
+            ):
+                wrap_lon = self.lon[lon_empty]
+                wrap_lon += (wrap_lon < 0) * 360
+                extents[0] = wrap_lon.min()
+                extents[1] = wrap_lon.max()
+                dx = percent_pad * (extents[1] - extents[0])
+                extents[0] -= dx
+                extents[1] += dx
+
+        except IndexError:
+            return _default_extents(self)
+        return extents
+
     def getTimeExtent(self):
         if not self.temporal:
             raise il.NotTemporalVariable()
@@ -1366,62 +1419,8 @@ class Variable:
             self.data.mask += r.getMask(region, self)
 
             # determine the plotting extents
-            percent_pad = 0.2
-            if self.ndata is None:
-                lat_empty = np.where(self.data.mask.all(axis=-1) is False)[0]
-                lon_empty = np.where(self.data.mask.all(axis=-2) is False)[0]
-                extents = [
-                    self.lon_bnds[lon_empty[0], 0],
-                    self.lon_bnds[lon_empty[-1], 1],
-                    self.lat_bnds[lat_empty[0], 0],
-                    self.lat_bnds[lat_empty[-1], 1],
-                ]
-                dx = percent_pad * (extents[1] - extents[0])
-                dy = percent_pad * (extents[3] - extents[2])
-                extents[0] = max(extents[0] - dx, -180)
-                extents[1] = min(extents[1] + dx, +180)
-                extents[2] = max(extents[2] - dy, -90)
-                extents[3] = min(extents[3] + dy, +90)
-                lon_mid = 0.5 * (extents[0] + extents[1])
-
-                # ...but the data might cross the dateline, but not be global
-                if (
-                    lon_empty[0] == 0
-                    and lon_empty[-1] == (self.lon.size - 1)
-                    and np.diff(lon_empty).max() > 0.5 * self.lon.size
-                ):
-                    wrap_lon = self.lon[lon_empty]
-                    wrap_lon += (wrap_lon < 0) * 360
-                    extents[0] = wrap_lon.min()
-                    extents[1] = wrap_lon.max()
-                    dx = percent_pad * (extents[1] - extents[0])
-                    extents[0] -= dx
-                    extents[1] += dx
-
-                    # find the middle centroid by mean angle
-                    lons = self.lon[np.where(self.data.mask.all(axis=-2) is False)[0]]
-                    lons = lons / 360 * 2 * np.pi
-                    lon_mid = (
-                        np.arctan2(np.sin(lons).mean(), np.cos(lons).mean())
-                        / 2
-                        / np.pi
-                        * 360
-                    )
-
-            else:
-                extents = [
-                    self.lon.min(),
-                    self.lon.max(),
-                    self.lat.min(),
-                    self.lat.max(),
-                ]
-                dx = percent_pad * (extents[1] - extents[0])
-                dy = percent_pad * (extents[3] - extents[2])
-                extents[0] = max(extents[0] - dx, -180)
-                extents[1] = min(extents[1] + dx, +180)
-                extents[2] = max(extents[2] - dy, -90)
-                extents[3] = min(extents[3] + dy, +90)
-                lon_mid = 0.5 * (extents[0] + extents[1])
+            extents = self.getSpaceExtent()
+            lon_mid = 0.5 * (extents[0] + extents[1])
 
             # choose a projection based on the non-masked data
             proj = ccrs.PlateCarree(central_longitude=lon_mid)
