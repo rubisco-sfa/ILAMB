@@ -2,8 +2,10 @@ from copy import deepcopy
 from typing import Union
 
 import numpy as np
+from netCDF4 import Dataset
 
 import ILAMB.ilamblib as il
+from ILAMB.ConfPermafrost import permafrost_extent_slater2013
 from ILAMB.Confrontation import Confrontation
 from ILAMB.constants import bnd_months, dpm_noleap
 from ILAMB.Variable import Variable
@@ -233,6 +235,8 @@ class ConfALT(Confrontation):
     def stageData(self, m):
         """Return the observation and model permafrost extent."""
         Teps = float(self.keywords.get("Teps", 273.15))
+        max_depth = float(self.keywords.get("max_depth", 4.5))
+
         obs = Variable(
             filename=self.source,
             variable_name=self.variable,
@@ -252,7 +256,7 @@ class ConfALT(Confrontation):
             final_time=obs.time_bnds[-1, 1],
             lats=None if obs.spatial else obs.lat,
             lons=None if obs.spatial else obs.lon,
-        )
+        ).trim(d=[0, max_depth])
         if tsl.spatial:
             tsl = tsl.trim(lat=[obs.lat.min(), 90])
         mod = active_layer_thickness(tsl, Teps=Teps)
@@ -267,7 +271,90 @@ class ConfALT(Confrontation):
             logstring=f"[{self.longname}][{m.name}]",
         )
         mod.convert(obs.unit)
+
+        # mask out those sites that fall outside of the estimated permafrost extent
+        ext = permafrost_extent_slater2013(tsl, dmax=max_depth)
+        mod.data.mask += ext.data.mask
+
         return obs, mod
+
+    def confront(self, m):
+        def _mean(var, name):
+            mean = (
+                var.siteStats()
+                if var.ndata is not None
+                else var.integrateInSpace(mean=True)
+            )
+            mean.name = name
+            return mean
+
+        obs, mod = self.stageData(m)
+
+        # temporal means
+        obs_mean = obs.integrateInTime(mean=True)
+        mod_mean = mod.integrateInTime(mean=True)
+        obs_mean.name = "timeint_of_alt"
+        mod_mean.name = "timeint_of_alt"
+        obs_total = _mean(obs_mean, "Period Mean global")
+        mod_total = _mean(mod_mean, "Period Mean global")
+
+        # bias
+        bias = deepcopy(mod_mean)
+        bias.data -= obs_mean.data
+        bias.name = "bias_map_of_alt"
+        bias_total = _mean(bias, "Bias global")
+
+        # bias score
+        score = deepcopy(bias)
+        with np.errstate(under="ignore"):
+            score.data = np.exp(-np.abs(bias.data) / obs_mean.data)
+        score.name = "biasscore_map_of_alt"
+        score.unit = "1"
+        score_total = _mean(score, "Bias score global")
+
+        with Dataset(
+            f"{self.output_path}/{self.name}_{m.name}.nc", mode="w"
+        ) as results:
+            results.setncatts(
+                {
+                    "name": m.name,
+                    "color": m.color,
+                    "complete": 0,
+                    "weight": self.cweight,
+                }
+            )
+            for var in [mod_total, mod_mean, bias, score, bias_total, score_total]:
+                var.toNetCDF4(results, group="MeanState")
+            if "depth_bnds" in m.variables:
+                with Dataset(m.variables["depth_bnds"][0]) as dset:
+                    Variable(
+                        name="Model Max Depth",
+                        unit="m",
+                        data=dset.variables["depth_bnds"][...].max(),
+                    ).toNetCDF4(results, group="MeanState")
+            if mod.ndata is not None:
+                Variable(
+                    name="Missed Sites",
+                    unit="1",
+                    data=mod.data.mask.all(axis=0).sum(),
+                ).toNetCDF4(results, group="MeanState")
+            results.setncattr("weight", 1)
+
+        if self.master:
+            with Dataset(
+                f"{self.output_path}/{self.name}_Benchmark.nc", mode="w"
+            ) as results:
+                results.setncatts(
+                    {
+                        "name": "Benchmark",
+                        "color": np.asarray([0.5, 0.5, 0.5]),
+                        "complete": 0,
+                        "weight": self.cweight,
+                    }
+                )
+                for var in [obs_total, obs_mean]:
+                    var.toNetCDF4(results, group="MeanState")
+                results.setncattr("weight", 1)
 
     def determinePlotLimits(self):
         super().determinePlotLimits()
