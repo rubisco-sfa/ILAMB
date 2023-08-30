@@ -189,7 +189,9 @@ def active_layer_thickness(tsl: Variable, Teps: float = 273.15) -> Variable:
         time=tb.mean(axis=1),
         time_bnds=tb,
         lat=tsl.lat,
+        lat_bnds=tsl.lat_bnds,
         lon=tsl.lon,
+        lon_bnds=tsl.lon_bnds,
         ndata=tsl.ndata,
     )
     return alt
@@ -288,6 +290,23 @@ class ConfALT(Confrontation):
             mean.name = name
             return mean
 
+        def _bias(var0, var):
+            if np.allclose(var0.data.ndim, var.data.ndim) and np.allclose(
+                var0.data, var.data
+            ):
+                bias = deepcopy(var)
+                bias.data -= var0.data
+                return var0, bias
+            lat, lon, lat_bnds, lon_bnds = il._composeGrids(var0, var)
+            norm = var0.interpolate(
+                lat=lat, lon=lon, lat_bnds=lat_bnds, lon_bnds=lon_bnds
+            )
+            bias = var.interpolate(
+                lat=lat, lon=lon, lat_bnds=lat_bnds, lon_bnds=lon_bnds
+            )
+            bias.data -= norm.data
+            return norm, bias
+
         obs, mod = self.stageData(m)
 
         # temporal means
@@ -299,19 +318,25 @@ class ConfALT(Confrontation):
         mod_total = _mean(mod_mean, "Period Mean global")
 
         # bias
-        bias = deepcopy(mod_mean)
-        bias.data -= obs_mean.data
+        norm, bias = _bias(obs_mean, mod_mean)
         bias.name = "bias_map_of_alt"
         bias_total = _mean(bias, "Bias global")
 
         # bias score
         score = deepcopy(bias)
         with np.errstate(under="ignore"):
-            score.data = np.exp(-np.abs(bias.data) / obs_mean.data)
+            score.data = np.exp(-np.abs(bias.data) / norm.data)
         score.name = "biasscore_map_of_alt"
         score.unit = "1"
-        score_total = _mean(score, "Bias score global")
+        score_total = _mean(score, "Bias Score global")
 
+        # how deep is soil modeled?
+        tsl = m.extractTimeSeries(
+            "tsl", initial_time=(1990 - 1850) * 365, final_time=(1990 - 1850) * 365 + 31
+        )
+        dmax = Variable(name="Model Max Depth", unit="m", data=tsl.depth_bnds.max())
+
+        # write out
         with Dataset(
             f"{self.output_path}/{self.name}_{m.name}.nc", mode="w"
         ) as results:
@@ -325,18 +350,17 @@ class ConfALT(Confrontation):
             )
             for var in [mod_total, mod_mean, bias, score, bias_total, score_total]:
                 var.toNetCDF4(results, group="MeanState")
-            if "depth_bnds" in m.variables:
-                with Dataset(m.variables["depth_bnds"][0]) as dset:
-                    Variable(
-                        name="Model Max Depth",
-                        unit="m",
-                        data=dset.variables["depth_bnds"][...].max(),
-                    ).toNetCDF4(results, group="MeanState")
+            if dmax:
+                dmax.toNetCDF4(results, group="MeanState")
             if mod.ndata is not None:
+                miss = mod.data.mask.all(axis=0).sum()
+                Variable(name="Missed Sites", unit="1", data=miss).toNetCDF4(
+                    results, group="MeanState"
+                )
                 Variable(
-                    name="Missed Sites",
+                    name="Coverage Score global",
                     unit="1",
-                    data=mod.data.mask.all(axis=0).sum(),
+                    data=float(mod.ndata - miss) / mod.ndata,
                 ).toNetCDF4(results, group="MeanState")
             results.setncattr("weight", 1)
 
