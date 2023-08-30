@@ -39,7 +39,7 @@ def permafrost_extent_slater2013(
     end = begin + int(tsl.time[begin:].size / 12.0) * 12
     # First we compute the maximum annual temperature for all depth/lat/lon and check if
     # it is below the temperature threshold.
-    ext = tsl.data[begin:end].reshape((-1, 12) + tsl.data.shape[-3:]).max(axis=1) < Teps
+    ext = tsl.data[begin:end].reshape((-1, 12) + tsl.data.shape[1:]).max(axis=1) < Teps
     # If the difference is 0, then consecutive entries are the same and we have a
     # repeated year. If the ext itself is also 1, then we have a repeated year of
     # permafrost. If this is true at all in the time and depth dimension, we flag this
