@@ -292,7 +292,7 @@ class ConfALT(Confrontation):
 
         def _bias(var0, var):
             if np.allclose(var0.data.ndim, var.data.ndim) and np.allclose(
-                var0.data, var.data
+                var0.data.shape, var.data.shape
             ):
                 bias = deepcopy(var)
                 bias.data -= var0.data
@@ -362,7 +362,7 @@ class ConfALT(Confrontation):
                     unit="1",
                     data=float(mod.ndata - miss) / mod.ndata,
                 ).toNetCDF4(results, group="MeanState")
-            results.setncattr("weight", 1)
+            results.setncattr("complete", 1)
 
         if self.master:
             with Dataset(
@@ -378,7 +378,7 @@ class ConfALT(Confrontation):
                 )
                 for var in [obs_total, obs_mean]:
                     var.toNetCDF4(results, group="MeanState")
-                results.setncattr("weight", 1)
+                results.setncattr("complete", 1)
 
     def determinePlotLimits(self):
         super().determinePlotLimits()
