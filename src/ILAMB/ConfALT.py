@@ -234,6 +234,21 @@ def mean_annual_ground_temperature(
 
 
 class ConfALT(Confrontation):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        for page in self.layout.pages:
+            page.setMetricPriority(
+                [
+                    "Period Mean",
+                    "Number of Sites with Permafrost",
+                    "Model Max Depth",
+                    "Bias",
+                    "Coverage Score",
+                    "Bias Score",
+                    "Overall Score",
+                ]
+            )
+
     def stageData(self, m):
         """Return the observation and model permafrost extent."""
         Teps = float(self.keywords.get("Teps", 273.15))
