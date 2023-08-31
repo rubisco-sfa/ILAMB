@@ -369,9 +369,11 @@ class ConfALT(Confrontation):
                 dmax.toNetCDF4(results, group="MeanState")
             if mod.ndata is not None:
                 miss = mod.data.mask.all(axis=0).sum()
-                Variable(name="Missed Sites", unit="1", data=miss).toNetCDF4(
-                    results, group="MeanState"
-                )
+                Variable(
+                    name="Number of Sites with Permafrost",
+                    unit="1",
+                    data=obs.ndata - miss,
+                ).toNetCDF4(results, group="MeanState")
                 Variable(
                     name="Coverage Score global",
                     unit="1",
@@ -391,6 +393,12 @@ class ConfALT(Confrontation):
                         "weight": self.cweight,
                     }
                 )
+                if obs.ndata is not None:
+                    Variable(
+                        name="Number of Sites with Permafrost",
+                        unit="1",
+                        data=obs.ndata,
+                    ).toNetCDF4(results, group="MeanState")
                 for var in [obs_total, obs_mean]:
                     var.toNetCDF4(results, group="MeanState")
                 results.setncattr("complete", 1)
