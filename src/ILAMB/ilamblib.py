@@ -361,7 +361,7 @@ def GetTime(var, t0=None, tf=None, convert_calendar=True, ignore_time_array=True
     # Do the times lie in the bounds
     TF = (T >= TB[:, 0]) * (T <= TB[:, 1])
     if not TF.all():
-        index = ["%d" % i for i in np.where(TF == False)[0]]
+        index = ["%d" % i for i in np.where(~TF)[0]]
         msg = (
             "Times at indices [%s] do not fall inside of the corresponding bounds in %s:%s and %s"
             % (",".join(index), dset.filepath(), time_name, time_bnds_name)
@@ -742,7 +742,7 @@ def FromNetCDF4(
             if var_name in grp.variables.keys():
                 found = True
                 var = grp.variables[var_name]
-    if found == False:
+    if not found:
         alternate_vars.insert(0, variable_name)
         raise RuntimeError(
             "Unable to find [%s] in the file: %s" % (",".join(alternate_vars), filename)
@@ -1068,7 +1068,7 @@ def FromNetCDF4(
             lon_bnd[:, 1] = lon_bnds[+1:]
 
     # handle incorrect or absent masking of arrays
-    if type(v) != type(np.ma.empty(1)):
+    if not isinstance(v, np.ma.core.MaskedArray):
         mask = np.zeros(v.shape, dtype=int)
         if "_FillValue" in var.ncattrs():
             mask += np.abs(v - var._FillValue) < 1e-12
@@ -1259,7 +1259,6 @@ def AnalysisMeanStateSites(ref, com, **keywords):
     regions = keywords.get("regions", ["global"])
     dataset = keywords.get("dataset", None)
     benchmark_dataset = keywords.get("benchmark_dataset", None)
-    space_mean = keywords.get("space_mean", True)
     table_unit = keywords.get("table_unit", None)
     plot_unit = keywords.get("plot_unit", None)
     mass_weighting = keywords.get("mass_weighting", False)
@@ -1272,11 +1271,11 @@ def AnalysisMeanStateSites(ref, com, **keywords):
     name = ref.name
 
     # Convert str types to booleans
-    if type(skip_rmse) == type(""):
+    if isinstance(skip_rmse, str):
         skip_rmse = skip_rmse.lower() == "true"
-    if type(skip_iav) == type(""):
+    if isinstance(skip_iav, str):
         skip_iav = skip_iav.lower() == "true"
-    if type(skip_cycle) == type(""):
+    if isinstance(skip_cycle, str):
         skip_cycle = skip_cycle.lower() == "true"
 
     # Only study the annual cycle if it makes sense
@@ -1331,7 +1330,7 @@ def AnalysisMeanStateSites(ref, com, **keywords):
             ]
             if len(val) > 0:
                 mask.append(ILAMBregions.getMask(region, bias))
-                values.append((mask[-1] == False) * float(val))
+                values.append((~mask[-1]) * float(val))
         bias_score_map = deepcopy(bias)
         bias_score_map.data = np.ma.masked_array(
             np.array(values).sum(axis=0), mask=np.array(mask).all(axis=0)
@@ -1381,7 +1380,7 @@ def AnalysisMeanStateSites(ref, com, **keywords):
                 ]
                 if len(val) > 0:
                     mask.append(ILAMBregions.getMask(region, crmse))
-                    values.append((mask[-1] == False) * float(val))
+                    values.append((~mask[-1]) * float(val))
             rmse_score_map = deepcopy(crmse)
             rmse_score_map.data = np.ma.masked_array(
                 np.array(values).sum(axis=0), mask=np.array(mask).all(axis=0)
@@ -1555,7 +1554,7 @@ def AnalysisMeanStateSites(ref, com, **keywords):
 
     # Unit conversions
     def _convert(var, unit):
-        if type(var) == type({}):
+        if isinstance(var, dict):
             for key in var.keys():
                 var[key].convert(unit)
         else:
@@ -1634,7 +1633,7 @@ def AnalysisMeanStateSites(ref, com, **keywords):
         out_vars.append(iav_score)
     if dataset is not None:
         for var in out_vars:
-            if type(var) == type({}):
+            if isinstance(var, dict):
                 for key in var.keys():
                     var[key].toNetCDF4(dataset, group="MeanState")
             else:
@@ -1659,7 +1658,7 @@ def AnalysisMeanStateSites(ref, com, **keywords):
         out_vars.append(ref_iav)
     if benchmark_dataset is not None:
         for var in out_vars:
-            if type(var) == type({}):
+            if isinstance(var, dict):
                 for key in var.keys():
                     var[key].toNetCDF4(benchmark_dataset, group="MeanState")
             else:
@@ -1723,14 +1722,13 @@ def AnalysisMeanStateSpace(ref, com, **keywords):
     rmse_score_basis = keywords.get("rmse_score_basis", "cycle")
     df_errs = keywords.get("df_errs", None)
     ILAMBregions = Regions()
-    spatial = ref.spatial
 
     # Convert str types to booleans
-    if type(skip_rmse) == type(""):
+    if isinstance(skip_rmse, str):
         skip_rmse = skip_rmse.lower() == "true"
-    if type(skip_iav) == type(""):
+    if isinstance(skip_iav, str):
         skip_iav = skip_iav.lower() == "true"
-    if type(skip_cycle) == type(""):
+    if isinstance(skip_cycle, str):
         skip_cycle = skip_cycle.lower() == "true"
     if df_errs is not None:
         mass_weighting = False
@@ -1778,9 +1776,9 @@ def AnalysisMeanStateSpace(ref, com, **keywords):
 
     # Report period mean values over all possible representations of
     # land
-    ref_and_com = (REF_timeint.data.mask == False) * (COM_timeint.data.mask == False)
-    ref_not_com = (REF_timeint.data.mask == False) * (COM_timeint.data.mask == True)
-    com_not_ref = (REF_timeint.data.mask == True) * (COM_timeint.data.mask == False)
+    ref_and_com = (~REF_timeint.data.mask) * (~COM_timeint.data.mask)
+    ref_not_com = (~REF_timeint.data.mask) * (COM_timeint.data.mask)
+    com_not_ref = (REF_timeint.data.mask) * (~COM_timeint.data.mask)
     if benchmark_dataset is not None:
         ref_timeint.name = "timeint_of_%s" % name
         ref_timeint.toNetCDF4(benchmark_dataset, group="MeanState")
@@ -1801,9 +1799,7 @@ def AnalysisMeanStateSpace(ref, com, **keywords):
                 Variable(
                     name="REF_and_com",
                     unit=REF_timeint.unit,
-                    data=np.ma.masked_array(
-                        REF_timeint.data, mask=(ref_and_com == False)
-                    ),
+                    data=np.ma.masked_array(REF_timeint.data, mask=(~ref_and_com)),
                     lat=lat,
                     lat_bnds=lat_bnds,
                     lon=lon,
@@ -1821,9 +1817,7 @@ def AnalysisMeanStateSpace(ref, com, **keywords):
                 Variable(
                     name="REF_not_com",
                     unit=REF_timeint.unit,
-                    data=np.ma.masked_array(
-                        REF_timeint.data, mask=(ref_not_com == False)
-                    ),
+                    data=np.ma.masked_array(REF_timeint.data, mask=(~ref_not_com)),
                     lat=lat,
                     lat_bnds=lat_bnds,
                     lon=lon,
@@ -1848,9 +1842,7 @@ def AnalysisMeanStateSpace(ref, com, **keywords):
                 Variable(
                     name="ref_and_COM",
                     unit=COM_timeint.unit,
-                    data=np.ma.masked_array(
-                        COM_timeint.data, mask=(ref_and_com == False)
-                    ),
+                    data=np.ma.masked_array(COM_timeint.data, mask=(~ref_and_com)),
                     lat=lat,
                     lat_bnds=lat_bnds,
                     lon=lon,
@@ -1868,9 +1860,7 @@ def AnalysisMeanStateSpace(ref, com, **keywords):
                 Variable(
                     name="COM_not_ref",
                     unit=COM_timeint.unit,
-                    data=np.ma.masked_array(
-                        COM_timeint.data, mask=(com_not_ref == False)
-                    ),
+                    data=np.ma.masked_array(COM_timeint.data, mask=(~com_not_ref)),
                     lat=lat,
                     lat_bnds=lat_bnds,
                     lon=lon,
@@ -1886,15 +1876,15 @@ def AnalysisMeanStateSpace(ref, com, **keywords):
     # Now that we are done reporting on the intersection / complement,
     # set all masks to the intersection
     REF.data.mask += np.ones(REF.time.size, dtype=bool)[:, np.newaxis, np.newaxis] * (
-        ref_and_com == False
+        ~ref_and_com
     )
     COM.data.mask += np.ones(COM.time.size, dtype=bool)[:, np.newaxis, np.newaxis] * (
-        ref_and_com == False
+        ~ref_and_com
     )
-    REF_timeint.data.mask = ref_and_com == False
-    COM_timeint.data.mask = ref_and_com == False
+    REF_timeint.data.mask = ~ref_and_com
+    COM_timeint.data.mask = ~ref_and_com
     if mass_weighting:
-        normalizer.mask = ref_and_com == False
+        normalizer.mask = ~ref_and_com
 
     # Spatial Distribution: scalars and scores
     if dataset is not None:
@@ -2055,7 +2045,7 @@ def AnalysisMeanStateSpace(ref, com, **keywords):
             ]
             if len(val) > 0:
                 mask.append(ILAMBregions.getMask(region, bias))
-                values.append((mask[-1] == False) * float(val))
+                values.append((~mask[-1]) * float(val))
         bias_score_map = deepcopy(bias)
         bias_score_map.data = np.ma.masked_array(
             np.array(values).sum(axis=0), mask=np.array(mask).all(axis=0)
@@ -2073,7 +2063,7 @@ def AnalysisMeanStateSpace(ref, com, **keywords):
         logger.info(msg)
         bias_score_map = Score(bias, REF_std if REF.time.size > 1 else REF_timeint)
         bias_score_map.data.mask = (
-            ref_and_com == False
+            ~ref_and_com
         )  # for some reason I need to explicitly force the mask
 
     if dataset is not None:
@@ -2157,7 +2147,7 @@ def AnalysisMeanStateSpace(ref, com, **keywords):
                 ]
                 if len(val) > 0:
                     mask.append(ILAMBregions.getMask(region, crmse))
-                    values.append((mask[-1] == False) * float(val))
+                    values.append((~mask[-1]) * float(val))
             rmse_score_map = deepcopy(crmse)
             rmse_score_map.data = np.ma.masked_array(
                 np.array(values).sum(axis=0), mask=np.array(mask).all(axis=0)
@@ -2217,7 +2207,7 @@ def AnalysisMeanStateSpace(ref, com, **keywords):
                 ]
                 if len(val) > 0:
                     mask.append(ILAMBregions.getMask(region, crmse))
-                    values.append((mask[-1] == False) * float(val))
+                    values.append((~mask[-1]) * float(val))
             rmse_score_map = deepcopy(crmse)
             rmse_score_map.data = np.ma.masked_array(
                 np.array(values).sum(axis=0), mask=np.array(mask).all(axis=0)
@@ -2307,9 +2297,6 @@ def MakeComparable(ref, com, **keywords):
     clip_ref : bool, optional
         enable in order to clip the reference variable time using the
         limits of the comparison variable (defult is False)
-    mask_ref : bool, optional
-        enable in order to mask the reference variable using an
-        interpolation of the comparison variable (defult is False)
     eps : float, optional
         used to determine how close you can be to a specific time
         (expressed in days since 1-1-1850) and still be considered the
@@ -2328,8 +2315,6 @@ def MakeComparable(ref, com, **keywords):
     """
     # Process keywords
     clip_ref = keywords.get("clip_ref", False)
-    mask_ref = keywords.get("mask_ref", False)
-    eps = keywords.get("eps", 30.0 / 60.0 / 24.0)
     window = keywords.get("window", 0.0)
     extents = keywords.get("extents", np.asarray([[-90.0, +90.0], [-180.0, +180.0]]))
     logstring = keywords.get("logstring", "")
@@ -2607,7 +2592,7 @@ def CombineVariables(V):
     from ILAMB.Variable import Variable
 
     # checks on data
-    assert type(V) == type([])
+    assert isinstance(V, list)
     if len(V) == 1:
         return V[0]
     for v in V:
@@ -2706,7 +2691,7 @@ def ConvertBoundsTypes(x):
 
 
 def LandLinInterMissingValues(mdata):
-    land = np.any(mdata.mask, axis=0) == False
+    land = ~np.any(mdata.mask, axis=0)
     data = np.ma.masked_array(mdata)
     data.data[data.mask] = 0.0
     data.fill_value = 0.0
@@ -2731,7 +2716,7 @@ def LandLinInterMissingValues(mdata):
     smooth[:, 1:-1, 1:-1] += data[:, +2:, +2:] * land[np.newaxis, +2:, +2:]
     suml[1:-1, 1:-1] += land[+2:, +2:]
     smooth /= suml.clip(1)
-    smooth = (mdata.mask == True) * smooth + (mdata.mask == False) * mdata.data
+    smooth = (mdata.mask) * smooth + (~mdata.mask) * mdata.data
     return smooth
 
 
