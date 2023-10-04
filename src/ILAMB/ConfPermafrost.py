@@ -183,13 +183,13 @@ class ConfPermafrost(Confrontation):
     def stageData(self, m):
         """Return the observation and model permafrost extent."""
         obs = Variable(filename=self.source, variable_name="permafrost_extent")
+        y0 = float(self.keywords.get("y0", round(obs.time_bnds.min() / 365) + 1850.0))
+        yf = float(self.keywords.get("yf", round(obs.time_bnds.max() / 365) + 1850.0))
+        dmax = float(self.keywords.get("max_depth", 3.5))
+        Teps = float(self.keywords.get("Teps", 273.15))
         if obs.temporal:
             obs = obs.integrateInTime(mean=True)
         obs.name = "permafrost_extent"
-        y0 = float(self.keywords.get("y0", 1985.0))
-        yf = float(self.keywords.get("yf", 2005.0))
-        dmax = float(self.keywords.get("dmax", 3.5))
-        Teps = float(self.keywords.get("Teps", 273.15))
         tsl = m.extractTimeSeries(
             "tsl", initial_time=(y0 - 1850) * 365, final_time=(yf - 1850) * 365
         )

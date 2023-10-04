@@ -1,14 +1,22 @@
 import numpy as np
+from cf_units import Unit
 
 from ILAMB.Confrontation import Confrontation
 
 
 class ConfSWE(Confrontation):
     def stageData(self, m):
-        # same as regular, but we subtract off the minimum
         obs, mod = super(ConfSWE, self).stageData(m)
-        omin = obs.data.min(axis=0)
-        mmin = mod.data.min(axis=0)
-        obs.data -= omin[np.newaxis, ...]
-        mod.data -= mmin[np.newaxis, ...]
+
+        def _transform(var):
+            vmin = Unit("m").convert(1e-3, var.unit)  # nothing under a [mm]
+            var.data.mask += (var.data < vmin).all(axis=0)[np.newaxis, ...]
+            with np.errstate(all="ignore"):
+                var.data = np.log10(var.data)
+            var.unit = f"{Unit(var.unit).log(10)}"
+            return var
+
+        obs = _transform(obs)
+        mod = _transform(mod)
+
         return obs, mod
