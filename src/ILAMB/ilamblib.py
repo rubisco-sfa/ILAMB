@@ -1068,7 +1068,7 @@ def FromNetCDF4(
             lon_bnd[:, 1] = lon_bnds[+1:]
 
     # handle incorrect or absent masking of arrays
-    if type(v) != type(np.ma.empty(1)):
+    if not isinstance(v, np.ma.core.MaskedArray):
         mask = np.zeros(v.shape, dtype=int)
         if "_FillValue" in var.ncattrs():
             mask += np.abs(v - var._FillValue) < 1e-12
@@ -1259,7 +1259,6 @@ def AnalysisMeanStateSites(ref, com, **keywords):
     regions = keywords.get("regions", ["global"])
     dataset = keywords.get("dataset", None)
     benchmark_dataset = keywords.get("benchmark_dataset", None)
-    space_mean = keywords.get("space_mean", True)
     table_unit = keywords.get("table_unit", None)
     plot_unit = keywords.get("plot_unit", None)
     mass_weighting = keywords.get("mass_weighting", False)
@@ -2298,9 +2297,6 @@ def MakeComparable(ref, com, **keywords):
     clip_ref : bool, optional
         enable in order to clip the reference variable time using the
         limits of the comparison variable (defult is False)
-    mask_ref : bool, optional
-        enable in order to mask the reference variable using an
-        interpolation of the comparison variable (defult is False)
     eps : float, optional
         used to determine how close you can be to a specific time
         (expressed in days since 1-1-1850) and still be considered the
@@ -2319,8 +2315,6 @@ def MakeComparable(ref, com, **keywords):
     """
     # Process keywords
     clip_ref = keywords.get("clip_ref", False)
-    mask_ref = keywords.get("mask_ref", False)
-    eps = keywords.get("eps", 30.0 / 60.0 / 24.0)
     window = keywords.get("window", 0.0)
     extents = keywords.get("extents", np.asarray([[-90.0, +90.0], [-180.0, +180.0]]))
     logstring = keywords.get("logstring", "")
