@@ -9,6 +9,7 @@ class ConfSWE(Confrontation):
         obs, mod = super(ConfSWE, self).stageData(m)
 
         def _transform(var):
+            var.convert("m")
             vmin = Unit("m").convert(1e-3, var.unit)  # nothing under a [mm]
             var.data.mask += (var.data < vmin).all(axis=0)[np.newaxis, ...]
             with np.errstate(all="ignore"):
