@@ -747,14 +747,14 @@ class Variable:
         """
 
         def _integrate(var, areas):
-            def op(x):
+            def op(x, intabs):
+                if intabs:
+                    return np.abs(x)
                 return x
 
-            if intabs:
-                op = np.abs
             assert var.shape[-2:] == areas.shape
             np.seterr(over="ignore", under="ignore")
-            vbar = (op(var) * areas).sum(axis=-1).sum(axis=-1)
+            vbar = (op(var, intabs) * areas).sum(axis=-1).sum(axis=-1)
             np.seterr(over="raise", under="raise")
             return vbar
 
@@ -822,11 +822,11 @@ class Variable:
         if self.ndata is None:
             raise il.NotDatasiteVariable()
 
-        def op(x):
+        def op(x, intabs):
+            if intabs:
+                return np.abs(x)
             return x
 
-        if intabs:
-            op = np.abs
         rem_mask = np.copy(self.data.mask)
         rname = ""
         r = Regions()
