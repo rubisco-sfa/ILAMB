@@ -78,7 +78,7 @@ class Relationship(object):
             assert self.dep.data.min() > 0
 
     def makeComparable(self, b, region=None):
-        """Ensures that relationships a and b are consistent on given region for scoring.
+        """Ensures that relationships a and b are consistent on region for scoring.
 
         Parameters
         ----------
@@ -194,8 +194,8 @@ class Relationship(object):
         mask = ind.data.mask + dep.data.mask
         if region is not None:
             mask += Regions().getMask(region, ind)
-        x = ind.data[mask == False].flatten()
-        y = dep.data[mask == False].flatten()
+        x = ind.data[~mask].flatten()
+        y = dep.data[~mask].flatten()
         xedges = nbin
         yedges = nbin
         if self.ind_log:
@@ -293,11 +293,11 @@ class Relationship(object):
             mask += self.color.data.mask
         if region is not None:
             mask += Regions().getMask(region, self.ind)
-        x = self.ind.data[mask == False].flatten()
-        y = self.dep.data[mask == False].flatten()
+        x = self.ind.data[~mask].flatten()
+        y = self.dep.data[~mask].flatten()
         need_colorbar = False
         if self.color is not None and color is None:
-            color = self.color.data[mask == False].flatten()
+            color = self.color.data[~mask].flatten()
             need_colorbar = True
         sc = ax.scatter(x, y, c=color, s=ms, vmin=vmin, vmax=vmax, cmap=cmap)
         if need_colorbar:
@@ -390,9 +390,9 @@ class Relationship(object):
         mask = y.mask
         if type(mask) == np.bool_:
             mask = np.asarray([mask] * y.size)
-        x = x[mask == False]
-        y = y[mask == False]
-        e = e[mask == False]
+        x = x[~mask]
+        y = y[~mask]
+        e = e[~mask]
         if self.dep_log:
             e = np.asarray(
                 [10 ** (np.log10(y) - np.log10(e)), 10 ** (np.log10(y) + np.log10(e))]
@@ -442,9 +442,7 @@ class Relationship(object):
         ax.plot(x, y, "-", color=color)
         if prediction:
             if self.dep_log:
-                yt = 10 ** (np.log10(y) - i)
                 ax.plot(x, 10 ** (np.log10(y) - i), "--", color=color)
-                yt = 10 ** (np.log10(y) + i)
                 ax.plot(x, 10 ** (np.log10(y) + i), "--", color=color)
             else:
                 ax.plot(x, y, "--", color=color)
@@ -459,7 +457,7 @@ class Relationship(object):
             ax.set_xscale("log")
 
     def scoreRMSE(self, r, region=None):
-        """Given another relationship, computes a RMSE score based on the mean functional responses.
+        """Computes a RMSE score based on the mean functional responses.
 
         Parameter
         ---------
@@ -494,7 +492,7 @@ class Relationship(object):
         return S
 
     def scoreHellinger(self, r, region=None):
-        """Given another relationship, computes the Hellenger score, which is 1 minus the Hellinger distance.
+        """Compute the Hellenger score, which is 1 minus the Hellinger distance.
 
         Parameter
         ---------
