@@ -4,6 +4,7 @@ import os
 import pickle
 import re
 
+import matplotlib as mpl
 import numpy as np
 import pandas as pd
 import pylab as plt
@@ -1314,8 +1315,7 @@ def RegisterCustomColormaps():
     import colorsys as cs
 
     # score colormap
-    cm = plt.get_cmap("plasma")
-    plt.register_cmap("score", cm)
+    mpl.colormaps.register(plt.get_cmap("plasma"), name="score")
 
     # bias colormap
     val = 0.8
@@ -1344,7 +1344,7 @@ def RegisterCustomColormaps():
             (1.0, Rd[2], 0.0),
         ),
     }
-    plt.register_cmap(cmap=LinearSegmentedColormap("bias", RdBl))
+    mpl.colormaps.register(LinearSegmentedColormap("bias", RdBl), name="bias")
 
     cm = LinearSegmentedColormap.from_list(
         "wetdry",
@@ -1411,7 +1411,7 @@ def RegisterCustomColormaps():
             [0.037255, 0.190196, 0.456863],
         ],
     )
-    plt.register_cmap("wetdry", cm)
+    mpl.colormaps.register(cm, name="wetdry")
 
 
 def HarvestScalarDatabase(build_dir, filename="scalar_database.csv"):

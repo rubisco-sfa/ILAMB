@@ -4,6 +4,7 @@ import os
 import re
 
 import cftime as cf
+import matplotlib as mpl
 import numpy as np
 import pylab as plt
 from mpi4py import MPI
@@ -620,7 +621,7 @@ class Confrontation:
             if limits[pname]["cmap"] == "choose":
                 limits[pname]["cmap"] = self.cmap
             if "score" in pname:
-                limits[pname]["cmap"] = plt.cm.get_cmap(limits[pname]["cmap"])
+                limits[pname]["cmap"] = mpl.colormaps.get_cmap(limits[pname]["cmap"])
 
             # Plot a legend for each key
             if opts["haslegend"]:
