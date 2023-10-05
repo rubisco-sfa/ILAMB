@@ -572,9 +572,7 @@ class HtmlPage(object):
         if not self.metric_dict:
             return ""
         models = self.models
-        regions = self.regions
         metrics = self.metrics
-        units = self.units
         cname = self.cname.split(" / ")
         if len(cname) == 3:
             cname = cname[1].strip()

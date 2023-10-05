@@ -339,8 +339,8 @@ class Variable:
             return _default_extents(self)
 
         try:
-            lat_empty = np.where(self.data.mask.all(axis=-1) is False)[0]
-            lon_empty = np.where(self.data.mask.all(axis=-2) is False)[0]
+            lat_empty = np.where(~self.data.mask.all(axis=-1))[0]
+            lon_empty = np.where(~self.data.mask.all(axis=-2))[0]
             extents = [
                 self.lon_bnds[lon_empty[0], 0],
                 self.lon_bnds[lon_empty[-1], 1],
