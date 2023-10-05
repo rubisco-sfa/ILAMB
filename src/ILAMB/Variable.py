@@ -1077,6 +1077,8 @@ class Variable:
         """
         if unit is None:
             return self
+        if unit == self.unit:
+            return self
         src_unit = Unit(self.unit)
         tar_unit = Unit(unit)
         mass_density = Unit("kg m-3")
