@@ -1,31 +1,30 @@
-
 trigger:
-- master
+  - master
 
 pool:
-  vmImage: 'ubuntu-latest'
+  vmImage: "ubuntu-latest"
 strategy:
   matrix:
     Python:
-      python.version: '3.7'
+      python.version: "3.9"
 
 steps:
-- task: UsePythonVersion@0
-  inputs:
-    versionSpec: '$(python.version)'
-  displayName: 'Use Python $(python.version)'
+  - task: UsePythonVersion@0
+    inputs:
+      versionSpec: "$(python.version)"
+    displayName: "Use Python $(python.version)"
 
-- script: |
-    sudo apt-get -y install libgeos-dev proj-bin libproj-dev libmpich-dev
-    python -m pip install --upgrade pip
-    python -m pip install shapely==1.8.5 requests
-    python -m pip install ./
-    python -c "import ILAMB; print('ILAMB v%s successfully installed' % (ILAMB.__version__))"
-  displayName: 'Install ILAMB'
+  - script: |
+      sudo apt-get -y install libgeos-dev proj-bin libproj-dev libmpich-dev libhdf5-dev
+      python -m pip install --upgrade pip
+      python -m pip install shapely==1.8.5 requests
+      python -m pip install ./
+      python -c "import ILAMB; print('ILAMB v%s successfully installed' % (ILAMB.__version__))"
+    displayName: "Install ILAMB"
 
-- script: |
-    cd test
-    export RDMAV_FORK_SAFE=1
-    export ILAMB_ROOT=./
-    make
-  displayName: 'Run tests'
+  - script: |
+      cd test
+      export RDMAV_FORK_SAFE=1
+      export ILAMB_ROOT=./
+      make
+    displayName: "Run tests"
