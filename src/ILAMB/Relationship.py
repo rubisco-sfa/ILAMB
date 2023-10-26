@@ -69,9 +69,11 @@ class Relationship(object):
         return s
 
     def checkConsistency(self):
-        assert np.allclose(self.dep.data.shape, self.ind.data.shape)
+        if not np.allclose(self.dep.data.shape, self.ind.data.shape):
+            self.dep = self.dep.interpolate(lat=self.ind.lat, lon=self.ind.lon)
         if self.color:
-            assert np.allclose(self.dep.data.shape, self.color.data.shape)
+            if not np.allclose(self.dep.data.shape, self.color.data.shape):
+                self.color = self.color.interpolate(lat=self.ind.lat, lon=self.ind.lon)
         if self.ind_log:
             assert self.ind.data.min() > 0
         if self.dep_log:
