@@ -149,6 +149,7 @@ def plot_bias(var: Variable, filename: str) -> None:
     fig.savefig(filename, dpi="figure")
     plt.close()
 
+
 class ConfPermafrost(Confrontation):
     def __init__(self, **keywords):
         # Ugly, but this is how we call the Confrontation constructor
@@ -268,7 +269,8 @@ class ConfPermafrost(Confrontation):
         for ptype, pflag in zip(["d", "c"], [1, 2]):
             both[ptype] = _area_bias(bias, -pflag)
             missed[ptype] = _area_bias(bias, pflag)
-            score_missed[ptype] = both[ptype] / (both[ptype] + missed[ptype])
+            with np.errstate(all="ignore"):
+                score_missed[ptype] = both[ptype] / (both[ptype] + missed[ptype])
             area_both += both[ptype]
         score_excess = both[ptype] / area_mod.data
 
