@@ -135,7 +135,7 @@ class ModelResult:
                         continue
                     if self.filter not in fileName:
                         continue
-                    if self.regex is not "":
+                    if self.regex != "":
                         m = re.search(self.regex, fileName)
                         if not m:
                             continue
