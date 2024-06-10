@@ -187,6 +187,7 @@ class Confrontation(object):
             )
             msg += "%s\n\nbut I cannot find it. " % self.source
             msg += "Did you download the data? Have you set the ILAMB_ROOT envronment variable?\n"
+            logger.debug(f"[{self.longname}] {msg}")
             raise il.MisplacedData(msg)
 
         # Setup a html layout for generating web views of the results
