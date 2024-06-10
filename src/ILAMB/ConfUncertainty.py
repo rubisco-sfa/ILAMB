@@ -422,9 +422,7 @@ class ConfUncertainty(Confrontation):
                 legend=True,
             )
             fig, ax = plt.subplots(figsize=(6.8, 1.0), tight_layout=True)
-            post.ColorBar(
-                ax, vmin=0, vmax=1, cmap=plt.cm.get_cmap("score", 3), label="1"
-            )
+            post.ColorBar(ax, vmin=0, vmax=1, cmap=plt.get_cmap("score", 3), label="1")
             fig.savefig(os.path.join(self.output_path, "legend_%s.png" % (pname)))
             plt.close()
 
@@ -434,7 +432,7 @@ class ConfUncertainty(Confrontation):
                     region=region,
                     vmin=0,
                     vmax=1,
-                    cmap=plt.cm.get_cmap("score", 3),
+                    cmap=plt.get_cmap("score", 3),
                 )
                 fig = ax.get_figure()
                 fig.savefig(
