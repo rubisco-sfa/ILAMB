@@ -218,6 +218,9 @@ class Regions(object):
                 ).argmax(axis=1)
             else:
                 # if more globally defined, nearest neighbor is fine
+                if lat is None or var.lat is None:
+                    msg = f"No latitudes are given either in the variable:\n{var}\n{var.lat}\nor in the region: {label} {lat}"
+                    logger.debug(msg)
                 rows = (np.abs(lat[:, np.newaxis] - var.lat)).argmin(axis=0)
                 cols = (np.abs(lon[:, np.newaxis] - var.lon)).argmin(axis=0)
             if var.ndata:
