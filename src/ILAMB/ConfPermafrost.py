@@ -191,7 +191,7 @@ class ConfPermafrost(Confrontation):
         dmax = float(self.keywords.get("dmax", 3.5))
         Teps = float(self.keywords.get("Teps", 273.15))
         tsl = m.extractTimeSeries(
-            "tsl", initial_time=(y0 - 1850) * 365, final_time=(yf - 1850) * 365
+            "tsl", alt_vars = ["TSOI"], initial_time=(y0 - 1850) * 365, final_time=(yf - 1850) * 365
         )
         tsl = tsl.trim(lat=[max(obs.lat.min(), tsl.lat.min()), 90])
 
