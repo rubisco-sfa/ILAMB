@@ -114,7 +114,7 @@ class ConfSoilCarbon(Confrontation):
         mod_soilc = (
             m.extractTimeSeries(
                 "cSoilAbove1m",
-                alt_vars=["soilc", "cSoil"],
+                alt_vars=["soilc", "cSoil", "TOTSOMC_1m"],
                 initial_time=t0,
                 final_time=tf,
             )
@@ -123,18 +123,18 @@ class ConfSoilCarbon(Confrontation):
         )
         mod_npp = (
             m.extractTimeSeries(
-                "npp", initial_time=t0, final_time=tf, expression="gpp-ra"
+                "npp", alt_vars=["NPP"], initial_time=t0, final_time=tf, expression="gpp-ra"
             )
             .integrateInTime(mean=True)
             .convert("kg m-2 yr-1")
         )
         mod_tas = (
-            m.extractTimeSeries("tas", initial_time=t0, final_time=tf)
+            m.extractTimeSeries("tas", alt_vars=["TSA"], initial_time=t0, final_time=tf)
             .integrateInTime(mean=True)
             .convert("degC")
         )
         mod_pr = (
-            m.extractTimeSeries("pr", initial_time=t0, final_time=tf)
+            m.extractTimeSeries("pr", initial_time=t0, final_time=tf, expression   = "RAIN+SNOW")
             .integrateInTime(mean=True)
             .convert("mm yr-1")
         )
