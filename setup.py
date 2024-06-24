@@ -109,7 +109,7 @@ setup(
     scripts=["bin/ilamb-run", "bin/ilamb-fetch", "bin/ilamb-mean", "bin/ilamb-setup"],
     zip_safe=False,
     install_requires=[
-        "numpy>=1.11.0, != 1.24.3",
+        "numpy<2",
         "pandas>=1.0.0",
         "matplotlib>=2.2",
         "cartopy>=0.17.0",
