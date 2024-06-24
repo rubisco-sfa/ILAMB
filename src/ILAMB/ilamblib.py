@@ -8,7 +8,6 @@ import numpy as np
 from cf_units import Unit
 from mpi4py import MPI
 from netCDF4 import Dataset
-from pkg_resources import get_distribution, parse_version
 from scipy.interpolate import NearestNDInterpolator
 
 from ILAMB.Regions import Regions
@@ -722,7 +721,7 @@ def FromNetCDF4(
     """
     try:
         dset = Dataset(filename, mode="r")
-        if parse_version(get_distribution("netCDF4").version) >= parse_version("1.4.1"):
+        if "set_always_mask" in dir(dset):
             dset.set_always_mask(False)
         if group is None:
             grp = dset
@@ -1330,7 +1329,7 @@ def AnalysisMeanStateSites(ref, com, **keywords):
             ]
             if len(val) > 0:
                 mask.append(ILAMBregions.getMask(region, bias))
-                values.append((~mask[-1]) * float(val))
+                values.append((~mask[-1]) * float(val.iloc[0]))
         bias_score_map = deepcopy(bias)
         bias_score_map.data = np.ma.masked_array(
             np.array(values).sum(axis=0), mask=np.array(mask).all(axis=0)
@@ -1380,7 +1379,7 @@ def AnalysisMeanStateSites(ref, com, **keywords):
                 ]
                 if len(val) > 0:
                     mask.append(ILAMBregions.getMask(region, crmse))
-                    values.append((~mask[-1]) * float(val))
+                    values.append((~mask[-1]) * float(val.iloc[0]))
             rmse_score_map = deepcopy(crmse)
             rmse_score_map.data = np.ma.masked_array(
                 np.array(values).sum(axis=0), mask=np.array(mask).all(axis=0)
@@ -2045,7 +2044,7 @@ def AnalysisMeanStateSpace(ref, com, **keywords):
             ]
             if len(val) > 0:
                 mask.append(ILAMBregions.getMask(region, bias))
-                values.append((~mask[-1]) * float(val))
+                values.append((~mask[-1]) * float(val.iloc[0]))
         bias_score_map = deepcopy(bias)
         bias_score_map.data = np.ma.masked_array(
             np.array(values).sum(axis=0), mask=np.array(mask).all(axis=0)
@@ -2207,7 +2206,7 @@ def AnalysisMeanStateSpace(ref, com, **keywords):
                 ]
                 if len(val) > 0:
                     mask.append(ILAMBregions.getMask(region, crmse))
-                    values.append((~mask[-1]) * float(val))
+                    values.append((~mask[-1]) * float(val.iloc[0]))
             rmse_score_map = deepcopy(crmse)
             rmse_score_map.data = np.ma.masked_array(
                 np.array(values).sum(axis=0), mask=np.array(mask).all(axis=0)
