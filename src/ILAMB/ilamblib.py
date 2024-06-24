@@ -8,7 +8,6 @@ import numpy as np
 from cf_units import Unit
 from mpi4py import MPI
 from netCDF4 import Dataset
-from pkg_resources import get_distribution, parse_version
 from scipy.interpolate import NearestNDInterpolator
 
 from ILAMB.Regions import Regions
@@ -722,7 +721,7 @@ def FromNetCDF4(
     """
     try:
         dset = Dataset(filename, mode="r")
-        if parse_version(get_distribution("netCDF4").version) >= parse_version("1.4.1"):
+        if "set_always_mask" in dir(dset):
             dset.set_always_mask(False)
         if group is None:
             grp = dset
