@@ -1452,15 +1452,13 @@ class Variable:
                     transform=ccrs.PlateCarree(),
                 )
             else:
-                norm = colors.Normalize(vmin, vmax)
-                cmap = get_cmap(cmap)
-                clrs = cmap(norm(self.data))
                 p = ax.scatter(
                     self.lon,
                     self.lat,
                     s=35,
-                    color=clrs,
-                    cmap=cmap,
+                    c=self.data.filled(np.nan),
+                    norm=colors.Normalize(vmin, vmax),
+                    cmap=get_cmap(cmap),
                     linewidths=0,
                     transform=ccrs.PlateCarree(),
                 )
