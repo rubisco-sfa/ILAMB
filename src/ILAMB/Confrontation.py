@@ -345,7 +345,8 @@ class Confrontation(object):
             t0=None if len(self.study_limits) != 2 else self.study_limits[0],
             tf=None if len(self.study_limits) != 2 else self.study_limits[1],
         )
-        obs.data *= self.scale_factor
+        with np.errstate(all="ignore"):
+            obs.data *= self.scale_factor
         if obs.time is None:
             raise il.NotTemporalVariable()
         self.pruneRegions(obs)
