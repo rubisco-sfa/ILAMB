@@ -1,0 +1,16 @@
+name: Publish ILAMB to PyPI
+
+on:
+  release:
+    types:
+      - published
+
+jobs:
+  pypi-publish:
+    name: upload release to PyPI
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+    steps:
+      - name: Publish package distributions to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
