@@ -1004,9 +1004,9 @@ def FromNetCDF4(
         lat_name = []
         lon_name = []
         for key in grp.variables.keys():
-            if "lat" in key:
+            if key.lower().startswith("lat"):
                 lat_name.append(key)
-            if "lon" in key:
+            if key.lower().startswith("lon"):
                 lon_name.append(key)
             if "altitude" in key:
                 depth_name = key
