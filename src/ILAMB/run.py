@@ -9,6 +9,7 @@ from mpi4py import MPI
 
 from ILAMB import ilamblib as il
 from ILAMB.ModelResult import ModelResult
+from matplotlib import colors as mplclrs
 
 logger = logging.getLogger("%i" % MPI.COMM_WORLD.rank)
 rank = 0
@@ -187,7 +188,7 @@ def _parse_model_yaml(filename: str, cache_path: str = "./", only_models: list =
 
     for model in models:
         if isinstance(model.color, str) and model.color.startswith("#"):
-            model.color = clr.hex2color(model.color)
+            model.color = mplclrs.hex2color(model.color)
     return models
 
 def ParseModelSetup(
