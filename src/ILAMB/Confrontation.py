@@ -601,7 +601,7 @@ class Confrontation(object):
 
             # Determine plot limits and colormap
             if opts["sym"]:
-                vabs = max(abs(limits[pname]["min"]), abs(limits[pname]["min"]))
+                vabs = max(abs(limits[pname]["min"]), abs(limits[pname]["max"]))
                 limits[pname]["min"] = -vabs
                 limits[pname]["max"] = vabs
             if "shift" in pname:
