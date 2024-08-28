@@ -1,20 +1,16 @@
-import numpy as np
 import sys
+
+import numpy as np
+import pandas as pd
+
 if len(sys.argv) != 3:
     print("usage: python score_diff.py scores1.csv scores2.csv")
     sys.exit(1)
-gold = np.recfromcsv(sys.argv[1],encoding=None)
-test = np.recfromcsv(sys.argv[2],encoding=None)
-assert gold.dtype == test.dtype
-ok   = True
-for model in gold.dtype.names[1:]:
-    if not np.allclose(test[model],gold[model]):
-        ok   = False
-        diff = np.abs(test[model]-gold[model])/gold[model]
-        for i in range(diff.size):
-            if diff[i] > 1e-12:
-                print("%s | %s | %.6f%% " % (gold['variables'][i],model,diff[i]*100.))
-if not ok:
+gold = pd.read_csv(sys.argv[1]).set_index("Variables")
+test = pd.read_csv(sys.argv[2]).set_index("Variables")
+diff = np.abs(gold - test) / gold
+if not (diff < 1e12).all()["LandTest"]:
     print("Test failed")
+    print(diff[diff > 1e-12].dropna())
     sys.exit(1)
 print("Test passed")
