@@ -21,6 +21,7 @@ steps:
     displayName: Create conda environment
 
   - script: |
+      conda init
       conda activate ilamb
       python -m pip install ./
       python -c "import ILAMB; print('ILAMB v%s successfully installed' % (ILAMB.__version__))"
