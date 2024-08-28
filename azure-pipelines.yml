@@ -15,9 +15,8 @@ steps:
     displayName: "Use Python $(python.version)"
 
   - script: |
-      sudo apt-get -y install libgeos-dev proj-bin libproj-dev libmpich-dev libhdf5-dev
+      sudo apt-get -y install libgeos-dev proj-bin libproj-dev libmpich-dev libhdf5-dev libudunits2-dev
       python -m pip install --upgrade pip
-      python -m pip install shapely==1.8.5 requests
       python -m pip install ./
       python -c "import ILAMB; print('ILAMB v%s successfully installed' % (ILAMB.__version__))"
     displayName: "Install ILAMB"
