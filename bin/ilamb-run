@@ -8,6 +8,7 @@ mpi4py.rc.threads = False
 import logging
 
 import yaml
+
 from ILAMB.ModelResult import ModelResult
 
 try:
@@ -33,12 +34,13 @@ import matplotlib.colors as clr
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from mpi4py import MPI
+from netCDF4 import Dataset
+
 from ILAMB import ilamblib as il
 from ILAMB.Post import RegisterCustomColormaps
 from ILAMB.Regions import Regions
 from ILAMB.Scoreboard import Scoreboard
-from mpi4py import MPI
-from netCDF4 import Dataset
 
 if "wetdry" not in plt.colormaps():
     RegisterCustomColormaps()
@@ -956,8 +958,7 @@ if args.global_region:
 # Setup study
 T0 = time.time()
 if rank == 0:
-    if not os.path.isdir(args.build_dir[0]):
-        os.makedirs(args.build_dir[0])
+    os.makedirs(args.build_dir[0], exist_ok=True)
 if args.model_setup is None:
     M = InitializeModels(
         args.model_root[0],
