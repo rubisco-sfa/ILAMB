@@ -601,7 +601,7 @@ class Confrontation(object):
 
             # Determine plot limits and colormap
             if opts["sym"]:
-                vabs = max(abs(limits[pname]["min"]), abs(limits[pname]["min"]))
+                vabs = max(abs(limits[pname]["min"]), abs(limits[pname]["max"]))
                 limits[pname]["min"] = -vabs
                 limits[pname]["max"] = vabs
             if "shift" in pname:
@@ -705,6 +705,8 @@ class Confrontation(object):
                         weight = self.weight[score]
                     overall_score += weight * scalars.variables[v][...]
                     sum_of_weights += weight
+                if np.abs(overall_score) < 1e-12:
+                    overall_score = np.nan
                 overall_score /= max(sum_of_weights, 1e-12)
                 scores["Overall Score %s" % region] = overall_score
             return scores
