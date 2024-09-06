@@ -358,7 +358,7 @@ def ConvertList(node):
     for key in s.keys():
         if key == "children":
             continue
-        x = s[key]
+        x = np.ma.masked_invalid(s[key])
         with np.errstate(under="ignore"):
             x = (x - x.mean()) / (x.std().clip(0.02) if x.std() > 1e-12 else 1)
         x.data[x.mask] = -999
