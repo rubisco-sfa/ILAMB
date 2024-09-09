@@ -5,7 +5,7 @@ from codecs import open
 
 from setuptools import setup
 
-VERSION = "2.7"
+VERSION = "2.7.2"
 
 
 def git_version():
