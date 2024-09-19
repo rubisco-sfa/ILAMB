@@ -751,9 +751,24 @@ def FromNetCDF4(
     attr = {attr: var.getncattr(attr) for attr in var.ncattrs()}
 
     # Check on dimensions
-    time_name = [name for name in var.dimensions if "time" in name.lower()]
-    lat_name = [name for name in var.dimensions if "lat" in name.lower()]
-    lon_name = [name for name in var.dimensions if "lon" in name.lower()]
+    time_name = [
+        name
+        for name in var.dimensions
+        for pattern in [".*time.*", "t$"]
+        if re.fullmatch(pattern, name.lower())
+    ]
+    lat_name = [
+        name
+        for name in var.dimensions
+        for pattern in [".*lat.*", "y$"]
+        if re.fullmatch(pattern, name.lower())
+    ]
+    lon_name = [
+        name
+        for name in var.dimensions
+        for pattern in [".*lon.*", "x$"]
+        if re.fullmatch(pattern, name.lower())
+    ]
     data_name = [
         name
         for name in var.dimensions
