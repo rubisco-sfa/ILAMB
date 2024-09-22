@@ -11,6 +11,11 @@ from netCDF4 import Dataset
 from scipy.interpolate import NearestNDInterpolator
 
 from ILAMB.Regions import Regions
+from ILAMB.constants import (
+    cf_coordinate_type_standard_names,
+    cf_coordinate_type_units,
+    cf_coordinate_type_axis
+)
 
 logger = logging.getLogger("%i" % MPI.COMM_WORLD.rank)
 
@@ -93,6 +98,86 @@ class NotDatasiteVariable(Exception):
 class MonotonicityError(Exception):
     def __str__(self):
         return "MonotonicityError"
+
+
+def _is_cf_time_coordinate(cv):
+    """Determine whether this coordinate variable is a cf-compliant time coordinate.
+
+    Parameters
+    ----------
+    cv: netCDF4.Variable
+        NetCDF coordinate variable.
+
+    Returns
+    -------
+    bool
+        True if cv is a cf-compliant time coordinate, False otherwise.
+    """
+    ncattrs = cv.ncattrs()
+    return (
+        "standard_name" in ncattrs and
+        cv.standard_name == cf_coordinate_type_standard_names["time"]
+    ) or (
+        "units" in ncattrs and Unit(
+            cv.units,
+            calendar=cv.calendar if "calendar" in ncattrs else None
+        ).is_time_reference()
+    ) or (
+        "axis" in ncattrs and
+        cv.axis == cf_coordinate_type_axis["time"]
+    )
+
+
+def _is_cf_latitude_coordinate(cv):
+    """Determine whether this coordinate variable is a cf-compliant latitude coordinate.
+
+    Parameters
+    ----------
+    cv: netCDF4.Variable
+        NetCDF coordinate variable.
+
+    Returns
+    -------
+    bool
+        True if cv is a cf-compliant latitude coordinate, False otherwise.
+    """
+    ncattrs = cv.ncattrs()
+    return (
+        "standard_name" in ncattrs and
+        cv.standard_name == cf_coordinate_type_standard_names["lat"]
+    ) or (
+        "units" in ncattrs and
+        cv.units in cf_coordinate_type_units["lat"]
+    ) or (
+        "axis" in ncattrs and
+        cv.axis == cf_coordinate_type_axis["lat"]
+    )
+
+
+def _is_cf_longitude_coordinate(cv):
+    """Determine whether this coordinate variable is a cf-compliant longitude coordinate.
+
+    Parameters
+    ----------
+    cv: netCDF4.Variable
+        NetCDF coordinate variable.
+
+    Returns
+    -------
+    bool
+        True if cv is a cf-compliant longitude coordinate, False otherwise.
+    """
+    ncattrs = cv.ncattrs()
+    return (
+        "standard_name" in ncattrs and
+        cv.standard_name == cf_coordinate_type_standard_names["lon"]
+    ) or (
+        "units" in ncattrs and
+        cv.units in cf_coordinate_type_units["lon"]
+    ) or (
+        "axis" in ncattrs and
+        cv.axis == cf_coordinate_type_axis["lon"]
+    )
 
 
 def FixDumbUnits(unit):
@@ -253,7 +338,7 @@ def ConvertCalendar(t, units, calendar):
     )
 
 
-def GetTime(var, t0=None, tf=None, convert_calendar=True, ignore_time_array=True):
+def GetTime(var, time_name, t0=None, tf=None, convert_calendar=True, ignore_time_array=True):
     """ """
     # New method of handling time does not like my biggest/smallest time convention
     if t0 is not None:
@@ -268,8 +353,6 @@ def GetTime(var, t0=None, tf=None, convert_calendar=True, ignore_time_array=True
     vname = "%s:%s" % (dset.filepath(), var.name)
     CB = None
 
-    # What is the time dimension called in the dataset/variable?
-    time_name = [name for name in var.dimensions if "time" in name.lower()]
     if len(time_name) == 0:
         return None, None, None, None, None, None
     elif len(time_name) > 1:
@@ -848,6 +931,30 @@ def FromNetCDF4(
         lat_name = [dims[0]]
         lon_name = [dims[1]]
 
+    for dim_name in var.dimensions:
+        if dim_name not in grp.variables:
+            continue
+        cv = grp.variables[dim_name]
+        if not time_name and _is_cf_time_coordinate(cv):
+            time_name = list(cv.dimensions)
+            continue
+        if shp is not None:
+            continue
+        if not lat_name and _is_cf_latitude_coordinate(cv):
+            lat_name = list(cv.dimensions)
+            continue
+        if not lon_name and _is_cf_longitude_coordinate(cv):
+            lon_name = list(cv.dimensions)
+            continue
+
+    # This is done so that any inferred spatiotemporal dimensions are not
+    # misinterpreted as a layered/depth dimension.
+    missed = [
+        name
+        for name in missed
+        if name not in (time_name + lat_name + lon_name + data_name)
+    ]
+
     # Lat dimension
     if len(lat_name) == 1:
         lat_name = lat_name[0]
@@ -938,7 +1045,7 @@ def FromNetCDF4(
     data = None
     cbounds = None
     t, t_bnd, cbounds, begin, end, calendar = GetTime(
-        var, t0=t0, tf=tf, convert_calendar=convert_calendar
+        var, time_name, t0=t0, tf=tf, convert_calendar=convert_calendar
     )
 
     # Are there uncertainties?

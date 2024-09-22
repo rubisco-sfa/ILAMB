@@ -320,3 +320,36 @@ time_opts["dtcycle"] = {
     "ticklabels": lbl_months,
     "ylabel": "unit",
 }
+
+# CF constants
+
+cf_coordinate_type_standard_names = {
+    "time": "time",
+    "lat": "latitude",
+    "lon": "longitude",
+}
+
+cf_coordinate_type_units = {
+    "lat": [
+        "degrees_north",
+        "degree_north",
+        "degree_N",
+        "degrees_N",
+        "degreeN",
+        "degreesN",
+    ],
+    "lon": [
+        "degrees_east",
+        "degree_east",
+        "degree_E",
+        "degrees_E",
+        "degreeE",
+        "degreesE",
+    ],
+}
+
+cf_coordinate_type_axis = {
+    "time": "T",
+    "lat": "Y",
+    "lon": "X",
+}
