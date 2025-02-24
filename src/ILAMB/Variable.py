@@ -1540,20 +1540,9 @@ class Variable:
                 data = data.data[ind]
                 data = np.ma.masked_array(data, mask=mask)
                 if self.data_bnds is not None:
-
-                    if self.data_bnds.shape == self.data.shape:
-                        ind = np.ix_(*args)
-                        # one std?
-                        data_bnds = np.ma.stack(
-                                            [self.data[ind]-self.data_bnds[ind],
-                                             self.data[ind]+self.data_bnds[ind]], axis=len(args))
-
-                        self.data_bnds = data_bnds
-                    else:
-                        args.append([0, 1])
-                        ind = np.ix_(*args)
-                        data_bnds = self.data_bnds[ind]
-
+                    args.append([0, 1])
+                    ind = np.ix_(*args)
+                    data_bnds = self.data_bnds[ind]
                 np.seterr(under="ignore", over="ignore")
                 frac = self.area / il.CellAreas(
                     self.lat, self.lon, self.lat_bnds, self.lon_bnds
