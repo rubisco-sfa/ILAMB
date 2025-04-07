@@ -1317,6 +1317,7 @@ class Variable:
         data = self.data if self.data_bnds is None else self.data_bnds
         pad = 0.05 * (data.max() - data.min())
         lw = keywords.get("lw", 1.0)
+        ls = keywords.get("ls", "-")
         alpha = keywords.get("alpha", 1.0)
         color = keywords.get("color", "k")
         label = keywords.get("label", None)
@@ -1335,7 +1336,15 @@ class Variable:
             ticks = keywords.get("ticks", None)
             ticklabels = keywords.get("ticklabels", None)
             t = self.time / 365.0 + 1850
-            ax.plot(t, self.data, "-", color=color, lw=lw, alpha=alpha, label=label)
+            ax.plot(
+                t,
+                self.data,
+                ls=ls,
+                color=color,
+                lw=lw,
+                alpha=alpha,
+                label=label,
+            )
             if self.data_bnds is not None:
                 ax.fill_between(
                     t,
