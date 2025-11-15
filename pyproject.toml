@@ -35,4 +35,6 @@ dev = [
 
 
 [tool.setuptools]
-packages = []
+packages = ["ILAMB"]
+package-dir = {"" = "src"}
+
