@@ -35,6 +35,8 @@ def filehash(filepath):
 
 def GenerateSha1sumFile(root, suffix=".nc"):
     lines = ""
+    collection=os.path.basename(os.path.normpath(root))
+    print(f'Collection: {collection}')
     for topdir, dirs, files in os.walk(root):
         if topdir.startswith("_"):
             continue
@@ -46,7 +48,7 @@ def GenerateSha1sumFile(root, suffix=".nc"):
             size = os.path.getsize(fpath)
             sha = filehash(fpath)
             name = os.path.relpath(fpath, root)
-            lines += "%s  %s\n" % (sha, name)
+            lines += "%s  %s/%s\n" % (sha, collection, name)
     return lines
 
 
@@ -86,8 +88,16 @@ parser.add_argument(
     dest="remote_root",
     metavar="PATH",
     type=str,
-    default="https://www.ilamb.org/ILAMB-Data/",
+    default="https://www.ilamb.org/DATA",
     help="Location on the remote system.",
+)
+parser.add_argument(
+    "-k",
+    "--collection",
+    dest="collection",
+    type=str,
+    default="ILAMB-Data",
+    help="Data collection to download. [Options: ILAMB-Data (default); ABoVE-Data; NGEEA-Data;]",
 )
 parser.add_argument(
     "-c",
@@ -112,7 +122,7 @@ args = parser.parse_args()
 
 # use create mode if you want to make a checksum file of a directory
 if args.create:
-    with open(args.local_root + "/SHA1SUM", mode="w") as f:
+    with open(args.local_root + "/SHA1SUM_" + args.collection, mode="w") as f:
         f.write(GenerateSha1sumFile(args.local_root))
     sys.exit()
 
@@ -123,7 +133,7 @@ print(
 
 # download and build the sha1sum check files
 try:
-    resp = requests.get(args.remote_root + "/SHA1SUM", verify=(not args.check))
+    resp = requests.get(args.remote_root + "/SHA1SUM_" + args.collection, verify=(not args.check))
 except requests.exceptions.SSLError:
     print(
         """
@@ -136,17 +146,17 @@ certificate check step.
     )
     sys.exit(1)
 
-with open(args.local_root + "/SHA1SUM", "wb") as f:
+with open(args.local_root + "/SHA1SUM_" + args.collection, "wb") as f:
     f.write(resp.content)
-if "404 Not Found" in open(args.local_root + "/SHA1SUM").read():
+if "404 Not Found" in open(args.local_root + "/SHA1SUM_" + args.collection).read():
     raise ValueError(
-        "Could not find the sha1 sum file: %s" % (args.remote_root + "/SHA1SUM")
+        "Could not find the sha1 sum file: %s" % (args.remote_root + "/SHA1SUM_" + args.collection)
     )
-needs_updating = CheckSha1sumFile(args.local_root + "/SHA1SUM", args.local_root)
+needs_updating = CheckSha1sumFile(args.local_root + "/SHA1SUM_" + args.collection, args.local_root)
 
 if len(needs_updating) == 0:
     print("\nAll your data is up-to-date and clean.\n")
-    os.system("rm -f " + args.local_root + "/SHA1SUM")
+    os.system("rm -f " + args.local_root + "/SHA1SUM_" + args.collection)
     sys.exit()
 
 print("\nI found the following files which are missing, out of date, or corrupt:\n")
@@ -200,4 +210,4 @@ if reply[0] == "y":
                         pbar.update(len(ch))
     print("\nDownload complete. Rerun ilamb-fetch to check file integrity.\n")
 
-os.system("rm -f " + args.local_root + "/SHA1SUM")
+os.system("rm -f " + args.local_root + "/SHA1SUM_" + args.collection)
