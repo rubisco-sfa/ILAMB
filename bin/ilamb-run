@@ -6,6 +6,7 @@ import mpi4py.rc
 
 mpi4py.rc.threads = False
 import logging
+logger = logging.getLogger(__name__)
 
 import yaml
 
@@ -833,7 +834,7 @@ parser.add_argument(
     type=str,
     nargs=1,
     default=[""],
-    help="a string which much be in the model filenames",
+    help="a string which must be in the model filenames",
 )
 parser.add_argument(
     "--regex",
