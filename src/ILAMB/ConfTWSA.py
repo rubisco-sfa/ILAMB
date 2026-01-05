@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -34,11 +35,8 @@ class ConfTWSA(Confrontation):
         # Adding a member variable called basins, add them as regions
         r = Regions()
         nbasins = self.keywords.get("nbasins", 30)
-        self.basins = r.addRegionNetCDF4(
-            os.path.join(
-                "/".join(self.source.split("/")[:-3]), "mrro/Dai/basins_0.5x0.5.nc"
-            )
-        )[:nbasins]
+        basin_source = Path(self.source).parent.parent / "mrro/Dai/basins_0.5x0.5.nc"
+        self.basins = r.addRegionNetCDF4(basin_source)[:nbasins]
 
     def stageData(self, m):
         r"""Extracts model data which is comparable to the observations.
