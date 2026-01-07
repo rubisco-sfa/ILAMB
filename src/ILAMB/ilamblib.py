@@ -840,7 +840,7 @@ def FromNetCDF4(
     data_name = [
         name
         for name in var.dimensions
-        if name.lower() in ["data", "lndgrid", "gridcell"]
+        if name.lower() in ["data", "lndgrid", "gridcell", "site"]
     ]
     missed = [
         name
