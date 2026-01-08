@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ilamb"
+version = "2.7.2"
+description = "ILAMB environment dependencies"
+requires-python = ">=3.9"
+dependencies = [
+    "numpy",
+    "pandas",
+    "matplotlib",
+    "cartopy",
+    "netCDF4",
+    "cf-units",
+    "sympy",
+    "mpi4py",
+    "scipy",
+    "cftime",
+    "tqdm",
+    "pyarrow",
+    "PyYAML",
+    "requests"
+]
+dynamic = ["classifiers", "readme", "keywords"]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "black",
+    "flake8"
+]
+
+
+
+[tool.setuptools]
+packages = ["ILAMB"]
+package-dir = {"" = "src"}
+

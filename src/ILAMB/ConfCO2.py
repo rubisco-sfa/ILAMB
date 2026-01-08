@@ -210,11 +210,20 @@ class ConfCO2(Confrontation):
         ilev = 1
 
         # Get the model result
-        mod = m.extractTimeSeries(
-            emulated_flux,
-            initial_time=obs.time_bnds[0, 0] - float(Ninf) / 12 * 365 + 29.0,
-            final_time=obs.time_bnds[-1, 1],
-        )
+
+        try: 
+            mod = m.extractTimeSeries(
+                emulated_flux,
+                initial_time=obs.time_bnds[0, 0] - float(Ninf) / 12 * 365 + 29.0,
+                final_time=obs.time_bnds[-1, 1],
+            )
+        except:
+            emulated_flux = "nbp"
+            mod = m.extractTimeSeries(
+                emulated_flux,
+                initial_time=obs.time_bnds[0, 0] - float(Ninf) / 12 * 365 + 29.0,
+                final_time=obs.time_bnds[-1, 1],
+            )
 
         # What if I don't have Ninf leadtime?
         tf = min(obs.time_bnds[-1, 1], mod.time_bnds[-1, 1])
