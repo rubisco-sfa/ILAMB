@@ -4,7 +4,7 @@
 
 The python package designed to help confront earth system models with reference data products, and then present the results in a hierarchical set of webpages. Please see [ilamb.org](https://www.ilamb.org) where we have details about the datasets we use, the results we catalog, and the methods we employ.
 
-## v2.7.2 Release - September 2024
+## v2.7.3 Release - January 2025
 
 This update contains many bugfixes found while supporting papers and other model-data comparison work in the community. You may sense that the development of ILAMB has slowed down. Code development at *this* repository has slowed, but ILAMB continues to change. Many datasets are being added to our comparisons but that activity happens in a different repository (see [ILAMB-Data](https://github.com/rubisco-sfa/ILAMB-Data)). 
 
