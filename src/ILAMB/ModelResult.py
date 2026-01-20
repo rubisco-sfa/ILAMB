@@ -406,14 +406,22 @@ class ModelResult:
         # variable from a given expression
         if len(V) == 0:
             if expression is not None:
-                v = self.derivedVariable(
-                    variable,
-                    expression,
-                    lats=lats,
-                    lons=lons,
-                    initial_time=initial_time,
-                    final_time=final_time,
-                )
+
+                expressions = expression.split(',')
+                for express in expressions:
+                    try:
+                        v = self.derivedVariable(
+                            variable,
+                            express,
+                            lats=lats,
+                            lons=lons,
+                            initial_time=initial_time,
+                            final_time=final_time,
+                        )
+                        return v
+                    except:
+                        continue 
+                raise il.VarNotInModel()
             else:
                 tstr = ""
                 if tmin < tmax:

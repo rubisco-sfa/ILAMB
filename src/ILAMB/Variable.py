@@ -167,6 +167,7 @@ class Variable:
 
         # Add handling for some units which cf_units does not support
         unit = unit.replace("psu", "1e-3")
+        unit = unit.replace("proportion", "1")
 
         if not np.ma.isMaskedArray(data):
             data = np.ma.masked_array(data)

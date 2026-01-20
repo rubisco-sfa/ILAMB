@@ -32,18 +32,25 @@ class ConfGSNF(Confrontation):
         the model."""
         model_flux = self.keywords.get("model_flux", "nee")
         obs = Variable(filename=self.source, variable_name=self.variable)
-        mod = (
-            m.extractTimeSeries(
-                model_flux,
-                expression=model_flux,
-                initial_time=(2000 - 1850) * 365,  # earlier so CMIP5 will be included
-                final_time=(2017 - 1850) * 365,
-            )
-            .trim(lat=[20, 90])
-            .integrateInSpace()
-            .annualCycle()
-            .convert(obs.unit)
-        )
+
+        for mf in model_flux.split(','):
+            try:
+                mod = (
+                    m.extractTimeSeries(
+                        mf,
+                        expression=mf,
+                        initial_time=(2000 - 1850) * 365,  # earlier so CMIP5 will be included
+                        final_time=(2017 - 1850) * 365,
+                    )
+                    .trim(lat=[20, 90])
+                    .integrateInSpace()
+                    .annualCycle()
+                    .convert(obs.unit)
+                )
+                break
+            except:
+                continue 
+            raise il.VarNotInModel()
         # just a hack to make sure the cycles are on the same time frame
         obs.time = mod.time
         obs.time_bnds = mod.time_bnds
