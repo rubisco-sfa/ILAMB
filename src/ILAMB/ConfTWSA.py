@@ -35,7 +35,10 @@ class ConfTWSA(Confrontation):
         # Adding a member variable called basins, add them as regions
         r = Regions()
         nbasins = self.keywords.get("nbasins", 30)
-        basin_source = Path(self.source).parent.parent / "mrro/Dai/basins_0.5x0.5.nc"
+        basin_source = self.keywords.get(
+            "basin_source",
+            Path(os.environ["ILAMB_ROOT"]) / "DATA/mrro/Dai/basins_0.5x0.5.nc",
+        )
         self.basins = r.addRegionNetCDF4(basin_source)[:nbasins]
 
     def stageData(self, m):
